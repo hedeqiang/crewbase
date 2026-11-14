@@ -17,13 +17,13 @@
 - [x] 作用域：全局 + Agent 作用域；作用域分发（Agent 事件只发给全局与本 Agent 的监听器）
 - [x] 隔离组（isolate）
 - [x] Profile / Bundle / Patch 加载（按 id 替换、插入、禁用），`--dump-config`
-- [~] 示例插件 `greet-tool` + `tool-logger` 跑通（Phase 0 出口）
+- [x] 示例插件 `greet-tool` + `tool-logger` 跑通（Phase 0 出口）
 
 ## 迭代 2 — 核心插件 core（第 1–2 周）  ← 当前
-- [ ] `core/session`：仅追加 JSONL 会话日志（版本号 v1）、投影（deriveMessages）、崩溃补记「中断」
-- [ ] `core/llm`：消息 / 流式块词汇表、适配器约定、错误分类（限流 / 额度耗尽 / 故障）
-- [ ] `core/tools`：注册表 + 执行流水线（tool/call 先记录 → pre-execute → 守卫 → approval → execute → post-execute → 定稿 → tools/result → tool/result）
-- [ ] `core/scope`：覆盖（shadowing）与限制（restriction，取交集）
+- [x] `core/session`：仅追加 JSONL 会话日志（版本号 v1）、投影（deriveMessages）、崩溃补记「中断」
+- [x] `core/llm`：消息 / 流式块词汇表、适配器约定、错误分类（限流 / 额度耗尽 / 故障）
+- [x] `core/tools`：注册表 + 执行流水线（tool/call 先记录 → pre-execute → 守卫 → approval → execute → post-execute → 定稿 → tools/result → tool/result）
+- [x] `core/scope`：覆盖（shadowing）与限制（restriction，取交集）
 - [ ] `core/prompt`：提示词片段 + 工具 schema 组装
 - [ ] `core/agent`：Agent 注册表、组装窗口、`agent.Inject()`、FIFO 队列（暂停 / 恢复 / 插队 / 取消）（A-1 部分）
 - [ ] `core/agentloop`：默认 Agent 循环（turn / step 事件流）
@@ -43,7 +43,7 @@
 - [ ] `sandbox` 能力：`sandbox-none`、`sandbox-docker`、`sandbox-seatbelt`；`enforcement: full|partial`；`SANDBOX_UNAVAILABLE` 关闭式失败
 - [ ] 运行模式预设 A / B / C（C 限时 24h）（S-1）
 - [ ] 规则引擎：动作类别 Allow / Ask / Block 默认表、Agent 只能收紧、记住的选择（S-2）
-- [ ] `approval` 能力：闭合结果集、无应答方 = unavailable、never 策略、审计写入失败即失败（S-3）
+- [x] `approval` 能力：闭合结果集、无应答方 = unavailable、never 策略、审计写入失败即失败（S-3）
 - [ ] `credentials`：引用 + macOS Keychain / libsecret / 内存（测试）、post-execute 脱敏（S-4）
 - [ ] `browser` 能力：CDP 本地池、每 Agent 独立 Profile、接管暂停（S-5）
 
@@ -96,4 +96,5 @@
 ## 迭代日志
 | 日期 | 迭代 | 结果 |
 |---|---|---|
+| 2026-11-14 | 2a | session 日志（JSONL、残行容错、投影、fork）、tools 流水线（先记录、pre-execute、守卫、审批、post-execute 脱敏）、approval（never / 无应答方 / 审计失败均关闭式失败）、作用域覆盖与限制；greet-tool + tool-logger 通过 |
 | 2026-11-14 | 0 + 1 | 骨架、kernel（服务 / PENDING / 五种分发 / Effect / 作用域分发 / 隔离组 / Profile 补丁），race 测试通过；greet-tool 示例待 core/tools 完成后补 |
