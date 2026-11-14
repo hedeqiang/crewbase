@@ -13,7 +13,9 @@ import (
 	"time"
 
 	"github.com/hedeqiang/crewbase/bridge/jsonrpc"
+	"github.com/hedeqiang/crewbase/capabilities/approval"
 	"github.com/hedeqiang/crewbase/core/llm"
+	"github.com/hedeqiang/crewbase/core/tools"
 )
 
 // proc is one running ACP agent process and its JSON-RPC connection.
@@ -178,10 +180,10 @@ func (p *proc) session(id string) *sessionState {
 	return p.sessions[id]
 }
 
-// newSession runs session/new and optionally selects a model.
-func (p *proc) newSession(ctx context.Context, model string) (*sessionState, error) {
+// newSession runs session/new in cwd and optionally selects a model.
+func (p *proc) newSession(ctx context.Context, model, cwd string) (*sessionState, error) {
 	var res newSessionResult
-	if err := p.conn.Call(ctx, mSessionNew, newSessionParams{Cwd: p.a.cfg.Cwd, MCPServers: []any{}}, &res); err != nil {
+	if err := p.conn.Call(ctx, mSessionNew, newSessionParams{Cwd: cwd, MCPServers: []any{}}, &res); err != nil {
 		return nil, p.classify(err, "")
 	}
 	if res.SessionID == "" {
@@ -190,7 +192,7 @@ func (p *proc) newSession(ctx context.Context, model string) (*sessionState, err
 	if res.Models != nil {
 		p.a.learnModels(res.Models.AvailableModels)
 	}
-	s := &sessionState{id: res.SessionID, cwd: p.a.cfg.Cwd}
+	s := &sessionState{id: res.SessionID, cwd: cwd}
 	p.mu.Lock()
 	p.sessions[s.id] = s
 	p.mu.Unlock()
@@ -267,8 +269,10 @@ func (p *proc) onRequest(ctx context.Context, method string, params json.RawMess
 	return nil, jsonrpc.ErrMethodNotFound
 }
 
-// permission answers session/request_permission. Without autoApprove every
-// request is rejected; Crewbase approval routing is a TODO.
+// permission answers session/request_permission. autoApprove allows every
+// request; otherwise it is routed to Crewbase approvals (Options.Approve) and
+// only an allowed-once answer selects the CLI's allow_once option. Everything
+// else (no approver, rejected, timeout) selects reject_once.
 func (p *proc) permission(params json.RawMessage) (any, error) {
 	var pp permissionParams
 	if err := json.Unmarshal(params, &pp); err != nil {
@@ -292,13 +296,39 @@ func (p *proc) permission(params json.RawMessage) (any, error) {
 		}
 		return ""
 	}
+	seen := t.tool(pp.ToolCall.ToolCallID)
 	title := pp.ToolCall.Title
 	if title == "" {
+		title = seen.title
+	}
+	if title == "" {
 		title = pp.ToolCall.ToolCallID
+	}
+	kind := pp.ToolCall.Kind
+	if kind == "" {
+		kind = seen.kind
 	}
 	if p.a.autoApprove {
 		if id := pick("allow_once", "allow_always"); id != "" {
 			t.note(fmt.Sprintf("[auto-approved: %s]", title))
+			return permissionResult{Outcome: permissionOutcome{Outcome: "selected", OptionID: id}}, nil
+		}
+	}
+	outcome := approval.OutcomeUnavailable
+	if p.a.approve != nil {
+		outcome = p.a.approve(t.ctx, approval.Request{
+			CallID:   "acp/" + t.session + "/" + pp.ToolCall.ToolCallID,
+			Session:  t.session,
+			Agent:    t.agent,
+			Tool:     p.a.id,
+			Category: permissionCategory(kind),
+			Summary:  title,
+			Reason:   "the " + p.a.cfg.Name + " CLI asks for permission",
+		})
+	}
+	if outcome == approval.OutcomeAllowedOnce {
+		if id := pick("allow_once"); id != "" {
+			t.note(fmt.Sprintf("[approved: %s]", title))
 			return permissionResult{Outcome: permissionOutcome{Outcome: "selected", OptionID: id}}, nil
 		}
 	}
@@ -307,6 +337,20 @@ func (p *proc) permission(params json.RawMessage) (any, error) {
 		return permissionResult{Outcome: permissionOutcome{Outcome: "selected", OptionID: id}}, nil
 	}
 	return permissionResult{Outcome: permissionOutcome{Outcome: "cancelled"}}, nil
+}
+
+// permissionCategory maps an ACP tool kind to a Crewbase action category;
+// unknown kinds are treated as command execution.
+func permissionCategory(kind string) string {
+	switch kind {
+	case "read", "fetch", "search":
+		return tools.CategoryRead
+	case "edit", "move":
+		return tools.CategoryWrite
+	case "delete":
+		return tools.CategoryDelete
+	}
+	return tools.CategoryExec
 }
 
 // within resolves path (absolute, per ACP) and checks it stays inside root,

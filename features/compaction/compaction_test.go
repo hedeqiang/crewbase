@@ -484,3 +484,111 @@ func TestUsageBreakdownAndConversationControls(t *testing.T) {
 		t.Fatalf("new conversation messages %+v", msgs)
 	}
 }
+
+func TestKeptToolResultsPruned(t *testing.T) {
+	e := newEnv(t, t.TempDir(), map[string]any{"keepRecentTokens": 2400, "pruneToolResultChars": 400})
+	a, _ := e.agents.Create(agent.Spec{Name: "Pam"})
+	ss, _ := a.Session()
+	send(t, a, ss.ID(), filler(1))
+	for i := 0; i < 3; i++ {
+		send(t, a, ss.ID(), "/tool big_output {}")
+	}
+	if err := e.comp.Compact(context.Background(), a, ss, llm.ModelRef{Provider: "tiny", Model: "default"}, "manual"); err != nil {
+		t.Fatal(err)
+	}
+	events := ss.Events()
+	resultSeq := map[string]int64{}
+	var lastResult string
+	for _, ev := range events {
+		if ev.Type == session.TypeToolResult {
+			var r llm.ToolResult
+			ev.Decode(&r)
+			resultSeq[r.CallID] = ev.Seq
+			lastResult = r.CallID
+		}
+	}
+	var pruned []session.PrunedData
+	var upto int64
+	keptPruned := true
+	for _, ev := range events {
+		if ev.Type == compaction.TypeStart {
+			var st compaction.Start
+			ev.Decode(&st)
+			upto = st.UptoSeq
+		}
+		if ev.Type != session.TypeToolPruned {
+			continue
+		}
+		var p session.PrunedData
+		ev.Decode(&p)
+		pruned = append(pruned, p)
+		// pruned results lie in the region the compaction kept
+		if resultSeq[p.CallID] <= upto {
+			keptPruned = false
+		}
+	}
+	if len(pruned) == 0 {
+		t.Fatalf("no tool/pruned events (end %+v)", lastEnd(t, ss))
+	}
+	kp := 0
+	for _, ev := range events {
+		if ev.Type == compaction.TypeEnd {
+			var end compaction.End
+			ev.Decode(&end)
+			kp += end.KeptPruned
+		}
+	}
+	if kp != len(pruned) {
+		t.Fatalf("keptPruned %d, events %d", kp, len(pruned))
+	}
+	for _, p := range pruned {
+		if p.CallID == lastResult {
+			t.Fatal("the last steps' tool results must not be pruned")
+		}
+		if len(p.Content) > 600 || !strings.Contains(p.Content, fmt.Sprintf("history_read session=%s from=%d", ss.ID(), resultSeq[p.CallID])) {
+			t.Fatalf("pruned content %q", p.Content)
+		}
+		// the original stays readable
+		args, _ := json.Marshal(map[string]any{"session": ss.ID(), "from": resultSeq[p.CallID], "to": resultSeq[p.CallID]})
+		rd := e.tools.Run(context.Background(), e.h.Root(), tools.Call{ID: "hr", Name: "history_read", Agent: a.ID(), Args: args})
+		if rd.Result.IsError || !strings.Contains(rd.Result.Content, "lorem ipsum dolor lorem ipsum dolor") || !strings.Contains(rd.Result.Content, "END") {
+			t.Fatalf("history_read: %q", rd.Result.Content)
+		}
+	}
+	if !keptPruned {
+		t.Fatal("a result outside the kept region was pruned")
+	}
+	// the live context shrinks (measured right after the prune events)
+	cutAt := 0
+	for i, ev := range events {
+		if ev.Type == session.TypeToolPruned {
+			cutAt = i + 1
+		}
+	}
+	prefix := events[:cutAt]
+	var prefixRaw []session.Event
+	for _, ev := range prefix {
+		if ev.Type != session.TypeToolPruned {
+			prefixRaw = append(prefixRaw, ev)
+		}
+	}
+	withPrune := llm.EstimateRequest(llm.Request{Messages: session.DeriveMessages(prefix, a.ID(), e.agents.Names())})
+	without := llm.EstimateRequest(llm.Request{Messages: session.DeriveMessages(prefixRaw, a.ID(), e.agents.Names())})
+	if withPrune >= without {
+		t.Fatalf("context did not shrink: %d >= %d", withPrune, without)
+	}
+	// a second compaction does not prune the same results again
+	n := len(pruned)
+	send(t, a, ss.ID(), filler(2))
+	_ = e.comp.Compact(context.Background(), a, ss, llm.ModelRef{Provider: "tiny", Model: "default"}, "manual")
+	seen := map[string]int{}
+	for _, ev := range ss.Events() {
+		if ev.Type == session.TypeToolPruned {
+			var p session.PrunedData
+			ev.Decode(&p)
+			if seen[p.CallID]++; seen[p.CallID] > 1 {
+				t.Fatalf("pruned twice: %s (had %d)", p.CallID, n)
+			}
+		}
+	}
+}

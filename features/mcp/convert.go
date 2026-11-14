@@ -9,6 +9,7 @@ import (
 	"hash/fnv"
 	"net/url"
 	"regexp"
+	"sort"
 	"strings"
 
 	"github.com/hedeqiang/crewbase/capabilities/credentials"
@@ -40,14 +41,15 @@ func ToolName(server, tool string) string {
 }
 
 // Category maps MCP tool annotations onto a rules-engine category. Hints
-// come from the server, so only the explicit read-only hint lowers the
-// category; an explicit destructive hint raises it to delete; everything
-// else (including open-world tools) is exec.
-func Category(a *sdk.ToolAnnotations) string {
+// come from the server: the read-only hint lowers the category only when
+// trust is set (Server.TrustAnnotations); an explicit destructive hint
+// always raises it to delete; everything else (including open-world tools)
+// is exec.
+func Category(a *sdk.ToolAnnotations, trust bool) string {
 	switch {
 	case a == nil:
 		return tools.CategoryExec
-	case a.ReadOnlyHint:
+	case a.ReadOnlyHint && trust:
 		return tools.CategoryRead
 	case a.DestructiveHint != nil && *a.DestructiveHint:
 		return tools.CategoryDelete
@@ -121,6 +123,66 @@ func truncate(s string, n int) string {
 		return s
 	}
 	return s[:n] + "…"
+}
+
+// pathWords are the property names (or description words) that clearly
+// denote a file-system path.
+var pathWords = map[string]bool{"path": true, "file": true, "filepath": true, "dir": true, "directory": true, "cwd": true}
+
+var pathNameRe = regexp.MustCompile(`^(?i:(?:file|dir|directory|working|work|source|src|target|dest|destination|output|input|root|base)?[_-]?(?:path|file|file_?path|dir|directory|cwd|folder))s?$`)
+
+var pathDescRe = regexp.MustCompile(`(?i)\b(?:file(?:system)?\s+path|path\s+to\s+(?:a|the)\s+(?:file|directory|folder)|directory\s+path|absolute\s+path|relative\s+path|working\s+directory)\b`)
+
+// PathArgs returns the input-schema properties that are file-system paths:
+// string (or string-array) properties whose name is a path word ("path",
+// "file", "filepath", "dir", "directory", "cwd", or compounds such as
+// "file_path", "source_dir"), or whose description plainly says so ("file
+// path", "path to the file", "working directory"). Conservative: anything
+// ambiguous (e.g. "url", "name", "target") is not a path.
+func PathArgs(schema map[string]any) []string {
+	props, _ := schema["properties"].(map[string]any)
+	var out []string
+	for name, v := range props {
+		p, _ := v.(map[string]any)
+		if p == nil || !stringish(p) {
+			continue
+		}
+		desc, _ := p["description"].(string)
+		if pathWords[strings.ToLower(name)] || pathNameRe.MatchString(name) || pathDescRe.MatchString(desc) {
+			out = append(out, name)
+		}
+	}
+	sort.Strings(out)
+	return out
+}
+
+// stringish reports whether a schema property holds a string or strings.
+func stringish(p map[string]any) bool {
+	isStr := func(t any) bool {
+		switch x := t.(type) {
+		case string:
+			return x == "string"
+		case []any:
+			for _, e := range x {
+				if e == "string" {
+					return true
+				}
+			}
+		}
+		return false
+	}
+	if t, ok := p["type"]; ok {
+		if isStr(t) {
+			return true
+		}
+		if t == "array" {
+			if it, ok := p["items"].(map[string]any); ok {
+				return isStr(it["type"])
+			}
+		}
+		return false
+	}
+	return false
 }
 
 // inputSchema returns the tool's JSON schema as a map, defaulting to an

@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
@@ -30,7 +32,7 @@ type env struct {
 	mock   *mock.Adapter
 }
 
-func newEnv(t *testing.T, limits map[string]any) *env {
+func newEnv(t *testing.T, limits map[string]any, extra ...kernel.Spec) *env {
 	t.Helper()
 	h := kernel.NewHost(nil)
 	t.Cleanup(h.Close)
@@ -47,6 +49,11 @@ func newEnv(t *testing.T, limits map[string]any) *env {
 		{subagent.ForkPlugin, nil}, {subagent.DelegatePlugin, nil},
 	} {
 		if _, err := h.Load(x.s, kernel.LoadOptions{Config: x.cfg}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for _, s := range extra {
+		if _, err := h.Load(s, kernel.LoadOptions{}); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -355,5 +362,94 @@ func TestForkProvider(t *testing.T) {
 	}
 	if !sawContext {
 		t.Fatal("forked child did not get the parent's context")
+	}
+}
+
+func TestEphemeralChildSpec(t *testing.T) {
+	e := newEnv(t, nil)
+	kai, _ := e.agents.Create(agent.Spec{Name: "Kai"})
+	var spec agent.Spec
+	e.mock.Script = func(req llm.Request) (llm.Response, error) {
+		if a, ok := e.agents.Get(req.Agent); ok && req.Agent != kai.ID() {
+			spec = a.Spec()
+		}
+		return llm.Response{StopReason: "end", Message: llm.TextMessage(llm.RoleAssistant, "ok")}, nil
+	}
+	res, err := e.svc.Spawn(context.Background(), "local", capsub.Request{Parent: kai.ID(), Task: "hi"})
+	if err != nil || res.StopReason != capsub.StopCompleted {
+		t.Fatal(res, err)
+	}
+	if !spec.Ephemeral || spec.Parent != kai.ID() || strings.HasPrefix(spec.Role, "ephemeral") {
+		t.Fatalf("child spec %+v", spec)
+	}
+}
+
+func TestACPProvider(t *testing.T) {
+	fake := mock.New("acp-fake", 0)
+	fake.SetKind("subscription")
+	var mu sync.Mutex
+	var seen []llm.Request
+	fake.Script = func(req llm.Request) (llm.Response, error) {
+		mu.Lock()
+		seen = append(seen, req)
+		mu.Unlock()
+		return llm.Response{StopReason: "end", Message: llm.TextMessage(llm.RoleAssistant, "cli did: "+req.Messages[len(req.Messages)-1].Text())}, nil
+	}
+	reg := kernel.Spec{Name: "fake-acp", Inject: []string{llm.ServiceKey}, Apply: func(c *kernel.Context) error {
+		return kernel.Use[*llm.Registry](c, llm.ServiceKey).Register(c, fake)
+	}}
+	e := newEnv(t, nil, reg, subagent.ACPPlugin)
+	kai, _ := e.agents.Create(agent.Spec{Name: "Kai"})
+	ss, _ := kai.Session()
+
+	for _, cli := range []string{"fake", "acp-fake", ""} {
+		res, err := e.svc.Spawn(context.Background(), "acp", capsub.Request{Parent: kai.ID(), ParentSession: ss.ID(), Agent: cli, Task: "fix the bug"})
+		if err != nil || res.StopReason != capsub.StopCompleted || !strings.HasSuffix(res.Output, "fix the bug") || !strings.HasPrefix(res.Output, "cli did:") {
+			t.Fatalf("%q: %+v %v", cli, res, err)
+		}
+		if _, ok := e.agents.Get(res.Child); ok {
+			t.Fatal("ephemeral child not deleted")
+		}
+	}
+	mu.Lock()
+	n := len(seen)
+	last := seen[n-1]
+	mu.Unlock()
+	if n != 3 || last.Model != "default" || last.Agent == kai.ID() || !strings.HasPrefix(last.Agent, kai.ID()+"-sub-") || last.Session == ss.ID() {
+		t.Fatalf("requests %d, last %+v", n, last)
+	}
+	// the CLI works on the parent's files, which survive the child
+	if last.Workspace != kai.Workspace() {
+		t.Fatalf("acp child should share the parent's workspace: %q vs %q", last.Workspace, kai.Workspace())
+	}
+	if _, err := os.Stat(filepath.Join(kai.Workspace(), "INSTRUCTIONS.md")); err != nil {
+		t.Fatal("parent workspace removed with the ephemeral child")
+	}
+	// the parent's own model was never used for the delegated turn
+	for _, r := range e.mock.Requests() {
+		if strings.Contains(r.System, "-sub-") {
+			t.Fatal("acp task ran on the default model")
+		}
+	}
+	if _, err := e.svc.Spawn(context.Background(), "acp", capsub.Request{Parent: kai.ID(), Agent: "codex", Task: "x"}); err == nil || !strings.Contains(err.Error(), "acp-fake") {
+		t.Fatalf("unknown CLI: %v", err)
+	}
+	sp := spawned(t, ss)
+	if len(sp) != 3 || sp[0].Provider != "acp" || !sp[0].Ephemeral {
+		t.Fatalf("%+v", sp)
+	}
+
+	// through the delegate tool
+	got := run(t, kai, delegateCmd(map[string]any{"task": "write tests", "provider": "acp", "agent": "fake"}))
+	if !strings.Contains(got, "cli did:") || !strings.Contains(got, "write tests") {
+		t.Fatalf("%q", got)
+	}
+}
+
+func TestACPProviderWithoutCLI(t *testing.T) {
+	e := newEnv(t, nil, subagent.ACPPlugin)
+	kai, _ := e.agents.Create(agent.Spec{Name: "Kai"})
+	if _, err := e.svc.Spawn(context.Background(), "acp", capsub.Request{Parent: kai.ID(), Task: "x"}); err == nil {
+		t.Fatal("expected an error without ACP adapters")
 	}
 }

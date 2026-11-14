@@ -30,9 +30,9 @@ import (
 	"github.com/hedeqiang/crewbase/kernel"
 )
 
-// PathArgs are the argument names treated as file system paths. The core
-// Tool type has no way to declare path arguments, so the guard checks
-// these well-known names on every tool.
+// PathArgs are the argument names treated as file system paths for tools
+// that do not declare tools.Tool.PathArgs; the guard checks these
+// well-known names on such tools.
 var PathArgs = []string{"path", "paths", "file_path", "filepath", "cwd", "dir", "directory", "workdir", "target", "source", "destination", "dest"}
 
 // Effective is the agent's effective run mode (host expires to sandbox).
@@ -136,7 +136,15 @@ func (g *Guard) Check(ctx context.Context, d *tools.Decision) (string, bool) {
 			return reason, true
 		}
 	}
-	return checkPaths(call)
+	return checkPaths(call, argNames(d.Tool))
+}
+
+// argNames is the tool's declared path arguments, or the well-known names.
+func argNames(t *tools.Tool) []string {
+	if t != nil && len(t.PathArgs) > 0 {
+		return t.PathArgs
+	}
+	return PathArgs
 }
 
 func (g *Guard) readOnly(ctx context.Context, cat string) (string, bool) {
@@ -167,8 +175,8 @@ func (g *Guard) readOnly(ctx context.Context, cat string) (string, bool) {
 }
 
 // checkPaths denies path arguments that leave the workspace.
-func checkPaths(call *tools.Call) (string, bool) {
-	paths := pathArgs(call)
+func checkPaths(call *tools.Call, names []string) (string, bool) {
+	paths := pathArgs(call, names)
 	if len(paths) == 0 {
 		return "", false
 	}
@@ -190,13 +198,13 @@ func checkPaths(call *tools.Call) (string, bool) {
 	return "", false
 }
 
-func pathArgs(call *tools.Call) []string {
+func pathArgs(call *tools.Call, names []string) []string {
 	var m map[string]any
 	if call.Decode(&m) != nil {
 		return nil
 	}
 	var out []string
-	for _, k := range PathArgs {
+	for _, k := range names {
 		switch v := m[k].(type) {
 		case string:
 			if v != "" && !strings.Contains(v, "://") {

@@ -89,6 +89,20 @@ type Server struct {
 	Enabled bool   `json:"enabled"`
 	// Trust is "sandboxed" (default) or "host" for stdio servers; empty for http.
 	Trust string `json:"trust,omitempty"`
+	// TrustAnnotations lets the server's readOnlyHint lower a tool's
+	// category to read. Off by default: annotations are self-reported, so
+	// an untrusted server's tools are exec unless Categories says otherwise.
+	TrustAnnotations bool `json:"trustAnnotations,omitempty"`
+	// Categories overrides the category per tool (keyed by the server's
+	// tool name or the namespaced name).
+	Categories map[string]string `json:"categories,omitempty"`
+}
+
+// knownCategories are the categories a Categories override may name.
+var knownCategories = map[string]bool{
+	tools.CategoryRead: true, tools.CategoryExec: true, tools.CategoryInstall: true, tools.CategoryWrite: true,
+	tools.CategoryPush: true, tools.CategoryDelete: true, tools.CategoryPublish: true, tools.CategoryPayment: true,
+	tools.CategoryNone: true,
 }
 
 var (
@@ -115,6 +129,11 @@ func (s Server) Normalize() (Server, error) {
 	}
 	if s.Scope != ScopeGlobal && !scopeRe.MatchString(s.Scope) {
 		return s, invalid("scope must be %q or an agent id", ScopeGlobal)
+	}
+	for k, v := range s.Categories {
+		if k == "" || !knownCategories[v] {
+			return s, invalid("categories: %q → %q is not a known category", k, v)
+		}
 	}
 	switch s.Transport {
 	case TransportStdio:
@@ -162,6 +181,7 @@ func (s Server) clone() Server {
 	s.Command = append([]string(nil), s.Command...)
 	s.Env = cloneMap(s.Env)
 	s.Headers = cloneMap(s.Headers)
+	s.Categories = cloneMap(s.Categories)
 	return s
 }
 
@@ -297,6 +317,46 @@ type Service struct {
 func (s *Service) agents() *agent.Registry {
 	r, _ := kernel.Lookup[*agent.Registry](s.c, agent.ServiceKey)
 	return r
+}
+
+// agentReadOnly reports whether srv is scoped to an agent whose run mode is
+// read-only: its sandbox must then be read-only too.
+func (s *Service) agentReadOnly(srv Server) bool {
+	if srv.Scope == ScopeGlobal {
+		return false
+	}
+	reg := s.agents()
+	if reg == nil {
+		return false
+	}
+	a, ok := reg.Get(srv.Scope)
+	return ok && sandbox.EffectiveRunMode(a.Mode()) == agent.ModeReadOnly
+}
+
+// onAgentUpdated restarts the agent's sandboxed stdio servers when its run
+// mode moved into or out of read-only, so the sandbox policy follows.
+func (s *Service) onAgentUpdated(spec agent.Spec) {
+	s.op.Lock()
+	defer s.op.Unlock()
+	s.mu.Lock()
+	var todo []*entry
+	for _, e := range s.entries {
+		if e.srv.Scope == spec.ID && e.conn != nil && e.srv.Transport == TransportStdio && e.srv.Trust == TrustSandboxed {
+			todo = append(todo, e)
+		}
+	}
+	s.mu.Unlock()
+	for _, e := range todo {
+		s.mu.Lock()
+		c := e.conn
+		srv := e.srv
+		s.mu.Unlock()
+		if c == nil || c.readOnly == s.agentReadOnly(srv) {
+			continue
+		}
+		s.stopLocked(e)
+		s.startLocked(e, nil)
+	}
 }
 
 func (s *Service) sandbox() sandbox.Sandbox {
@@ -601,7 +661,7 @@ func (s *Service) Probe(ctx context.Context, srv Server) ([]ToolInfo, error) {
 	if err != nil {
 		return nil, sess.scrubErr(err)
 	}
-	return describe(n.Name, list), nil
+	return describe(n, list), nil
 }
 
 // ProbeNamed probes a configured server.
@@ -679,6 +739,7 @@ func (s *Service) startLocked(e *entry, a *agent.Agent) {
 		parent = a.Ctx()
 	}
 	c := newConn(s, e, srv, parent.Fork(""))
+	c.readOnly = s.agentReadOnly(srv)
 	s.mu.Lock()
 	e.conn, e.why = c, ""
 	s.mu.Unlock()
@@ -786,6 +847,9 @@ var Plugin = kernel.Register(kernel.Spec{
 		agent.Created.Listen(c, func(ctx context.Context, a *agent.Agent) (struct{}, error) {
 			s.onAgentCreated(ctx, a)
 			return struct{}{}, nil
+		})
+		agent.Updated.Listen(c, func(spec agent.Spec) {
+			c.Go(func(context.Context) { s.onAgentUpdated(spec) })
 		})
 		if err := c.Provide(ServiceKey, s); err != nil {
 			return err

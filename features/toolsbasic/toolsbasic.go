@@ -108,6 +108,7 @@ func (b *basic) bashTool() *tools.Tool {
 			"timeout_seconds": tools.Prop("integer", "Timeout in seconds (default 120)."),
 		}, "command"),
 		Category: tools.CategoryExec,
+		PathArgs: []string{"cwd"},
 		Classify: func(call tools.Call) (string, string) {
 			cmd := call.String("command")
 			return ClassifyCommand(cmd), "bash: " + oneLine(cmd, 200)
@@ -235,6 +236,7 @@ func (b *basic) readTool() *tools.Tool {
 			"limit":  tools.Prop("integer", "Maximum number of lines (default 2000)."),
 		}, "path"),
 		Category: tools.CategoryRead,
+		PathArgs: []string{"path"},
 		Classify: func(call tools.Call) (string, string) { return tools.CategoryRead, "read " + call.String("path") },
 		Execute: func(ctx context.Context, call tools.Call) (tools.Result, error) {
 			var args struct {
@@ -306,6 +308,7 @@ func (b *basic) writeTool() *tools.Tool {
 			"content": tools.Prop("string", "Full file content."),
 		}, "path", "content"),
 		Category: tools.CategoryWrite,
+		PathArgs: []string{"path"},
 		Classify: func(call tools.Call) (string, string) { return tools.CategoryWrite, "write " + call.String("path") },
 		Execute: func(ctx context.Context, call tools.Call) (tools.Result, error) {
 			var args struct{ Path, Content string }
@@ -340,6 +343,7 @@ func (b *basic) editTool() *tools.Tool {
 			"new_string": tools.Prop("string", "Replacement text."),
 		}, "path", "old_string", "new_string"),
 		Category: tools.CategoryWrite,
+		PathArgs: []string{"path"},
 		Classify: func(call tools.Call) (string, string) { return tools.CategoryWrite, "edit " + call.String("path") },
 		Execute: func(ctx context.Context, call tools.Call) (tools.Result, error) {
 			var args struct {
@@ -373,6 +377,7 @@ func (b *basic) listTool() *tools.Tool {
 			"path": tools.Prop("string", "Directory, relative to the workspace or absolute. Default: the workspace."),
 		}),
 		Category: tools.CategoryRead,
+		PathArgs: []string{"path"},
 		Classify: func(call tools.Call) (string, string) { return tools.CategoryRead, "list " + call.String("path") },
 		Execute: func(ctx context.Context, call tools.Call) (tools.Result, error) {
 			var args struct{ Path string }
@@ -420,6 +425,7 @@ func (b *basic) deleteTool() *tools.Tool {
 			"recursive": tools.Prop("boolean", "Delete a directory and its contents."),
 		}, "path"),
 		Category: tools.CategoryDelete,
+		PathArgs: []string{"path"},
 		Classify: func(call tools.Call) (string, string) { return tools.CategoryDelete, "delete " + call.String("path") },
 		Execute: func(ctx context.Context, call tools.Call) (tools.Result, error) {
 			var args struct {

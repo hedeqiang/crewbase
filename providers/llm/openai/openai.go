@@ -358,6 +358,11 @@ func (a *Adapter) mapMessages(system string, msgs []llm.Message) []sdk.ChatCompl
 			}
 		}
 		if m.Role == llm.RoleAssistant {
+			// Thinking parts (and their provider metadata) are not
+			// understood here; a message holding nothing else is skipped.
+			if text.Len() == 0 && len(calls) == 0 {
+				continue
+			}
 			am := sdk.ChatCompletionAssistantMessageParam{ToolCalls: calls}
 			if t := text.String(); t != "" || len(calls) == 0 {
 				am.Content.OfString = param.NewOpt(t)
@@ -483,7 +488,9 @@ func (a *Adapter) Stream(ctx context.Context, req llm.Request, onChunk func(llm.
 			return llm.Response{}, &llm.Error{Kind: llm.ErrUnavailable, Provider: a.id, Message: "malformed stream chunk"}
 		}
 		if ch.JSON.Usage.Valid() && (ch.Usage.PromptTokens > 0 || ch.Usage.CompletionTokens > 0) {
-			usage = llm.Usage{InputTokens: int(ch.Usage.PromptTokens), OutputTokens: int(ch.Usage.CompletionTokens)}
+			d := ch.Usage.PromptTokensDetails // prompt_tokens already includes cached tokens
+			usage = llm.Usage{InputTokens: int(ch.Usage.PromptTokens), OutputTokens: int(ch.Usage.CompletionTokens),
+				CacheRead: int(d.CachedTokens), CacheWrite: int(d.CacheWriteTokens)}
 		}
 		for _, c := range ch.Choices {
 			if c.Index != 0 {

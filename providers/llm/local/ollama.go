@@ -124,7 +124,7 @@ func HumanSize(n int64) string {
 	return fmt.Sprintf("%.1f %cB", float64(n)/float64(div), "kMGTPE"[exp])
 }
 
-// Models lists installed models (GET /api/tags) with sizes in Name and
+// Models lists installed models (GET /api/tags) with SizeBytes and
 // context window / capabilities from POST /api/show (cached per digest).
 func (o *Ollama) Models(ctx context.Context) ([]llm.ModelInfo, error) {
 	o.mu.Lock()
@@ -156,11 +156,7 @@ func (o *Ollama) Models(ctx context.Context) ([]llm.ModelInfo, error) {
 		if o.numCtx > 0 {
 			w = o.numCtx
 		}
-		name := m.Name
-		if m.Size > 0 {
-			name = fmt.Sprintf("%s (%s)", m.Name, HumanSize(m.Size))
-		}
-		out = append(out, llm.ModelInfo{ID: m.Name, Provider: o.id, Name: name, ContextWindow: w, Capabilities: info.caps, Enabled: true})
+		out = append(out, llm.ModelInfo{ID: m.Name, Provider: o.id, Name: m.Name, ContextWindow: w, Capabilities: info.caps, Enabled: true, SizeBytes: m.Size})
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].ID < out[j].ID })
 	o.mu.Lock()
@@ -265,6 +261,11 @@ func mapOllama(system string, msgs []llm.Message) []ollamaMessage {
 			}
 		}
 		if m.Role == llm.RoleAssistant {
+			// Thinking parts (and their provider metadata) are not
+			// understood here; a message holding nothing else is skipped.
+			if text.Len() == 0 && len(calls) == 0 {
+				continue
+			}
 			out = append(out, ollamaMessage{Role: "assistant", Content: text.String(), ToolCalls: calls})
 			continue
 		}

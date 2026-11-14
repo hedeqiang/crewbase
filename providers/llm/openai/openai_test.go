@@ -67,7 +67,7 @@ func TestStreamText(t *testing.T) {
 			`{"choices":[{"delta":{"role":"assistant","reasoning_content":"hmm"}}]}`,
 			`{"choices":[{"delta":{"content":"Hel"}}]}`,
 			`{"choices":[{"delta":{"content":"lo"},"finish_reason":"stop"}]}`,
-			`{"choices":[],"usage":{"prompt_tokens":11,"completion_tokens":2}}`,
+			`{"choices":[],"usage":{"prompt_tokens":11,"completion_tokens":2,"prompt_tokens_details":{"cached_tokens":6}}}`,
 			`[DONE]`)
 	}))
 	defer srv.Close()
@@ -81,7 +81,7 @@ func TestStreamText(t *testing.T) {
 	if resp.Message.Text() != "Hello" || resp.StopReason != "end" {
 		t.Fatalf("resp = %+v", resp)
 	}
-	if resp.Usage.InputTokens != 11 || resp.Usage.OutputTokens != 2 {
+	if resp.Usage.InputTokens != 11 || resp.Usage.OutputTokens != 2 || resp.Usage.CacheRead != 6 {
 		t.Fatalf("usage = %+v", resp.Usage)
 	}
 	if len(chunks) != 3 || chunks[0].Type != "thinking" || chunks[1].Text != "Hel" {
@@ -431,5 +431,21 @@ func TestPluginAndCredentials(t *testing.T) {
 	}
 	if cap.auth != "Bearer secret-1" {
 		t.Fatalf("auth = %q", cap.auth)
+	}
+}
+
+func TestForeignThinkingSkipped(t *testing.T) {
+	a, err := New(nil, ProviderConfig{ID: "o", BaseURL: "http://x"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	msgs := a.mapMessages("", []llm.Message{
+		llm.TextMessage(llm.RoleUser, "q"),
+		{Role: llm.RoleAssistant, Parts: []llm.Part{{Type: "thinking", Text: "secret", Meta: map[string]string{"anthropic:signature": "S"}}}},
+		{Role: llm.RoleAssistant, Parts: []llm.Part{{Type: "thinking", Text: "t2", Meta: map[string]string{"gemini:thoughtSignature": "x"}}, {Type: "text", Text: "a"}}},
+	})
+	b, _ := json.Marshal(msgs)
+	if len(msgs) != 2 || strings.Contains(string(b), "secret") || strings.Contains(string(b), "t2") {
+		t.Fatalf("messages = %s", b)
 	}
 }

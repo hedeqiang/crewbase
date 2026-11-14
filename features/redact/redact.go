@@ -13,6 +13,7 @@ import (
 	"sync"
 	"unicode/utf8"
 
+	"github.com/hedeqiang/crewbase/core/agentloop"
 	"github.com/hedeqiang/crewbase/core/llm"
 	"github.com/hedeqiang/crewbase/core/tools"
 	"github.com/hedeqiang/crewbase/kernel"
@@ -141,7 +142,94 @@ func Result(r tools.Result, secrets []string) tools.Result {
 	return r
 }
 
-// Plugin registers redaction on tools/post-execute and llm/stream. It
+// Response redacts a complete model reply: consecutive text parts are
+// joined first (so a secret split across stream chunks is caught), then
+// text, thinking text and every tool call's argument strings are scrubbed.
+// A signed thinking part (provider Meta) whose text had to change loses its
+// Meta: the signature would no longer verify, and unsigned thinking is not
+// sent back to models.
+func Response(r llm.Response, secrets []string) llm.Response {
+	parts := make([]llm.Part, 0, len(r.Message.Parts))
+	for _, p := range r.Message.Parts {
+		if n := len(parts); n > 0 && p.Type == "text" && parts[n-1].Type == "text" && p.Meta == nil && parts[n-1].Meta == nil {
+			parts[n-1].Text += p.Text
+			continue
+		}
+		parts = append(parts, p)
+	}
+	for i := range parts {
+		p := &parts[i]
+		switch {
+		case p.Type == "text":
+			p.Text = With(p.Text, secrets)
+		case p.Type == "thinking":
+			if red := With(p.Text, secrets); red != p.Text {
+				p.Text = red
+				p.Meta = nil
+			}
+		case p.ToolCall != nil:
+			tc := *p.ToolCall
+			tc.Args = JSON(tc.Args, secrets)
+			p.ToolCall = &tc
+		}
+	}
+	r.Message.Parts = parts
+	return r
+}
+
+// JSON redacts every string value (and object key) inside a JSON document,
+// keeping it valid JSON. Invalid input is redacted as plain text.
+func JSON(raw json.RawMessage, secrets []string) json.RawMessage {
+	if len(raw) == 0 {
+		return raw
+	}
+	var v any
+	dec := json.NewDecoder(strings.NewReader(string(raw)))
+	dec.UseNumber()
+	if err := dec.Decode(&v); err != nil {
+		return json.RawMessage(With(string(raw), secrets))
+	}
+	changed := false
+	var walk func(any) any
+	walk = func(x any) any {
+		switch t := x.(type) {
+		case string:
+			if red := With(t, secrets); red != t {
+				changed = true
+				return red
+			}
+			return t
+		case []any:
+			for i := range t {
+				t[i] = walk(t[i])
+			}
+			return t
+		case map[string]any:
+			out := make(map[string]any, len(t))
+			for k, val := range t {
+				nk := With(k, secrets)
+				if nk != k {
+					changed = true
+				}
+				out[nk] = walk(val)
+			}
+			return out
+		}
+		return x
+	}
+	v = walk(v)
+	if !changed {
+		return raw
+	}
+	b, err := json.Marshal(v)
+	if err != nil {
+		return json.RawMessage(`{}`)
+	}
+	return b
+}
+
+// Plugin registers redaction on tools/post-execute, agent/response and
+// llm/stream. It
 // prepends both middlewares and redacts on the way out, so it sees the
 // final output of every other listener. Uses the `credentials` service
 // when present (looked up per call, so load order does not matter).
@@ -166,6 +254,13 @@ var Plugin = kernel.Register(kernel.Spec{
 				return Result(e.Result, secrets()), nil
 			}
 			return Result(r, secrets()), nil
+		})
+		agentloop.Response.Prepend(c, func(ctx context.Context, r llm.Response, next kernel.Next[llm.Response, llm.Response]) (llm.Response, error) {
+			out, err := next(ctx, r)
+			if err != nil {
+				return Response(r, secrets()), err
+			}
+			return Response(out, secrets()), nil
 		})
 		llm.StreamChunk.Prepend(c, func(ctx context.Context, ch llm.Chunk, next kernel.Next[llm.Chunk, llm.Chunk]) (llm.Chunk, error) {
 			s := secrets()

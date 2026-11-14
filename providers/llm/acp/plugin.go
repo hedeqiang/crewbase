@@ -10,15 +10,22 @@
 // always "end" or "max_tokens". Crewbase tools in Request.Tools are not
 // offered to the CLI.
 //
-// Sessions: one ACP session per conversation, keyed by hash(system prompt +
-// first message). It is reused while the request's messages extend what the
+// Sessions: one ACP session per conversation, keyed by agent + session (or
+// hash(system prompt + first message) when the request carries neither). It is reused while the request's messages extend what the
 // session has already seen (including its own last reply); otherwise a new
 // session starts with a rendered transcript of the earlier messages, which
 // keeps model switching lossless.
 //
-// Permissions: session/request_permission is rejected (the agent's
-// reject_once option) unless config autoApprove is true, in which case
-// allow_once is chosen. Routing to Crewbase approvals is future work.
+// Sessions run in Request.Workspace (the asking agent's workspace) when set,
+// else the configured cwd, and are keyed by Request.Agent + Request.Session
+// when known (falling back to the prompt hash below).
+//
+// Permissions: session/request_permission is routed to the approval service
+// (session Request.Session, agent Request.Agent, call id
+// "acp/<session>/<toolCallId>", category from the ACP tool kind, summary
+// from the tool title). Allowed-once selects the CLI's allow_once option;
+// anything else (rejected, no approver, no session) selects reject_once.
+// Config autoApprove: true is an explicit override that allows everything.
 // Client methods: fs/read_text_file and fs/write_text_file are served,
 // restricted to the session cwd (symlinks resolved); terminal/* and
 // everything else answer method-not-found (capability not advertised).
@@ -45,9 +52,32 @@ import (
 	"context"
 	"time"
 
+	"github.com/hedeqiang/crewbase/capabilities/approval"
 	"github.com/hedeqiang/crewbase/core/llm"
+	"github.com/hedeqiang/crewbase/core/session"
 	"github.com/hedeqiang/crewbase/kernel"
 )
+
+// approver routes CLI permission requests to the approval service, looked
+// up when asked (it may be provided after this plugin). Without the
+// service, a session store or a known session the answer is unavailable.
+func approver(c *kernel.Context) func(context.Context, approval.Request) approval.Outcome {
+	return func(ctx context.Context, req approval.Request) approval.Outcome {
+		svc, ok := kernel.Lookup[*approval.Service](c, approval.ServiceKey)
+		if !ok || req.Session == "" {
+			return approval.OutcomeUnavailable
+		}
+		store, ok := kernel.Lookup[*session.Store](c, session.ServiceKey)
+		if !ok {
+			return approval.OutcomeUnavailable
+		}
+		ss, err := store.Get(req.Session)
+		if err != nil {
+			return approval.OutcomeUnavailable
+		}
+		return svc.Ask(ctx, ss, req).Outcome
+	}
+}
 
 // ServiceKey is the key of the detection service (*Service).
 const ServiceKey = "llm-acp"
@@ -107,7 +137,7 @@ var Plugin = kernel.Register(kernel.Spec{
 				c.Log().Debug("acp agent not available", "agent", ac.ID, "cli", r.CLI, "installed", r.cliPath != "")
 				continue
 			}
-			a := newAdapter(providerID(r.ID), r, Options{AutoApprove: cfg.AutoApprove, IdleTimeout: idle, ToolNotes: notes, Go: goFn})
+			a := newAdapter(providerID(r.ID), r, Options{AutoApprove: cfg.AutoApprove, Approve: approver(c), IdleTimeout: idle, ToolNotes: notes, Go: goFn})
 			// processes stop when the plugin context's goroutines are
 			// cancelled; Close also drops sessions and the idle timer
 			c.Defer(a.Close)

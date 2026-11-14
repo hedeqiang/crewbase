@@ -253,3 +253,28 @@ func TestModeHelpers(t *testing.T) {
 		t.Fatal("nil session")
 	}
 }
+
+func TestDeclaredPathArgs(t *testing.T) {
+	ws := t.TempDir()
+	ctx := context.Background()
+	g := &runmode.Guard{}
+	outside := filepath.Join(filepath.Dir(ws), "elsewhere")
+	// a declared path argument with a non-standard name is confined
+	d := dec("sandbox", tools.CategoryRead, ws, map[string]any{"location": outside, "target": "x"})
+	d.Tool = &tools.Tool{Name: "t", PathArgs: []string{"location"}}
+	if _, denied := g.Check(ctx, d); !denied {
+		t.Fatal("declared path arg not confined")
+	}
+	// declared args replace the well-known names: "target" is not a path here
+	d = dec("sandbox", tools.CategoryRead, ws, map[string]any{"location": "a.txt", "target": outside})
+	d.Tool = &tools.Tool{Name: "t", PathArgs: []string{"location"}}
+	if reason, denied := g.Check(ctx, d); denied {
+		t.Fatal(reason)
+	}
+	// without a declaration the well-known names still apply
+	d = dec("sandbox", tools.CategoryRead, ws, map[string]any{"target": outside})
+	d.Tool = &tools.Tool{Name: "t"}
+	if _, denied := g.Check(ctx, d); !denied {
+		t.Fatal("fallback names not checked")
+	}
+}

@@ -940,7 +940,7 @@ func (s *Service) runAgentStep(ctx context.Context, lr *liveRun, st Step, group,
 		}
 	case <-ctx.Done():
 		if !a.Cancel(in.ID) && s.w.isRunning(tag) {
-			a.Stop()
+			a.StopInput(in.ID)
 			select {
 			case <-ch:
 			case <-time.After(5 * time.Second):

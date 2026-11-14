@@ -20,6 +20,9 @@ type Patch struct {
 	Headers   *map[string]string `json:"headers"`
 	Scope     *string            `json:"scope"`
 	Trust     *string            `json:"trust"`
+	// TrustAnnotations / Categories: see Server.
+	TrustAnnotations *bool              `json:"trustAnnotations"`
+	Categories       *map[string]string `json:"categories"`
 }
 
 // Apply applies p to s.
@@ -47,6 +50,12 @@ func (p Patch) Apply(s *Server) {
 	}
 	if p.Trust != nil {
 		s.Trust = *p.Trust
+	}
+	if p.TrustAnnotations != nil {
+		s.TrustAnnotations = *p.TrustAnnotations
+	}
+	if p.Categories != nil {
+		s.Categories = *p.Categories
 	}
 }
 

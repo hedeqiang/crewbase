@@ -1,6 +1,7 @@
 package acp
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -15,11 +16,14 @@ type turn struct {
 	toolNotes bool
 	onChunk   func(llm.Chunk) error
 	abort     func() // asks the agent to stop (session/cancel)
+	// request context (who is asking), for permission requests
+	ctx            context.Context
+	agent, session string
 
 	mu     sync.Mutex
 	parts  []llm.Part
-	tools  map[string]string // toolCallId -> title
-	err    error             // first onChunk error
+	tools  map[string]toolInfo // toolCallId -> title/kind
+	err    error               // first onChunk error
 	cancel bool
 	used   int // tokens reported by usage_update
 }
@@ -28,7 +32,7 @@ func newTurn(name string, notes bool, onChunk func(llm.Chunk) error, abort func(
 	if onChunk == nil {
 		onChunk = func(llm.Chunk) error { return nil }
 	}
-	return &turn{agentName: name, toolNotes: notes, onChunk: onChunk, abort: abort, tools: map[string]string{}}
+	return &turn{agentName: name, toolNotes: notes, onChunk: onChunk, abort: abort, tools: map[string]toolInfo{}, ctx: context.Background()}
 }
 
 func (t *turn) cancelled() bool {
@@ -120,7 +124,7 @@ func (t *turn) update(u sessionUpdate) {
 			title = u.Kind
 		}
 		t.mu.Lock()
-		t.tools[u.ToolCallID] = title
+		t.tools[u.ToolCallID] = toolInfo{title: title, kind: u.Kind}
 		t.mu.Unlock()
 		if t.toolNotes {
 			t.note(fmt.Sprintf("[%s tool: %s]", t.agentName, title))
@@ -130,7 +134,7 @@ func (t *turn) update(u sessionUpdate) {
 			return
 		}
 		t.mu.Lock()
-		title := t.tools[u.ToolCallID]
+		title := t.tools[u.ToolCallID].title
 		t.mu.Unlock()
 		if u.Title != "" {
 			title = u.Title
@@ -155,4 +159,13 @@ func (t *turn) result() (llm.Message, int, error) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	return llm.Message{Role: llm.RoleAssistant, Parts: append([]llm.Part(nil), t.parts...)}, t.used, t.err
+}
+
+type toolInfo struct{ title, kind string }
+
+// tool returns what the turn saw about a CLI tool call.
+func (t *turn) tool(id string) toolInfo {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	return t.tools[id]
 }

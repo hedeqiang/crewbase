@@ -19,7 +19,6 @@ package anthropic
 
 import (
 	"context"
-	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -85,8 +84,6 @@ type Adapter struct {
 	meta     map[string]modelMeta
 	cachedAt time.Time
 	cacheTTL time.Duration
-	sigs     map[[32]byte]string // thinking text hash → signature
-	sigOrder [][32]byte
 }
 
 // New builds an adapter; c (may be nil) is used for credential lookups.
@@ -97,7 +94,7 @@ func New(c *kernel.Context, pc ProviderConfig) *Adapter {
 	a := &Adapter{
 		id: pc.ID, baseURL: trimSlash(pc.BaseURL), defModel: pc.DefaultModel, headers: pc.Headers, static: pc.Models,
 		maxTokens: pc.MaxTokens, thinking: true, cache: true, httpClient: &http.Client{},
-		cacheTTL: 5 * time.Minute, sigs: map[[32]byte]string{}, meta: map[string]modelMeta{},
+		cacheTTL: 5 * time.Minute, meta: map[string]modelMeta{},
 	}
 	if a.baseURL == "" {
 		a.baseURL = "https://api.anthropic.com"
@@ -238,34 +235,18 @@ func (a *Adapter) metaFor(model string) modelMeta {
 
 // ---- thinking signatures ----
 //
-// llm.Part has no field for the opaque thinking signature, which Anthropic
-// requires to accept thinking blocks back. Signatures are remembered in
-// memory keyed by the thinking text; thinking blocks whose signature is
-// unknown (process restart, turn from another provider) are dropped.
+// Anthropic requires thinking blocks to be sent back with their opaque
+// signature (and redacted thinking with its encrypted data). Both travel
+// in llm.Part.Meta, so they are recorded in the session log and survive
+// restarts. Thinking parts without them (another provider's thinking, or
+// plain text) are dropped.
 
-func (a *Adapter) rememberSig(text, sig string) {
-	if sig == "" {
-		return
-	}
-	h := sha256.Sum256([]byte(text))
-	a.mu.Lock()
-	defer a.mu.Unlock()
-	if _, ok := a.sigs[h]; !ok {
-		a.sigOrder = append(a.sigOrder, h)
-	}
-	a.sigs[h] = sig
-	for len(a.sigOrder) > 512 {
-		delete(a.sigs, a.sigOrder[0])
-		a.sigOrder = a.sigOrder[1:]
-	}
-}
-
-func (a *Adapter) sigFor(text string) string {
-	h := sha256.Sum256([]byte(text))
-	a.mu.Lock()
-	defer a.mu.Unlock()
-	return a.sigs[h]
-}
+const (
+	// MetaSignature is the Part.Meta key of a thinking block's signature.
+	MetaSignature = "anthropic:signature"
+	// MetaRedacted is the Part.Meta key of a redacted thinking block's data.
+	MetaRedacted = "anthropic:redacted"
+)
 
 // ---- request mapping ----
 
@@ -284,7 +265,9 @@ func (a *Adapter) mapMessages(msgs []llm.Message) []sdk.MessageParam {
 			switch p.Type {
 			case "thinking":
 				if asst {
-					if sig := a.sigFor(p.Text); sig != "" {
+					if data := p.Meta[MetaRedacted]; data != "" {
+						blocks = append(blocks, sdk.NewRedactedThinkingBlock(data))
+					} else if sig := p.Meta[MetaSignature]; sig != "" {
 						blocks = append(blocks, sdk.NewThinkingBlock(sig, p.Text))
 					}
 				}
@@ -461,8 +444,15 @@ func (a *Adapter) Stream(ctx context.Context, req llm.Request, onChunk func(llm.
 	for _, b := range acc.Content {
 		switch b.Type {
 		case "thinking":
-			a.rememberSig(b.Thinking, b.Signature)
-			msg.Parts = append(msg.Parts, llm.Part{Type: "thinking", Text: b.Thinking})
+			part := llm.Part{Type: "thinking", Text: b.Thinking}
+			if b.Signature != "" {
+				part.Meta = map[string]string{MetaSignature: b.Signature}
+			}
+			msg.Parts = append(msg.Parts, part)
+		case "redacted_thinking":
+			if b.Data != "" {
+				msg.Parts = append(msg.Parts, llm.Part{Type: "thinking", Meta: map[string]string{MetaRedacted: b.Data}})
+			}
 		case "text":
 			if b.Text != "" {
 				msg.Parts = append(msg.Parts, llm.Part{Type: "text", Text: b.Text})
@@ -472,7 +462,10 @@ func (a *Adapter) Stream(ctx context.Context, req llm.Request, onChunk func(llm.
 		}
 	}
 	u := acc.Usage
-	usage := llm.Usage{InputTokens: int(u.InputTokens + u.CacheCreationInputTokens + u.CacheReadInputTokens), OutputTokens: int(u.OutputTokens)}
+	usage := llm.Usage{
+		InputTokens: int(u.InputTokens + u.CacheCreationInputTokens + u.CacheReadInputTokens), OutputTokens: int(u.OutputTokens),
+		CacheRead: int(u.CacheReadInputTokens), CacheWrite: int(u.CacheCreationInputTokens),
+	}
 	stop := "end"
 	switch acc.StopReason {
 	case sdk.StopReasonToolUse:

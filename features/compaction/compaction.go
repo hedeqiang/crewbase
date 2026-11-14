@@ -91,9 +91,11 @@ type Start struct {
 
 // End is the compaction/end payload.
 type End struct {
-	Status      string `json:"status"` // completed | skipped
-	Method      string `json:"method"` // model | extractive
-	Pruned      int    `json:"pruned"` // tool results pruned before summarising
+	Status string `json:"status"` // completed | skipped
+	Method string `json:"method"` // model | extractive
+	Pruned int    `json:"pruned"` // tool results pruned before summarising
+	// KeptPruned counts tool/pruned events written for the kept region.
+	KeptPruned  int    `json:"keptPruned,omitempty"`
 	TokensAfter int    `json:"tokensAfter"`
 	Error       string `json:"error,omitempty"` // model error that caused the fallback
 }
@@ -235,6 +237,19 @@ func (s *Service) compact(ctx context.Context, a *agent.Agent, ss *session.Sessi
 	msgs := session.DeriveMessages(region, id, s.agents.Names())
 	msgs, pruned := Prune(msgs, s.cfg.PruneToolResultChars, ss.ID(), region)
 
+	// Oversized tool results in the kept region (older than the last
+	// KeepSteps steps) are pruned in place, so the live context shrinks
+	// too; the originals stay readable with history_read.
+	keptPruned := 0
+	for _, pe := range PruneKept(events, id, cut, s.cfg.PruneToolResultChars, ss.ID()) {
+		if _, err := ss.Append(session.TypeToolPruned, id, pe); err == nil {
+			keptPruned++
+		}
+	}
+	if keptPruned > 0 {
+		events = ss.Events()
+	}
+
 	maxTok := s.cfg.SummaryMaxTokens
 	if maxTok <= 0 {
 		maxTok = min(win/10, 4000)
@@ -259,7 +274,7 @@ func (s *Service) compact(ctx context.Context, a *agent.Agent, ss *session.Sessi
 	if _, err := ss.Append(session.TypeCompaction, id, data); err != nil {
 		return Result{}, err
 	}
-	end := End{Status: "completed", Method: method, Pruned: pruned, TokensAfter: after}
+	end := End{Status: "completed", Method: method, Pruned: pruned, KeptPruned: keptPruned, TokensAfter: after}
 	if method == "extractive" && merr != nil {
 		end.Error = merr.Error()
 	}
@@ -371,8 +386,8 @@ func EventTokens(e session.Event, agentID string) int {
 		}
 		n := 0
 		for _, p := range m.Message.Parts {
-			if p.Type == "thinking" {
-				continue
+			if p.Type == "thinking" && p.Meta == nil {
+				continue // plain thinking is not sent back (DeriveMessages)
 			}
 			n += llm.EstimateTokens(p.Text) + 4
 			if p.ToolCall != nil {
@@ -409,10 +424,31 @@ func Cuts(events []session.Event, agentID string, afterSeq int64) []Cut {
 			vis = append(vis, e)
 		}
 	}
+	// pruned tool results cost what the model sees
+	pruned := map[string]string{}
+	for _, e := range events {
+		if e.Type == session.TypeToolPruned && e.Agent == agentID {
+			var p session.PrunedData
+			if e.Decode(&p) == nil {
+				pruned[p.CallID] = p.Content
+			}
+		}
+	}
+	tokens := func(e session.Event) int {
+		if e.Type == session.TypeToolResult && len(pruned) > 0 {
+			var r llm.ToolResult
+			if e.Decode(&r) == nil {
+				if c, ok := pruned[r.CallID]; ok {
+					return llm.EstimateTokens(c) + 12
+				}
+			}
+		}
+		return EventTokens(e, agentID)
+	}
 	// suffix token sums
 	suffix := make([]int, len(vis)+1)
 	for i := len(vis) - 1; i >= 0; i-- {
-		suffix[i] = suffix[i+1] + EventTokens(vis[i], agentID)
+		suffix[i] = suffix[i+1] + tokens(vis[i])
 	}
 	open := map[string]bool{}
 	var out []Cut
@@ -504,19 +540,66 @@ func Prune(msgs []llm.Message, maxChars int, sessionID string, events []session.
 				continue
 			}
 			r := *p.ToolResult
-			head := clip(r.Content, maxChars*3/4)
-			tail := clipTail(r.Content, maxChars/4)
-			ref := ""
-			if seq, ok := seqOf[r.CallID]; ok && sessionID != "" {
-				ref = fmt.Sprintf("; history_read session=%s from=%d", sessionID, seq)
-			}
-			r.Content = fmt.Sprintf("%s\n…[%d chars pruned%s]…\n%s", head, len(r.Content)-len(head)-len(tail), ref, tail)
+			r.Content = excerpt(r.Content, maxChars, sessionID, seqOf[r.CallID])
 			parts[j].ToolResult = &r
 			n++
 		}
 		out[i] = llm.Message{Role: m.Role, Parts: parts}
 	}
 	return out, n
+}
+
+// excerpt cuts content to a head/tail excerpt of about maxChars with a
+// history_read pointer to the original event (when seq and sessionID are
+// known).
+func excerpt(content string, maxChars int, sessionID string, seq int64) string {
+	head := clip(content, maxChars*3/4)
+	tail := clipTail(content, maxChars/4)
+	ref := ""
+	if seq > 0 && sessionID != "" {
+		ref = fmt.Sprintf("; history_read session=%s from=%d", sessionID, seq)
+	}
+	return fmt.Sprintf("%s\n…[%d chars pruned%s]…\n%s", head, len(content)-len(head)-len(tail), ref, tail)
+}
+
+// KeepSteps is the number of most recent steps whose tool results are
+// never pruned from the kept region.
+const KeepSteps = 2
+
+// PruneKept returns tool/pruned payloads for agentID's tool results after
+// cut that are longer than maxChars, not already pruned, and older than
+// the last KeepSteps steps (assistant messages of agentID).
+func PruneKept(events []session.Event, agentID string, cut int64, maxChars int, sessionID string) []session.PrunedData {
+	var steps []int64
+	done := map[string]bool{}
+	for _, e := range events {
+		switch {
+		case e.Type == session.TypeAssistantMessage && e.Agent == agentID:
+			steps = append(steps, e.Seq)
+		case e.Type == session.TypeToolPruned && e.Agent == agentID:
+			var p session.PrunedData
+			if e.Decode(&p) == nil {
+				done[p.CallID] = true
+			}
+		}
+	}
+	if len(steps) <= KeepSteps {
+		return nil
+	}
+	boundary := steps[len(steps)-KeepSteps]
+	var out []session.PrunedData
+	for _, e := range events {
+		if e.Seq <= cut || e.Seq >= boundary || e.Type != session.TypeToolResult || e.Agent != agentID {
+			continue
+		}
+		var r llm.ToolResult
+		if e.Decode(&r) != nil || done[r.CallID] || len(r.Content) <= maxChars {
+			continue
+		}
+		done[r.CallID] = true
+		out = append(out, session.PrunedData{CallID: r.CallID, Content: excerpt(r.Content, maxChars, sessionID, e.Seq)})
+	}
+	return out
 }
 
 // clip returns at most n bytes of s, cut on a rune boundary.

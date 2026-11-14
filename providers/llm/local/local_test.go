@@ -185,10 +185,10 @@ func TestOllamaModels(t *testing.T) {
 		t.Fatalf("ms=%v err=%v", ms, err)
 	}
 	q := ms[1]
-	if q.ID != "qwen3:8b" || q.Name != "qwen3:8b (5.2 GB)" || q.ContextWindow != 40960 || len(q.Capabilities) != 2 || q.Capabilities[1] != "reasoning" {
+	if q.ID != "qwen3:8b" || q.Name != "qwen3:8b" || q.SizeBytes != 5200000000 || q.ContextWindow != 40960 || len(q.Capabilities) != 2 || q.Capabilities[1] != "reasoning" {
 		t.Fatalf("qwen = %+v", q)
 	}
-	if ms[0].ContextWindow != 131072 || ms[0].Name != "llama3.2:3b (2.0 GB)" {
+	if ms[0].ContextWindow != 131072 || ms[0].Name != "llama3.2:3b" || ms[0].SizeBytes != 2019393189 {
 		t.Fatalf("llama = %+v", ms[0])
 	}
 }
@@ -350,5 +350,16 @@ func TestMergeServersAndDefaults(t *testing.T) {
 	}
 	if HumanSize(4_700_000_000) != "4.7 GB" {
 		t.Fatal(HumanSize(4_700_000_000))
+	}
+}
+
+func TestOllamaSkipsForeignThinking(t *testing.T) {
+	msgs := mapOllama("", []llm.Message{
+		llm.TextMessage(llm.RoleUser, "q"),
+		{Role: llm.RoleAssistant, Parts: []llm.Part{{Type: "thinking", Text: "secret", Meta: map[string]string{"anthropic:signature": "S"}}}},
+		{Role: llm.RoleAssistant, Parts: []llm.Part{{Type: "thinking", Text: "t2", Meta: map[string]string{"x:y": "z"}}, {Type: "text", Text: "a"}}},
+	})
+	if len(msgs) != 2 || msgs[1].Content != "a" {
+		t.Fatalf("messages = %+v", msgs)
 	}
 }

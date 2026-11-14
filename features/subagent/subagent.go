@@ -7,6 +7,13 @@
 //     deleted afterwards.
 //   - "fork": the child session is forked from the parent session at the
 //     latest turn boundary, so the child starts with the parent's context.
+//   - "acp": the turn is handed to an external coding CLI (Claude Code,
+//     Codex, …) through the llm-acp adapters: an ephemeral child whose
+//     only model is "acp-<cli>/default" runs the task.
+//
+// Ephemeral children are agent.Spec{Ephemeral: true, Parent: <parent>}:
+// never persisted, their workspace removed on delete, and swept by the
+// agent registry at startup after a crash.
 //
 // A child is always a separate agent scope, so it never inherits the
 // parent's agent-scoped (private) tools. Lineage is data: the child
@@ -19,6 +26,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -26,6 +34,7 @@ import (
 	"github.com/hedeqiang/crewbase/capabilities/subagent"
 	"github.com/hedeqiang/crewbase/core/agent"
 	"github.com/hedeqiang/crewbase/core/agentloop"
+	"github.com/hedeqiang/crewbase/core/llm"
 	"github.com/hedeqiang/crewbase/core/session"
 	"github.com/hedeqiang/crewbase/core/tools"
 	"github.com/hedeqiang/crewbase/kernel"
@@ -33,9 +42,6 @@ import (
 
 // SessionKind is the session kind of child sessions.
 const SessionKind = "subagent"
-
-// ephemeralRole marks ephemeral child agents (used for crash cleanup).
-const ephemeralRole = "ephemeral sub-agent of "
 
 // lifecycleMu serializes agent Create/Delete issued by this package:
 // concurrent creation/deletion of agents is not safe in the current agent
@@ -111,32 +117,95 @@ type provider struct {
 	name string
 	r    *runner
 	fork bool
+	acp  bool
 }
 
 func (p *provider) Name() string { return p.name }
 
 func (p *provider) Spawn(ctx context.Context, req subagent.Request) (subagent.Result, error) {
-	return p.r.spawn(ctx, p.name, p.fork, req)
+	if p.acp {
+		return p.r.spawnACP(ctx, p.name, req)
+	}
+	return p.r.spawn(ctx, p.name, p.fork, nil, req)
+}
+
+// ACPPrefix prefixes the llm adapter ids of ACP-bridged CLIs.
+const ACPPrefix = "acp-"
+
+// acpModel resolves the CLI a request names ("claude-code" or
+// "acp-claude-code"; empty = the first registered ACP adapter) to its
+// model ref, validating that the adapter exists.
+func (r *runner) acpModel(cli string) (llm.ModelRef, error) {
+	reg, ok := kernel.Lookup[*llm.Registry](r.c, llm.ServiceKey)
+	if !ok {
+		return llm.ModelRef{}, errors.New("llm registry not loaded")
+	}
+	var ids []string
+	for _, a := range reg.List() {
+		if strings.HasPrefix(a.ID(), ACPPrefix) {
+			ids = append(ids, a.ID())
+		}
+	}
+	sort.Strings(ids)
+	cli = strings.TrimSpace(cli)
+	if cli == "" {
+		if len(ids) == 0 {
+			return llm.ModelRef{}, errors.New("no ACP coding CLI is available")
+		}
+		return llm.ModelRef{Provider: ids[0], Model: "default"}, nil
+	}
+	id := cli
+	if !strings.HasPrefix(id, ACPPrefix) {
+		id = ACPPrefix + id
+	}
+	if _, ok := reg.Get(id); !ok {
+		avail := "none"
+		if len(ids) > 0 {
+			avail = strings.Join(ids, ", ")
+		}
+		return llm.ModelRef{}, fmt.Errorf("unknown ACP CLI %q (available: %s)", cli, avail)
+	}
+	return llm.ModelRef{Provider: id, Model: "default"}, nil
+}
+
+// spawnACP runs the task in an ephemeral child whose only model is the
+// requested ACP CLI. Request.Agent names the CLI, not an agent.
+func (r *runner) spawnACP(ctx context.Context, provName string, req subagent.Request) (subagent.Result, error) {
+	model, err := r.acpModel(req.Agent)
+	if err != nil {
+		return subagent.Result{}, err
+	}
+	req.Agent = ""
+	return r.spawn(ctx, provName, false, []llm.ModelRef{model}, req)
 }
 
 func (r *runner) sessions() *session.Store { return r.agents.Sessions() }
 
-// createEphemeral creates "<parent>-sub-<n>".
-func (r *runner) createEphemeral(parent *agent.Agent, mode string) (*agent.Agent, error) {
+// createEphemeral creates the ephemeral agent "<parent>-sub-<n>". models,
+// when set, replaces the parent's model order.
+func (r *runner) createEphemeral(parent *agent.Agent, mode string, models []llm.ModelRef) (*agent.Agent, error) {
 	base := "sub"
-	var spec agent.Spec
+	spec := agent.Spec{Ephemeral: true, Role: "sub-agent"}
 	if parent != nil {
 		ps := parent.Spec()
 		base = ps.ID + "-sub"
+		spec.Parent = ps.ID
 		spec.Models = ps.Models
 		spec.Folder = ps.Folder
 		mode = agent.Stricter(parent.Mode(), mode)
+	}
+	if len(models) > 0 {
+		spec.Models = models
+		// A CLI handed one turn (acp) works on the parent's files, so its
+		// edits are not thrown away with the ephemeral child.
+		if parent != nil {
+			spec.SharedWorkspace = parent.Workspace()
+		}
 	}
 	if mode == "" || mode == agent.ModeHost {
 		mode = agent.ModeSandbox // children never start in host mode
 	}
 	spec.Mode = mode
-	spec.Role = ephemeralRole + strings.TrimSuffix(base, "-sub")
 	spec.Instructions = "You are a sub-agent. Complete the delegated task and reply with the result only.\n"
 	lifecycleMu.Lock()
 	defer lifecycleMu.Unlock()
@@ -172,7 +241,7 @@ func latestTurnBoundary(ss *session.Session) int64 {
 	return 0
 }
 
-func (r *runner) spawn(ctx context.Context, provName string, fork bool, req subagent.Request) (subagent.Result, error) {
+func (r *runner) spawn(ctx context.Context, provName string, fork bool, models []llm.ModelRef, req subagent.Request) (subagent.Result, error) {
 	var parent *agent.Agent
 	if req.Parent != "" {
 		a, ok := r.agents.Get(req.Parent)
@@ -201,7 +270,7 @@ func (r *runner) spawn(ctx context.Context, provName string, fork bool, req suba
 	var child *agent.Agent
 	ephemeral := req.Agent == ""
 	if ephemeral {
-		a, err := r.createEphemeral(parent, mode)
+		a, err := r.createEphemeral(parent, mode, models)
 		if err != nil {
 			return subagent.Result{}, fmt.Errorf("create sub-agent: %w", err)
 		}
@@ -282,9 +351,10 @@ func (r *runner) run(ctx context.Context, child *agent.Agent, css *session.Sessi
 			return subagent.Result{Output: out, StopReason: subagent.StopFailed, Diagnostic: e.Error}
 		}
 	case <-ctx.Done():
-		// Propagate cancellation to the child's turn.
+		// Propagate cancellation to the child's turn (only this input's:
+		// a named child may be busy with other work later).
 		if !child.Cancel(in.ID) && r.w.isRunning(tag) {
-			child.Stop()
+			child.StopInput(in.ID)
 			select {
 			case <-ch:
 			case <-time.After(5 * time.Second):
@@ -403,20 +473,16 @@ func firstLine(s string) string {
 const runnerKey = "subagent.runner"
 
 // RunnerPlugin owns the turn waiter and ephemeral-agent bookkeeping used by
-// the local and fork providers. On activation it removes ephemeral agents
-// left behind by a crash.
+// the local, fork and acp providers. Ephemeral leftovers of a crash are
+// swept by the agent registry itself.
 var RunnerPlugin = kernel.Register(kernel.Spec{
 	Name:        "@crewbase/subagent-runner",
 	Inject:      []string{agent.ServiceKey},
-	Description: "Runs delegated tasks as agent turns (shared by subagent-local and subagent-fork).",
+	Optional:    []string{llm.ServiceKey},
+	Description: "Runs delegated tasks as agent turns (shared by subagent-local, subagent-fork and subagent-acp).",
 	Apply: func(c *kernel.Context) error {
 		r := &runner{c: c, agents: kernel.Use[*agent.Registry](c, agent.ServiceKey), n: map[string]int{}}
 		r.w = newWaiter(c)
-		for _, a := range r.agents.List() {
-			if strings.HasPrefix(a.Spec().Role, ephemeralRole) && strings.Contains(a.ID(), "-sub-") {
-				r.deleteAgent(a.ID())
-			}
-		}
 		return c.Provide(runnerKey, r)
 	},
 })
@@ -443,6 +509,18 @@ var ForkPlugin = kernel.Register(kernel.Spec{
 	},
 })
 
+// ACPPlugin registers the "acp" provider: one turn handed to an external
+// coding CLI through its llm-acp adapter (Request.Agent names the CLI).
+var ACPPlugin = kernel.Register(kernel.Spec{
+	Name:        "@crewbase/subagent-acp",
+	Inject:      []string{subagent.ServiceKey, runnerKey, llm.ServiceKey},
+	Description: "Sub-agent provider: hand one turn to an external coding CLI (Claude Code, Codex, …) over ACP.",
+	Apply: func(c *kernel.Context) error {
+		r := kernel.Use[*runner](c, runnerKey)
+		return kernel.Use[*subagent.Service](c, subagent.ServiceKey).Register(c, &provider{name: "acp", r: r, acp: true})
+	},
+})
+
 // DelegateArgs are the `delegate` tool arguments.
 type DelegateArgs struct {
 	Task     string `json:"task"`
@@ -462,12 +540,13 @@ var DelegatePlugin = kernel.Register(kernel.Spec{
 		kernel.Use[*tools.Registry](c, tools.ServiceKey).Register(c, &tools.Tool{
 			Name: "delegate",
 			Description: "Delegate a self-contained task to a sub-agent and wait for its result. " +
-				"The sub-agent does not see your private tools. Use provider \"fork\" to give it this conversation's context.",
+				"The sub-agent does not see your private tools. Use provider \"fork\" to give it this conversation's context, " +
+				"or provider \"acp\" to hand the task to an external coding CLI (agent = the CLI, e.g. claude-code).",
 			Params: tools.Schema(map[string]any{
 				"task":     tools.Prop("string", "complete instructions for the sub-agent"),
-				"agent":    tools.Prop("string", "optional id of an existing agent to delegate to (default: a temporary sub-agent)"),
+				"agent":    tools.Prop("string", "optional id of an existing agent to delegate to (default: a temporary sub-agent); for provider acp, the CLI (e.g. claude-code)"),
 				"mode":     tools.Prop("string", "optional run mode: read-only or sandbox (never wider than yours)"),
-				"provider": tools.Prop("string", "local (default) or fork"),
+				"provider": tools.Prop("string", "local (default), fork or acp"),
 			}, "task"),
 			Category: tools.CategoryNone,
 			Execute: func(ctx context.Context, call tools.Call) (tools.Result, error) {
@@ -486,9 +565,9 @@ var DelegatePlugin = kernel.Register(kernel.Spec{
 					return tools.Errorf("unknown mode %q", a.Mode), nil
 				}
 				switch a.Provider {
-				case "", "local", "fork":
+				case "", "local", "fork", "acp":
 				default:
-					return tools.Errorf("unknown provider %q (use local or fork)", a.Provider), nil
+					return tools.Errorf("unknown provider %q (use local, fork or acp)", a.Provider), nil
 				}
 				req := subagent.Request{
 					Parent: call.Agent, Task: a.Task, Agent: a.Agent,

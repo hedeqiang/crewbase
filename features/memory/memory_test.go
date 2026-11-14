@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -197,5 +198,97 @@ func TestMemoryToolsAndHistoryRead(t *testing.T) {
 	out, err := e.mem.Read(a.ID(), hits[0].Session, 1, 100, 40)
 	if err != nil || len(out) > 200 || !strings.Contains(out, "output limit reached") {
 		t.Fatalf("cap: %q %v", out, err)
+	}
+}
+
+func TestChineseSearch(t *testing.T) {
+	e := newEnv(t, t.TempDir(), true)
+	a, _ := e.agents.Create(agent.Spec{Name: "Lin"})
+	send(t, a, "我们下周五要完成数据库迁移计划，然后通知运维团队")
+	send(t, a, "今天天气很好")
+	ss, _ := a.Session()
+	// a word in the middle of a sentence (no spaces): trigram index
+	for _, q := range []string{"数据库迁移", "迁移计划", "运维团队 数据库", "通知运维"} {
+		hits, err := e.mem.SearchHistory(a.ID(), q, "", 10)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(hits) == 0 || hits[0].Session != ss.ID() || !strings.Contains(hits[0].Snippet, "«") {
+			t.Fatalf("%q: %+v", q, hits)
+		}
+		for _, h := range hits {
+			if strings.Contains(h.Snippet, "天气") {
+				t.Fatalf("%q matched the wrong message: %+v", q, h)
+			}
+		}
+	}
+	// two characters: substring fallback
+	hits, _ := e.mem.SearchHistory(a.ID(), "天气", "", 10)
+	if len(hits) == 0 || !strings.Contains(hits[0].Snippet, "天气") {
+		t.Fatalf("short CJK: %+v", hits)
+	}
+	// AND falls back to OR across terms
+	if hits, _ := e.mem.SearchHistory(a.ID(), "数据库迁移 不存在的词语", "", 10); len(hits) == 0 {
+		t.Fatal("OR fallback")
+	}
+	if hits, _ := e.mem.SearchHistory(a.ID(), "完全不存在的内容", "", 10); len(hits) != 0 {
+		t.Fatalf("false positive: %+v", hits)
+	}
+	// memory entries too, and they survive Reindex
+	if _, err := e.mem.Add(a.ID(), "用户偏好使用简体中文回复"); err != nil {
+		t.Fatal(err)
+	}
+	if h, _ := e.mem.SearchMemory(a.ID(), "简体中文", 5); len(h) != 1 {
+		t.Fatalf("memory: %+v", h)
+	}
+	if _, err := e.mem.Add(a.ID(), "第二条记忆"); err != nil { // re-index of memory replaces trigram rows
+		t.Fatal(err)
+	}
+	if h, _ := e.mem.SearchMemory(a.ID(), "简体中文", 5); len(h) != 1 {
+		t.Fatalf("memory after refresh: %+v", h)
+	}
+	if err := e.mem.Reindex(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if hits, _ := e.mem.SearchHistory(a.ID(), "迁移计划", "", 10); len(hits) == 0 {
+		t.Fatal("after reindex")
+	}
+}
+
+func TestAsyncIndexingNeverBlocksAppends(t *testing.T) {
+	e := newEnv(t, t.TempDir(), true)
+	a, _ := e.agents.Create(agent.Spec{Name: "Ada"})
+	ss, _ := a.Session()
+	release := e.mem.BlockIndexing()
+	start := time.Now()
+	n := memory.QueueSize + 200
+	for i := 0; i < n; i++ {
+		if _, err := ss.Append(session.TypeUserMessage, "", session.UserMessage{Text: "filler message number " + strconv.Itoa(i)}); err != nil {
+			release()
+			t.Fatal(err)
+		}
+	}
+	ss.Append(session.TypeUserMessage, "", session.UserMessage{Text: "the final narwhal message"})
+	elapsed := time.Since(start)
+	if !e.mem.Dirty() {
+		release()
+		t.Fatal("queue overflow should mark the index dirty")
+	}
+	release()
+	if elapsed > 3*time.Second {
+		t.Fatalf("appends blocked on indexing: %s", elapsed)
+	}
+	if err := e.mem.Sync(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if e.mem.Dirty() {
+		t.Fatal("catch-up did not run")
+	}
+	// the dropped events were caught up from the log
+	for _, q := range []string{"narwhal", "number " + strconv.Itoa(n-1)} {
+		hits, err := e.mem.SearchHistory(a.ID(), q, ss.ID(), 5)
+		if err != nil || len(hits) == 0 {
+			t.Fatalf("%q: %+v %v", q, hits, err)
+		}
 	}
 }

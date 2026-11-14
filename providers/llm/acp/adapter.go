@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/hedeqiang/crewbase/capabilities/approval"
 	"github.com/hedeqiang/crewbase/core/llm"
 )
 
@@ -16,7 +17,13 @@ const defaultModel = "default"
 
 // Options tune an Adapter (mostly for tests).
 type Options struct {
+	// AutoApprove answers every CLI permission request with allow_once,
+	// bypassing Approve (explicit override).
 	AutoApprove bool
+	// Approve asks Crewbase whether a CLI permission request may proceed
+	// (the plugin routes it to the approval service). Nil rejects every
+	// request. Only approval.OutcomeAllowedOnce allows.
+	Approve func(ctx context.Context, req approval.Request) approval.Outcome
 	// IdleTimeout stops the process after this long without an active turn
 	// (0 = 10 minutes, negative = never).
 	IdleTimeout time.Duration
@@ -41,6 +48,7 @@ type Adapter struct {
 	id          string
 	cfg         resolved
 	autoApprove bool
+	approve     func(context.Context, approval.Request) approval.Outcome
 	idle        time.Duration
 	toolNotes   bool
 	cancelGrace time.Duration
@@ -74,7 +82,7 @@ func New(id string, cfg AgentConfig, opts Options) *Adapter {
 }
 
 func newAdapter(id string, r resolved, opts Options) *Adapter {
-	a := &Adapter{id: id, cfg: r, autoApprove: opts.AutoApprove, idle: opts.IdleTimeout, toolNotes: opts.ToolNotes,
+	a := &Adapter{id: id, cfg: r, autoApprove: opts.AutoApprove, approve: opts.Approve, idle: opts.IdleTimeout, toolNotes: opts.ToolNotes,
 		cancelGrace: opts.CancelGrace, initTimeout: opts.InitTimeout, trace: opts.Trace, convs: map[string]*conv{}}
 	if a.idle == 0 {
 		a.idle = 10 * time.Minute
@@ -287,11 +295,15 @@ func (a *Adapter) Stream(ctx context.Context, req llm.Request, onChunk func(llm.
 	}
 
 	prints := fingerprints(req.Messages)
-	key := convKey(req)
+	cwd := a.cfg.Cwd
+	if req.Workspace != "" {
+		cwd = req.Workspace
+	}
+	key := convKey(req, cwd)
 	c, prompt := a.claim(key, p, prints, req)
 	defer a.release(key, c)
 	if c.s == nil {
-		s, err := p.newSession(ctx, req.Model)
+		s, err := p.newSession(ctx, req.Model, cwd)
 		if err != nil {
 			a.noteQuota(err)
 			return llm.Response{}, err
@@ -302,6 +314,7 @@ func (a *Adapter) Stream(ctx context.Context, req llm.Request, onChunk func(llm.
 	t := newTurn(a.cfg.Name, a.toolNotes, onChunk, func() {
 		_ = p.conn.Notify(mSessionCancel, map[string]string{"sessionId": c.s.id})
 	})
+	t.ctx, t.agent, t.session = ctx, req.Agent, req.Session
 	c.s.setTurn(t)
 	defer c.s.setTurn(nil)
 
@@ -439,22 +452,33 @@ func isPrefix(prefix, all []string) bool {
 	return true
 }
 
-// convKey identifies a conversation: system prompt + first message.
-func convKey(req llm.Request) string {
+// convKey identifies a conversation: the asking agent and Crewbase session
+// when known, else system prompt + first message. The session cwd is part
+// of the key so a changed workspace starts a new ACP session.
+func convKey(req llm.Request, cwd string) string {
+	if req.Agent != "" || req.Session != "" {
+		return "s\x00" + req.Agent + "\x00" + req.Session + "\x00" + cwd
+	}
 	h := sha256.New()
+	h.Write([]byte(cwd))
+	h.Write([]byte{0})
 	h.Write([]byte(req.System))
 	h.Write([]byte{0})
 	h.Write([]byte(fingerprint(req.Messages[0])))
 	return hex.EncodeToString(h.Sum(nil))
 }
 
-// fingerprint hashes the model-visible content of a message. Thinking parts
-// are ignored because session.DeriveMessages drops them on replay.
+// fingerprint hashes the model-visible content of a message. Only text,
+// tool calls and tool results count: thinking parts (and anything else this
+// bridge does not render) are ignored, whether they carry another
+// provider's Meta or were dropped on replay.
 func fingerprint(m llm.Message) string {
 	h := sha256.New()
 	h.Write([]byte(m.Role))
 	for _, p := range m.Parts {
-		if p.Type == "thinking" {
+		switch p.Type {
+		case "text", "tool_call", "tool_result":
+		default:
 			continue
 		}
 		h.Write([]byte{0})

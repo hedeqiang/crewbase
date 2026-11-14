@@ -137,16 +137,19 @@ func TestToolNameAndCategory(t *testing.T) {
 		t.Fatal(long, long2)
 	}
 	for _, c := range []struct {
-		a    *sdk.ToolAnnotations
-		want string
+		a     *sdk.ToolAnnotations
+		trust bool
+		want  string
 	}{
-		{nil, tools.CategoryExec},
-		{&sdk.ToolAnnotations{ReadOnlyHint: true}, tools.CategoryRead},
-		{&sdk.ToolAnnotations{DestructiveHint: ptr(true)}, tools.CategoryDelete},
-		{&sdk.ToolAnnotations{DestructiveHint: ptr(false), OpenWorldHint: ptr(true)}, tools.CategoryExec},
+		{nil, true, tools.CategoryExec},
+		{&sdk.ToolAnnotations{ReadOnlyHint: true}, true, tools.CategoryRead},
+		{&sdk.ToolAnnotations{ReadOnlyHint: true}, false, tools.CategoryExec},
+		{&sdk.ToolAnnotations{DestructiveHint: ptr(true)}, false, tools.CategoryDelete},
+		{&sdk.ToolAnnotations{DestructiveHint: ptr(true)}, true, tools.CategoryDelete},
+		{&sdk.ToolAnnotations{DestructiveHint: ptr(false), OpenWorldHint: ptr(true)}, true, tools.CategoryExec},
 	} {
-		if got := mcp.Category(c.a); got != c.want {
-			t.Fatalf("%+v: %s", c.a, got)
+		if got := mcp.Category(c.a, c.trust); got != c.want {
+			t.Fatalf("%+v trust=%v: %s", c.a, c.trust, got)
 		}
 	}
 	r := mcp.ConvertResult(&sdk.CallToolResult{IsError: true, Content: []sdk.Content{
@@ -177,6 +180,9 @@ func TestValidation(t *testing.T) {
 			t.Fatalf("%+v: %v", s, err)
 		}
 	}
+	if _, err := (mcp.Server{Name: "a", Transport: "stdio", Command: []string{"x"}, Categories: map[string]string{"t": "sudo"}}).Normalize(); !errors.Is(err, mcp.ErrInvalid) {
+		t.Fatal("unknown category override accepted", err)
+	}
 	n, err := mcp.Server{Name: "gh", Transport: "stdio", Command: []string{"x"}}.Normalize()
 	if err != nil || n.Trust != mcp.TrustSandboxed || n.Scope != mcp.ScopeGlobal {
 		t.Fatal(n, err)
@@ -187,7 +193,9 @@ func TestValidation(t *testing.T) {
 
 func TestRegisterCallAndCategories(t *testing.T) {
 	e := newEnv(t, nil)
-	if _, err := e.svc.Add(stdioServer("t1", nil)); err != nil {
+	srv1 := stdioServer("t1", nil)
+	srv1.TrustAnnotations = true
+	if _, err := e.svc.Add(srv1); err != nil {
 		t.Fatal(err)
 	}
 	st := e.waitState(t, "t1", mcp.StateReady)
@@ -232,6 +240,9 @@ func TestRegisterCallAndCategories(t *testing.T) {
 	}
 	e2 := newEnv(t, map[string]any{"dir": e.dir})
 	e2.waitState(t, "t1", mcp.StateReady)
+	if tl, ok := e2.tools.Get("", "t1__echo"); !ok || tl.Category != tools.CategoryRead {
+		t.Fatal("trustAnnotations not persisted", tl)
+	}
 	if _, err := e2.svc.Add(stdioServer("t1", nil)); !errors.Is(err, mcp.ErrExists) {
 		t.Fatal(err)
 	}
@@ -334,7 +345,7 @@ func TestProbeRegistersNothing(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(list) != 2 || list[0].Name != "pr__echo" || list[0].Category != tools.CategoryRead || list[1].Category != tools.CategoryDelete {
+	if len(list) != 2 || list[0].Name != "pr__echo" || list[0].Category != tools.CategoryExec || list[1].Category != tools.CategoryDelete {
 		t.Fatalf("%+v", list)
 	}
 	if len(e.visible("")) != 0 {
@@ -611,5 +622,143 @@ func TestAPI(t *testing.T) {
 	}
 	if code, _, _ := do("GET", "/api/mcp/api/tools", nil); code != 404 {
 		t.Fatal(code)
+	}
+}
+
+func TestUntrustedAnnotationsAndOverrides(t *testing.T) {
+	e := newEnv(t, nil)
+	srv := stdioServer("ua", nil)
+	if _, err := e.svc.Add(srv); err != nil {
+		t.Fatal(err)
+	}
+	e.waitState(t, "ua", mcp.StateReady)
+	if tl, _ := e.tools.Get("", "ua__echo"); tl == nil || tl.Category != tools.CategoryExec {
+		t.Fatalf("readOnlyHint trusted by default: %+v", tl)
+	}
+	if tl, _ := e.tools.Get("", "ua__wipe"); tl == nil || tl.Category != tools.CategoryDelete {
+		t.Fatalf("destructive hint must still raise: %+v", tl)
+	}
+	if _, err := e.svc.Update("ua", func(s *mcp.Server) {
+		s.Categories = map[string]string{"echo": tools.CategoryRead, "ua__wipe": tools.CategoryWrite}
+	}); err != nil {
+		t.Fatal(err)
+	}
+	waitFor(t, "override", func() bool {
+		tl, _ := e.tools.Get("", "ua__echo")
+		return tl != nil && tl.Category == tools.CategoryRead
+	})
+	if tl, _ := e.tools.Get("", "ua__wipe"); tl == nil || tl.Category != tools.CategoryWrite {
+		t.Fatalf("namespaced override: %+v", tl)
+	}
+	infos, _ := e.svc.Tools("ua")
+	for _, i := range infos {
+		if i.Original == "echo" && i.Category != tools.CategoryRead {
+			t.Fatalf("%+v", i)
+		}
+	}
+	var p mcp.Patch
+	json.Unmarshal([]byte(`{"trustAnnotations":true,"categories":{"x":"read"}}`), &p)
+	var s mcp.Server
+	p.Apply(&s)
+	if !s.TrustAnnotations || s.Categories["x"] != "read" {
+		t.Fatalf("%+v", s)
+	}
+}
+
+func TestPathArgsFromSchema(t *testing.T) {
+	str := func(desc string) map[string]any { return map[string]any{"type": "string", "description": desc} }
+	schema := map[string]any{"type": "object", "properties": map[string]any{
+		"path":        str(""),
+		"file":        str(""),
+		"filepath":    str(""),
+		"file_path":   str(""),
+		"dir":         str(""),
+		"directory":   str(""),
+		"cwd":         str(""),
+		"source_dir":  str(""),
+		"paths":       map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+		"location":    str("Absolute path to the file to read"),
+		"repo_root":   str("Working directory for the command"),
+		"url":         str("The URL to fetch"),
+		"name":        str("Name of the issue"),
+		"target":      str("Branch to merge into"),
+		"profile":     str(""),
+		"path_count":  map[string]any{"type": "integer"},
+		"recursive":   map[string]any{"type": "boolean", "description": "list directory path recursively"},
+		"filename":    str("Display name"),
+		"description": str("Free text; may mention a path"),
+	}}
+	got := mcp.PathArgs(schema)
+	want := []string{"cwd", "dir", "directory", "file", "file_path", "filepath", "location", "path", "paths", "repo_root", "source_dir"}
+	if !slices.Equal(got, want) {
+		t.Fatalf("got %v\nwant %v", got, want)
+	}
+}
+
+// policySandbox records the policy of each Confine call.
+type policySandbox struct {
+	mu   sync.Mutex
+	pols []sandbox.Policy
+}
+
+func (p *policySandbox) Name() string { return "policy-recorder" }
+func (p *policySandbox) Check(context.Context, sandbox.Policy) (string, error) {
+	return sandbox.EnforcementFull, nil
+}
+func (p *policySandbox) Confine(_ context.Context, argv []string, _ string, env []string, pol sandbox.Policy) (sandbox.Confined, error) {
+	p.mu.Lock()
+	p.pols = append(p.pols, pol)
+	p.mu.Unlock()
+	c := sandbox.Unconfined(argv, env)
+	c.Enforcement = sandbox.EnforcementFull
+	return c, nil
+}
+func (p *policySandbox) last() (sandbox.Policy, int) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if len(p.pols) == 0 {
+		return sandbox.Policy{}, 0
+	}
+	return p.pols[len(p.pols)-1], len(p.pols)
+}
+
+func TestReadOnlyAgentServerSandboxReadOnly(t *testing.T) {
+	sb := &policySandbox{}
+	sbSpec := kernel.Spec{Name: "policy-sandbox", Apply: func(c *kernel.Context) error {
+		return c.Provide(sandbox.ServiceKey, sandbox.Sandbox(sb))
+	}}
+	e := newEnv(t, map[string]any{}, load{sbSpec, nil}, load{session.Plugin, nil}, load{prompt.Plugin, nil}, load{agent.Plugin, map[string]any{"root": t.TempDir()}})
+	agents := kernel.Use[*agent.Registry](e.h.Root(), agent.ServiceKey)
+	ro, err := agents.Create(agent.Spec{Name: "Rory", Mode: agent.ModeReadOnly})
+	if err != nil {
+		t.Fatal(err)
+	}
+	srv := stdioServer("rosrv", nil)
+	srv.Trust = mcp.TrustSandboxed
+	srv.Scope = ro.ID()
+	if _, err := e.svc.Add(srv); err != nil {
+		t.Fatal(err)
+	}
+	e.waitState(t, "rosrv", mcp.StateReady)
+	if pol, _ := sb.last(); pol.Mode != sandbox.ModeReadOnly || len(pol.WritableRoots) != 0 {
+		t.Fatalf("read-only agent's server got %+v", pol)
+	}
+	// switching the agent to sandbox mode restarts the server writable
+	_, n := sb.last()
+	if err := ro.Update(func(s *agent.Spec) { s.Mode = agent.ModeSandbox }); err != nil {
+		t.Fatal(err)
+	}
+	waitFor(t, "restart with workspace-write", func() bool {
+		pol, m := sb.last()
+		return m > n && pol.Mode == sandbox.ModeWorkspaceWrite
+	})
+	e.waitState(t, "rosrv", mcp.StateReady)
+	// a global server is unaffected by agent modes
+	g := stdioServer("glob", nil)
+	g.Trust = mcp.TrustSandboxed
+	e.svc.Add(g)
+	e.waitState(t, "glob", mcp.StateReady)
+	if pol, _ := sb.last(); pol.Mode != sandbox.ModeWorkspaceWrite {
+		t.Fatalf("%+v", pol)
 	}
 }

@@ -56,6 +56,11 @@ type Spec struct {
 	Ephemeral bool `json:"ephemeral,omitempty"`
 	// Parent is the agent that spawned an ephemeral agent (lineage data).
 	Parent string `json:"parent,omitempty"`
+	// SharedWorkspace makes an ephemeral agent work in another agent's
+	// workspace (e.g. a CLI handed one turn of its parent's coding task).
+	// Its own directory still holds its bookkeeping and is what gets
+	// removed on delete; the shared workspace is never deleted.
+	SharedWorkspace string `json:"sharedWorkspace,omitempty"`
 }
 
 // Status of an agent (docs/03 §7).
@@ -117,7 +122,14 @@ func (a *Agent) Spec() Spec {
 func (a *Agent) Ctx() *kernel.Context { return a.ctx }
 
 // Workspace is the agent's working directory.
-func (a *Agent) Workspace() string { return filepath.Join(a.reg.root, "workspaces", a.spec.ID) }
+func (a *Agent) Workspace() string {
+	if a.spec.SharedWorkspace != "" {
+		return a.spec.SharedWorkspace
+	}
+	return a.ownDir()
+}
+
+func (a *Agent) ownDir() string { return filepath.Join(a.reg.root, "workspaces", a.spec.ID) }
 
 // Mode returns the effective run mode (host mode expires to sandbox).
 func (a *Agent) Mode() string {
@@ -626,7 +638,7 @@ func (r *Registry) Delete(id string) error {
 	}
 	a.Stop()
 	a.ctx.Dispose()
-	ws := a.Workspace()
+	ws := a.ownDir()
 	if a.Spec().Ephemeral {
 		_ = os.RemoveAll(ws)
 	} else {

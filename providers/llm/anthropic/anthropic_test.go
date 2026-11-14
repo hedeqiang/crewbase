@@ -85,7 +85,7 @@ func TestStreamText(t *testing.T) {
 	if resp.Message.Text() != "Hi there" || resp.StopReason != "end" {
 		t.Fatalf("resp = %+v", resp)
 	}
-	if resp.Usage.InputTokens != 25 || resp.Usage.OutputTokens != 9 {
+	if resp.Usage.InputTokens != 25 || resp.Usage.OutputTokens != 9 || resp.Usage.CacheRead != 5 || resp.Usage.CacheWrite != 0 {
 		t.Fatalf("usage = %+v", resp.Usage)
 	}
 	if len(chunks) != 3 || chunks[0].Type != "thinking" {
@@ -105,8 +105,8 @@ func TestStreamText(t *testing.T) {
 	if sys["text"] != "sys" || sys["cache_control"] == nil {
 		t.Fatalf("system = %v", sys)
 	}
-	if a.sigFor("let me think") != "SIG1" {
-		t.Fatal("signature not remembered")
+	if th := resp.Message.Parts[0]; th.Type != "thinking" || th.Meta[MetaSignature] != "SIG1" {
+		t.Fatalf("signature not kept in Part.Meta: %+v", th)
 	}
 }
 
@@ -184,10 +184,47 @@ func TestThinkingSignaturePassBack(t *testing.T) {
 	if c := asstJSON(); len(c) != 1 || c[0].(map[string]any)["type"] != "tool_use" {
 		t.Fatalf("unsigned thinking should be dropped: %v", c)
 	}
-	a.rememberSig("unknown", "S")
+	msgs[1].Parts[0].Meta = map[string]string{MetaSignature: "S"}
 	c := asstJSON()
 	if len(c) != 2 || c[0].(map[string]any)["type"] != "thinking" || c[0].(map[string]any)["signature"] != "S" {
 		t.Fatalf("signed thinking = %v", c)
+	}
+	// a fresh adapter (restart) still sends it back: the signature lives in the part
+	a = New(nil, ProviderConfig{})
+	if c := asstJSON(); len(c) != 2 || c[0].(map[string]any)["signature"] != "S" {
+		t.Fatalf("signature lost across adapters: %v", c)
+	}
+	// redacted thinking round-trips its data; foreign meta is ignored
+	msgs[1].Parts = append([]llm.Part{{Type: "thinking", Meta: map[string]string{MetaRedacted: "ENC"}}, {Type: "thinking", Text: "g", Meta: map[string]string{"gemini:thoughtSignature": "x"}}}, msgs[1].Parts...)
+	c = asstJSON()
+	if len(c) != 3 || c[0].(map[string]any)["type"] != "redacted_thinking" || c[0].(map[string]any)["data"] != "ENC" || c[1].(map[string]any)["type"] != "thinking" {
+		t.Fatalf("redacted/foreign thinking = %v", c)
+	}
+}
+
+func TestStreamRedactedThinking(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		sse(w,
+			[2]string{"message_start", `{"type":"message_start","message":{"usage":{"input_tokens":3,"cache_creation_input_tokens":7}}}`},
+			[2]string{"content_block_start", `{"type":"content_block_start","index":0,"content_block":{"type":"redacted_thinking","data":"ENCRYPTED"}}`},
+			[2]string{"content_block_stop", `{"type":"content_block_stop","index":0}`},
+			[2]string{"content_block_start", `{"type":"content_block_start","index":1,"content_block":{"type":"text","text":""}}`},
+			[2]string{"content_block_delta", `{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"ok"}}`},
+			[2]string{"content_block_stop", `{"type":"content_block_stop","index":1}`},
+			[2]string{"message_delta", `{"type":"message_delta","delta":{"stop_reason":"end_turn"},"usage":{"output_tokens":2}}`},
+			[2]string{"message_stop", `{"type":"message_stop"}`},
+		)
+	}))
+	defer srv.Close()
+	resp, err := newAdapter(srv.URL).Stream(context.Background(), llm.Request{Messages: []llm.Message{llm.TextMessage(llm.RoleUser, "hi")}}, func(llm.Chunk) error { return nil })
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(resp.Message.Parts) != 2 || resp.Message.Parts[0].Meta[MetaRedacted] != "ENCRYPTED" || resp.Message.Parts[0].Text != "" {
+		t.Fatalf("parts = %+v", resp.Message.Parts)
+	}
+	if resp.Usage.CacheWrite != 7 || resp.Usage.InputTokens != 10 {
+		t.Fatalf("usage = %+v", resp.Usage)
 	}
 }
 

@@ -295,3 +295,13 @@ func skipIfUnderTemp(t *testing.T, dir string) {
 		}
 	}
 }
+
+func TestPathArgsDeclared(t *testing.T) {
+	e := setup(t, sandboxnone.Plugin)
+	for name, want := range map[string]string{"read_file": "path", "write_file": "path", "edit_file": "path", "list_dir": "path", "delete_file": "path", "bash": "cwd"} {
+		tl, ok := e.reg.Get("kai", name)
+		if !ok || len(tl.PathArgs) != 1 || tl.PathArgs[0] != want {
+			t.Errorf("%s: %v", name, tl)
+		}
+	}
+}

@@ -109,31 +109,33 @@
 - [x] 交接是否需确认（待决问题 #1）：默认自动；频道设置「交接需人确认」走审批，无人可批即拒绝；等待时不持有服务锁
 - [x] 二次确认改由审批服务强制（Decision.Confirmed），UI 回传
 - [x] `agent/response` Waterfall：完整回复（含工具参数）落日志前可整体改写
-- [ ] redact 监听 agent/response
+- [x] redact 监听 agent/response（跨分片密钥、thinking、工具参数 JSON 内字符串）
 - [x] `tool/call` 参数在脱敏前落日志 → 由 agent/response 统一脱敏覆盖
 - [x] 规则插件缺失时流水线 fail-open → 改为 `requirePolicy` 关闭式失败
 - [x] post-execute 出错时回落原始结果 → 改为扣留结果
 
 - [x] `tool/pruned` 事件（DeriveMessages 识别）
-- [ ] compaction 产出 tool/pruned
+- [x] compaction 对保留区内超大工具结果产出 tool/pruned（上下文真正缩小，history_read 可取原文）
 - [x] Tool.PathArgs 声明路径参数
-- [ ] runmode 守卫使用 PathArgs；toolsbasic / MCP 声明
+- [x] runmode 守卫使用 PathArgs；toolsbasic / MCP 声明
 - [ ] 「添加提供方」流程：API Key 写入钥匙串 + 写补丁 + 热应用（设置 › 模型与订阅）
 - [x] llm 词汇表：Part.Meta、ModelInfo.SizeBytes、Usage.CacheRead/Write、Quota.Windows、Request.Agent/Session/Workspace
-- [ ] 提供方采用：Anthropic / Gemini 签名入 Part.Meta、Ollama 大小、缓存 token、ACP 多窗口额度
-- [ ] ACP：CLI 权限请求接入 approval；Request 携带 session / workspace；CLI 自行改文件的事件；重新检测 CLI
-- [ ] magpie：读取 /v1/magpie/quotas 显示额度
-- [ ] subagent-acp 提供方（把一个轮次交给 Claude Code / Codex）
+- [x] 提供方采用：Anthropic / Gemini 签名入 Part.Meta（重启可续）、Ollama SizeBytes、缓存 token；magpie 读取 /v1/magpie/quotas 多窗口额度
+- [x] ACP：CLI 权限请求接入审批；会话按 agent+session、cwd = 工作区
+- [ ] ACP：CLI 自行改文件的事件；重新检测 CLI
+- [x] magpie：读取 /v1/magpie/quotas 显示额度
+- [x] subagent-acp 提供方（把一个轮次交给 Claude Code / Codex，共享父 Agent 工作区，改动不丢）
 - [x] Agent.StopInput(id)（只停该输入）
 - [x] 临时 Agent 不落盘（Spec.Ephemeral），删除即清工作区，崩溃残留启动时清扫
-- [ ] 中文 FTS：trigram 分词替代子串回退
-- [ ] 记忆索引改为异步写入
+- [x] 中文 FTS：trigram 索引（≥3 字），短词子串回退
+- [x] 记忆索引异步写入（队列 + 溢出补扫，不阻塞会话追加）
 
 - [x] scope 注册表：同名注册乱序撤销会复活已撤销条目 → 改为栈
 - [ ] 插件：tarball / npm 包签名校验；Windows Job Object 进程树；发布者身份；默认不开沙箱时网络 / 文件限制仅声明
 - [x] kernel：ApplyEntries 只管理条目加载的插件；LoadEntry；Context.Fail
 - [ ] 浏览器：网关支持原始二进制响应（截图目前 base64 JSON）；有头窗口接管需重启浏览器；浏览器网络不受运行模式白名单约束；跨源 iframe / 新标签页
-- [ ] MCP：服务器自报注解决定类别可被滥用 → 每服务器「信任注解」开关 / 类别覆盖；Agent 只读时 MCP 沙箱随之只读；暴露 resources / prompts；HTTP OAuth
+- [x] MCP：信任注解默认关闭 + 每工具类别覆盖；只读 Agent 的 MCP 沙箱随之只读
+- [ ] MCP：host 信任服务器无法只读；暴露 resources / prompts；HTTP OAuth
 - 有意保留：先读后改记录仅内存（重启需重读更安全）；Agent 级规则维护在引擎内部（设计选择）
 - 推迟到 Phase 3：单次提权调用、Docker 白名单出站代理
 
@@ -171,6 +173,7 @@
 ## 迭代日志
 | 日期 | 迭代 | 结果 |
 |---|---|---|
+| 2026-11-14 | 8f | 技术债第三批（子 agent，10 项）接入；ACP 委派共享父工作区（SharedWorkspace），subagent-acp 接入 |
 | 2026-11-14 | 8e | DeepSeek：core 词汇 + 默认廉价路由 + 会话主题；适配器部分待技术债 agent 交付后做（同文件） |
 | 2026-11-14 | 8d | 浏览器能力 + 接管（子 agent，真实 Chrome 157 验证）接入；DeepSeek 全家桶调研 + 经 magpie 真实调用原生联网 |
 | 2026-11-14 | 8c | 进程外插件 + SDK + 市场 + 热重载（子 agent）接入 crewd，Phase 2 出口全部满足；kernel 三项改进 |

@@ -29,6 +29,7 @@ import (
 //	/read P  fs/read_text_file P
 //	/write P fs/write_text_file P
 //	/spawn   starts a grandchild `sleep 300` and reports its pid
+//	/cwd     replies with the session's cwd
 //
 // Otherwise it replies "[s<n>] echo: <prompt>" in two chunks with a tool call.
 const fakeEnv = "FAKE_ACP_AGENT"
@@ -38,6 +39,7 @@ func runFakeAgent() {
 		mu      sync.Mutex
 		nsess   int
 		cancels = map[string]chan struct{}{}
+		cwds    = map[string]string{}
 		conn    *jsonrpc.Conn
 	)
 	update := func(sid string, u map[string]any) {
@@ -92,7 +94,7 @@ func runFakeAgent() {
 			var res permissionResult
 			err := conn.Call(ctx, "session/request_permission", map[string]any{
 				"sessionId": sid,
-				"toolCall":  map[string]string{"toolCallId": "t1", "title": "rm -rf build"},
+				"toolCall":  map[string]string{"toolCallId": "t1", "title": "rm -rf build", "kind": "execute"},
 				"options": []map[string]string{
 					{"optionId": "yes", "name": "Allow", "kind": "allow_once"},
 					{"optionId": "no", "name": "Reject", "kind": "reject_once"},
@@ -119,6 +121,12 @@ func runFakeAgent() {
 			} else {
 				chunk(sid, "write ok")
 			}
+			return map[string]string{"stopReason": "end_turn"}, nil
+		case strings.Contains(text, "/cwd"):
+			mu.Lock()
+			cwd := cwds[sid]
+			mu.Unlock()
+			chunk(sid, "["+sid+"] cwd="+cwd)
 			return map[string]string{"stopReason": "end_turn"}, nil
 		case strings.Contains(text, "/spawn"):
 			c := exec.Command("sleep", "300")
@@ -150,6 +158,9 @@ func runFakeAgent() {
 				nsess++
 				sid := fmt.Sprintf("s%d", nsess)
 				cancels[sid] = make(chan struct{})
+				var np struct{ Cwd string }
+				_ = json.Unmarshal(params, &np)
+				cwds[sid] = np.Cwd
 				mu.Unlock()
 				return map[string]any{"sessionId": sid, "models": map[string]any{
 					"currentModelId":  "fast",

@@ -6,6 +6,18 @@
 // is derived data: it is updated incrementally from session/event and can
 // be rebuilt from the logs with Reindex.
 //
+// Indexing is asynchronous: appended events go through a bounded queue to
+// one worker goroutine, so session appends never wait on SQLite. When the
+// queue is full the event is dropped and the index marked dirty; the worker
+// then runs a catch-up pass from the session logs. Searches wait briefly
+// for the queue to drain (read-your-writes for history_search).
+//
+// Two FTS5 indexes share the rows: the word index (unicode61) and a
+// trigram index (docs_tri, external content) used for queries containing
+// CJK text, where words are not space-separated. CJK terms shorter than
+// three characters cannot be matched by trigrams and use the substring
+// fallback.
+//
 // Tools: memory_add (write), memory_search, history_search, history_read
 // (read). history_* let an agent recall parts of a conversation that were
 // compacted away (C-2).
@@ -21,8 +33,10 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 	"unicode"
+	"unicode/utf8"
 
 	"github.com/hedeqiang/crewbase/core/agent"
 	"github.com/hedeqiang/crewbase/core/llm"
@@ -67,6 +81,19 @@ type Store struct {
 
 	mu       sync.Mutex // serialises index writes
 	memMtime map[string]time.Time
+
+	queue chan queued
+	dirty atomic.Bool // events were dropped: the worker catches up from the logs
+}
+
+// QueueSize bounds the indexing queue.
+const QueueSize = 1024
+
+// queued is one indexing job: an event, or a barrier (done) closed once
+// everything enqueued before it is indexed.
+type queued struct {
+	ev   session.Event
+	done chan struct{}
 }
 
 const schema = `
@@ -77,6 +104,10 @@ CREATE VIRTUAL TABLE IF NOT EXISTS docs USING fts5(
 CREATE TABLE IF NOT EXISTS indexed (session TEXT PRIMARY KEY, last_seq INTEGER NOT NULL);
 CREATE TABLE IF NOT EXISTS session_agents (session TEXT NOT NULL, agent TEXT NOT NULL, PRIMARY KEY (session, agent));
 `
+
+// triSchema is the trigram index over docs (external content: the text is
+// stored once, in docs; rowids match).
+const triSchema = `CREATE VIRTUAL TABLE docs_tri USING fts5(text, content='docs', content_rowid='rowid', tokenize='trigram')`
 
 // Plugin provides the `memory` service and the memory/history tools.
 var Plugin = kernel.Register(kernel.Spec{
@@ -93,11 +124,8 @@ var Plugin = kernel.Register(kernel.Spec{
 			return err
 		}
 		c.Defer(func() { _ = st.db.Close() })
-		session.OnEvent.Listen(c, func(ap session.Appended) {
-			if err := st.indexEvent(ap.Event); err != nil {
-				c.Log().Warn("memory: index event", "session", ap.Session, "seq", ap.Event.Seq, "err", err)
-			}
-		})
+		session.OnEvent.Listen(c, func(ap session.Appended) { st.enqueue(ap.Event) })
+		c.Go(st.worker)
 		st.registerTools(kernel.Use[*tools.Registry](c, tools.ServiceKey))
 		if err := c.Provide(ServiceKey, st); err != nil {
 			return err
@@ -137,7 +165,112 @@ func Open(c *kernel.Context, cfg Config) (*Store, error) {
 		db.Close()
 		return nil, fmt.Errorf("memory: init index: %w", err)
 	}
-	return &Store{c: c, cfg: cfg, agents: ag, db: db, path: path, memMtime: map[string]time.Time{}}, nil
+	if err := initTrigram(db); err != nil {
+		db.Close()
+		return nil, fmt.Errorf("memory: init trigram index: %w", err)
+	}
+	return &Store{c: c, cfg: cfg, agents: ag, db: db, path: path, memMtime: map[string]time.Time{}, queue: make(chan queued, QueueSize)}, nil
+}
+
+// initTrigram creates the trigram index, filling it from docs when an
+// existing index predates it.
+func initTrigram(db *sql.DB) error {
+	var n int
+	if err := db.QueryRow(`SELECT count(*) FROM sqlite_master WHERE name = 'docs_tri'`).Scan(&n); err != nil {
+		return err
+	}
+	if n > 0 {
+		return nil
+	}
+	tx, err := db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	if _, err := tx.Exec(triSchema); err != nil {
+		return err
+	}
+	// ('rebuild' cannot read an FTS5 content table; copy the rows instead.)
+	if _, err := tx.Exec(`INSERT INTO docs_tri(rowid, text) SELECT rowid, text FROM docs`); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
+// enqueue hands an appended event to the worker without blocking: on
+// overflow the index is marked dirty and caught up from the logs.
+func (s *Store) enqueue(e session.Event) {
+	select {
+	case s.queue <- queued{ev: e}:
+	default:
+		s.dirty.Store(true)
+	}
+}
+
+// worker indexes queued events in order; after an overflow it runs a
+// catch-up pass once the queue is empty (or at a barrier).
+func (s *Store) worker(ctx context.Context) {
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case q := <-s.queue:
+			if q.done == nil {
+				if err := s.indexEvent(q.ev); err != nil {
+					s.c.Log().Warn("memory: index event", "session", q.ev.Session, "seq", q.ev.Seq, "err", err)
+				}
+			}
+			if s.dirty.Load() && (q.done != nil || len(s.queue) == 0) {
+				s.catchUpDirty(ctx)
+			}
+			if q.done != nil {
+				close(q.done)
+			}
+		}
+	}
+}
+
+func (s *Store) catchUpDirty(ctx context.Context) {
+	s.dirty.Store(false)
+	var errs []error
+	for _, m := range s.agents.Sessions().List() {
+		if ctx.Err() != nil {
+			s.dirty.Store(true)
+			return
+		}
+		if err := s.IndexSession(m.ID); err != nil {
+			errs = append(errs, err)
+		}
+	}
+	if err := errors.Join(errs...); err != nil {
+		s.c.Log().Warn("memory: catch-up after queue overflow", "err", err)
+	}
+}
+
+// Sync waits until every event appended before the call is indexed (or ctx
+// ends). Searches call it with a short timeout.
+func (s *Store) Sync(ctx context.Context) error {
+	done := make(chan struct{})
+	select {
+	case s.queue <- queued{done: done}:
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+	select {
+	case <-done:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
+// syncWait is how long a search waits for pending indexing.
+const syncWait = 2 * time.Second
+
+func (s *Store) syncBrief() {
+	ctx, cancel := context.WithTimeout(s.c.Context(), syncWait)
+	defer cancel()
+	_ = s.Sync(ctx)
 }
 
 // Path returns the index file path.
@@ -237,6 +370,16 @@ func (s *Store) indexEvent(e session.Event) error {
 	return tx.Commit()
 }
 
+// insertTri mirrors a docs row into the trigram index.
+func insertTri(tx *sql.Tx, res sql.Result, text string) error {
+	id, err := res.LastInsertId()
+	if err != nil {
+		return err
+	}
+	_, err = tx.Exec(`INSERT INTO docs_tri(rowid, text) VALUES (?, ?)`, id, text)
+	return err
+}
+
 func (s *Store) insert(tx *sql.Tx, sessionID string, evs []session.Event) error {
 	if len(evs) == 0 {
 		return nil
@@ -258,8 +401,12 @@ func (s *Store) insert(tx *sql.Tx, sessionID string, evs []session.Event) error 
 			if r.agent != "" {
 				agents[r.agent] = true
 			}
-			if _, err := tx.Exec(`INSERT INTO docs(text, kind, agent, session, seq, role, time) VALUES (?, 'message', ?, ?, ?, ?, ?)`,
-				r.text, r.agent, sessionID, e.Seq, r.role, e.Time.Format(time.RFC3339)); err != nil {
+			res, err := tx.Exec(`INSERT INTO docs(text, kind, agent, session, seq, role, time) VALUES (?, 'message', ?, ?, ?, ?, ?)`,
+				r.text, r.agent, sessionID, e.Seq, r.role, e.Time.Format(time.RFC3339))
+			if err != nil {
+				return err
+			}
+			if err := insertTri(tx, res, r.text); err != nil {
 				return err
 			}
 		}
@@ -320,7 +467,7 @@ func (s *Store) CatchUp(ctx context.Context) error {
 // agents' MEMORY.md files.
 func (s *Store) Reindex(ctx context.Context) error {
 	s.mu.Lock()
-	_, err := s.db.Exec(`DELETE FROM docs; DELETE FROM indexed; DELETE FROM session_agents;`)
+	_, err := s.db.Exec(`INSERT INTO docs_tri(docs_tri) VALUES ('delete-all'); DELETE FROM docs; DELETE FROM indexed; DELETE FROM session_agents;`)
 	s.memMtime = map[string]time.Time{}
 	s.mu.Unlock()
 	if err != nil {
@@ -348,6 +495,9 @@ func (s *Store) refreshMemory(a *agent.Agent, force bool) error {
 		return err
 	}
 	defer tx.Rollback()
+	if _, err := tx.Exec(`INSERT INTO docs_tri(docs_tri, rowid, text) SELECT 'delete', rowid, text FROM docs WHERE kind = 'memory' AND agent = ?`, a.ID()); err != nil {
+		return err
+	}
 	if _, err := tx.Exec(`DELETE FROM docs WHERE kind = 'memory' AND agent = ?`, a.ID()); err != nil {
 		return err
 	}
@@ -356,8 +506,12 @@ func (s *Store) refreshMemory(a *agent.Agent, force bool) error {
 		if t == "" || strings.HasPrefix(t, "#") && !strings.Contains(t, " ") {
 			continue
 		}
-		if _, err := tx.Exec(`INSERT INTO docs(text, kind, agent, session, seq, role, time) VALUES (?, 'memory', ?, '', ?, 'memory', '')`,
-			t, a.ID(), i+1); err != nil {
+		res, err := tx.Exec(`INSERT INTO docs(text, kind, agent, session, seq, role, time) VALUES (?, 'memory', ?, '', ?, 'memory', '')`,
+			t, a.ID(), i+1)
+		if err != nil {
+			return err
+		}
+		if err := insertTri(tx, res, t); err != nil {
 			return err
 		}
 	}
@@ -381,11 +535,62 @@ func ftsQuery(q, op string) string {
 	return strings.Join(terms, " "+op+" ")
 }
 
+// hasCJK reports whether s contains Han, Hiragana, Katakana or Hangul.
+func hasCJK(s string) bool {
+	for _, r := range s {
+		if unicode.In(r, unicode.Han, unicode.Hiragana, unicode.Katakana, unicode.Hangul) {
+			return true
+		}
+	}
+	return false
+}
+
+// trigramQuery turns q into a trigram FTS5 query (quoted substrings joined
+// with op), or "" when a term is shorter than three characters (trigrams
+// cannot match it; the substring fallback does).
+func trigramQuery(q, op string) string {
+	words := strings.FieldsFunc(q, func(r rune) bool {
+		return unicode.IsSpace(r) || unicode.IsPunct(r) && r != '_' && r != '-' || unicode.IsSymbol(r)
+	})
+	if len(words) == 0 {
+		return ""
+	}
+	terms := make([]string, 0, len(words))
+	for _, w := range words {
+		if utf8.RuneCountInString(w) < 3 {
+			return ""
+		}
+		terms = append(terms, `"`+strings.ReplaceAll(w, `"`, `""`)+`"`)
+	}
+	return strings.Join(terms, " "+op+" ")
+}
+
 func (s *Store) query(where string, args []any, q string, limit int) ([]Hit, error) {
 	if limit <= 0 {
 		limit = 10
 	}
 	limit = min(limit, 50)
+	if hasCJK(q) {
+		for _, op := range []string{"AND", "OR"} {
+			fts := trigramQuery(q, op)
+			if fts == "" {
+				break
+			}
+			rows, err := s.db.Query(`SELECT kind, agent, session, seq, role, time, snippet(docs_tri, 0, '«', '»', '…', 16)
+				FROM docs_tri JOIN docs ON docs.rowid = docs_tri.rowid WHERE docs_tri MATCH ? AND `+where+` ORDER BY docs_tri.rank LIMIT ?`,
+				append(append([]any{fts}, args...), limit)...)
+			if err != nil {
+				return nil, err
+			}
+			h, err := scanHits(rows)
+			if err != nil {
+				return nil, err
+			}
+			if len(h) > 0 {
+				return h, nil
+			}
+		}
+	}
 	run := func(fts string) ([]Hit, error) {
 		rows, err := s.db.Query(`SELECT kind, agent, session, seq, role, time, snippet(docs, 0, '«', '»', '…', 16)
 			FROM docs WHERE docs MATCH ? AND `+where+` ORDER BY rank LIMIT ?`, append(append([]any{fts}, args...), limit)...)
@@ -440,6 +645,7 @@ func scanHits(rows *sql.Rows) ([]Hit, error) {
 // SearchHistory searches messages in sessions agentID took part in
 // (optionally one session).
 func (s *Store) SearchHistory(agentID, q, sessionID string, limit int) ([]Hit, error) {
+	s.syncBrief()
 	where := `kind = 'message' AND session IN (SELECT session FROM session_agents WHERE agent = ?)`
 	args := []any{agentID}
 	if sessionID != "" {

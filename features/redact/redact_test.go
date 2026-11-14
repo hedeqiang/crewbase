@@ -6,14 +6,20 @@ import (
 	"errors"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/hedeqiang/crewbase/capabilities/approval"
 	"github.com/hedeqiang/crewbase/capabilities/credentials"
+	"github.com/hedeqiang/crewbase/core/agent"
+	"github.com/hedeqiang/crewbase/core/agentloop"
 	"github.com/hedeqiang/crewbase/core/llm"
+	"github.com/hedeqiang/crewbase/core/prompt"
 	"github.com/hedeqiang/crewbase/core/session"
 	"github.com/hedeqiang/crewbase/core/tools"
 	"github.com/hedeqiang/crewbase/features/redact"
+	"github.com/hedeqiang/crewbase/features/router"
 	"github.com/hedeqiang/crewbase/kernel"
+	"github.com/hedeqiang/crewbase/providers/llm/mock"
 )
 
 func TestPatterns(t *testing.T) {
@@ -138,5 +144,92 @@ func TestStreamChunk(t *testing.T) {
 		func(_ context.Context, c llm.Chunk) (llm.Chunk, error) { return c, nil })
 	if err != nil || out.Text != "x [redacted] y" {
 		t.Fatal(out, err)
+	}
+}
+
+func TestResponseRedactedAcrossChunks(t *testing.T) {
+	root := t.TempDir()
+	h := kernel.NewHost(nil)
+	t.Cleanup(h.Close)
+	load := func(s kernel.Spec, cfg map[string]any) {
+		t.Helper()
+		if _, err := h.Load(s, kernel.LoadOptions{Config: cfg}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	load(session.Plugin, map[string]any{"dir": root + "/sessions"})
+	load(prompt.Plugin, nil)
+	load(tools.Plugin, nil)
+	load(approval.Plugin, nil)
+	load(llm.Plugin, nil)
+	load(mock.Plugin, map[string]any{"ids": []string{"m"}})
+	load(router.Plugin, nil)
+	load(agent.Plugin, map[string]any{"root": root, "defaultModels": []string{"m/default"}})
+	load(agentloop.Plugin, nil)
+	load(credentials.Plugin, nil)
+	load(redact.Plugin, nil)
+	r := h.Root()
+	creds := kernel.Use[*credentials.Service](r, credentials.ServiceKey)
+	const secret = "my-db-password-Zq9"
+	creds.Set("mem:db", secret)
+	half := len(secret) / 2
+
+	kernel.Use[*tools.Registry](r, tools.ServiceKey).Register(r, &tools.Tool{Name: "echo", Category: tools.CategoryRead,
+		Execute: func(_ context.Context, c tools.Call) (tools.Result, error) { return tools.Text("ok"), nil }})
+	ad, _ := kernel.Use[*llm.Registry](r, llm.ServiceKey).Get("m")
+	var n int
+	ad.(*mock.Adapter).Script = func(req llm.Request) (llm.Response, error) {
+		n++
+		if n > 1 {
+			return llm.Response{Message: llm.Message{Role: llm.RoleAssistant, Parts: []llm.Part{{Type: "text", Text: "done"}}}, StopReason: "end_turn"}, nil
+		}
+		return llm.Response{StopReason: "tool_use", Message: llm.Message{Role: llm.RoleAssistant, Parts: []llm.Part{
+			{Type: "thinking", Text: "the password is " + secret, Meta: map[string]string{"x:signature": "sig"}},
+			{Type: "text", Text: "using pw " + secret[:half]},
+			{Type: "text", Text: secret[half:] + " now"},
+			{Type: "tool_call", ToolCall: &llm.ToolCall{ID: "c1", Name: "echo", Args: json.RawMessage(`{"q":"` + secret + `","n":[1,"x ` + secret + `"]}`)}},
+		}}}, nil
+	}
+	a, err := kernel.Use[*agent.Registry](r, agent.ServiceKey).Create(agent.Spec{Name: "Kai"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ss, _ := a.Session()
+	if _, err := a.Enqueue(agent.Input{Text: "go"}); err != nil {
+		t.Fatal(err)
+	}
+	if !agentloop.WaitIdle(a, 3*time.Second) {
+		t.Fatal("not idle")
+	}
+	var sawAssistant, sawCall bool
+	for _, e := range ss.Events() {
+		if strings.Contains(string(e.Data), secret) || strings.Contains(string(e.Data), secret[half:]) {
+			t.Fatalf("secret in %s: %s", e.Type, e.Data)
+		}
+		switch e.Type {
+		case session.TypeAssistantMessage:
+			var m session.AssistantMessage
+			e.Decode(&m)
+			if strings.Contains(m.Message.Text(), "using pw") {
+				sawAssistant = true
+				if m.Message.Text() != "using pw [redacted] now" {
+					t.Fatalf("text %q", m.Message.Text())
+				}
+				if m.Message.Parts[0].Meta != nil {
+					t.Fatal("changed signed thinking must drop its signature")
+				}
+			}
+		case session.TypeToolCall:
+			var c session.ToolCallData
+			e.Decode(&c)
+			var v map[string]any
+			if err := json.Unmarshal(c.Call.Args, &v); err != nil || v["q"] != redact.Placeholder {
+				t.Fatalf("args %s %v", c.Call.Args, err)
+			}
+			sawCall = true
+		}
+	}
+	if !sawAssistant || !sawCall {
+		t.Fatal("events missing", sawAssistant, sawCall)
 	}
 }

@@ -113,8 +113,8 @@ func TestStreamFunctionCall(t *testing.T) {
 	if resp.StopReason != "tool_use" || len(got) != 1 || got[0].Name != "read" || string(got[0].Args) != `{"path":"a.go"}` {
 		t.Fatalf("resp=%+v got=%+v", resp, got)
 	}
-	if string(a.sigFor(got[0].ID)) != "SIG" {
-		t.Fatal("signature not remembered")
+	if tp := resp.Message.Parts[0]; tp.Meta[MetaThoughtSignature] != sig {
+		t.Fatalf("signature not kept in Part.Meta: %+v", tp)
 	}
 	contents := cap.body["contents"].([]any)
 	model := contents[1].(map[string]any)
@@ -132,15 +132,56 @@ func TestStreamFunctionCall(t *testing.T) {
 		t.Fatalf("tools = %v", cap.body["tools"])
 	}
 
-	// the remembered signature is sent back with our generated id
+	// the signature is sent back with our generated id, even by a fresh
+	// adapter (restart); foreign thinking parts are skipped
+	a = newAdapter(srv.URL)
+	resp.Message.Parts = append([]llm.Part{{Type: "thinking", Text: "x", Meta: map[string]string{"anthropic:signature": "S"}}}, resp.Message.Parts...)
 	req.Messages = append(req.Messages, resp.Message)
 	if _, err := a.Stream(context.Background(), req, func(llm.Chunk) error { return nil }); err != nil {
 		t.Fatal(err)
 	}
 	contents = cap.body["contents"].([]any)
 	last := contents[len(contents)-1].(map[string]any)["parts"].([]any)[0].(map[string]any)
+	if n := len(contents[len(contents)-1].(map[string]any)["parts"].([]any)); n != 1 {
+		t.Fatalf("foreign thinking sent: %v", contents[len(contents)-1])
+	}
 	if last["thoughtSignature"] != sig || last["functionCall"].(map[string]any)["id"] != nil {
 		t.Fatalf("resent call = %v", last)
+	}
+}
+
+func TestTextAndThoughtSignatures(t *testing.T) {
+	var cap captured
+	ts := base64.StdEncoding.EncodeToString([]byte("TSIG"))
+	hs := base64.StdEncoding.EncodeToString([]byte("HSIG"))
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		cap.set(r)
+		sse(w,
+			`{"candidates":[{"content":{"role":"model","parts":[{"text":"hmm","thought":true,"thoughtSignature":"`+hs+`"}]}}]}`,
+			`{"candidates":[{"content":{"role":"model","parts":[{"text":"Hi"}]}}]}`,
+			`{"candidates":[{"content":{"role":"model","parts":[{"text":"","thoughtSignature":"`+ts+`"}]},"finishReason":"STOP"}],"usageMetadata":{"promptTokenCount":9,"cachedContentTokenCount":4,"candidatesTokenCount":2}}`)
+	}))
+	defer srv.Close()
+	a := newAdapter(srv.URL)
+	req := llm.Request{Model: "gemini-3-pro", Messages: []llm.Message{llm.TextMessage(llm.RoleUser, "go")}}
+	resp, err := a.Stream(context.Background(), req, func(llm.Chunk) error { return nil })
+	if err != nil {
+		t.Fatal(err)
+	}
+	p := resp.Message.Parts
+	if len(p) != 2 || p[0].Meta[MetaThoughtSignature] != hs || p[1].Text != "Hi" || p[1].Meta[MetaThoughtSignature] != ts {
+		t.Fatalf("parts = %+v", p)
+	}
+	if resp.Usage.CacheRead != 4 || resp.Usage.InputTokens != 9 {
+		t.Fatalf("usage = %+v", resp.Usage)
+	}
+	req.Messages = append(req.Messages, resp.Message, llm.TextMessage(llm.RoleUser, "more"))
+	if _, err := a.Stream(context.Background(), req, func(llm.Chunk) error { return nil }); err != nil {
+		t.Fatal(err)
+	}
+	mp := cap.body["contents"].([]any)[1].(map[string]any)["parts"].([]any)
+	if len(mp) != 2 || mp[0].(map[string]any)["thought"] != true || mp[0].(map[string]any)["thoughtSignature"] != hs || mp[1].(map[string]any)["thoughtSignature"] != ts {
+		t.Fatalf("model parts = %v", mp)
 	}
 }
 

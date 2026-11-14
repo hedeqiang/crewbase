@@ -38,6 +38,9 @@ type conn struct {
 	settled chan struct{} // closed after the first connection attempt
 	settle  sync.Once
 	refresh chan struct{}
+	// readOnly: the scoped agent was read-only when this connection
+	// started (its sandbox policy is read-only).
+	readOnly bool
 
 	mu      sync.Mutex
 	st      Status
@@ -229,7 +232,7 @@ func (c *conn) serve(ctx context.Context, sess *session) {
 
 // install replaces the registered tools with list.
 func (c *conn) install(list []*sdk.Tool) {
-	infos := describe(c.srv.Name, list)
+	infos := describe(c.srv, list)
 	c.mu.Lock()
 	old := c.toolCtx
 	c.toolCtx = nil
@@ -255,6 +258,7 @@ func (c *conn) install(list []*sdk.Tool) {
 			Description: truncate(fmt.Sprintf("[MCP %s] %s", c.srv.Name, desc), 2000),
 			Params:      params,
 			Category:    info.Category,
+			PathArgs:    PathArgs(params),
 			Execute:     c.execute(info.Original),
 		})
 	}
@@ -287,7 +291,8 @@ func (c *conn) execute(original string) func(context.Context, tools.Call) (tools
 
 // describe names and categorizes a tool list, deduplicating names that
 // collide after sanitizing.
-func describe(server string, list []*sdk.Tool) []ToolInfo {
+func describe(srv Server, list []*sdk.Tool) []ToolInfo {
+	server := srv.Name
 	seen := map[string]bool{}
 	out := make([]ToolInfo, 0, len(list))
 	for _, t := range list {
@@ -299,7 +304,13 @@ func describe(server string, list []*sdk.Tool) []ToolInfo {
 			name = ToolName(server, fmt.Sprintf("%s_%d", t.Name, i))
 		}
 		seen[name] = true
-		out = append(out, ToolInfo{Name: name, Original: t.Name, Description: t.Description, Category: Category(t.Annotations)})
+		cat := Category(t.Annotations, srv.TrustAnnotations)
+		if v, ok := srv.Categories[t.Name]; ok {
+			cat = v
+		} else if v, ok := srv.Categories[name]; ok {
+			cat = v
+		}
+		out = append(out, ToolInfo{Name: name, Original: t.Name, Description: t.Description, Category: cat})
 	}
 	return out
 }
@@ -335,6 +346,7 @@ type session struct {
 	waitErr     error
 	kill        func()
 	once        sync.Once
+	policy      sandbox.Policy // the sandbox policy a confined server runs under
 }
 
 func (p *session) scrubErr(err error) error {
@@ -517,7 +529,13 @@ func (s *Service) dialStdio(ctx context.Context, srv Server, ws string, onChange
 		if sd := s.serverDir(srv.Name); sd != ws {
 			roots = append(roots, sd)
 		}
-		pol := sandbox.Policy{Mode: sandbox.ModeWorkspaceWrite, WritableRoots: roots, Network: sandbox.NetworkOpen}.Normalize()
+		pol := sandbox.Policy{Mode: sandbox.ModeWorkspaceWrite, WritableRoots: roots, Network: sandbox.NetworkOpen}
+		if s.agentReadOnly(srv) {
+			// The agent may not write: neither may its server.
+			pol = sandbox.Policy{Mode: sandbox.ModeReadOnly, Network: sandbox.NetworkOpen}
+		}
+		pol = pol.Normalize()
+		sess.policy = pol
 		conf, err = sb.Confine(ctx, srv.Command, ws, envList, pol)
 		if err != nil {
 			return nil, sess.scrubErr(err)

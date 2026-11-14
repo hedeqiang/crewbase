@@ -97,6 +97,7 @@ var Base = kernel.Bundle{Name: "base", Entries: []kernel.Entry{
 	{ID: "subagent-runner", Name: "@crewbase/subagent-runner"},
 	{ID: "subagent-local", Name: "@crewbase/subagent-local"},
 	{ID: "subagent-fork", Name: "@crewbase/subagent-fork"},
+	{ID: "subagent-acp", Name: "@crewbase/subagent-acp"},
 	{ID: "delegate", Name: "@crewbase/delegate"},
 	{ID: "workflows", Name: "@crewbase/workflows", Config: map[string]any{"dir": "${root}"}},
 	{ID: "browser", Name: "@crewbase/browser-chrome"},

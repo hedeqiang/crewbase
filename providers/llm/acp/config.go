@@ -51,8 +51,8 @@ type ModelConfig struct {
 type Config struct {
 	Agents []AgentConfig `json:"agents"`
 	// AutoApprove answers session/request_permission with the agent's
-	// "allow" option. Default false: every permission request is rejected
-	// (until Crewbase approvals are wired in), so CLIs run read-only-ish.
+	// "allow" option without asking (explicit override). Default false:
+	// requests go to the Crewbase approval service.
 	AutoApprove bool `json:"autoApprove"`
 	// IdleTimeoutSec stops an agent process after this long without a turn
 	// (default 600; negative disables).

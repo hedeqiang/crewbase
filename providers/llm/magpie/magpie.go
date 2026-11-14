@@ -11,6 +11,8 @@
 //     routing group name, sent as they are);
 //   - requests use OpenAI Chat Completions at `/v1`, with the key
 //     `magpie-crewbase` so magpie's Usage counts them as Crewbase;
+//   - subscription allowances come from `GET /v1/magpie/quotas` (cached
+//     ~60s, best effort; see Adapter.Quota);
 //   - magpie is one more provider beside the user's own, never a
 //     replacement. If magpie is not running, nothing is registered.
 //
@@ -102,10 +104,15 @@ type Adapter struct {
 	client *http.Client
 	window int
 
-	mu      sync.RWMutex
-	inner   *openai.Adapter
-	models  []llm.ModelInfo
-	version string
+	mu        sync.RWMutex
+	inner     *openai.Adapter
+	models    []llm.ModelInfo
+	providers map[string]bool   // magpie providers behind the catalog
+	modelProv map[string]string // model id -> magpie provider
+	version   string
+
+	quotaMu sync.Mutex // serialises quota fetches
+	quota   quotaCache
 }
 
 func (a *Adapter) ID() string   { return ProviderID }
@@ -210,7 +217,12 @@ func (a *Adapter) refresh(ctx context.Context) (bool, error) {
 	}
 	var infos []llm.ModelInfo
 	var specs []openai.ModelSpec
+	provs, modelProv := map[string]bool{}, map[string]string{}
 	for _, m := range entries {
+		if pv := modelProvider(m); pv != "" {
+			provs[pv] = true
+			modelProv[m.ID] = pv
+		}
 		w := m.ContextWindow
 		if w == 0 {
 			w = a.window
@@ -249,6 +261,7 @@ func (a *Adapter) refresh(ctx context.Context) (bool, error) {
 	inner.SetHTTPClient(a.client)
 	a.mu.Lock()
 	a.inner, a.models, a.version = inner, infos, ver
+	a.providers, a.modelProv = provs, modelProv
 	a.mu.Unlock()
 	return true, nil
 }

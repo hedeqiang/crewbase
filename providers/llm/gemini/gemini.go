@@ -18,6 +18,7 @@ package gemini
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -73,8 +74,6 @@ type Adapter struct {
 	cached   []llm.ModelInfo
 	cachedAt time.Time
 	cacheTTL time.Duration
-	sigs     map[string][]byte // tool call id → thought signature
-	sigOrder []string
 	seq      atomic.Int64
 }
 
@@ -86,7 +85,7 @@ func New(c *kernel.Context, pc ProviderConfig) *Adapter {
 	a := &Adapter{
 		id: pc.ID, baseURL: strings.TrimSpace(pc.BaseURL), apiVersion: pc.APIVersion, defModel: pc.DefaultModel,
 		headers: pc.Headers, static: pc.Models, budgets: map[string]int{}, httpClient: &http.Client{},
-		cacheTTL: 5 * time.Minute, sigs: map[string][]byte{},
+		cacheTTL: 5 * time.Minute,
 	}
 	if a.baseURL != "" && !strings.HasSuffix(a.baseURL, "/") {
 		a.baseURL += "/"
@@ -224,30 +223,31 @@ func (a *Adapter) fetchModels(ctx context.Context) ([]llm.ModelInfo, error) {
 
 // ---- thought signatures ----
 //
-// llm.ToolCall has no slot for Gemini's opaque thoughtSignature, which
-// Gemini 3 requires on function calls sent back in the current turn. They
-// are remembered in memory per tool call id.
+// Gemini's opaque thoughtSignature (required on function calls sent back
+// in the current turn by Gemini 3) travels base64-encoded in
+// llm.Part.Meta, so it is recorded in the session log and survives
+// restarts. Signatures on text / thought parts are kept the same way.
 
-func (a *Adapter) rememberSig(id string, sig []byte) {
+// MetaThoughtSignature is the Part.Meta key of a thought signature.
+const MetaThoughtSignature = "gemini:thoughtSignature"
+
+func sigMeta(sig []byte) map[string]string {
 	if len(sig) == 0 {
-		return
+		return nil
 	}
-	a.mu.Lock()
-	defer a.mu.Unlock()
-	if _, ok := a.sigs[id]; !ok {
-		a.sigOrder = append(a.sigOrder, id)
-	}
-	a.sigs[id] = sig
-	for len(a.sigOrder) > 1024 {
-		delete(a.sigs, a.sigOrder[0])
-		a.sigOrder = a.sigOrder[1:]
-	}
+	return map[string]string{MetaThoughtSignature: base64.StdEncoding.EncodeToString(sig)}
 }
 
-func (a *Adapter) sigFor(id string) []byte {
-	a.mu.Lock()
-	defer a.mu.Unlock()
-	return a.sigs[id]
+func sigOf(p llm.Part) []byte {
+	v := p.Meta[MetaThoughtSignature]
+	if v == "" {
+		return nil
+	}
+	b, err := base64.StdEncoding.DecodeString(v)
+	if err != nil {
+		return nil
+	}
+	return b
 }
 
 const genIDPrefix = "gemini_call_"
@@ -279,7 +279,17 @@ func (a *Adapter) mapContents(model string, msgs []llm.Message) []*genai.Content
 			switch p.Type {
 			case "text":
 				if p.Text != "" {
-					parts = append(parts, &genai.Part{Text: p.Text})
+					gp := &genai.Part{Text: p.Text}
+					if role == genai.RoleModel {
+						gp.ThoughtSignature = sigOf(p)
+					}
+					parts = append(parts, gp)
+				}
+			case "thinking":
+				// Only our own signed thoughts go back; other providers'
+				// thinking and plain thinking text are skipped.
+				if sig := sigOf(p); sig != nil && role == genai.RoleModel {
+					parts = append(parts, &genai.Part{Text: p.Text, Thought: true, ThoughtSignature: sig})
 				}
 			case "tool_call":
 				if tc := p.ToolCall; tc != nil && role == genai.RoleModel {
@@ -290,7 +300,7 @@ func (a *Adapter) mapContents(model string, msgs []llm.Message) []*genai.Content
 						fc.ID = tc.ID
 					}
 					part := &genai.Part{FunctionCall: fc}
-					if sig := a.sigFor(tc.ID); sig != nil {
+					if sig := sigOf(p); sig != nil {
 						part.ThoughtSignature = sig
 					} else if needSig {
 						part.ThoughtSignature = []byte(skipSignature)
@@ -388,6 +398,8 @@ func (a *Adapter) Stream(ctx context.Context, req llm.Request, onChunk func(llm.
 	}
 	var text, thinking strings.Builder
 	var calls []*llm.ToolCall
+	var callSigs [][]byte
+	var textSig, thoughtSig []byte
 	var usage llm.Usage
 	var finish genai.FinishReason
 	blockReason := ""
@@ -396,7 +408,7 @@ func (a *Adapter) Stream(ctx context.Context, req llm.Request, onChunk func(llm.
 			return llm.Response{}, a.classifyErr(ctx, err, key)
 		}
 		if u := resp.UsageMetadata; u != nil {
-			usage = llm.Usage{InputTokens: int(u.PromptTokenCount), OutputTokens: int(u.CandidatesTokenCount + u.ThoughtsTokenCount)}
+			usage = llm.Usage{InputTokens: int(u.PromptTokenCount), OutputTokens: int(u.CandidatesTokenCount + u.ThoughtsTokenCount), CacheRead: int(u.CachedContentTokenCount)}
 		}
 		if pf := resp.PromptFeedback; pf != nil && pf.BlockReason != "" {
 			blockReason = string(pf.BlockReason)
@@ -412,6 +424,13 @@ func (a *Adapter) Stream(ctx context.Context, req llm.Request, onChunk func(llm.
 			continue
 		}
 		for _, p := range cand.Content.Parts {
+			if p.FunctionCall == nil && len(p.ThoughtSignature) > 0 {
+				if p.Thought {
+					thoughtSig = p.ThoughtSignature
+				} else {
+					textSig = p.ThoughtSignature
+				}
+			}
 			switch {
 			case p.FunctionCall != nil:
 				fc := p.FunctionCall
@@ -425,9 +444,9 @@ func (a *Adapter) Stream(ctx context.Context, req llm.Request, onChunk func(llm.
 						args = b
 					}
 				}
-				a.rememberSig(id, p.ThoughtSignature)
 				tc := &llm.ToolCall{ID: id, Name: fc.Name, Args: args}
 				calls = append(calls, tc)
+				callSigs = append(callSigs, p.ThoughtSignature)
 				if err := onChunk(llm.Chunk{Type: "tool_call", ToolCall: tc}); err != nil {
 					return llm.Response{}, err
 				}
@@ -459,13 +478,13 @@ func (a *Adapter) Stream(ctx context.Context, req llm.Request, onChunk func(llm.
 	}
 	msg := llm.Message{Role: llm.RoleAssistant}
 	if t := thinking.String(); t != "" {
-		msg.Parts = append(msg.Parts, llm.Part{Type: "thinking", Text: t})
+		msg.Parts = append(msg.Parts, llm.Part{Type: "thinking", Text: t, Meta: sigMeta(thoughtSig)})
 	}
 	if t := text.String(); t != "" {
-		msg.Parts = append(msg.Parts, llm.Part{Type: "text", Text: t})
+		msg.Parts = append(msg.Parts, llm.Part{Type: "text", Text: t, Meta: sigMeta(textSig)})
 	}
-	for _, tc := range calls {
-		msg.Parts = append(msg.Parts, llm.Part{Type: "tool_call", ToolCall: tc})
+	for i, tc := range calls {
+		msg.Parts = append(msg.Parts, llm.Part{Type: "tool_call", ToolCall: tc, Meta: sigMeta(callSigs[i])})
 	}
 	stop := "end"
 	switch {
