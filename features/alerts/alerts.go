@@ -34,7 +34,18 @@ var Plugin = kernel.Register(kernel.Spec{
 		send := func(x notify.Notification) {
 			go n.Send(context.Background(), x)
 		}
+		// Waiting on a person shows amber everywhere (docs/03 §7).
+		approval.Decided.Listen(c, func(d approval.DecidedData) {
+			for _, a := range agents.List() {
+				if st, detail := a.Status(); st == agent.StatusWaiting && detail == "approval:"+d.CallID {
+					a.SetStatus(agent.StatusRunning, "")
+				}
+			}
+		})
 		approval.Asked.Listen(c, func(r approval.Request) {
+			if a, ok := agents.Get(r.Agent); ok {
+				a.SetStatus(agent.StatusWaiting, "approval:"+r.CallID)
+			}
 			send(notify.Notification{Kind: notify.KindNeedsYou, Urgent: true, Agent: r.Agent, Session: r.Session,
 				Title: name(r.Agent) + " 等你批准", Body: r.Summary})
 		})
