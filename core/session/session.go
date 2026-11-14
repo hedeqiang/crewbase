@@ -33,6 +33,7 @@ const (
 	TypeInject           = "agent/inject"
 	TypeToolCall         = "tool/call"
 	TypeToolResult       = "tool/result"
+	TypeToolPruned       = "tool/pruned"
 	TypeTurnStart        = "turn/start"
 	TypeTurnEnd          = "turn/end"
 	TypeStepStart        = "step/start"

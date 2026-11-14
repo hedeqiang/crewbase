@@ -29,6 +29,14 @@ type ToolCallData struct {
 	Call llm.ToolCall `json:"call"`
 }
 
+// PrunedData replaces an earlier tool result's model-visible content
+// (e.g. a huge log cut down to head/tail); the original stays in the log
+// and can be read back with history_read.
+type PrunedData struct {
+	CallID  string `json:"callId"`
+	Content string `json:"content"`
+}
+
 type CompactionData struct {
 	Summary string `json:"summary"`
 	// UptoSeq: every model-visible event with Seq <= UptoSeq is replaced by
@@ -88,6 +96,17 @@ func DeriveMessages(events []Event, agent string, names map[string]string) []llm
 			var r llm.ToolResult
 			if e.Decode(&r) == nil {
 				results[r.CallID] = r
+			}
+		}
+	}
+	for _, e := range events {
+		if e.Type == TypeToolPruned && e.Agent == agent {
+			var p PrunedData
+			if e.Decode(&p) == nil {
+				if r, ok := results[p.CallID]; ok {
+					r.Content = p.Content
+					results[p.CallID] = r
+				}
 			}
 		}
 	}

@@ -3,6 +3,7 @@ package agentloop_test
 import (
 	"context"
 	"encoding/json"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -236,5 +237,31 @@ func TestQueueRestoredAfterRestart(t *testing.T) {
 	a2, _ := e2.agents.Get(a.ID())
 	if q := a2.Queue(); len(q) != 1 || q[0].Text != "later" || !a2.Paused() {
 		t.Fatalf("queue not restored: %+v paused=%v", q, a2.Paused())
+	}
+}
+
+func TestEphemeralAgentNotPersisted(t *testing.T) {
+	root := t.TempDir()
+	e := newEnv(t, root)
+	a, err := e.agents.Create(agent.Spec{Name: "Lead-sub-1", Ephemeral: true, Parent: "lead"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ws := a.Workspace()
+	send(t, a, "hi")
+	agentloop.WaitIdle(a, 2*time.Second)
+	e.h.Close() // crash-like: never deleted
+	e2 := newEnv(t, root)
+	if _, ok := e2.agents.Get(a.ID()); ok {
+		t.Fatal("ephemeral agent restored")
+	}
+	if _, err := os.Stat(ws); !os.IsNotExist(err) {
+		t.Fatal("leftover ephemeral workspace not swept")
+	}
+	b, _ := e2.agents.Create(agent.Spec{Name: "Tmp", Ephemeral: true})
+	ws = b.Workspace()
+	e2.agents.Delete(b.ID())
+	if _, err := os.Stat(ws); !os.IsNotExist(err) {
+		t.Fatal("ephemeral workspace kept after delete")
 	}
 }

@@ -92,6 +92,9 @@ type Tool struct {
 	Description string
 	Params      map[string]any // JSON Schema object
 	Category    string         // default action category
+	// PathArgs names the arguments that are file-system paths, so guards
+	// can confine them (relative paths resolve against the workspace).
+	PathArgs []string
 	// SessionKinds limits the tool to sessions of these kinds (e.g.
 	// "channel"); elsewhere it is invisible and indistinguishable from
 	// absent. Empty = every session.

@@ -85,6 +85,9 @@ var (
 	PreStep = kernel.NewWaterfall[*agent.Input, *agent.Input]("agent/pre-step")
 	// Request adjusts request parameters (not the model choice).
 	Request = kernel.NewWaterfall[RequestArgs, *llm.Request]("agent/request")
+	// Response may rewrite a complete model response before it is logged
+	// (redaction across stream chunks, tool-call argument scrubbing).
+	Response = kernel.NewWaterfall[llm.Response, llm.Response]("agent/response")
 	// RequestError notifies failures before routing.
 	RequestError = kernel.NewEmit[error]("agent/request-error")
 	// TurnStopping may return true to continue with another step (a
@@ -348,11 +351,14 @@ func (l *loop) window(ctx context.Context, ad llm.Adapter, ref llm.ModelRef) int
 
 func (l *loop) build(a *agent.Agent, ss *session.Session, ref llm.ModelRef) llm.Request {
 	return llm.Request{
-		Model:    ref.Model,
-		Effort:   ref.Effort,
-		System:   l.prompts.Assemble(a.ID()),
-		Messages: session.DeriveMessages(ss.Events(), a.ID(), l.agents.Names()),
-		Tools:    l.toolsReg.SchemasFor(a.ID(), ss.Meta().Kind),
+		Model:     ref.Model,
+		Effort:    ref.Effort,
+		System:    l.prompts.Assemble(a.ID()),
+		Messages:  session.DeriveMessages(ss.Events(), a.ID(), l.agents.Names()),
+		Tools:     l.toolsReg.SchemasFor(a.ID(), ss.Meta().Kind),
+		Agent:     a.ID(),
+		Session:   ss.ID(),
+		Workspace: a.Workspace(),
 	}
 }
 
@@ -404,6 +410,11 @@ func (l *loop) step(ctx context.Context, a *agent.Agent, ss *session.Session, re
 			return nil
 		})
 		if err == nil {
+			// Last chance to scrub the complete reply (and tool-call
+			// arguments) before it is recorded and executed.
+			if out, rerr := Response.Run(d, ctx, resp, func(_ context.Context, r llm.Response) (llm.Response, error) { return r, nil }); rerr == nil {
+				resp = out
+			}
 			if _, err := ss.Append(session.TypeAssistantMessage, a.ID(), session.AssistantMessage{Message: resp.Message, Model: ref, Usage: resp.Usage, Stop: resp.StopReason}); err != nil {
 				return ref, resp, err
 			}

@@ -49,6 +49,11 @@ type Part struct {
 	Text       string      `json:"text,omitempty"`
 	ToolCall   *ToolCall   `json:"toolCall,omitempty"`
 	ToolResult *ToolResult `json:"toolResult,omitempty"`
+	// Meta carries opaque provider data that must round-trip with the
+	// part (e.g. thinking signatures). It is recorded in the session log,
+	// never shown to people, and only read back by the provider that wrote
+	// it (keys are namespaced "<provider>:<name>").
+	Meta map[string]string `json:"meta,omitempty"`
 }
 
 // Message is a provider-neutral chat message.
@@ -99,12 +104,19 @@ type Request struct {
 	Tools     []ToolSchema `json:"tools,omitempty"`
 	Effort    string       `json:"effort,omitempty"` // low | medium | high
 	MaxTokens int          `json:"maxTokens,omitempty"`
+	// Context about who is asking; never sent to the model. Adapters that
+	// keep their own sessions (ACP) or need a working directory use it.
+	Agent     string `json:"-"`
+	Session   string `json:"-"`
+	Workspace string `json:"-"`
 }
 
 // Usage counts tokens.
 type Usage struct {
-	InputTokens  int `json:"input"`
+	InputTokens  int `json:"input"` // all input tokens, cache reads/writes included
 	OutputTokens int `json:"output"`
+	CacheRead    int `json:"cacheRead,omitempty"`
+	CacheWrite   int `json:"cacheWrite,omitempty"`
 }
 
 // Chunk is one streaming piece.
@@ -129,11 +141,21 @@ type ModelInfo struct {
 	ContextWindow int      `json:"contextWindow"`
 	Capabilities  []string `json:"capabilities,omitempty"` // tools, vision, reasoning, long-context, code, embedding
 	Enabled       bool     `json:"enabled"`
+	SizeBytes     int64    `json:"sizeBytes,omitempty"` // local models
 }
 
 // Quota is remaining subscription/API allowance, when known.
 type Quota struct {
 	Known     bool      `json:"known"`
+	Remaining float64   `json:"remaining"` // 0..1, the tightest window
+	ResetsAt  time.Time `json:"resetsAt,omitzero"`
+	// Windows are the individual allowances (e.g. "5h", "week").
+	Windows []QuotaWindow `json:"windows,omitempty"`
+}
+
+// QuotaWindow is one subscription allowance window.
+type QuotaWindow struct {
+	Label     string    `json:"label"`
 	Remaining float64   `json:"remaining"` // 0..1
 	ResetsAt  time.Time `json:"resetsAt,omitzero"`
 }

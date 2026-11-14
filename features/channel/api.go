@@ -138,6 +138,20 @@ var APIPlugin = kernel.Register(kernel.Spec{
 				}
 				return get(r)
 			}})
+		g.Handle(c, gateway.Route{Method: "PATCH", Path: "/api/channels/{id}",
+			Handle: func(_ context.Context, r *gateway.Request) (any, error) {
+				if _, err := get(r); err != nil {
+					return nil, err
+				}
+				var b Settings
+				if err := r.Decode(&b); err != nil {
+					return nil, err
+				}
+				if err := s.SetSettings(r.Params["id"], b); err != nil {
+					return nil, err
+				}
+				return get(r)
+			}})
 		g.Handle(c, gateway.Route{Method: "POST", Path: "/api/channels/{id}/members",
 			Handle: func(_ context.Context, r *gateway.Request) (any, error) {
 				if _, err := get(r); err != nil {

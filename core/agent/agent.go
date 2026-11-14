@@ -48,6 +48,11 @@ type Spec struct {
 	Created   time.Time `json:"created"`
 	// Session is the agent's direct-conversation session.
 	Session string `json:"session"`
+	// Ephemeral agents (subagents) are never persisted; their workspace is
+	// removed on delete and leftovers are swept at startup.
+	Ephemeral bool `json:"ephemeral,omitempty"`
+	// Parent is the agent that spawned an ephemeral agent (lineage data).
+	Parent string `json:"parent,omitempty"`
 }
 
 // Status of an agent (docs/03 §7).
@@ -565,7 +570,12 @@ func writeIfMissing(path, content string) {
 	}
 }
 
+const ephemeralMarker = ".ephemeral"
+
 func (r *Registry) persist(s Spec) error {
+	if s.Ephemeral {
+		return os.WriteFile(filepath.Join(r.root, "workspaces", s.ID, ephemeralMarker), []byte(s.Parent), 0o644)
+	}
 	b, _ := json.MarshalIndent(s, "", "  ")
 	return os.WriteFile(filepath.Join(r.root, "workspaces", s.ID, "agent.json"), b, 0o644)
 }
@@ -614,7 +624,11 @@ func (r *Registry) Delete(id string) error {
 	a.Stop()
 	a.ctx.Dispose()
 	ws := a.Workspace()
-	_ = os.Rename(ws, filepath.Join(r.root, "workspaces", fmt.Sprintf(".deleted-%s-%d", id, time.Now().Unix())))
+	if a.Spec().Ephemeral {
+		_ = os.RemoveAll(ws)
+	} else {
+		_ = os.Rename(ws, filepath.Join(r.root, "workspaces", fmt.Sprintf(".deleted-%s-%d", id, time.Now().Unix())))
+	}
 	Deleted.Emit(r.c, id)
 	return nil
 }
@@ -623,6 +637,11 @@ func (r *Registry) loadAll() {
 	dirs, _ := os.ReadDir(filepath.Join(r.root, "workspaces"))
 	for _, d := range dirs {
 		if !d.IsDir() || strings.HasPrefix(d.Name(), ".") {
+			continue
+		}
+		// Ephemeral agents left behind by a crash are swept.
+		if _, err := os.Stat(filepath.Join(r.root, "workspaces", d.Name(), ephemeralMarker)); err == nil {
+			_ = os.RemoveAll(filepath.Join(r.root, "workspaces", d.Name()))
 			continue
 		}
 		b, err := os.ReadFile(filepath.Join(r.root, "workspaces", d.Name(), "agent.json"))

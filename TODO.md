@@ -104,22 +104,26 @@
 - 内核插件名保持 `@crewbase/llm-anthropic` 形式（与文档一致）
 
 ## 技术债 / 待跟进
-- [ ] 交接是否需接收方确认（待决问题 #1）：频道设置「交接需人确认」走 approval
+- [x] 交接是否需确认（待决问题 #1）：默认自动；频道设置「交接需人确认」走审批，无人可批即拒绝；等待时不持有服务锁
 - [x] 二次确认改由审批服务强制（Decision.Confirmed），UI 回传
-- [ ] 流式脱敏：跨 chunk 的密钥可能漏网（需 llm/stream 缓冲钩子）
-- [ ] `tool/call` 参数在脱敏前落日志
+- [x] `agent/response` Waterfall：完整回复（含工具参数）落日志前可整体改写
+- [ ] redact 监听 agent/response
+- [x] `tool/call` 参数在脱敏前落日志 → 由 agent/response 统一脱敏覆盖
 - [x] 规则插件缺失时流水线 fail-open → 改为 `requirePolicy` 关闭式失败
 - [x] post-execute 出错时回落原始结果 → 改为扣留结果
 
-- [ ] 工具结果裁剪事件 `tool/pruned`（DeriveMessages 识别），让剪枝真正缩小上下文
-- [ ] 工具声明路径参数（守卫目前按固定参数名检查）
+- [x] `tool/pruned` 事件（DeriveMessages 识别）
+- [ ] compaction 产出 tool/pruned
+- [x] Tool.PathArgs 声明路径参数
+- [ ] runmode 守卫使用 PathArgs；toolsbasic / MCP 声明
 - [ ] 「添加提供方」流程：API Key 写入钥匙串 + 写补丁 + 热应用（设置 › 模型与订阅）
-- [ ] llm 词汇表缺口：签名等不透明 part 元数据、ModelInfo 大小字段、缓存 token、多窗口额度（5h / 周）
+- [x] llm 词汇表：Part.Meta、ModelInfo.SizeBytes、Usage.CacheRead/Write、Quota.Windows、Request.Agent/Session/Workspace
+- [ ] 提供方采用：Anthropic / Gemini 签名入 Part.Meta、Ollama 大小、缓存 token、ACP 多窗口额度
 - [ ] ACP：CLI 权限请求接入 approval；Request 携带 session / workspace；CLI 自行改文件的事件；重新检测 CLI
 - [ ] magpie：读取 /v1/magpie/quotas 显示额度
 - [ ] subagent-acp 提供方（把一个轮次交给 Claude Code / Codex）
 - [x] Agent.StopInput(id)（只停该输入）
-- [ ] 临时 Agent 不落盘（Registry.Create 增加 ephemeral 选项）
+- [x] 临时 Agent 不落盘（Spec.Ephemeral），删除即清工作区，崩溃残留启动时清扫
 - [ ] 中文 FTS：trigram 分词替代子串回退
 - [ ] 记忆索引改为异步写入
 
@@ -151,6 +155,7 @@
 ## 迭代日志
 | 日期 | 迭代 | 结果 |
 |---|---|---|
+| 2026-11-14 | 8b | 技术债第二批（core 接口）：agent/response、PathArgs、llm 词汇表扩展、tool/pruned、临时 Agent、交接确认；提供方 / 功能侧采用交给子 agent |
 | 2026-11-14 | 8a | MCP（子 agent）接入；技术债第一批：二次确认强制、StopInput、scope 乱序撤销复活修复；技术债分类（修 / 保留 / 推迟） |
 | 2026-11-14 | 7d | 桌面 Web UI（子 agent 交付，headless Chrome 浅/深色 4 个宽度截图验证）提交；`make build` 内嵌 UI |
 | 2026-11-14 | 7c | 工作流 + 子 Agent（子 agent 交付）接入；core：agent-loop drivers 竞态、PreStep 拒绝补 turn-end、workflow 会话隔离投影；真实联调新增工作流与委派 |

@@ -12,6 +12,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/hedeqiang/crewbase/capabilities/approval"
 	"github.com/hedeqiang/crewbase/core/agent"
 	"github.com/hedeqiang/crewbase/core/session"
 	"github.com/hedeqiang/crewbase/core/tools"
@@ -26,7 +27,34 @@ const (
 	TypeHandover = "channel/handover"
 	TypeState    = "channel/state"
 	TypeMembers  = "channel/members"
+	TypeSettings = "channel/settings"
 )
+
+// Settings are per-channel options (folded from channel/settings events).
+type Settings struct {
+	// HandoverConfirm requires a person to approve each handover
+	// (roadmap open question #1; default: automatic).
+	HandoverConfirm bool `json:"handoverConfirm"`
+}
+
+// ChannelSettings returns the current settings.
+func ChannelSettings(ss *session.Session) Settings {
+	var st Settings
+	if e, ok := ss.Last(TypeSettings); ok {
+		_ = e.Decode(&st)
+	}
+	return st
+}
+
+// SetSettings records new settings.
+func (s *Service) SetSettings(id string, st Settings) error {
+	ss, err := s.channel(id)
+	if err != nil {
+		return err
+	}
+	_, err = ss.Append(TypeSettings, "", st)
+	return err
+}
 
 // Lifecycle states.
 const (
@@ -55,9 +83,10 @@ type Handover struct {
 // View is a channel snapshot.
 type View struct {
 	session.Meta
-	Owner   string   `json:"owner"`
-	State   string   `json:"state"`
-	Members []string `json:"members"`
+	Owner    string   `json:"owner"`
+	State    string   `json:"state"`
+	Members  []string `json:"members"`
+	Settings Settings `json:"settings"`
 }
 
 var (
@@ -141,7 +170,7 @@ func State(ss *session.Session) string {
 
 func (s *Service) view(ss *session.Session) View {
 	m := ss.Meta()
-	return View{Meta: m, Owner: Owner(ss), State: State(ss), Members: m.Agents}
+	return View{Meta: m, Owner: Owner(ss), State: State(ss), Members: m.Agents, Settings: ChannelSettings(ss)}
 }
 
 // Get returns a channel view.
@@ -286,6 +315,31 @@ func (s *Service) HandOver(ctx context.Context, h Handover) (Handover, error) {
 	h, err = HandoverCheck.Run(kernel.For(s.c, h.From), ctx, h, func(_ context.Context, x Handover) (Handover, error) { return x, nil })
 	if err != nil {
 		return h, err
+	}
+	if ChannelSettings(ss).HandoverConfirm {
+		svc, ok := kernel.Lookup[*approval.Service](s.c, approval.ServiceKey)
+		if !ok {
+			return h, errors.New("handover needs confirmation but no approver is available")
+		}
+		// Do not hold the service lock while a person decides.
+		s.mu.Unlock()
+		d := svc.Ask(ctx, ss, approval.Request{
+			CallID: fmt.Sprintf("handover/%s/%d", ss.ID(), len(ss.Events())), Session: ss.ID(), Agent: h.From,
+			Tool: "handover", Category: "handover", Reason: "this channel requires confirming handovers",
+			Summary: fmt.Sprintf("hand the task to %s: %s", h.To, h.Note),
+		})
+		if d.Outcome != approval.OutcomeAllowedOnce {
+			msg := string(d.Outcome)
+			if d.Message != "" {
+				msg += ": " + d.Message
+			}
+			s.mu.Lock()
+			return h, fmt.Errorf("handover not confirmed (%s)", msg)
+		}
+		s.mu.Lock()
+		if owner := Owner(ss); owner != h.From {
+			return h, fmt.Errorf("ownership changed while waiting for confirmation (now %s)", owner)
+		}
 	}
 	if _, err := ss.Append(TypeHandover, h.From, h); err != nil {
 		return h, err

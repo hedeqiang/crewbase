@@ -131,3 +131,20 @@ func TestOnlyOwnerCanHandOverAndLifecycle(t *testing.T) {
 		t.Fatal("archived channel must reject posts")
 	}
 }
+
+func TestHandoverConfirmation(t *testing.T) {
+	s, agents := setup(t)
+	a, _ := agents.Create(agent.Spec{Name: "A"})
+	b, _ := agents.Create(agent.Spec{Name: "B"})
+	ch, _ := s.Create("confirm", []string{a.ID(), b.ID()}, "", "lin")
+	if err := s.SetSettings(ch.ID, channel.Settings{HandoverConfirm: true}); err != nil {
+		t.Fatal(err)
+	}
+	// no desktop approver loaded in this setup → fail closed
+	if _, err := s.HandOver(t.Context(), channel.Handover{Channel: ch.ID, From: "a", To: "b", Note: "x"}); err == nil || !strings.Contains(err.Error(), "not confirmed") {
+		t.Fatalf("want rejection, got %v", err)
+	}
+	if v, _ := s.Get(ch.ID); v.Owner != "a" || !v.Settings.HandoverConfirm {
+		t.Fatalf("%+v", v)
+	}
+}
