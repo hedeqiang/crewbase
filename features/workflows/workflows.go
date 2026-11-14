@@ -939,8 +939,7 @@ func (s *Service) runAgentStep(ctx context.Context, lr *liveRun, st Step, group,
 			return "", failWith(StatusFailed, "%s", msg)
 		}
 	case <-ctx.Done():
-		if !a.Cancel(in.ID) && s.w.isRunning(tag) {
-			a.StopInput(in.ID)
+		if !a.Cancel(in.ID) && a.StopInput(in.ID) { // queued: removed; claimed or running: stopped
 			select {
 			case <-ch:
 			case <-time.After(5 * time.Second):

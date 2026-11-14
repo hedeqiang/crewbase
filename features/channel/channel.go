@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
+	"slices"
 	"strings"
 	"sync"
 
@@ -339,6 +340,12 @@ func (s *Service) HandOver(ctx context.Context, h Handover) (Handover, error) {
 		s.mu.Lock()
 		if owner := Owner(ss); owner != h.From {
 			return h, fmt.Errorf("ownership changed while waiting for confirmation (now %s)", owner)
+		}
+		if State(ss) == StateArchived {
+			return h, errors.New("channel was archived while waiting for confirmation")
+		}
+		if !slices.Contains(ss.Meta().Agents, h.To) {
+			return h, fmt.Errorf("%s is no longer a member of this channel", h.To)
 		}
 	}
 	if _, err := ss.Append(TypeHandover, h.From, h); err != nil {

@@ -233,15 +233,9 @@ func (c *conn) serve(ctx context.Context, sess *session) {
 // install replaces the registered tools with list.
 func (c *conn) install(list []*sdk.Tool) {
 	infos := describe(c.srv, list)
-	c.mu.Lock()
-	old := c.toolCtx
-	c.toolCtx = nil
-	c.mu.Unlock()
-	if old != nil {
-		// Dispose before registering: same-name re-registration would
-		// otherwise resurrect the stale entry later.
-		old.Dispose()
-	}
+	// Register the new list first, then drop the old one: the scoped
+	// registry lets the newest registration of a name win and disposes in
+	// any order, so there is no window without the server's tools.
 	tc := c.ctx.Fork("")
 	for i, t := range list {
 		if i >= len(infos) {
@@ -263,9 +257,13 @@ func (c *conn) install(list []*sdk.Tool) {
 		})
 	}
 	c.mu.Lock()
+	old := c.toolCtx
 	c.toolCtx, c.infos = tc, infos
 	c.st.Tools = len(infos)
 	c.mu.Unlock()
+	if old != nil {
+		old.Dispose()
+	}
 }
 
 func (c *conn) execute(original string) func(context.Context, tools.Call) (tools.Result, error) {

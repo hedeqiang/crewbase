@@ -221,7 +221,8 @@ func (l *loop) turn(parent context.Context, a *agent.Agent, in agent.Input) {
 	ss, err := l.agents.Sessions().Get(in.Session)
 	if err != nil {
 		l.c.Log().Error("turn: session", "err", err)
-		a.SetStatus(agent.StatusIdle, "")
+		a.SetStatus(agent.StatusFailed, "session unavailable")
+		TurnEnded.Emit(d, TurnEndEvent{Agent: a.ID(), Session: in.Session, Input: in, TurnEnd: TurnEnd{Status: "failed", Error: "session unavailable: " + err.Error()}})
 		return
 	}
 	inp, err := PreStep.Run(d, ctx, &in, func(_ context.Context, x *agent.Input) (*agent.Input, error) { return x, nil })
@@ -235,6 +236,7 @@ func (l *loop) turn(parent context.Context, a *agent.Agent, in agent.Input) {
 	in = *inp
 	if _, err := ss.Append(session.TypeUserMessage, "", session.UserMessage{Text: in.Text, From: in.From, To: a.ID()}); err != nil {
 		a.SetStatus(agent.StatusFailed, err.Error())
+		TurnEnded.Emit(d, TurnEndEvent{Agent: a.ID(), Session: ss.ID(), Input: in, TurnEnd: TurnEnd{Status: "failed", Error: "could not record input: " + err.Error()}})
 		return
 	}
 
@@ -413,9 +415,13 @@ func (l *loop) step(ctx context.Context, a *agent.Agent, ss *session.Session, re
 		if err == nil {
 			// Last chance to scrub the complete reply (and tool-call
 			// arguments) before it is recorded and executed.
-			if out, rerr := Response.Run(d, ctx, resp, func(_ context.Context, r llm.Response) (llm.Response, error) { return r, nil }); rerr == nil {
-				resp = out
+			out, rerr := Response.Run(d, ctx, resp, func(_ context.Context, r llm.Response) (llm.Response, error) { return r, nil })
+			if rerr != nil {
+				// Fail closed: the raw reply may hold what a listener
+				// (redaction) was meant to remove; never log or run it.
+				return ref, llm.Response{}, fmt.Errorf("response post-processing failed: %w", rerr)
 			}
+			resp = out
 			if _, err := ss.Append(session.TypeAssistantMessage, a.ID(), session.AssistantMessage{Message: resp.Message, Model: ref, Usage: resp.Usage, Stop: resp.StopReason}); err != nil {
 				return ref, resp, err
 			}

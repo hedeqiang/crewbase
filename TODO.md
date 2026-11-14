@@ -142,6 +142,18 @@
 
 - [x] UI 反馈的接口缺口：Agent 状态带 statusSession（接管 / 审批属于哪个会话）、浏览器状态 mine、审批 preview（工作流卡点摘要单行 + 可展开内容）、新 Agent 默认模型在 CLI 未安装时回落到可用提供方的强模型
 
+## 代码评审（high，1cff1b3~25..HEAD）发现并修复
+- [x] agent/response 出错时回落原始回复（脱敏失效）→ 关闭式失败
+- [x] turn 早退路径不发 turn-end → 工作流 / 子 Agent 永久等待
+- [x] 取消在「已领取未开始」窗口失效 → Claim 即记当前输入，StopInput 延迟生效
+- [x] 按任务分流会把本地模型 Agent 的内容送到云端，且关键词分类易误判 → 本地专用 Agent 只分流到本地模型；分类改为句首意图；会话主题同样遵守
+- [x] 交接确认等待后未复查归档 / 成员资格
+- [x] 新建 Agent 每次阻塞查询模型列表 → 缓存至提供方变化
+- [x] Context.Fail 来自旧激活会拆掉新实例 → 忽略过期上下文
+- [x] MCP 刷新存在无工具窗口 → 先注册新再撤旧
+- [x] 四份 common.go 复制 → providers/llm/internal/common 一份
+- [x] compaction 与 DeriveMessages 对 thinking 判定不一致
+
 ## Phase 3 — 远程、IM、团队
 - [x] `server` Profile、install-server.sh（systemd）、加固 docker-compose（no-new-privileges、seccomp、只读根、shm 1g、不映射端口、可选 Tailscale）、Dockerfile、阿里云 ECS / AWS EC2 + Fargate 模板、docs/deploy.md（D-2）
 - [ ] 部署：真实 Docker 构建与云主机实跑；容器内无 Docker 沙箱（改 sandbox-none 拒绝沙箱命令）
@@ -181,6 +193,7 @@
 ## 迭代日志
 | 日期 | 迭代 | 结果 |
 |---|---|---|
+| 2026-11-14 | 9f | 高强度代码评审 10 项全部修复；54 包 race、Windows 编译、真实模型回归通过 |
 | 2026-11-14 | 9e | UI 反馈的 4 处接口缺口修复；确认当前构建联网引用真实可用（UI agent 测的是旧构建） |
 | 2026-11-14 | 9d | 桌面 UI 第二轮（子 agent，真实 crewd + magpie 驱动，浅/深色多宽度截图审阅）提交 |
 | 2026-11-14 | 9c | Go 依赖全量升级 + tidy；kernel 插件生命周期事件替代审计轮询（修复偶发失败）；54 包 race 通过，Windows / Linux 交叉编译通过 |

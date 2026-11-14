@@ -10,6 +10,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/hedeqiang/crewbase/core/agent"
 	"github.com/hedeqiang/crewbase/core/agentloop"
 	"github.com/hedeqiang/crewbase/core/llm"
 	"github.com/hedeqiang/crewbase/core/session"
@@ -63,13 +64,14 @@ var Plugin = kernel.Register(kernel.Spec{
 	Apply: func(c *kernel.Context) error {
 		sessions := kernel.Use[*session.Store](c, session.ServiceKey)
 		llms := kernel.Use[*llm.Registry](c, llm.ServiceKey)
-		pending := make(chan string, 64)
+		type job struct{ session, agent string }
+		pending := make(chan job, 64)
 		agentloop.TurnEnded.Listen(c, func(e agentloop.TurnEndEvent) {
 			if e.Status != "completed" || strings.HasPrefix(e.Input.Tag, "routine:") || strings.HasPrefix(e.Input.Tag, "workflow:") {
 				return
 			}
 			select {
-			case pending <- e.Session:
+			case pending <- job{e.Session, e.Agent}:
 			default:
 			}
 		})
@@ -78,7 +80,8 @@ var Plugin = kernel.Register(kernel.Spec{
 				select {
 				case <-ctx.Done():
 					return
-				case id := <-pending:
+				case j := <-pending:
+					id := j.session
 					ss, err := sessions.Get(id)
 					if err != nil || ss.Meta().Topic != "" {
 						continue
@@ -91,7 +94,11 @@ var Plugin = kernel.Register(kernel.Spec{
 					if !ok {
 						continue
 					}
-					ref, ok := r.RouteFor(router.TaskTitle)
+					var who *agent.Agent
+					if ar, ok := kernel.Lookup[*agent.Registry](c, agent.ServiceKey); ok {
+						who, _ = ar.Get(j.agent)
+					}
+					ref, ok := r.RouteForAgent(router.TaskTitle, who)
 					if !ok {
 						continue
 					}

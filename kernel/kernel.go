@@ -307,8 +307,18 @@ type PluginInfo struct {
 // Apply, return the error instead.
 func (c *Context) Fail(err error) {
 	p := c.ownerPlugin()
-	if p == nil {
+	if p == nil || c.Disposed() {
 		return
+	}
+	root := c
+	for root.plugin == nil && root.parent != nil {
+		root = root.parent
+	}
+	p.host.mu.Lock()
+	current := p.ctx == root
+	p.host.mu.Unlock()
+	if !current {
+		return // a previous activation: never tear down the new one
 	}
 	go func() {
 		p.host.mu.Lock()

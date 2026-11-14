@@ -45,7 +45,7 @@ func NewOllama(c *kernel.Context, cfg ServerConfig) *Ollama {
 	}
 	return &Ollama{
 		id: id, baseURL: trimSlash(cfg.BaseURL), numCtx: cfg.NumCtx, http: &http.Client{},
-		keys:     keySource{c: c, literal: cfg.APIKey, ref: cfg.APIKeyRef},
+		keys:     keySource{C: c, Literal: cfg.APIKey, Ref: cfg.APIKeyRef},
 		cacheTTL: 30 * time.Second, shown: map[string]showInfo{},
 	}
 }
@@ -57,7 +57,7 @@ func (o *Ollama) ID() string   { return o.id }
 func (o *Ollama) Kind() string { return "local" }
 
 func (o *Ollama) do(ctx context.Context, method, path string, body any) (*http.Response, string, error) {
-	key, err := o.keys.key(ctx, o.id)
+	key, err := o.keys.Key(ctx, o.id)
 	if err != nil {
 		return nil, "", err
 	}

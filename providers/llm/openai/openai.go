@@ -181,9 +181,9 @@ func New(c *kernel.Context, pc ProviderConfig) (*Adapter, error) {
 	if pc.ShortToolIDs != nil {
 		a.shortIDs = *pc.ShortToolIDs
 	}
-	a.keys = keySource{c: c, literal: pc.APIKey, ref: pc.APIKeyRef, env: env}
+	a.keys = keySource{C: c, Literal: pc.APIKey, Ref: pc.APIKeyRef, Env: env}
 	if pc.APIKey == "" && pc.APIKeyRef == "" && a.kind != "local" {
-		a.keys.defRef = "keychain:crewbase/" + pc.ID
+		a.keys.DefRef = "keychain:crewbase/" + pc.ID
 	}
 	return a, nil
 }
@@ -202,7 +202,7 @@ func (a *Adapter) Kind() string { return a.kind }
 // OPENAI_* environment variables never leak into other providers. Retries
 // are off: the router fails over instead.
 func (a *Adapter) options(ctx context.Context) ([]option.RequestOption, string, error) {
-	key, err := a.keys.key(ctx, a.id)
+	key, err := a.keys.Key(ctx, a.id)
 	if err != nil {
 		return nil, "", err
 	}
@@ -225,7 +225,7 @@ func (a *Adapter) Models(ctx context.Context) ([]llm.ModelInfo, error) {
 	if len(a.static) > 0 {
 		out := make([]llm.ModelInfo, 0, len(a.static))
 		for _, m := range a.static {
-			out = append(out, m.info(a.id, a.windowFor))
+			out = append(out, m.Info(a.id, a.windowFor))
 		}
 		return out, nil
 	}

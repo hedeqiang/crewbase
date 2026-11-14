@@ -72,3 +72,43 @@ func TestTaskRoutingFallsBackWhenUnusable(t *testing.T) {
 		t.Fatalf("fallback, got %s", model())
 	}
 }
+
+func TestClassifierIsConservative(t *testing.T) {
+	for _, txt := range []string{"Implement the summary view", "在摘要页加一个按钮", "the log cleanup job failed"} {
+		if got := router.Classify(agent.Input{Text: txt}); got == router.TaskSummarize {
+			t.Errorf("%q must not route as a summary", txt)
+		}
+	}
+	for _, txt := range []string{"Summarize this page", "请帮我总结这篇文章", "总结一下会议记录"} {
+		if got := router.Classify(agent.Input{Text: txt}); got != router.TaskSummarize {
+			t.Errorf("%q: got %q", txt, got)
+		}
+	}
+}
+
+func TestLocalOnlyAgentNeverRoutedToCloud(t *testing.T) {
+	h := kernel.NewHost(nil)
+	t.Cleanup(h.Close)
+	for _, x := range []struct {
+		s   kernel.Spec
+		cfg map[string]any
+	}{
+		{session.Plugin, nil}, {prompt.Plugin, nil}, {tools.Plugin, nil},
+		{llm.Plugin, nil}, {mock.Plugin, map[string]any{"ids": []string{"ollama", "cloud"}}},
+		{router.Plugin, map[string]any{"routes": []map[string]string{{"task": "summarize", "model": "cloud/default"}}}},
+		{agent.Plugin, map[string]any{"root": t.TempDir()}},
+		{agentloop.Plugin, nil},
+	} {
+		h.Load(x.s, kernel.LoadOptions{Config: x.cfg})
+	}
+	llms := kernel.Use[*llm.Registry](h.Root(), llm.ServiceKey)
+	ol, _ := llms.Get("ollama")
+	ol.(*mock.Adapter).SetKind("local")
+	a, _ := kernel.Use[*agent.Registry](h.Root(), agent.ServiceKey).Create(agent.Spec{Name: "Private", Models: []llm.ModelRef{{Provider: "ollama", Model: "default"}}})
+	a.Enqueue(agent.Input{Text: "Summarize this confidential page"})
+	agentloop.WaitIdle(a, 2*time.Second)
+	cl, _ := llms.Get("cloud")
+	if n := len(cl.(*mock.Adapter).Requests()); n != 0 {
+		t.Fatalf("local-only agent's content was sent to a cloud model (%d requests)", n)
+	}
+}

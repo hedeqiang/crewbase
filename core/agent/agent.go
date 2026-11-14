@@ -103,6 +103,7 @@ type Agent struct {
 	paused        bool
 	wake          chan struct{}
 	statusSession string
+	stopReq       string // stop requested for a claimed input not yet started
 	stopCur       func()
 	curInput      string
 	detail        string
@@ -356,6 +357,7 @@ func (a *Agent) Claim() (Input, bool) {
 	}
 	in := a.queue[0]
 	a.queue = a.queue[1:]
+	a.curInput, a.stopCur = in.ID, nil
 	a.mu.Unlock()
 	if ss, err := a.reg.sessions.Get(in.Session); err == nil {
 		_, _ = ss.Append(session.TypeInputClaimed, a.spec.ID, map[string]string{"id": in.ID})
@@ -377,11 +379,19 @@ func (a *Agent) signal() {
 // SetStopper installs the cancel func of the running turn.
 func (a *Agent) SetStopper(stop func()) { a.SetCurrent("", stop) }
 
-// SetCurrent records the input being worked on and its cancel func.
+// SetCurrent records the input being worked on and its cancel func. A
+// stop requested for the input between Claim and SetCurrent fires now.
 func (a *Agent) SetCurrent(inputID string, stop func()) {
 	a.mu.Lock()
 	a.stopCur, a.curInput = stop, inputID
+	fire := stop != nil && inputID != "" && a.stopReq == inputID
+	if fire || inputID == "" {
+		a.stopReq = ""
+	}
 	a.mu.Unlock()
+	if fire {
+		stop()
+	}
 }
 
 // CurrentInput returns the id of the input being worked on ("" = idle).
@@ -397,8 +407,14 @@ func (a *Agent) StopInput(inputID string) bool {
 	a.mu.Lock()
 	stop := a.stopCur
 	cur := a.curInput == inputID && inputID != ""
+	if cur && stop == nil {
+		// Claimed but the turn has not installed its stopper yet.
+		a.stopReq = inputID
+		a.mu.Unlock()
+		return true
+	}
 	a.mu.Unlock()
-	if cur && stop != nil {
+	if cur {
 		stop()
 		return true
 	}
@@ -450,6 +466,9 @@ type Registry struct {
 
 	mu     sync.Mutex
 	agents map[string]*Agent
+	// fallback caches availableDefaults until the adapter set changes.
+	fallback   []llm.ModelRef
+	fallbackAt time.Time
 }
 
 var idRe = regexp.MustCompile(`[^a-z0-9-]+`)
@@ -745,6 +764,11 @@ var Plugin = kernel.Register(kernel.Spec{
 			}
 			return "Long-term memory (MEMORY.md):\n" + m
 		}})
+		llm.AdaptersChanged.Listen(c, func(struct{}) {
+			r.mu.Lock()
+			r.fallback = nil
+			r.mu.Unlock()
+		})
 		if err := c.Provide(ServiceKey, r); err != nil {
 			return err
 		}
@@ -770,6 +794,21 @@ func (r *Registry) availableDefaults() []llm.ModelRef {
 	if !ok {
 		return defs
 	}
+	r.mu.Lock()
+	if r.fallback != nil && time.Since(r.fallbackAt) < 10*time.Minute {
+		out := append([]llm.ModelRef(nil), r.fallback...)
+		r.mu.Unlock()
+		return out
+	}
+	r.mu.Unlock()
+	out := r.computeDefaults(reg, defs)
+	r.mu.Lock()
+	r.fallback, r.fallbackAt = out, time.Now()
+	r.mu.Unlock()
+	return append([]llm.ModelRef(nil), out...)
+}
+
+func (r *Registry) computeDefaults(reg *llm.Registry, defs []llm.ModelRef) []llm.ModelRef {
 	var out []llm.ModelRef
 	for _, m := range defs {
 		if _, ok := reg.Get(m.Provider); ok {
@@ -826,6 +865,7 @@ func pickModel(ms []llm.ModelInfo) string {
 func (r *Registry) SetDefaultModels(ms []llm.ModelRef) {
 	r.mu.Lock()
 	r.defaults = append([]llm.ModelRef(nil), ms...)
+	r.fallback = nil
 	r.mu.Unlock()
 }
 

@@ -386,7 +386,7 @@ func EventTokens(e session.Event, agentID string) int {
 		}
 		n := 0
 		for _, p := range m.Message.Parts {
-			if p.Type == "thinking" && p.Meta == nil {
+			if p.Type == "thinking" && len(p.Meta) == 0 {
 				continue // plain thinking is not sent back (DeriveMessages)
 			}
 			n += llm.EstimateTokens(p.Text) + 4

@@ -116,9 +116,9 @@ func New(c *kernel.Context, pc ProviderConfig) *Adapter {
 	if env == "" && pc.ID == "anthropic" {
 		env = "ANTHROPIC_API_KEY"
 	}
-	a.keys = keySource{c: c, literal: pc.APIKey, ref: pc.APIKeyRef, env: env}
+	a.keys = keySource{C: c, Literal: pc.APIKey, Ref: pc.APIKeyRef, Env: env}
 	if pc.APIKey == "" && pc.APIKeyRef == "" {
-		a.keys.defRef = "keychain:crewbase/" + pc.ID
+		a.keys.DefRef = "keychain:crewbase/" + pc.ID
 	}
 	return a
 }
@@ -134,7 +134,7 @@ func (a *Adapter) Kind() string { return "api" }
 // adapter's own config and the credentials service are authoritative.
 // Retries are off so the router can fail over immediately.
 func (a *Adapter) client(ctx context.Context) (sdk.Client, string, error) {
-	key, err := a.keys.key(ctx, a.id)
+	key, err := a.keys.Key(ctx, a.id)
 	if err != nil {
 		return sdk.Client{}, "", err
 	}
@@ -162,7 +162,7 @@ func (a *Adapter) Models(ctx context.Context) ([]llm.ModelInfo, error) {
 	if len(a.static) > 0 {
 		out := make([]llm.ModelInfo, 0, len(a.static))
 		for _, m := range a.static {
-			mi := m.info(a.id, nil)
+			mi := m.Info(a.id, nil)
 			if mi.Capabilities == nil {
 				mi.Capabilities = []string{"tools", "vision", "reasoning", "code"}
 			}

@@ -353,8 +353,7 @@ func (r *runner) run(ctx context.Context, child *agent.Agent, css *session.Sessi
 	case <-ctx.Done():
 		// Propagate cancellation to the child's turn (only this input's:
 		// a named child may be busy with other work later).
-		if !child.Cancel(in.ID) && r.w.isRunning(tag) {
-			child.StopInput(in.ID)
+		if !child.Cancel(in.ID) && child.StopInput(in.ID) { // queued: removed; claimed or running: stopped
 			select {
 			case <-ch:
 			case <-time.After(5 * time.Second):

@@ -100,9 +100,9 @@ func New(c *kernel.Context, pc ProviderConfig) *Adapter {
 	if env == "" && pc.ID == "gemini" {
 		env = "GEMINI_API_KEY"
 	}
-	a.keys = keySource{c: c, literal: pc.APIKey, ref: pc.APIKeyRef, env: env}
+	a.keys = keySource{C: c, Literal: pc.APIKey, Ref: pc.APIKeyRef, Env: env}
 	if pc.APIKey == "" && pc.APIKeyRef == "" {
-		a.keys.defRef = "keychain:crewbase/" + pc.ID
+		a.keys.DefRef = "keychain:crewbase/" + pc.ID
 	}
 	return a
 }
@@ -116,7 +116,7 @@ func (a *Adapter) Kind() string { return "api" }
 // client builds an SDK client with the key resolved now. The SDK's own error
 // text (which can embed its config) is never surfaced.
 func (a *Adapter) client(ctx context.Context) (*genai.Client, string, error) {
-	key, err := a.keys.key(ctx, a.id)
+	key, err := a.keys.Key(ctx, a.id)
 	if err != nil {
 		return nil, "", err
 	}
@@ -150,7 +150,7 @@ func (a *Adapter) Models(ctx context.Context) ([]llm.ModelInfo, error) {
 	if len(a.static) > 0 {
 		out := make([]llm.ModelInfo, 0, len(a.static))
 		for _, m := range a.static {
-			mi := m.info(a.id, nil)
+			mi := m.Info(a.id, nil)
 			if mi.Capabilities == nil {
 				mi.Capabilities = []string{"tools", "vision", "long-context"}
 			}

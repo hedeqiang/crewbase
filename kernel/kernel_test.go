@@ -327,3 +327,21 @@ func TestPluginChangedEvents(t *testing.T) {
 		t.Fatalf("got  %v\nwant %v", got, want)
 	}
 }
+
+func TestFailFromStaleContextIgnored(t *testing.T) {
+	h := NewHost(nil)
+	defer h.Close()
+	var ctxs []*Context
+	h.Load(Spec{Name: "dep", Apply: func(c *Context) error { return c.Provide("d", 1) }}, LoadOptions{})
+	h.Load(Spec{Name: "p", Inject: []string{"d"}, Apply: func(c *Context) error { ctxs = append(ctxs, c); return nil }}, LoadOptions{})
+	h.Unload("dep")
+	h.Load(Spec{Name: "dep", Apply: func(c *Context) error { return c.Provide("d", 1) }}, LoadOptions{})
+	if len(ctxs) != 2 {
+		t.Fatalf("activations %d", len(ctxs))
+	}
+	ctxs[0].Fail(errors.New("old supervisor"))
+	time.Sleep(50 * time.Millisecond)
+	if info, _ := h.Plugin("p"); info.State != StateActive {
+		t.Fatalf("stale Fail tore down the new activation: %+v", info)
+	}
+}

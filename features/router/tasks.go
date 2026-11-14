@@ -25,53 +25,90 @@ type Route struct {
 }
 
 var (
-	summarizeWords = []string{"summarize", "summarise", "summary", "tl;dr", "clean up the log", "log cleanup", "摘要", "总结", "概括", "日志清洗", "清洗日志"}
-	codeWords      = []string{"implement", "refactor", "fix the bug", "write a test", "unit test", "code review", "编码", "实现", "重构", "修复", "写测试", "代码"}
+	// Only an explicit request to summarise counts, at the start of the
+	// message ("总结一下这篇…", "Summarize this page") — not a passing
+	// mention ("implement the summary view").
+	summarizeLead = []string{"summarize", "summarise", "tl;dr", "clean up this log", "clean up the log", "总结", "概括", "摘要一下", "帮我总结", "帮我概括", "清洗日志", "日志清洗"}
+	codeLead      = []string{"implement", "refactor", "fix the bug", "write a test", "write tests", "实现", "重构", "修复", "写测试", "写单测"}
 )
 
-// Classify guesses the task kind of an input.
+func leads(t string, words []string) bool {
+	t = strings.TrimSpace(strings.ToLower(t))
+	for _, w := range words {
+		if strings.HasPrefix(t, w) {
+			return true
+		}
+		// allow a short polite prefix: "please summarize", "请帮我总结"
+		if i := strings.Index(t, w); i >= 0 && i <= 12 {
+			return true
+		}
+	}
+	return false
+}
+
+// Classify guesses the task kind of an input. It is deliberately
+// conservative: unclear inputs stay on the agent's own model order.
 func Classify(in agent.Input) string {
 	if strings.HasPrefix(in.Tag, "routine:") {
 		return TaskRoutine
 	}
-	t := strings.ToLower(in.Text)
 	if len([]rune(in.Text)) > 60000 {
 		return TaskLongDoc
 	}
-	for _, w := range summarizeWords {
-		if strings.Contains(t, w) {
-			return TaskSummarize
-		}
+	if leads(in.Text, summarizeLead) {
+		return TaskSummarize
 	}
-	for _, w := range codeWords {
-		if strings.Contains(t, w) {
-			return TaskCode
-		}
+	if leads(in.Text, codeLead) {
+		return TaskCode
 	}
 	return TaskDefault
+}
+
+// local reports whether ref is served on this machine.
+func (r *Router) local(ref llm.ModelRef) bool {
+	ad, ok := r.llms.Get(ref.Provider)
+	return ok && ad.Kind() == "local"
+}
+
+// localOnly reports whether every model of the agent runs locally: such an
+// agent's content must never be routed to a remote provider.
+func (r *Router) localOnly(a *agent.Agent) bool {
+	ms := a.Spec().Models
+	if len(ms) == 0 {
+		return false
+	}
+	for _, m := range ms {
+		if !r.local(m) {
+			return false
+		}
+	}
+	return true
+}
+
+// allowed reports whether a route to ref may carry a's content.
+func (r *Router) allowed(a *agent.Agent, ref llm.ModelRef) bool {
+	if a == nil || !r.localOnly(a) {
+		return true
+	}
+	return r.local(ref)
 }
 
 // SelectFor implements agentloop.InputSelector.
 func (r *Router) SelectFor(a *agent.Agent, in agent.Input) (llm.ModelRef, bool) {
 	if task := Classify(in); task != TaskDefault {
-		r.mu.Lock()
-		routes := append([]Route(nil), r.routes...)
-		r.mu.Unlock()
-		for _, rt := range routes {
-			if rt.Task != task {
-				continue
-			}
-			ref, err := llm.ParseRef(rt.Model)
-			if err == nil && r.usable(ref) {
-				return ref, true
-			}
+		if ref, ok := r.RouteForAgent(task, a); ok {
+			return ref, true
 		}
 	}
 	return r.Select(a)
 }
 
 // RouteFor returns the first usable model routed for task.
-func (r *Router) RouteFor(task string) (llm.ModelRef, bool) {
+func (r *Router) RouteFor(task string) (llm.ModelRef, bool) { return r.RouteForAgent(task, nil) }
+
+// RouteForAgent is RouteFor restricted to models allowed to see a's
+// content (a local-only agent only routes to local models).
+func (r *Router) RouteForAgent(task string, a *agent.Agent) (llm.ModelRef, bool) {
 	r.mu.Lock()
 	routes := append([]Route(nil), r.routes...)
 	r.mu.Unlock()
@@ -79,7 +116,7 @@ func (r *Router) RouteFor(task string) (llm.ModelRef, bool) {
 		if rt.Task != task {
 			continue
 		}
-		if ref, err := llm.ParseRef(rt.Model); err == nil && r.usable(ref) {
+		if ref, err := llm.ParseRef(rt.Model); err == nil && r.usable(ref) && r.allowed(a, ref) {
 			return ref, true
 		}
 	}
