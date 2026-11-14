@@ -98,6 +98,9 @@ type End struct {
 	KeptPruned  int    `json:"keptPruned,omitempty"`
 	TokensAfter int    `json:"tokensAfter"`
 	Error       string `json:"error,omitempty"` // model error that caused the fallback
+	// Model that wrote the summary when it differs from the agent's model
+	// (the "summarize" task route, e.g. DeepSeek Flash).
+	Model *llm.ModelRef `json:"model,omitempty"`
 }
 
 // ErrNothingToCompact is returned when no valid cut point exists.
@@ -134,6 +137,7 @@ func (s *Service) lock(sessionID string) func() {
 var Plugin = kernel.Register(kernel.Spec{
 	Name:        "@crewbase/compaction-summary",
 	Inject:      []string{agent.ServiceKey, llm.ServiceKey, tools.ServiceKey, prompt.ServiceKey},
+	Optional:    []string{agentloop.RouterKey},
 	Description: "Context compaction: summary of older turns, tool-result pruning, context usage breakdown, new conversation.",
 	Apply: func(c *kernel.Context) error {
 		cfg, err := kernel.Decode[Config](c)
@@ -255,7 +259,23 @@ func (s *Service) compact(ctx context.Context, a *agent.Agent, ss *session.Sessi
 		maxTok = min(win/10, 4000)
 	}
 	method := "model"
-	summary, merr := s.summarise(ctx, model, msgs, win, maxTok)
+	// Summaries go to the "summarize" task route when one is configured
+	// (a cheap model; local-only agents only get local routes), falling
+	// back to the agent's own model.
+	var used *llm.ModelRef
+	var summary string
+	var merr error
+	if ref, ok := s.summaryRoute(a); ok && ref != model {
+		summary, merr = s.summarise(ctx, ref, msgs, s.window(ctx, ref), maxTok)
+		if merr == nil && strings.TrimSpace(summary) != "" {
+			used = &ref
+		} else {
+			s.c.Log().Warn("compaction: summarize route failed, using the agent's model", "agent", id, "model", ref.Provider+"/"+ref.Model, "err", merr)
+		}
+	}
+	if used == nil {
+		summary, merr = s.summarise(ctx, model, msgs, win, maxTok)
+	}
 	if merr != nil || strings.TrimSpace(summary) == "" {
 		if merr == nil {
 			merr = errors.New("empty summary")
@@ -274,12 +294,30 @@ func (s *Service) compact(ctx context.Context, a *agent.Agent, ss *session.Sessi
 	if _, err := ss.Append(session.TypeCompaction, id, data); err != nil {
 		return Result{}, err
 	}
-	end := End{Status: "completed", Method: method, Pruned: pruned, KeptPruned: keptPruned, TokensAfter: after}
+	end := End{Status: "completed", Method: method, Pruned: pruned, KeptPruned: keptPruned, TokensAfter: after, Model: used}
 	if method == "extractive" && merr != nil {
 		end.Error = merr.Error()
 	}
 	_, _ = ss.Append(TypeEnd, id, end)
 	return Result{CompactionData: data, Method: method, Pruned: pruned}, nil
+}
+
+// taskRouter is the part of the router compaction uses.
+type taskRouter interface {
+	RouteForAgent(task string, a *agent.Agent) (llm.ModelRef, bool)
+}
+
+// summaryRoute returns the model routed for the "summarize" task.
+func (s *Service) summaryRoute(a *agent.Agent) (llm.ModelRef, bool) {
+	r, ok := kernel.Lookup[agentloop.Router](s.c, agentloop.RouterKey)
+	if !ok {
+		return llm.ModelRef{}, false
+	}
+	tr, ok := r.(taskRouter)
+	if !ok {
+		return llm.ModelRef{}, false
+	}
+	return tr.RouteForAgent("summarize", a)
 }
 
 func (s *Service) summarise(ctx context.Context, model llm.ModelRef, msgs []llm.Message, win, maxTok int) (string, error) {

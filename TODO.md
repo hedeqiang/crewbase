@@ -186,7 +186,7 @@
 - [x] 杂活默认走 DeepSeek Flash：title / summarize 路由（直连优先，其次 magpie，不可用回落 Agent 顺序）；会话主题自动生成（features/topics）
 - [x] openai 适配器 deepseek 方言：thinking 开关、NativeTools → deepseek_web_search / deepseek_read_url、解析 annotations（引用）/ server_tool_calls（搜索与阅读步骤，实时流式）/ server_tool_use（按次计费）、safetyCheck 与 refusal；预设 base URL 更新；magpie 对 deepseek/* 模型自动切方言
 - [x] 真实端到端：Agent 开启联网搜索 → DeepSeek Flash 搜索全网 → 带出处回答；引用不回流到模型历史
-- [ ] 压缩摘要优先用 summarize 路由模型
+- [x] 压缩摘要优先用 summarize 路由模型（默认 DeepSeek Flash；仅本地 Agent 只走本地路由；路由失败回退 Agent 自身模型，再失败用抽取式摘要；compaction/end 记录实际摘要模型）
 - [ ] 与模型无关的 `web` 能力：DeepSeek Search / Fetch 独立 API 作为 web_search / web_fetch 工具提供方（待官方文档）
 - [ ] 文件输入（PDF / Office / 图片）、ASR / TTS（移动端语音）
 - [x] UI：Agent 设置「联网搜索 / 阅读链接」开关、回复下方来源列表与搜索步骤（当前构建真实验证：thinking → server_tool → text → citation）

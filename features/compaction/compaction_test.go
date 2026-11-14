@@ -17,6 +17,7 @@ import (
 	"github.com/hedeqiang/crewbase/core/tools"
 	"github.com/hedeqiang/crewbase/features/compaction"
 	"github.com/hedeqiang/crewbase/features/memory"
+	"github.com/hedeqiang/crewbase/features/router"
 	"github.com/hedeqiang/crewbase/kernel"
 	"github.com/hedeqiang/crewbase/providers/llm/mock"
 )
@@ -66,7 +67,7 @@ func (e *env) script(req llm.Request) (llm.Response, error) {
 	return text("ack: " + t), nil
 }
 
-func newEnv(t *testing.T, root string, compCfg map[string]any) *env {
+func newEnv(t *testing.T, root string, compCfg map[string]any, pre ...func(load func(kernel.Spec, map[string]any))) *env {
 	t.Helper()
 	e := &env{h: kernel.NewHost(nil)}
 	t.Cleanup(e.h.Close)
@@ -92,6 +93,9 @@ func newEnv(t *testing.T, root string, compCfg map[string]any) *env {
 	}}, nil)
 	load(agent.Plugin, map[string]any{"root": root, "defaultModels": []string{"tiny/default"}})
 	load(agentloop.Plugin, nil)
+	for _, f := range pre {
+		f(load)
+	}
 	load(compaction.Plugin, compCfg)
 	load(memory.Plugin, nil)
 	for _, p := range e.h.Plugins() {
@@ -590,5 +594,58 @@ func TestKeptToolResultsPruned(t *testing.T) {
 				t.Fatalf("pruned twice: %s (had %d)", p.CallID, n)
 			}
 		}
+	}
+}
+
+// Summaries use the "summarize" task route (a cheap model) when one is
+// configured, and fall back to the agent's own model when it fails.
+func TestSummaryUsesSummarizeRoute(t *testing.T) {
+	for _, cheapFails := range []bool{false, true} {
+		t.Run(fmt.Sprintf("cheapFails=%v", cheapFails), func(t *testing.T) {
+			var cheapSums atomic.Int32
+			cheap := mock.New("cheap", 0)
+			cheap.Script = func(req llm.Request) (llm.Response, error) {
+				if !strings.HasPrefix(req.System, compaction.SummaryMarker) {
+					t.Errorf("cheap model got a non-summary request")
+				}
+				cheapSums.Add(1)
+				if cheapFails {
+					return llm.Response{}, &llm.Error{Kind: llm.ErrUnavailable, Provider: "cheap", Message: "down"}
+				}
+				return text("CHEAP SUMMARY of the walrus migration."), nil
+			}
+			e := newEnv(t, t.TempDir(), nil, func(load func(kernel.Spec, map[string]any)) {
+				load(kernel.Spec{Name: "test-cheap", Inject: []string{llm.ServiceKey}, Apply: func(c *kernel.Context) error {
+					return kernel.Use[*llm.Registry](c, llm.ServiceKey).Register(c, cheap)
+				}}, nil)
+				load(router.Plugin, map[string]any{"routes": []any{map[string]any{"task": "summarize", "model": "cheap/default"}}})
+			})
+			a, _ := e.agents.Create(agent.Spec{Name: "Iris"})
+			ss, _ := a.Session()
+			send(t, a, ss.ID(), "first request about the walrus migration")
+			for i := 0; i < 12 && len(compactions(ss.Events())) == 0; i++ {
+				send(t, a, ss.ID(), filler(i))
+			}
+			comps := compactions(ss.Events())
+			if len(comps) == 0 {
+				t.Fatal("compaction never triggered")
+			}
+			end := lastEnd(t, ss)
+			if cheapSums.Load() == 0 {
+				t.Fatal("summarize route not used")
+			}
+			if cheapFails {
+				if end.Method != "model" || end.Model != nil || !strings.HasPrefix(comps[0].Summary, "SUMMARY:") || e.sums.Load() == 0 {
+					t.Fatalf("expected fallback to the agent model: end %+v summary %q", end, comps[0].Summary)
+				}
+				return
+			}
+			if end.Method != "model" || end.Model == nil || end.Model.Provider != "cheap" || !strings.HasPrefix(comps[0].Summary, "CHEAP SUMMARY") {
+				t.Fatalf("end %+v summary %q", end, comps[0].Summary)
+			}
+			if e.sums.Load() != 0 {
+				t.Fatalf("agent model also summarised (%d)", e.sums.Load())
+			}
+		})
 	}
 }
