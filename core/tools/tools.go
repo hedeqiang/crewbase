@@ -164,6 +164,9 @@ type Execution struct {
 type Remembered struct {
 	Agent    string
 	Category string
+	// Confirmed: the person gave the second confirmation (required for
+	// categories with ConfirmRemember; the approval service enforces it).
+	Confirmed bool
 }
 
 var (
@@ -312,7 +315,7 @@ func (r *Registry) Run(ctx context.Context, c *kernel.Context, call Call) Execut
 			return r.finish(ctx, d, exe)
 		}
 		if dd.Remember {
-			OnRemember.Emit(d, Remembered{Agent: call.Agent, Category: dec.Category})
+			OnRemember.Emit(d, Remembered{Agent: call.Agent, Category: dec.Category, Confirmed: dd.Confirmed || !dec.ConfirmRemember})
 		}
 	}
 	res, err := ExecuteHook.Run(d, ctx, call, func(ctx context.Context, cl Call) (res Result, err error) {

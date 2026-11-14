@@ -326,7 +326,16 @@ func TestPublishNeedsConfirm(t *testing.T) {
 	if !req.ConfirmRemember || !req.Rememberable {
 		t.Fatalf("%+v", req)
 	}
+	// "always allow" without the second confirmation is not remembered
 	inbox.Decide(c.ID, approval.Decision{Outcome: approval.OutcomeAllowedOnce, Remember: true})
+	<-done
+	if v, _ := eng.Evaluate("kai", "publish"); v != tools.Ask {
+		t.Fatal("publish remembered without second confirmation", v)
+	}
+	c = mkcall(ss, "kai", "do-publish")
+	done = runAsync(reg, h, c)
+	waitPending(t, inbox)
+	inbox.Decide(c.ID, approval.Decision{Outcome: approval.OutcomeAllowedOnce, Remember: true, Confirmed: true})
 	<-done
 	if v, _ := eng.Evaluate("kai", "publish"); v != tools.Allow {
 		t.Fatal(v)

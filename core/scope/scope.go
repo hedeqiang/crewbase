@@ -17,6 +17,10 @@ type Filter func(name string) bool
 type entry[T any] struct {
 	value T
 	order uint64
+	// stack holds every live registration of this name in this scope,
+	// newest last; the newest wins. Disposing any of them removes exactly
+	// that one, in any order.
+	stack []*entry[T]
 }
 
 type restriction struct {
@@ -46,7 +50,8 @@ func (r *Registry[T]) changed() {
 }
 
 // Register adds name in ctx's scope. A duplicate name in the same scope
-// replaces the earlier one until the later registration is disposed.
+// shadows the earlier one until the later registration is disposed;
+// registrations may be disposed in any order.
 func (r *Registry[T]) Register(c *kernel.Context, name string, v T) {
 	scope := c.Scope()
 	r.mu.Lock()
@@ -59,17 +64,32 @@ func (r *Registry[T]) Register(c *kernel.Context, name string, v T) {
 		}
 		m = r.agents[scope]
 	}
-	prev := m[name]
+	var stack []*entry[T]
+	if cur := m[name]; cur != nil {
+		stack = cur.stack
+	}
+	stack = append(stack, e)
+	e.stack = stack
 	m[name] = e
 	r.mu.Unlock()
 	r.changed()
 	c.Defer(func() {
 		r.mu.Lock()
-		if m[name] == e {
-			if prev != nil {
-				m[name] = prev
-			} else {
+		cur := m[name]
+		if cur != nil {
+			st := cur.stack
+			for i, x := range st {
+				if x == e {
+					st = append(st[:i:i], st[i+1:]...)
+					break
+				}
+			}
+			if len(st) == 0 {
 				delete(m, name)
+			} else {
+				top := st[len(st)-1]
+				top.stack = st
+				m[name] = top
 			}
 		}
 		r.mu.Unlock()

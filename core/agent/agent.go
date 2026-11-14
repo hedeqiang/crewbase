@@ -82,14 +82,15 @@ type Agent struct {
 	reg *Registry
 	ctx *kernel.Context // agent scope
 
-	mu      sync.Mutex
-	spec    Spec
-	status  Status
-	queue   []Input
-	paused  bool
-	wake    chan struct{}
-	stopCur func()
-	detail  string
+	mu       sync.Mutex
+	spec     Spec
+	status   Status
+	queue    []Input
+	paused   bool
+	wake     chan struct{}
+	stopCur  func()
+	curInput string
+	detail   string
 }
 
 func (a *Agent) ID() string { return a.spec.ID }
@@ -342,10 +343,34 @@ func (a *Agent) signal() {
 }
 
 // SetStopper installs the cancel func of the running turn.
-func (a *Agent) SetStopper(stop func()) {
+func (a *Agent) SetStopper(stop func()) { a.SetCurrent("", stop) }
+
+// SetCurrent records the input being worked on and its cancel func.
+func (a *Agent) SetCurrent(inputID string, stop func()) {
 	a.mu.Lock()
-	a.stopCur = stop
+	a.stopCur, a.curInput = stop, inputID
 	a.mu.Unlock()
+}
+
+// CurrentInput returns the id of the input being worked on ("" = idle).
+func (a *Agent) CurrentInput() string {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.curInput
+}
+
+// StopInput cancels the turn working on inputID, or removes it from the
+// queue if it has not started. It never touches another input's turn.
+func (a *Agent) StopInput(inputID string) bool {
+	a.mu.Lock()
+	stop := a.stopCur
+	cur := a.curInput == inputID && inputID != ""
+	a.mu.Unlock()
+	if cur && stop != nil {
+		stop()
+		return true
+	}
+	return a.Cancel(inputID)
 }
 
 // Stop cancels the running turn (the queue and workspace are kept).

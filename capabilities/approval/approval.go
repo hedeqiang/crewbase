@@ -56,7 +56,11 @@ type Decision struct {
 	Outcome  Outcome `json:"outcome"`
 	Message  string  `json:"message,omitempty"`  // rejection reason passed to the agent
 	Remember bool    `json:"remember,omitempty"` // "always allow" for this agent+category
-	By       string  `json:"by,omitempty"`       // responder / person
+	// Confirmed is the second confirmation required when the request has
+	// ConfirmRemember (e.g. external publishing). Without it Remember is
+	// dropped by the service.
+	Confirmed bool   `json:"confirmed,omitempty"`
+	By        string `json:"by,omitempty"` // responder / person
 }
 
 // Responder answers approval requests. ok=false means "not mine".
@@ -153,7 +157,7 @@ func (s *Service) Ask(ctx context.Context, ss *session.Session, req Request) Dec
 	if d.Outcome != OutcomeAllowedOnce {
 		d.Remember = false
 	}
-	if !req.Rememberable {
+	if !req.Rememberable || (req.ConfirmRemember && !d.Confirmed) {
 		d.Remember = false
 	}
 	dd := DecidedData{CallID: req.CallID, Decision: d}

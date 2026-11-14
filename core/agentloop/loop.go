@@ -208,10 +208,10 @@ func (l *loop) drive(ctx context.Context, a *agent.Agent) {
 
 func (l *loop) turn(parent context.Context, a *agent.Agent, in agent.Input) {
 	ctx, cancel := context.WithCancel(parent)
-	a.SetStopper(cancel)
+	a.SetCurrent(in.ID, cancel)
 	a.SetStatus(agent.StatusRunning, "")
 	defer func() {
-		a.SetStopper(nil)
+		a.SetCurrent("", nil)
 		cancel()
 	}()
 	d := kernel.For(l.c, a.ID())

@@ -232,7 +232,7 @@ export const API = {
   events: (id: string, since: number) =>
     api<{ meta: SessionMeta; events: SessionEvent[] }>("GET", `/api/sessions/${enc(id)}/events?since=${since}`),
   approvals: () => api<{ pending: ApprovalRequest[] }>("GET", "/api/approvals"),
-  decide: (callId: string, b: { outcome: "allowed-once" | "rejected"; message?: string; remember?: boolean }) =>
+  decide: (callId: string, b: { outcome: "allowed-once" | "rejected"; message?: string; remember?: boolean; confirmed?: boolean }) =>
     api("POST", `/api/approvals/${enc(callId)}`, b),
   models: () => api<ModelsResponse>("GET", "/api/models"),
 };

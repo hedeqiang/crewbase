@@ -11,7 +11,7 @@ export function ApprovalActions({ req, small = false, extra }: { req: ApprovalRe
   const [reason, setReason] = useState("");
   const [busy, setBusy] = useState(false);
 
-  const decide = async (outcome: "allowed-once" | "rejected", opts: { message?: string; remember?: boolean } = {}) => {
+  const decide = async (outcome: "allowed-once" | "rejected", opts: { message?: string; remember?: boolean; confirmed?: boolean } = {}) => {
     setBusy(true);
     try {
       await API.decide(req.callId, { outcome, ...opts });
@@ -56,7 +56,7 @@ export function ApprovalActions({ req, small = false, extra }: { req: ApprovalRe
       <div className="rejbox">
         <p className="small warnline">{t("appr.confirmRemember", { agent: name, category: req.category || req.tool })}</p>
         <div className="acts">
-          <button className="btn warn" type="button" disabled={busy} onClick={() => decide("allowed-once", { remember: true })}>
+          <button className="btn warn" type="button" disabled={busy} onClick={() => decide("allowed-once", { remember: true, confirmed: true })}>
             {t("appr.confirmRememberOk")}
           </button>
           <button className="btn ghost" type="button" onClick={() => setMode("idle")}>

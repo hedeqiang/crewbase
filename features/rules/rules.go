@@ -470,8 +470,8 @@ func (e *Engine) onRemember(log interface{ Warn(string, ...any) }, r tools.Remem
 	if r.Category == tools.CategoryPublish {
 		k := armKey(r.Agent, r.Category)
 		e.mu.Lock()
-		ok := e.armed[k] > 0
-		if ok {
+		ok := e.armed[k] > 0 && r.Confirmed
+		if e.armed[k] > 0 {
 			e.disarmLocked(k)
 		}
 		e.mu.Unlock()

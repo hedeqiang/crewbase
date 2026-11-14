@@ -62,9 +62,10 @@ type createBody struct {
 }
 
 type decideBody struct {
-	Outcome  approval.Outcome `json:"outcome"`
-	Message  string           `json:"message,omitempty"`
-	Remember bool             `json:"remember,omitempty"`
+	Outcome   approval.Outcome `json:"outcome"`
+	Message   string           `json:"message,omitempty"`
+	Remember  bool             `json:"remember,omitempty"`
+	Confirmed bool             `json:"confirmed,omitempty"`
 }
 
 // Plugin registers the core API.
@@ -381,7 +382,7 @@ var Plugin = kernel.Register(kernel.Spec{
 				if r.Device != "desktop" {
 					b.Remember = false
 				}
-				if !in.Decide(r.Params["callId"], approval.Decision{Outcome: b.Outcome, Message: b.Message, Remember: b.Remember, By: r.Device}) {
+				if !in.Decide(r.Params["callId"], approval.Decision{Outcome: b.Outcome, Message: b.Message, Remember: b.Remember, Confirmed: b.Confirmed, By: r.Device}) {
 					return nil, gateway.NotFound()
 				}
 				return nil, nil

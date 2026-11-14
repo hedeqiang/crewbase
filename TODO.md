@@ -81,7 +81,7 @@
 - [x] `schedule` / `webhook`：Cron / every / daily / weekly / at、最小间隔 60s、幂等键先落盘后投递、Webhook 独立密钥（R-1）
 - [x] Routines + 晨报（R-1 R-2）：默认只读、NO_ISSUES 静默、需关注才通知；晨报只列待处理项，正常项折叠计数
 - [x] Workflows：手动 / 定时 / Webhook 触发 → 串并行步骤 → 审批卡点，模板 {{input}}/{{prev}}/{{steps.x}}，从失败步重跑、取消、运行可从日志重建（R-3 R-5）
-- [ ] MCP 客户端与管理（C-3，P0）
+- [x] MCP 客户端与管理（C-3，P0）：官方 go-sdk v1.8；stdio（沙箱内、进程组）/ Streamable HTTP；`<server>__<tool>` 命名空间；注解→类别；list_changed 刷新失败保留旧列表；崩溃退避重连；凭证引用；Agent 作用域服务器；API 含探测
 - [x] `history_search` / `history_read`、`memory_add` / `memory_search`（C-2）
 - [x] 技能按需加载（C-4）：目录只进提示词，`skill_load` 取全文；工作区 > 共享目录按名称覆盖
 - [ ] 进程外插件桥接：stdio JSON-RPC 2.0、清单权限、Waterfall 2s 超时、退出即撤销（S-6）
@@ -105,26 +105,28 @@
 
 ## 技术债 / 待跟进
 - [ ] 交接是否需接收方确认（待决问题 #1）：频道设置「交接需人确认」走 approval
-- [ ] `tools.Remembered` / `approval.Decision` 缺少二次确认标记；目前规则引擎通过配对 asked/decided 推断
+- [x] 二次确认改由审批服务强制（Decision.Confirmed），UI 回传
 - [ ] 流式脱敏：跨 chunk 的密钥可能漏网（需 llm/stream 缓冲钩子）
 - [ ] `tool/call` 参数在脱敏前落日志
-- [ ] Agent 作用域的规则监听器（目前 per-agent 规则在引擎内部维护）
 - [x] 规则插件缺失时流水线 fail-open → 改为 `requirePolicy` 关闭式失败
 - [x] post-execute 出错时回落原始结果 → 改为扣留结果
 
 - [ ] 工具结果裁剪事件 `tool/pruned`（DeriveMessages 识别），让剪枝真正缩小上下文
 - [ ] 工具声明路径参数（守卫目前按固定参数名检查）
-- [ ] 单次提权调用（批准后的更宽策略、每 Agent allowHosts、额外可写目录）进入 tools.Call
-- [ ] Docker 白名单网络需出站代理（目前报 partial）
-- [ ] 先读后改记录仅在内存，重启后需重读
 - [ ] 「添加提供方」流程：API Key 写入钥匙串 + 写补丁 + 热应用（设置 › 模型与订阅）
 - [ ] llm 词汇表缺口：签名等不透明 part 元数据、ModelInfo 大小字段、缓存 token、多窗口额度（5h / 周）
 - [ ] ACP：CLI 权限请求接入 approval；Request 携带 session / workspace；CLI 自行改文件的事件；重新检测 CLI
 - [ ] magpie：读取 /v1/magpie/quotas 显示额度
 - [ ] subagent-acp 提供方（把一个轮次交给 Claude Code / Codex）
-- [ ] 临时 Agent 不落盘（Registry.Create 增加 ephemeral 选项），Agent.StopInput(id)
+- [x] Agent.StopInput(id)（只停该输入）
+- [ ] 临时 Agent 不落盘（Registry.Create 增加 ephemeral 选项）
 - [ ] 中文 FTS：trigram 分词替代子串回退
 - [ ] 记忆索引改为异步写入
+
+- [x] scope 注册表：同名注册乱序撤销会复活已撤销条目 → 改为栈
+- [ ] MCP：服务器自报注解决定类别可被滥用 → 每服务器「信任注解」开关 / 类别覆盖；Agent 只读时 MCP 沙箱随之只读；暴露 resources / prompts；HTTP OAuth
+- 有意保留：先读后改记录仅内存（重启需重读更安全）；Agent 级规则维护在引擎内部（设计选择）
+- 推迟到 Phase 3：单次提权调用、Docker 白名单出站代理
 
 ## Phase 3 — 远程、IM、团队
 - [ ] `server` Profile、install-server.sh、加固 docker-compose.yml、阿里云 / AWS 模板（D-2）
@@ -149,6 +151,7 @@
 ## 迭代日志
 | 日期 | 迭代 | 结果 |
 |---|---|---|
+| 2026-11-14 | 8a | MCP（子 agent）接入；技术债第一批：二次确认强制、StopInput、scope 乱序撤销复活修复；技术债分类（修 / 保留 / 推迟） |
 | 2026-11-14 | 7d | 桌面 Web UI（子 agent 交付，headless Chrome 浅/深色 4 个宽度截图验证）提交；`make build` 内嵌 UI |
 | 2026-11-14 | 7c | 工作流 + 子 Agent（子 agent 交付）接入；core：agent-loop drivers 竞态、PreStep 拒绝补 turn-end、workflow 会话隔离投影；真实联调新增工作流与委派 |
 | 2026-11-14 | 7b | 本机 magpie 真实联调 6 个模型 + 6 个场景全部通过；修复 3 个真实环境才暴露的问题（见上） |

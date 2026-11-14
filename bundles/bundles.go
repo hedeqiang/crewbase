@@ -24,6 +24,7 @@ import (
 	_ "github.com/hedeqiang/crewbase/features/compaction"
 	_ "github.com/hedeqiang/crewbase/features/console"
 	_ "github.com/hedeqiang/crewbase/features/gateway"
+	_ "github.com/hedeqiang/crewbase/features/mcp"
 	_ "github.com/hedeqiang/crewbase/features/memory"
 	_ "github.com/hedeqiang/crewbase/features/redact"
 	_ "github.com/hedeqiang/crewbase/features/router"
@@ -91,6 +92,7 @@ var Base = kernel.Bundle{Name: "base", Entries: []kernel.Entry{
 	{ID: "subagent-fork", Name: "@crewbase/subagent-fork"},
 	{ID: "delegate", Name: "@crewbase/delegate"},
 	{ID: "workflows", Name: "@crewbase/workflows", Config: map[string]any{"dir": "${root}"}},
+	{ID: "mcp", Name: "@crewbase/mcp", Config: map[string]any{"dir": "${root}"}},
 	{ID: "skills", Name: "@crewbase/skills", Config: map[string]any{"dirs": []string{"${root}/skills"}}},
 	{ID: "compaction", Name: "@crewbase/compaction-summary"},
 	{ID: "memory", Name: "@crewbase/memory-markdown-sqlite", Config: map[string]any{"root": "${root}"}},
@@ -106,6 +108,7 @@ var Desktop = kernel.Bundle{Name: "desktop", Entries: []kernel.Entry{
 	{ID: "routines-api", Name: "@crewbase/routines-api"},
 	{ID: "usage", Name: "@crewbase/usage"},
 	{ID: "workflows-api", Name: "@crewbase/workflows-api"},
+	{ID: "mcp-api", Name: "@crewbase/mcp-api"},
 	{ID: "console", Name: "@crewbase/console", Config: map[string]any{"dir": "${root}"}},
 }}
 
