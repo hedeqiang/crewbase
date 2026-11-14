@@ -10,6 +10,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -296,6 +297,19 @@ func TestTakeoverBlocksToolsAndResumes(t *testing.T) {
 	img, _ := base64.StdEncoding.DecodeString(shot.Data)
 	if code != 200 || shot.Mime != "image/png" || !bytes.HasPrefix(img, []byte("\x89PNG")) || shot.Width == 0 || shot.Title != "Account" {
 		t.Fatalf("screenshot %d %+v", code, shot.Title)
+	}
+	// raw frames: the PNG itself, size in headers, never cached
+	rq, _ := http.NewRequest("GET", e.api+"/api/agents/"+id+"/browser/screenshot?raw=1", nil)
+	rq.Header.Set("Authorization", "Bearer "+token)
+	rs, err := http.DefaultClient.Do(rq)
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw, _ := io.ReadAll(rs.Body)
+	rs.Body.Close()
+	if rs.StatusCode != 200 || rs.Header.Get("Content-Type") != "image/png" || !bytes.HasPrefix(raw, []byte("\x89PNG")) ||
+		rs.Header.Get("X-Crewbase-Width") != strconv.Itoa(shot.Width) || rs.Header.Get("Cache-Control") != "no-store" {
+		t.Fatalf("raw frame %d %v", rs.StatusCode, rs.Header)
 	}
 	select {
 	case r := <-done:

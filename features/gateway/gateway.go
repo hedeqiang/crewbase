@@ -97,6 +97,20 @@ type Blob struct {
 	Name string
 	Mime string
 	Data []byte
+	// NoStore: never cache (live frames).
+	NoStore bool
+	// Meta becomes X-Crewbase-<Key> response headers (ASCII values; others
+	// are dropped).
+	Meta map[string]string
+}
+
+func hdrSafe(s string) bool {
+	for i := 0; i < len(s); i++ {
+		if s[i] < 0x20 || s[i] > 0x7e {
+			return false
+		}
+	}
+	return len(s) <= 2048
 }
 
 func writeBlob(w http.ResponseWriter, b *Blob) {
@@ -104,6 +118,14 @@ func writeBlob(w http.ResponseWriter, b *Blob) {
 	h.Set("X-Content-Type-Options", "nosniff")
 	h.Set("Content-Security-Policy", "default-src 'none'; sandbox")
 	h.Set("Cache-Control", "private, max-age=300")
+	if b.NoStore {
+		h.Set("Cache-Control", "no-store")
+	}
+	for k, v := range b.Meta {
+		if hdrSafe(k) && hdrSafe(v) {
+			h.Set("X-Crewbase-"+k, v)
+		}
+	}
 	switch b.Mime {
 	case "image/png", "image/jpeg", "image/gif", "image/webp":
 		h.Set("Content-Type", b.Mime)

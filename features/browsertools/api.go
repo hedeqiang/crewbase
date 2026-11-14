@@ -8,6 +8,8 @@ import (
 	"encoding/hex"
 	"errors"
 	"image/png"
+	"net/url"
+	"strconv"
 	"strings"
 
 	"github.com/hedeqiang/crewbase/capabilities/browser"
@@ -143,10 +145,18 @@ var APIPlugin = kernel.Register(kernel.Spec{
 				if err != nil {
 					return nil, apiErr(err)
 				}
-				out := Screenshot{Mime: "image/png", Data: base64.StdEncoding.EncodeToString(img), URL: st.URL, Title: st.Title}
+				out := Screenshot{Mime: "image/png", URL: st.URL, Title: st.Title}
 				if cfg, err := png.DecodeConfig(bytes.NewReader(img)); err == nil {
 					out.Width, out.Height = cfg.Width, cfg.Height
 				}
+				// ?raw=1: the PNG itself (a third smaller than base64 JSON);
+				// size and URL travel in headers (title is not ASCII-safe).
+				if r.HTTP.URL.Query().Get("raw") == "1" {
+					return &gateway.Blob{Name: "screen.png", Mime: "image/png", Data: img, NoStore: true, Meta: map[string]string{
+						"Width": strconv.Itoa(out.Width), "Height": strconv.Itoa(out.Height), "Url": url.PathEscape(st.URL),
+					}}, nil
+				}
+				out.Data = base64.StdEncoding.EncodeToString(img)
 				return out, nil
 			}})
 		g.Handle(c, gateway.Route{Method: "POST", Path: "/api/agents/{id}/browser/input",

@@ -865,6 +865,26 @@ export const API = {
   takeover: (id: string) => api<BrowserState>("POST", `/api/agents/${enc(id)}/browser/takeover`),
   handback: (id: string) => api<BrowserState>("POST", `/api/agents/${enc(id)}/browser/handback`),
   screenshot: (id: string) => api<Screenshot>("GET", `/api/agents/${enc(id)}/browser/screenshot`),
+  /** One frame as a PNG (an object URL the caller revokes); falls back to JSON on older daemons. */
+  screenshotFrame: async (id: string): Promise<{ src: string; width: number; height: number; url: string; revoke: boolean }> => {
+    const headers: Record<string, string> = {};
+    const tok = getToken();
+    if (tok) headers.Authorization = `Bearer ${tok}`;
+    const res = await apiFetch(`/api/agents/${enc(id)}/browser/screenshot?raw=1`, { headers });
+    const ct = res.headers.get("Content-Type") ?? "";
+    if (!res.ok) {
+      const data = await res.json().catch(() => null);
+      if (res.status === 401) onUnauthorized();
+      throw new ApiError(res.status, data?.error?.code ?? "http_" + res.status, data?.error?.message ?? res.statusText);
+    }
+    if (ct.startsWith("application/json")) {
+      const s = (await res.json()) as Screenshot;
+      return { src: `data:${s.mime};base64,${s.data}`, width: s.width ?? 0, height: s.height ?? 0, url: s.url ?? "", revoke: false };
+    }
+    const src = URL.createObjectURL(await res.blob());
+    const url = decodeURIComponent(res.headers.get("X-Crewbase-Url") ?? "");
+    return { src, width: Number(res.headers.get("X-Crewbase-Width")) || 0, height: Number(res.headers.get("X-Crewbase-Height")) || 0, url, revoke: true };
+  },
   browserInput: (id: string, b: BrowserInput) => api("POST", `/api/agents/${enc(id)}/browser/input`, b),
 
   usage: () => api<UsageStats>("GET", "/api/usage"),

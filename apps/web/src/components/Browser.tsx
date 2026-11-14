@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { ArrowDown, ArrowUp, CornerDownLeft, Globe, Hand, MousePointerClick, Undo2 } from "lucide-react";
-import { API, ApiError, type AgentView, type Screenshot } from "../api";
+import { API, ApiError, type AgentView } from "../api";
 import { t } from "../i18n";
 import { setState, toast, useStore } from "../store";
 
@@ -93,7 +93,7 @@ export function TakeoverCard({ agent, reason }: { agent: AgentView; reason: stri
 }
 
 function FrameView({ agentId, onForbidden }: { agentId: string; onForbidden: () => void }) {
-  const [shot, setShot] = useState<Screenshot | null>(null);
+  const [shot, setShot] = useState<{ src: string; width: number; height: number; url: string; revoke: boolean } | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [url, setUrl] = useState("");
   const [text, setText] = useState("");
@@ -101,6 +101,7 @@ function FrameView({ agentId, onForbidden }: { agentId: string; onForbidden: () 
   const editing = useRef(false);
   const img = useRef<HTMLImageElement>(null);
   const wheel = useRef(0);
+  const live = useRef<string | null>(null); // object URL of the frame on screen
 
   // ~2 fps; each request waits for the previous one.
   useEffect(() => {
@@ -108,9 +109,16 @@ function FrameView({ agentId, onForbidden }: { agentId: string; onForbidden: () 
     let timer: number | undefined;
     const tick = async () => {
       try {
-        const s = await API.screenshot(agentId);
-        if (stop) return;
-        setShot(s);
+        const s = await API.screenshotFrame(agentId);
+        if (stop) {
+          if (s.revoke) URL.revokeObjectURL(s.src);
+          return;
+        }
+        setShot((prev) => {
+          if (prev?.revoke) URL.revokeObjectURL(prev.src);
+          live.current = s.revoke ? s.src : null;
+          return s;
+        });
         setErr(null);
         if (!editing.current && s.url) setUrl(s.url);
       } catch (e: any) {
@@ -124,6 +132,7 @@ function FrameView({ agentId, onForbidden }: { agentId: string; onForbidden: () 
     return () => {
       stop = true;
       window.clearTimeout(timer);
+      if (live.current) URL.revokeObjectURL(live.current);
     };
   }, [agentId]);
 
@@ -183,8 +192,8 @@ function FrameView({ agentId, onForbidden }: { agentId: string; onForbidden: () 
         {shot ? (
           <img
             ref={img}
-            src={`data:${shot.mime};base64,${shot.data}`}
-            alt={shot.title || t("br.frameAlt")}
+            src={shot.src}
+            alt={t("br.frameAlt")}
             draggable={false}
             onClick={click}
             onWheel={onWheel}
