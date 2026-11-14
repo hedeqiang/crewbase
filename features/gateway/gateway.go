@@ -35,6 +35,8 @@ type Request struct {
 	Params map[string]string // path params
 	Body   json.RawMessage
 	Device string // authenticated device class: desktop | mobile | im
+	// DeviceID identifies a paired device ("" for the local desktop token).
+	DeviceID string
 }
 
 // Decode unmarshals the JSON body.
@@ -119,11 +121,48 @@ const DefaultMaxBody = 8 << 20
 
 // Gateway is the `gateway` service.
 type Gateway struct {
-	mu     sync.RWMutex
-	routes []*Route
-	tokens map[string]string // token → device class
-	hub    *Hub
+	mu        sync.RWMutex
+	routes    []*Route
+	tokens    map[string]string // token → device class
+	verifiers []*Verifier
+	hub       *Hub
+	host      *kernel.Host
 }
+
+// Verifier authenticates tokens issued elsewhere (paired devices). It
+// returns the device class and the device id. It must compare in
+// constant time (e.g. by hashing the token first).
+type Verifier func(token string) (device, id string, ok bool)
+
+// AddVerifier registers a token verifier for ctx's lifetime.
+func (g *Gateway) AddVerifier(c *kernel.Context, v Verifier) {
+	p := &v
+	g.mu.Lock()
+	g.verifiers = append(g.verifiers, p)
+	g.mu.Unlock()
+	c.Defer(func() {
+		g.mu.Lock()
+		for i, x := range g.verifiers {
+			if x == p {
+				g.verifiers = append(g.verifiers[:i:i], g.verifiers[i+1:]...)
+				break
+			}
+		}
+		g.mu.Unlock()
+	})
+}
+
+// AuthFailure reports a rejected token (not a missing one).
+type AuthFailure struct {
+	Remote string `json:"remote"`
+	Path   string `json:"path"`
+}
+
+// AuthFailed fires when a request carries a token that is not accepted.
+var AuthFailed = kernel.NewEmit[AuthFailure]("gateway/auth-failed")
+
+// Kick closes the event streams of a device (after it is revoked).
+func (g *Gateway) Kick(deviceID string) { g.hub.kick(deviceID) }
 
 // Handle registers a remote method bound to ctx.
 func (g *Gateway) Handle(c *kernel.Context, r Route) {
@@ -180,24 +219,38 @@ func match(pattern, escapedPath string) (map[string]string, bool) {
 	return params, true
 }
 
-func (g *Gateway) auth(r *http.Request) (string, bool) {
-	tok := ""
+func bearer(r *http.Request) string {
 	if h := r.Header.Get("Authorization"); strings.HasPrefix(h, "Bearer ") {
-		tok = strings.TrimPrefix(h, "Bearer ")
-	} else if q := r.URL.Query().Get("token"); q != "" {
-		tok = q
+		return strings.TrimPrefix(h, "Bearer ")
 	}
+	return r.URL.Query().Get("token")
+}
+
+// auth returns the device class and id of r's token.
+func (g *Gateway) auth(r *http.Request) (dev, id string, ok bool) {
+	return g.Verify(bearer(r))
+}
+
+// Verify checks a token (the local tokens, then registered verifiers).
+func (g *Gateway) Verify(tok string) (dev, id string, ok bool) {
 	if tok == "" {
-		return "", false
+		return "", "", false
 	}
 	g.mu.RLock()
-	defer g.mu.RUnlock()
-	for t, dev := range g.tokens {
+	vs := append([]*Verifier(nil), g.verifiers...)
+	for t, d := range g.tokens {
 		if subtle.ConstantTimeCompare([]byte(t), []byte(tok)) == 1 {
-			return dev, true
+			g.mu.RUnlock()
+			return d, "", true
 		}
 	}
-	return "", false
+	g.mu.RUnlock()
+	for _, v := range vs {
+		if d, i, ok := (*v)(tok); ok {
+			return d, i, true
+		}
+	}
+	return "", "", false
 }
 
 func (g *Gateway) isPublic(r *http.Request) bool {
@@ -230,13 +283,16 @@ func writeErr(w http.ResponseWriter, err error) {
 // ServeHTTP implements the API.
 func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// 1. authenticate (public webhook routes authenticate in Validate)
-	dev, ok := g.auth(r)
+	dev, devID, ok := g.auth(r)
+	if !ok && bearer(r) != "" && g.host != nil {
+		AuthFailed.Emit(g.host, AuthFailure{Remote: r.RemoteAddr, Path: r.URL.Path})
+	}
 	if !ok && !g.isPublic(r) {
 		writeErr(w, &Error{Status: 401, Code: "unauthorized", Message: "missing or invalid token"})
 		return
 	}
 	if r.URL.Path == "/api/events" && r.Method == http.MethodGet {
-		g.hub.serve(w, r)
+		g.hub.serve(w, r, devID)
 		return
 	}
 	g.mu.RLock()
@@ -289,7 +345,7 @@ func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, &Error{Status: 413, Code: "too_large", Message: fmt.Sprintf("request body is larger than %d MB", limit>>20)})
 		return
 	}
-	req := &Request{HTTP: r, Params: params, Body: body, Device: dev}
+	req := &Request{HTTP: r, Params: params, Body: body, Device: dev, DeviceID: devID}
 	if len(body) > 0 && !route.RawBody && !json.Valid(body) {
 		writeErr(w, BadRequest("body must be JSON"))
 		return
@@ -327,10 +383,28 @@ type Message struct {
 // Hub fans messages out to SSE subscribers.
 type Hub struct {
 	mu   sync.Mutex
-	subs map[chan Message]struct{}
+	subs map[chan Message]string // → device id ("" = local)
+	gone map[chan Message]chan struct{}
 }
 
-func NewHub() *Hub { return &Hub{subs: map[chan Message]struct{}{}} }
+func NewHub() *Hub {
+	return &Hub{subs: map[chan Message]string{}, gone: map[chan Message]chan struct{}{}}
+}
+
+func (h *Hub) kick(deviceID string) {
+	if deviceID == "" {
+		return
+	}
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	for ch, id := range h.subs {
+		if id == deviceID {
+			close(h.gone[ch])
+			delete(h.gone, ch)
+			delete(h.subs, ch)
+		}
+	}
+}
 
 // Publish sends to every subscriber; slow subscribers drop messages and
 // are expected to resync via the REST API.
@@ -345,21 +419,24 @@ func (h *Hub) Publish(typ string, data any) {
 	}
 }
 
-func (h *Hub) subscribe() chan Message {
+func (h *Hub) subscribe(deviceID string) (chan Message, chan struct{}) {
 	ch := make(chan Message, 256)
+	gone := make(chan struct{})
 	h.mu.Lock()
-	h.subs[ch] = struct{}{}
+	h.subs[ch] = deviceID
+	h.gone[ch] = gone
 	h.mu.Unlock()
-	return ch
+	return ch, gone
 }
 
 func (h *Hub) unsubscribe(ch chan Message) {
 	h.mu.Lock()
 	delete(h.subs, ch)
+	delete(h.gone, ch)
 	h.mu.Unlock()
 }
 
-func (h *Hub) serve(w http.ResponseWriter, r *http.Request) {
+func (h *Hub) serve(w http.ResponseWriter, r *http.Request, deviceID string) {
 	fl, ok := w.(http.Flusher)
 	if !ok {
 		http.Error(w, "streaming unsupported", 500)
@@ -368,7 +445,7 @@ func (h *Hub) serve(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Connection", "keep-alive")
-	ch := h.subscribe()
+	ch, gone := h.subscribe(deviceID)
 	defer h.unsubscribe(ch)
 	fmt.Fprintf(w, "event: hello\ndata: {}\n\n")
 	fl.Flush()
@@ -378,6 +455,8 @@ func (h *Hub) serve(w http.ResponseWriter, r *http.Request) {
 		select {
 		case <-r.Context().Done():
 			return
+		case <-gone:
+			return // the device was revoked
 		case <-tick.C:
 			fmt.Fprintf(w, ": ping\n\n")
 			fl.Flush()
@@ -433,7 +512,7 @@ var Plugin = kernel.Register(kernel.Spec{
 		if cfg.Addr == "" {
 			cfg.Addr = "127.0.0.1:7788"
 		}
-		g := &Gateway{tokens: map[string]string{}, hub: NewHub()}
+		g := &Gateway{tokens: map[string]string{}, hub: NewHub(), host: c.Host()}
 		tok := cfg.Token
 		if tok == "" && cfg.TokenFile != "" {
 			if tok, err = LoadOrCreateToken(cfg.TokenFile); err != nil {

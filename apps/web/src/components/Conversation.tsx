@@ -605,6 +605,7 @@ function Composer({
   const hostConfirm = useStore((s) => s.hostConfirm === agent.id);
   const models = useStore((s) => s.models);
   const composerActions = useSlot("composer.action");
+  const manage = useStore((s) => s.tier === "desktop");
   const [sending, setSending] = useState(false);
   const pending = useStore((s) => s.attach[sessionId]) ?? NO_FILES;
   const [dragging, setDragging] = useState(false);
@@ -878,12 +879,12 @@ function Composer({
               e.target.value = "";
             }}
           />
-          <button className="cbtn" type="button" ref={hostM.ref} onClick={hostM.toggle} title={t("comp.host", { name: agent.name })} aria-haspopup="menu">
+          <button className="cbtn" type="button" ref={hostM.ref} onClick={hostM.toggle} title={t("comp.host", { name: agent.name })} aria-haspopup="menu" hidden={!manage}>
             <Monitor size={15} />
             <span className="lbl">{t("comp.hostLocal")}</span>
             <ChevronDown size={14} />
           </button>
-          <button className={"cbtn" + (mode === "host" ? " danger" : "")} type="button" ref={permM.ref} onClick={permM.toggle} aria-haspopup="menu">
+          <button className={"cbtn" + (mode === "host" ? " danger" : "")} type="button" ref={permM.ref} onClick={permM.toggle} aria-haspopup="menu" disabled={!manage} title={manage ? undefined : t("tier.mobileMode")}>
             {mode === "host" ? <Monitor size={15} /> : <Hand size={15} />}
             <span className="lbl">{modeLabel(mode)}</span>
             <ChevronDown size={14} />

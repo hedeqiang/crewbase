@@ -10,6 +10,8 @@ import { NewAgent, emptyDraft, type Draft } from "./components/NewAgent";
 import { Settings } from "./components/Settings";
 import { Palette } from "./components/Palette";
 import { TokenScreen } from "./components/TokenScreen";
+import { PairScreen, pairParams } from "./components/PairScreen";
+import { savedRelay, useRelay } from "./tunnel";
 import { NewChannel } from "./components/NewChannel";
 
 export function App() {
@@ -23,6 +25,10 @@ export function App() {
       setToken(null);
       setState({ authed: false, connected: false });
     });
+    // opened from a relay before: every call goes through the tunnel
+    const rl = savedRelay();
+    if (rl && !desktop()) useRelay(rl);
+    if (pairParams()) return; // the pairing screen takes over
     const tok = initToken();
     if (!tok) {
       setState({ authed: false });
@@ -36,6 +42,19 @@ export function App() {
       });
   }, []);
 
+  const [pairing, setPairing] = useState(() => pairParams());
+  if (pairing)
+    return (
+      <PairScreen
+        key={lang}
+        code={pairing.code}
+        relay={pairing.relay}
+        onPaired={() => {
+          setPairing(null);
+          start();
+        }}
+      />
+    );
   if (authed === null) return <div className="boot" />;
   if (!authed) return <TokenScreen key={lang} onAuthed={start} />;
   return <Shell key={lang} />;

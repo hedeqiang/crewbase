@@ -10,7 +10,7 @@
   - **SSH 隧道**：`ssh -N -L 7788:127.0.0.1:7788 user@host`，然后打开 `http://127.0.0.1:7788`；
   - **Tailscale / WireGuard**：只对自己的 tailnet 可见（`tailscale serve --bg 7788`，或 compose 的 `tailscale` sidecar）；
   - **AWS SSM 端口转发**：不需要 SSH，也不需要入站规则；
-  - 出站 WebSocket Relay（Phase 3 规划中，可用后替代以上方式）。
+  - **出站 WebSocket 中继**（推荐给手机和外出使用，见 §6）：crewd 主动连到中继，手机也连到中继，中继只转发端到端加密的数据。
 - 安全组 / 防火墙建议：入站全部拒绝；确需 SSH 时只放行自己的 IP，优先用云厂商的会话管理（阿里云 Workbench、AWS SSM）。
 - 部署后运行 `crew doctor`：网关地址不是回环地址时会给出警告。
 
@@ -186,3 +186,37 @@ server 部署建议启用审计日志；以下插件尚未进入默认组合包�
 - systemd：`git pull && sudo ./deploy/install-server.sh`；Compose：`git pull && docker compose up -d --build`。
 - 备份数据目录即可（`/var/lib/crewbase` 或 compose 的数据卷 / ESSD / EFS）。会话日志与审计日志都是只追加的 JSONL，可以直接增量备份；恢复后用 `/api/audit/verify` 校验审计链。
 - 重启或恢复后，持久目标的自动续跑默认关闭，需要人通过 `POST /api/sessions/{id}/goal/authorize` 重新授权（[06-security-model.md §9](06-security-model.md)）。
+
+
+## 6. 中继：零入站端口的远程访问（`crew-relay`）
+
+手机或其他电脑要在外面连到你的 Crewbase，而 Crewbase 所在的机器不开放任何入站端口：两边都**主动连出**到一台中继服务器。
+
+```
+手机浏览器 ──wss──▶ crew-relay ◀──wss── crewd（家里 / 云主机，只出站）
+```
+
+**安全性**
+- 端到端加密：配对链接里带着这台 crewd 的公钥（放在 URL 的 `#` 之后，不会发给中继）。手机和 crewd 用 ECDH P-256 + HKDF-SHA256 协商出 AES-256-GCM 密钥，中继只看到密文，伪造或篡改的帧会被丢弃并断开。
+- crewd 在中继上的身份由它的密钥派生（`relay-key.pem`，0600），中继用签名挑战校验，别人冒充不了你的主机。
+- 设备令牌在加密通道里传，中继看不到；设备令牌只保存哈希（`devices.json`，0600），随时可在「设置 › 主机与设备」里移除，移除后立即断开。
+- 手机默认是**手机权限**：查看、审批、发消息；不能改规则、装插件、开主机模式（服务端按路由强制）。配对为「电脑」的设备才有完全控制。
+- 中继也会提供网页应用本身：请使用你信任的中继（最好自己部署），因为页面代码由它提供。
+
+**部署中继**（任何有公网 HTTPS 的机器，例如一台小 VPS）：
+
+```bash
+go build -o crew-relay ./apps/relayd          # 先 make web 可内置网页应用
+./crew-relay --addr :443 --tls-cert fullchain.pem --tls-key privkey.pem
+# 或放在 Caddy / Nginx 后面：./crew-relay --addr 127.0.0.1:8080
+```
+
+**让 crewd 连上中继**（`~/.crewbase/patch.yml` 或 `/etc/crewbase/crewbase.patch.yml`）：
+
+```yaml
+- id: relay
+  config:
+    url: https://relay.example.org
+```
+
+重启 crewd 后，「设置 › 主机与设备」会显示「已连接中继」。点「配对手机」，用手机扫二维码，输入配对码（5 分钟内有效，只能用一次）即可。手机上可以「添加到主屏幕」作为应用使用；在「设置 › 通用」里开启通知后，有审批等你时会提醒。

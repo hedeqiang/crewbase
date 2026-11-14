@@ -16,11 +16,11 @@ func TestPolicyForRunModes(t *testing.T) {
 		hosts []string
 		want  sandbox.Policy
 	}{
-		{agent.ModeReadOnly, nil, sandbox.Policy{Mode: sandbox.ModeReadOnly, Network: sandbox.NetworkNone}},
+		{agent.ModeReadOnly, nil, sandbox.Policy{Mode: sandbox.ModeReadOnly, ProtectedRoots: []string{ws}, Network: sandbox.NetworkNone}},
 		{agent.ModeSandbox, nil, sandbox.Policy{Mode: sandbox.ModeWorkspaceWrite, WritableRoots: []string{ws}, Network: sandbox.NetworkNone}},
 		{"", nil, sandbox.Policy{Mode: sandbox.ModeWorkspaceWrite, WritableRoots: []string{ws}, Network: sandbox.NetworkNone}},
 		{agent.ModeHost, nil, sandbox.Policy{Mode: sandbox.ModeFull, Network: sandbox.NetworkOpen}},
-		{"bogus", nil, sandbox.Policy{Mode: sandbox.ModeReadOnly, Network: sandbox.NetworkNone}},
+		{"bogus", nil, sandbox.Policy{Mode: sandbox.ModeReadOnly, ProtectedRoots: []string{ws}, Network: sandbox.NetworkNone}},
 		{agent.ModeSandbox, []string{"pypi.org"}, sandbox.Policy{Mode: sandbox.ModeWorkspaceWrite, WritableRoots: []string{ws}, Network: sandbox.NetworkAllowlist, AllowHosts: []string{"pypi.org"}}},
 		{agent.ModeHost, []string{"pypi.org"}, sandbox.Policy{Mode: sandbox.ModeFull, Network: sandbox.NetworkOpen}},
 	}

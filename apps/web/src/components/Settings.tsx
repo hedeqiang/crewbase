@@ -23,6 +23,8 @@ import { openSession, setLang, setState, toast, useStore, type SettingsSection, 
 import { Automation } from "./settings/Automation";
 import { Extensions } from "./settings/Extensions";
 import { Profile } from "./settings/Profile";
+import { Hosts } from "./settings/Hosts";
+import { askNotify, notifyPermission, notifySupported } from "../companion";
 import { Notify } from "./settings/Notify";
 import { Routing } from "./settings/Routing";
 import { Avatar } from "./Avatar";
@@ -56,9 +58,13 @@ const NAV: { group: Key; items: { id: SettingsSection; icon: ReactNode }[] }[] =
 export const SECTION_ICONS: Record<SettingsSection, ReactNode> = Object.fromEntries(NAV.flatMap((g) => g.items.map((i) => [i.id, i.icon]))) as any;
 export const SECTIONS: SettingsSection[] = NAV.flatMap((g) => g.items.map((i) => i.id));
 
+/** What a phone may open in settings. */
+const MOBILE_SECTIONS = new Set<string>(["general", "keys", "approvals"]);
+
 export function Settings() {
   const sec = useStore((s) => s.settings);
   const n = useStore((s) => s.approvals.length);
+  const manage = useStore((s) => s.tier === "desktop");
   const [q, setQ] = useState("");
   const ql = q.trim().toLowerCase();
   return (
@@ -73,7 +79,7 @@ export function Settings() {
           <input value={q} onChange={(e) => setQ(e.target.value)} placeholder={t("set.search")} />
         </label>
         {NAV.map((g) => {
-          const items = g.items.filter((i) => !ql || t(`set.${i.id}` as Key).toLowerCase().includes(ql));
+          const items = g.items.filter((i) => (manage || MOBILE_SECTIONS.has(i.id)) && (!ql || t(`set.${i.id}` as Key).toLowerCase().includes(ql)));
           if (!items.length) return null;
           return (
             <div key={g.group} className="sgrp">
@@ -90,15 +96,17 @@ export function Settings() {
         })}
       </nav>
       <div className="vw">
-        {sec === "general" && <General />}
-        {sec === "models" && <Models />}
+        {!manage && <p className="tiernote">{t("tier.mobileNote")}</p>}
+        {(sec === "general" || (!manage && !MOBILE_SECTIONS.has(sec))) && <General />}
+        {manage && sec === "models" && <Models />}
         {sec === "approvals" && <Approvals />}
-        {sec === "auto" && <Automation />}
-        {sec === "market" && <Extensions />}
-        {sec === "profile" && <Profile />}
+        {manage && sec === "auto" && <Automation />}
+        {manage && sec === "market" && <Extensions />}
+        {manage && sec === "profile" && <Profile />}
         {sec === "keys" && <Keys />}
-        {sec === "notify" && <Notify />}
-        {!["general", "models", "approvals", "auto", "market", "profile", "keys", "notify"].includes(sec) && <Soon sec={sec} />}
+        {manage && sec === "notify" && <Notify />}
+        {manage && sec === "hosts" && <Hosts />}
+        {manage && !["general", "models", "approvals", "auto", "market", "profile", "keys", "notify", "hosts"].includes(sec) && <Soon sec={sec} />}
       </div>
     </div>
   );
@@ -186,7 +194,24 @@ export function Row({ title, desc, children, dim }: { title: string; desc?: stri
   );
 }
 
+/** Browser notifications on this device (phones and other browsers). */
+function NotifyHere() {
+  const [perm, setPerm] = useState(notifyPermission());
+  return (
+    <Row title={t("comp.notifyOn")} desc={perm === "denied" ? t("comp.notifyDenied") : t("comp.notifyOnDesc")}>
+      {perm === "granted" ? (
+        <span className="pill ok">{t("comp.notifyEnabled")}</span>
+      ) : (
+        <button className="btn sm" type="button" disabled={perm === "denied"} onClick={() => void askNotify().then(setPerm)}>
+          {t("comp.notifyOn")}
+        </button>
+      )}
+    </Row>
+  );
+}
+
 function General() {
+  const manage = useStore((s) => s.tier === "desktop");
   const theme = useStore((s) => s.theme);
   const lang = useStore((s) => s.lang);
   const connected = useStore((s) => s.connected);
@@ -207,15 +232,24 @@ function General() {
               </select>
             </span>
           </Row>
+          {notifySupported() && <NotifyHere />}
         </div>
-        <div className="vsec">{t("set.startup")}</div>
-        <div className="sbox">
-          <Row title={t("set.keepRunning")} desc={t("set.keepRunningDesc")}>
-            <span className="tg" role="switch" aria-checked="true" aria-disabled="true" />
-          </Row>
-        </div>
-        <div className="vsec">{t("set.defaults")}</div>
-        <Defaults />
+        {manage && (
+          <>
+            <div className="vsec">{t("set.startup")}</div>
+            <div className="sbox">
+              <Row title={t("set.keepRunning")} desc={t("set.keepRunningDesc")}>
+                <span className="tg" role="switch" aria-checked="true" aria-disabled="true" />
+              </Row>
+            </div>
+          </>
+        )}
+        {manage && (
+          <>
+            <div className="vsec">{t("set.defaults")}</div>
+            <Defaults />
+          </>
+        )}
         <div className="vsec">{t("set.connection")}</div>
         <div className="sbox">
           <Row title={connected ? t("set.connected") : t("set.disconnected")} desc={window.location.host}>

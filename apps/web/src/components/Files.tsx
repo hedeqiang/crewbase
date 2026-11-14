@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { ChevronRight, Download, FileText, Folder, FolderOpen, Pencil, RefreshCw, Save, X } from "lucide-react";
-import { API, rawURL, type AgentView, type FileContent, type FileEntry } from "../api";
+import { API, rawURL, useRawURL, type AgentView, type FileContent, type FileEntry } from "../api";
 import { t } from "../i18n";
 import { ago } from "../format";
 import { setState, toast, useStore } from "../store";
@@ -176,7 +176,7 @@ function Preview({ agentId, path, onClose }: { agentId: string; path: string; on
         </div>
       ) : image ? (
         <div className="fbody fimg">
-          <img src={rawURL(agentId, path)} alt={path} />
+          <RawImg agent={agentId} path={path} />
         </div>
       ) : f.tooLarge ? (
         <div className="small" style={{ padding: 10 }}>
@@ -199,4 +199,9 @@ function Preview({ agentId, path, onClose }: { agentId: string; path: string; on
       )}
     </div>
   );
+}
+
+function RawImg({ agent, path }: { agent: string; path: string }) {
+  const src = useRawURL(agent, path);
+  return src ? <img src={src} alt={path} /> : <span className="small">{t("common.loading")}</span>;
 }

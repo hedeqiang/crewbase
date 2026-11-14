@@ -27,6 +27,7 @@ import (
 	_ "github.com/hedeqiang/crewbase/features/channel"
 	_ "github.com/hedeqiang/crewbase/features/compaction"
 	_ "github.com/hedeqiang/crewbase/features/console"
+	_ "github.com/hedeqiang/crewbase/features/devices"
 	_ "github.com/hedeqiang/crewbase/features/gateway"
 	_ "github.com/hedeqiang/crewbase/features/goals"
 	_ "github.com/hedeqiang/crewbase/features/im"
@@ -35,6 +36,7 @@ import (
 	_ "github.com/hedeqiang/crewbase/features/plugins"
 	_ "github.com/hedeqiang/crewbase/features/providers"
 	_ "github.com/hedeqiang/crewbase/features/redact"
+	_ "github.com/hedeqiang/crewbase/features/relay"
 	_ "github.com/hedeqiang/crewbase/features/roles"
 	_ "github.com/hedeqiang/crewbase/features/router"
 	_ "github.com/hedeqiang/crewbase/features/routines"
@@ -159,6 +161,9 @@ var Desktop = kernel.Bundle{Name: "desktop", Entries: []kernel.Entry{
 	{ID: "roles", Name: "@crewbase/roles"},
 	{ID: "ui-api", Name: "@crewbase/ui-api"},
 	{ID: "attachments-api", Name: "@crewbase/attachments-api"},
+	{ID: "devices", Name: "@crewbase/devices", Config: map[string]any{"dir": "${root}"}},
+	// Outbound relay link (zero inbound ports); set config.url to enable.
+	{ID: "relay", Name: "@crewbase/relay", Config: map[string]any{"dir": "${root}"}, Disabled: true},
 	{ID: "audit-ui", Name: "@crewbase/audit-ui"},
 }}
 
@@ -169,6 +174,8 @@ var Server = kernel.Bundle{Name: "server", Entries: []kernel.Entry{
 	{ID: "gateway", Name: "@crewbase/gateway", Config: map[string]any{"addr": "127.0.0.1:7788", "tokenFile": "${root}/token"}},
 	{ID: "api", Name: "@crewbase/api"},
 	{ID: "channel-api", Name: "@crewbase/channel-api"},
+	{ID: "devices", Name: "@crewbase/devices", Config: map[string]any{"dir": "${root}"}},
+	{ID: "relay", Name: "@crewbase/relay", Config: map[string]any{"dir": "${root}"}, Disabled: true},
 }}
 
 func cheapRoutes() []map[string]string {

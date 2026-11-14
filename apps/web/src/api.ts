@@ -1,3 +1,5 @@
+import { useEffect, useState } from "react";
+import { apiFetch, tunnelBlobURL, viaRelay } from "./tunnel";
 // REST helpers and API types (mirrors features/api, core/session, core/agent,
 // capabilities/approval). The page is served by crewd on the same origin.
 
@@ -608,7 +610,7 @@ export async function api<T = any>(method: string, path: string, body?: unknown)
   const tok = getToken();
   if (tok) headers.Authorization = `Bearer ${tok}`;
   if (body !== undefined) headers["Content-Type"] = "application/json";
-  const res = await fetch(path, { method, headers, body: body === undefined ? undefined : JSON.stringify(body) });
+  const res = await apiFetch(path, { method, headers, body: body === undefined ? undefined : JSON.stringify(body) });
   let data: any = null;
   const text = await res.text();
   if (text) {
@@ -631,7 +633,7 @@ export async function uploadFile(agent: string, file: Blob, name: string): Promi
   const headers: Record<string, string> = { "Content-Type": file.type || "application/octet-stream" };
   const tok = getToken();
   if (tok) headers.Authorization = `Bearer ${tok}`;
-  const res = await fetch(`/api/agents/${enc(agent)}/uploads?name=${encodeURIComponent(name)}`, { method: "POST", headers, body: file });
+  const res = await apiFetch(`/api/agents/${enc(agent)}/uploads?name=${encodeURIComponent(name)}`, { method: "POST", headers, body: file });
   const data = await res.json().catch(() => null);
   if (!res.ok) {
     if (res.status === 401) onUnauthorized();
@@ -641,13 +643,72 @@ export async function uploadFile(agent: string, file: Blob, name: string): Promi
   return data as Attachment;
 }
 
-/** URL of a workspace file (images inline, other files download). */
+/** URL of a workspace file (images inline, other files download). Over a
+ *  relay the file has to come through the tunnel: use useRawURL. */
 export function rawURL(agent: string, path: string): string {
   return `/api/agents/${enc(agent)}/raw?path=${encodeURIComponent(path)}&token=${encodeURIComponent(getToken() ?? "")}`;
 }
 
+/** rawURL that also works over a relay (an object URL fetched through the tunnel). */
+export function useRawURL(agent: string | undefined, path: string): string | undefined {
+  const direct = agent ? rawURL(agent, path) : undefined;
+  const [url, setUrl] = useState<string | undefined>(viaRelay() ? undefined : direct);
+  useEffect(() => {
+    if (!agent || !viaRelay()) {
+      setUrl(direct);
+      return;
+    }
+    let live = true;
+    let made: string | undefined;
+    tunnelBlobURL(`/api/agents/${enc(agent)}/raw?path=${encodeURIComponent(path)}`, getToken() ?? "").then(
+      (u) => {
+        made = u;
+        if (live) setUrl(u);
+        else URL.revokeObjectURL(u);
+      },
+      () => live && setUrl(undefined),
+    );
+    return () => {
+      live = false;
+      if (made) URL.revokeObjectURL(made);
+    };
+  }, [agent, path]);
+  return url;
+}
+
+export interface DeviceView {
+  id: string;
+  name: string;
+  tier: "mobile" | "desktop";
+  platform?: string;
+  created: string;
+  lastSeen?: string;
+  via?: "lan" | "relay";
+}
+
+export interface PairingCode {
+  code: string;
+  tier: string;
+  expires: string;
+}
+
+export interface RelayStatus {
+  configured: boolean;
+  hostId?: string;
+  status?: { relay: string; hostId: string; online: boolean; devices: number; error?: string };
+}
+
 export const API = {
   health: () => api<{ ok: boolean }>("GET", "/api/health"),
+  pair: (b: { code: string; name: string; platform: string }) => api<{ token: string; device: DeviceView }>("POST", "/api/pair", b),
+  whoami: () => api<{ tier: string; device?: DeviceView }>("GET", "/api/whoami"),
+  devices: () => api<{ devices: DeviceView[]; pending: PairingCode[] }>("GET", "/api/devices"),
+  startPairing: (tier: string) => api<PairingCode>("POST", "/api/devices/pairing", { tier }),
+  cancelPairing: (code: string) => api("DELETE", `/api/devices/pairing/${enc(code)}`),
+  renameDevice: (id: string, name: string) => api<DeviceView>("PATCH", `/api/devices/${enc(id)}`, { name }),
+  revokeDevice: (id: string) => api("DELETE", `/api/devices/${enc(id)}`),
+  relay: () => api<RelayStatus>("GET", "/api/relay"),
+  relayPairLink: (code: string) => api<{ url: string }>("POST", "/api/relay/pair-link", { code }),
   agents: () => api<{ agents: AgentView[] }>("GET", "/api/agents"),
   agent: (id: string) => api<AgentView>("GET", `/api/agents/${enc(id)}`),
   createAgent: (b: Partial<AgentView> & { modelRefs?: string[] }) => api<AgentView>("POST", "/api/agents", b),

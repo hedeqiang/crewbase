@@ -3,7 +3,7 @@
 // shown in a sent message.
 
 import { AlertCircle, File, FileImage, FileSpreadsheet, FileText, Presentation, X } from "lucide-react";
-import { rawURL, uploadFile, type Attachment } from "../api";
+import { uploadFile, useRawURL, type Attachment } from "../api";
 import { t } from "../i18n";
 import { getState, setState, toast, type PendingFile } from "../store";
 
@@ -119,9 +119,7 @@ export function MsgAttachments({ agent, items }: { agent?: string; items: Attach
       {images.length > 0 && (
         <div className="attimgs">
           {images.map((a) => (
-            <a key={a.path} href={rawURL(agent, a.path)} target="_blank" rel="noreferrer" title={t("att.open", { name: a.name })}>
-              <img src={rawURL(agent, a.path)} alt={a.name} loading="lazy" />
-            </a>
+            <Thumb key={a.path} agent={agent} a={a} />
           ))}
         </div>
       )}
@@ -143,5 +141,14 @@ export function MsgAttachments({ agent, items }: { agent?: string; items: Attach
         </button>
       ))}
     </div>
+  );
+}
+
+function Thumb({ agent, a }: { agent: string; a: Attachment }) {
+  const src = useRawURL(agent, a.path);
+  return (
+    <a href={src} target="_blank" rel="noreferrer" title={t("att.open", { name: a.name })}>
+      {src ? <img src={src} alt={a.name} loading="lazy" /> : <span className="thumbph" />}
+    </a>
   );
 }

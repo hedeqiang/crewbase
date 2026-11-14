@@ -136,6 +136,17 @@ func (s *Seatbelt) Profile(p sandbox.Policy, env []string) (string, []string) {
 		params = append(params, "-D", key+"="+r)
 		fmt.Fprintf(&b, "(allow file-write* (subpath (param %q)))\n", key)
 	}
+	// Protected roots come last: in seatbelt the last matching rule wins,
+	// so they stay read-only even inside an allowed temp dir.
+	for i, r := range p.ProtectedRoots {
+		r = resolve(r)
+		if r == "" || r == "/" {
+			continue
+		}
+		key := fmt.Sprintf("PROTECTED_ROOT_%d", i)
+		params = append(params, "-D", key+"="+r)
+		fmt.Fprintf(&b, "(deny file-write* (subpath (param %q)))\n", key)
+	}
 	switch p.Network {
 	case sandbox.NetworkOpen, sandbox.NetworkAllowlist:
 		// allowlist cannot be filtered by domain here: reported as partial.

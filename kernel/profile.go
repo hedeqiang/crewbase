@@ -104,9 +104,12 @@ func LookupProfile(name string) (Profile, bool) {
 
 // ---------------------------------------------------------------- patches
 
-// ApplyPatch overlays patch on base by entry id: an entry with a name
-// replaces the whole entry; an entry with only `disabled` toggles it; an
-// unknown id is appended.
+// ApplyPatch overlays patch on base by entry id:
+//   - an entry with a name replaces the whole entry (config included);
+//   - an entry without a name keeps the base plugin and merges its config
+//     keys over the base config (so `config: {url: …}` does not drop the
+//     other keys), and sets `disabled`;
+//   - an unknown id is appended.
 func ApplyPatch(base, patch []Entry) []Entry {
 	out := append([]Entry(nil), base...)
 	for _, p := range patch {
@@ -120,12 +123,27 @@ func ApplyPatch(base, patch []Entry) []Entry {
 		switch {
 		case idx < 0:
 			out = append(out, p)
-		case p.Name == "" && p.Config == nil:
-			out[idx].Disabled = p.Disabled
-		default:
-			if p.Name == "" {
-				p.Name = out[idx].Name
+		case p.Name == "":
+			e := out[idx]
+			e.Disabled = p.Disabled
+			if p.Config != nil {
+				merged := make(map[string]any, len(e.Config)+len(p.Config))
+				for k, v := range e.Config {
+					merged[k] = v
+				}
+				for k, v := range p.Config {
+					merged[k] = v
+				}
+				e.Config = merged
 			}
+			if p.Runtime != "" {
+				e.Runtime = p.Runtime
+			}
+			if p.Permissions != nil {
+				e.Permissions = p.Permissions
+			}
+			out[idx] = e
+		default:
 			out[idx] = p
 		}
 	}

@@ -64,8 +64,13 @@ func Unavailable(format string, a ...any) error {
 type Policy struct {
 	Mode          string   `json:"mode"`                    // read-only | workspace-write | full
 	WritableRoots []string `json:"writableRoots,omitempty"` // workspace-write only
-	Network       string   `json:"network"`                 // none | allowlist | open
-	AllowHosts    []string `json:"allowHosts,omitempty"`    // allowlist only
+	// ProtectedRoots stay read-only even when they lie inside a path the
+	// sandbox otherwise allows writing to (e.g. a workspace under /tmp,
+	// which providers keep writable as scratch space). Read-only mode
+	// protects the workspace this way.
+	ProtectedRoots []string `json:"protectedRoots,omitempty"`
+	Network        string   `json:"network"`              // none | allowlist | open
+	AllowHosts     []string `json:"allowHosts,omitempty"` // allowlist only
 }
 
 // Normalize fills defaults and fails closed on unknown values: an unknown
@@ -79,6 +84,9 @@ func (p Policy) Normalize() Policy {
 	}
 	if p.Mode != ModeWorkspaceWrite {
 		p.WritableRoots = nil
+	}
+	if p.Mode == ModeFull {
+		p.ProtectedRoots = nil
 	}
 	switch p.Network {
 	case NetworkNone, NetworkOpen:
@@ -159,6 +167,9 @@ func PolicyFor(runMode, workspace string, allowHosts []string) Policy {
 		p = Policy{Mode: ModeWorkspaceWrite, WritableRoots: []string{workspace}, Network: NetworkNone}
 	default: // read-only and anything unknown
 		p = Policy{Mode: ModeReadOnly, Network: NetworkNone}
+		if workspace != "" {
+			p.ProtectedRoots = []string{workspace}
+		}
 	}
 	if p.Mode != ModeFull && len(allowHosts) > 0 {
 		p.Network, p.AllowHosts = NetworkAllowlist, append([]string(nil), allowHosts...)

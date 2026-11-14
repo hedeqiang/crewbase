@@ -209,3 +209,35 @@ func skipIfUnderTemp(t *testing.T, dir string) {
 		}
 	}
 }
+
+// A workspace inside a temp dir (which the profile keeps writable as
+// scratch space) is still read-only in read-only mode, through
+// PolicyFor's protected roots; scratch writes elsewhere in /tmp still work.
+func TestReadOnlyWorkspaceUnderTemp(t *testing.T) {
+	sb := darwin(t)
+	base, err := os.MkdirTemp("/tmp", "cb-ro-")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(base)
+	ws := filepath.Join(base, "workspaces", "a")
+	os.MkdirAll(ws, 0o755)
+	p := sandbox.PolicyFor("read-only", ws, nil)
+	if len(p.ProtectedRoots) != 1 {
+		t.Fatalf("policy %+v", p)
+	}
+	if _, err, _ := run(t, sb, ws, "echo x > out.txt", p); err == nil {
+		t.Fatal("read-only workspace under /tmp was writable")
+	}
+	if _, err := os.Stat(filepath.Join(ws, "out.txt")); err == nil {
+		t.Fatal("file created in a read-only workspace")
+	}
+	scratch := filepath.Join(base, "scratch.txt")
+	if out, err, _ := run(t, sb, ws, "echo ok > "+scratch+" && cat "+scratch, p); err != nil || strings.TrimSpace(out) != "ok" {
+		t.Fatalf("scratch space outside the workspace should stay writable: %v %q", err, out)
+	}
+	// sandbox mode still writes its workspace
+	if _, err, _ := run(t, sb, ws, "echo y > w.txt", sandbox.PolicyFor("sandbox", ws, nil)); err != nil {
+		t.Fatalf("sandbox mode write: %v", err)
+	}
+}

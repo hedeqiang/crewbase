@@ -253,7 +253,7 @@ flowchart TD
 |---|---|
 | 组合包（Bundle） | 一组插件条目及其配置的分发单位，例如 `base`（模型适配器、工具、持久化、沙箱、审批、凭证）、`desktop`、`server`、`acp`、`team` |
 | Profile | 一个具名组装：列出叠加哪些组合包、安装了哪些第三方插件、用户自己的补丁。内置 `desktop`、`server`、`sdk`、`acp` |
-| 补丁（Patch） | 按条目 `id` 替换整个配置、插入新条目或禁用条目 |
+| 补丁（Patch） | 按条目 `id` 修改：不写 `name` 时把 `config` 的键合并进原配置并设置 `disabled`；写了 `name` 则替换整个条目；未知 `id` 插入新条目 |
 
 叠加顺序：Profile 中的组合包（按序）→ Profile 补丁 → 用户主目录补丁 → 命令行 `--patch`。
 

@@ -21,6 +21,8 @@ import {
   type UIContribution,
   getToken,
 } from "./api";
+import { tunnelEvents, viaRelay } from "./tunnel";
+import { notifyApprovals } from "./companion";
 import { getLang, setLang as setLangRaw, t, type Lang } from "./i18n";
 import { setUserProviders } from "./format";
 
@@ -73,6 +75,9 @@ export interface Profile {
 
 export interface State {
   authed: boolean | null; // null = checking
+  /** What this client may do: "desktop" (full control) or "mobile"
+   *  (view, approve, send) — paired phones (GET /api/whoami). */
+  tier: "desktop" | "mobile";
   /** Folders created from the list; kept even while empty (settings.json). */
   savedFolders: string[];
   /** Interface slot contributions from plugins (GET /api/ui). */
@@ -140,6 +145,7 @@ const HIST_MAX = 30;
 
 let state: State = {
   authed: null,
+  tier: "desktop",
   connected: false,
   agents: {},
   sessions: {},
@@ -370,6 +376,7 @@ export async function refreshApprovals() {
   try {
     const r = await API.approvals();
     setState({ approvals: r.pending ?? [] });
+    notifyApprovals(r.pending ?? [], (id) => state.agents[id]?.name ?? id);
   } catch {
     /* ignore */
   }
@@ -485,7 +492,20 @@ export async function refreshUI() {
   }
 }
 
+export async function refreshTier() {
+  try {
+    const r = await API.whoami();
+    setState({ tier: r.tier === "desktop" ? "desktop" : "mobile" });
+  } catch {
+    /* older daemon: the local token is full control */
+  }
+}
+
+/** Phones (and other mobile-tier devices) may not manage things. */
+export const canManage = (s: State = state) => s.tier === "desktop";
+
 export async function resync() {
+  await refreshTier();
   await Promise.allSettled([
     refreshAgents(),
     refreshSessions(),
@@ -547,7 +567,7 @@ function applyStream(e: StreamChunk) {
 
 // ---------------------------------------------------------------- SSE
 
-let es: EventSource | null = null;
+let es: { close(): void } | null = null;
 let retry = 0;
 let retryTimer: number | undefined;
 
@@ -556,16 +576,28 @@ export function connectEvents() {
   window.clearTimeout(retryTimer);
   const tok = getToken();
   if (!tok) return;
-  const src = new EventSource(`/api/events?token=${encodeURIComponent(tok)}`);
-  es = src;
-  const on = (type: string, fn: (d: any) => void) =>
-    src.addEventListener(type, (m) => {
-      try {
-        fn(JSON.parse((m as MessageEvent).data));
-      } catch {
-        /* ignore malformed */
-      }
+  const handlers = new Map<string, (d: any) => void>();
+  const on = (type: string, fn: (d: any) => void) => handlers.set(type, fn);
+  const dispatch = (type: string, data: string) => {
+    try {
+      handlers.get(type)?.(JSON.parse(data));
+    } catch {
+      /* ignore malformed */
+    }
+  };
+  let src: EventSource | null = null;
+  if (viaRelay()) {
+    // EventSource cannot go through the tunnel: read the stream ourselves
+    const stop = tunnelEvents("/api/events", tok, dispatch, () => {
+      setState({ connected: false });
+      retry = Math.min(retry + 1, 6);
+      retryTimer = window.setTimeout(() => getToken() && connectEvents(), 500 * 2 ** retry);
     });
+    es = { close: stop };
+  } else {
+    src = new EventSource(`/api/events?token=${encodeURIComponent(tok)}`);
+    es = src;
+  }
   on("hello", () => {
     retry = 0;
     setState({ connected: true });
@@ -599,9 +631,12 @@ export function connectEvents() {
   on("mcp", () => setState((s) => ({ mcpTick: s.mcpTick + 1 })));
   on("models.changed", () => void refreshModels());
   on("ui.changed", () => void refreshUI());
-  src.onerror = () => {
+  if (!src) return;
+  const es2 = src;
+  for (const type of handlers.keys()) es2.addEventListener(type, (m) => dispatch(type, (m as MessageEvent).data));
+  es2.onerror = () => {
     setState({ connected: false });
-    if (src.readyState === EventSource.CLOSED) {
+    if (es2.readyState === EventSource.CLOSED) {
       // Browser gave up (e.g. daemon restarted or token rejected): retry with backoff.
       retry = Math.min(retry + 1, 6);
       retryTimer = window.setTimeout(async () => {

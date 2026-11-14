@@ -39,6 +39,7 @@ export function SessionList() {
   const events = useStore((s) => s.events);
   const current = useStore((s) => s.current);
   const view = useStore((s) => s.view);
+  const manage = useStore((s) => s.tier === "desktop");
   const connected = useStore((s) => s.connected);
   const profile = useStore((s) => s.profile);
   const [q, setQ] = useState("");
@@ -172,9 +173,11 @@ export function SessionList() {
           <Search size={14} />
           <input value={q} onChange={(e) => setQ(e.target.value)} placeholder={t("list.search")} />
         </label>
-        <button className="ib bordered" type="button" ref={plus.ref} onClick={plus.toggle} aria-label={t("list.new")} title={t("list.new")} aria-haspopup="menu">
-          <Plus size={16} />
-        </button>
+        {manage && (
+          <button className="ib bordered" type="button" ref={plus.ref} onClick={plus.toggle} aria-label={t("list.new")} title={t("list.new")} aria-haspopup="menu">
+            <Plus size={16} />
+          </button>
+        )}
       </div>
       <div className="lscroll">
         {needs > 0 && !q && (

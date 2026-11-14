@@ -12,6 +12,8 @@ import (
 	"github.com/hedeqiang/crewbase/core/agent"
 	"github.com/hedeqiang/crewbase/core/session"
 	"github.com/hedeqiang/crewbase/core/tools"
+	"github.com/hedeqiang/crewbase/features/devices"
+	"github.com/hedeqiang/crewbase/features/gateway"
 	"github.com/hedeqiang/crewbase/features/rules"
 	"github.com/hedeqiang/crewbase/kernel"
 )
@@ -34,6 +36,10 @@ const (
 	TypePluginLoaded    = "plugin/loaded"
 	TypePluginState     = "plugin/state"
 	TypePluginUnloaded  = "plugin/unloaded"
+	TypeDevicePaired    = "device/paired"
+	TypeDeviceRevoked   = "device/revoked"
+	TypeDeviceRenamed   = "device/renamed"
+	TypeAuthFailed      = "gateway/auth-failed"
 	// Session events with these prefixes are copied (goal authorisation
 	// and status changes are security relevant: docs/06 §9).
 	goalPrefix = "goal/"
@@ -190,6 +196,42 @@ var Plugin = kernel.Register(kernel.Spec{
 		})
 		agent.Deleted.Listen(c, func(id string) {
 			rec(Entry{Type: TypeAgentDeleted, Actor: "user", Agent: id})
+		})
+
+		devices.Changed.Listen(c, func(ev devices.Event) {
+			typ := map[string]string{"paired": TypeDevicePaired, "revoked": TypeDeviceRevoked, "renamed": TypeDeviceRenamed}[ev.Kind]
+			if typ == "" {
+				return
+			}
+			actor := "user"
+			if ev.Kind == "paired" {
+				actor = ev.Device.ID
+			}
+			rec(Entry{Type: typ, Actor: actor, Data: map[string]any{
+				"device": ev.Device.ID, "name": ev.Device.Name, "tier": ev.Device.Tier, "via": ev.Device.Via, "platform": ev.Device.Platform,
+			}})
+		})
+		// Rejected tokens: at most one record per remote address a minute
+		// (a scanner must not be able to flood the chain).
+		var fmu sync.Mutex
+		lastFail := map[string]time.Time{}
+		gateway.AuthFailed.Listen(c, func(f gateway.AuthFailure) {
+			host := f.Remote
+			if i := strings.LastIndex(host, ":"); i > 0 {
+				host = host[:i]
+			}
+			fmu.Lock()
+			now := time.Now()
+			if now.Sub(lastFail[host]) < time.Minute {
+				fmu.Unlock()
+				return
+			}
+			if len(lastFail) > 1000 {
+				lastFail = map[string]time.Time{}
+			}
+			lastFail[host] = now
+			fmu.Unlock()
+			rec(Entry{Type: TypeAuthFailed, Actor: "unknown", Data: map[string]any{"remote": host, "path": f.Path}})
 		})
 
 		// Plugin lifecycle from the kernel's own events (no polling).

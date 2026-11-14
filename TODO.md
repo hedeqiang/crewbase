@@ -170,13 +170,14 @@
 - [x] `server` Profile、install-server.sh（systemd）、加固 docker-compose（no-new-privileges、seccomp、只读根、shm 1g、不映射端口、可选 Tailscale）、Dockerfile、阿里云 ECS / AWS EC2 + Fargate 模板、docs/deploy.md（D-2）
 - [x] 部署：真实 Docker 镜像构建与加固 compose 实跑
 - [-] 云主机实跑（无账号）
-- [ ] 零入站配对（WebSocket Relay）、设备分级权限
+- [x] 零入站配对（WebSocket Relay）、设备分级权限：features/devices（一次性配对码、令牌只存哈希、手机 / 电脑两级、改名 / 移除即断开）；features/relay + apps/relayd（crew-relay）：主机与设备都只出站，ECDH P-256 + HKDF + AES-256-GCM 端到端加密、主机签名挑战、只转发 /api/；网页端 WebCrypto 隧道（REST、SSE、上传、图片）
 - [x] IM 网关：Slack（Socket Mode）/ Telegram（长轮询）/ Discord（Gateway）/ 飞书（长连接），全部只出站；通知 + 审批卡（push / payment 只给拒绝和「稍后在桌面处理」，不提供「以后都允许」）、白名单用户、@Agent 发消息、回复回传线程、免打扰、限速、令牌不落日志；默认关闭（D-4）
 - [ ] IM：真实机器人账号联调；线程映射持久化；飞书显示名；长回复分段；附件；设置页 UI
-- [ ] 移动端伴侣（D-3）
+- [x] 移动端伴侣（D-3）：PWA（manifest、主屏图标、只缓存外壳的 service worker）；扫码配对页；手机权限下隐藏管理入口（新建、运行权限、管理类设置）；后台审批系统通知，点通知打开对应对话
 - [x] 审计日志哈希链（S-7）：规则判定 Ask/Deny、审批、规则变更、运行模式、插件启停、Agent 增删；跨月续链、校验 API；不进入模型上下文
 - [x] kernel `kernel/plugin-changed` 生命周期事件；审计改为监听（不再轮询）
-- [ ] 审计：网关鉴权失败、凭证引用变更、设备配对
+- [x] 审计：设备配对 / 改名 / 移除；网关拒绝的令牌（按来源地址每分钟限一条）
+- [ ] 审计：凭证引用变更
 - [ ] 团队任务板 DAG（A-7）、成员与角色
 - [x] 持久目标续跑（R-4）：轮次上限、阻塞原因码、重启 / fork 后需重新授权、goal_complete / goal_blocked 工具
 - [x] OpenTelemetry 导出（默认关闭，默认不含内容）；`crew doctor` 部署自检
@@ -230,13 +231,14 @@
 - [x] 添加提供方：预设按厂商 / 聚合平台分组（Anthropic、OpenAI、Gemini、DeepSeek、xAI、Kimi、智谱、MiniMax、通义千问、火山引擎；OpenRouter、SiliconFlow、Groq 等）；自定义提供方自动识别图标（地址 → 名称 → 模型），可手选厂商图标或字母图标；不提供模型列表的接口（火山方舟等）可手填模型 ID；守护进程过旧时明确提示
 - [x] 个人资料页（原「个人资料与用量」）：就地改名；活动热力图旁加汇总（活跃天数、当前 / 最长连续、最常用的星期）；统计卡统一样式；已删除成员显示占位头像与标记；去掉重复的来源汇总行
 - **迭代 13 · 文件与多模态** ✅：对话附件（PDF / Office / 图片 / 文本，选取、粘贴、拖放）→ 工作区 uploads/；日志只记引用，请求前按模型能力装载（图片给视觉模型、PDF 给 Anthropic / Gemini / OpenAI 原生读取、其余提取文字 + 路径）；DeepSeek 直连走 Files API（text_recognition，file_id 按工作区缓存，失败回退文字）
-- **迭代 14 · 远程与多端**：零入站配对（WebSocket Relay）、设备分级、移动端伴侣（PWA：通知、审批、对话）
+- **迭代 14 · 远程与多端** ✅：零入站配对（WebSocket Relay）、设备分级、移动端伴侣（PWA：通知、审批、对话）
 - **迭代 15 · 团队**：成员与角色、团队任务板 DAG（A-7）
 - **持续**：WASM 插件档、MCP resources / prompts、插件包签名、浏览器多标签、桌面自动更新（需密钥）
 
 ## 迭代日志
 | 日期 | 迭代 | 结果 |
 |---|---|---|
+| 2026-11-15 | 14 | 迭代 14 完成：设备配对与分级（一次性码、哈希令牌、移除即断流）；零入站中继（crew-relay，端到端加密，主机签名认证，Go 客户端与网页 WebCrypto 隧道）；手机伴侣 PWA（扫码配对、手机权限界面、后台审批通知）；补丁按键合并配置；修复只读模式下放在 /tmp 的工作区仍可写（Seatbelt 受保护路径）；新对话（⌘N，空白但能用工具）。真实验证：本机中继 + 守护进程，模拟 iPhone 扫码配对，经中继看对话、批准删除操作，手机流量不直连守护进程 |
 | 2026-11-15 | 13 | 迭代 13 完成：对话附件（features/attachments：上传到工作区、按模型能力装载、PDF / docx / pptx / xlsx / 文本提取、超长截断并提示用工具读全文）；llm.Part attachment + FileAccepter；Anthropic / Gemini / OpenAI 兼容 / Ollama / ACP（给路径）适配；DeepSeek Files API；网关 RawBody 与 Blob（只有位图内联，其他一律下载）；输入框选取 / 粘贴 / 拖放、上传中禁止发送、消息内缩略图与文件卡片、文件面板图片预览与下载。真实验证：deepseek-flash 与 Claude Haiku 看图、GPT 读 PDF、DeepSeek 读 docx、三文件同一条消息；发现 magpie 的 Chat Completions 会丢弃 PDF file 段，改为提取文字 |
 | 2026-11-14 | 12 | 迭代 12 完成：新建文件夹（空文件夹保留）；角色模板导入（Hermes / md / json / 粘贴，记忆与对话不迁移，真实界面导入验证）；界面插槽（capabilities/ui：对话卡片、右侧标签、设置卡片、⌘K 命令、输入框按钮；声明式渲染，进程内 / 进程外插件与 Go / TS / Python SDK 均支持；审计日志改用插槽；deploy-status 示例插件经真实守护进程验证全部五个插槽）；网关请求体超限返回 413 |
 | 2026-11-14 | 11 | 迭代 11 完成：界面添加模型提供方（钥匙串 + 热挂载，经 magpie 真实添加 → 对话 → 移除验证）；压缩摘要走 summarize 路由（失败回退）；设置 › 通知（勾选表、定时 / 临时免打扰、发送测试，浅 / 深色 / 手机宽度截图验证）；修复弹窗类名冲突 |
