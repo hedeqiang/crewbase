@@ -242,6 +242,7 @@ func TestSeatbeltEndToEnd(t *testing.T) {
 		t.Skip("macOS only")
 	}
 	wd, _ := os.Getwd()
+	skipIfUnderTemp(t, wd)
 	base, err := os.MkdirTemp(wd, ".shtest-")
 	if err != nil {
 		t.Fatal(err)
@@ -289,5 +290,23 @@ func TestPlugin(t *testing.T) {
 	}
 	if p, _ := h.Plugin("bad-shell"); p.State != kernel.StateFailed {
 		t.Fatal("bad config must fail", p)
+	}
+}
+
+// skipIfUnderTemp: the sandbox profile deliberately leaves temp dirs
+// writable, so "outside the workspace" checks need a checkout elsewhere.
+func skipIfUnderTemp(t *testing.T, dir string) {
+	t.Helper()
+	real, err := filepath.EvalSymlinks(dir)
+	if err != nil {
+		real = dir
+	}
+	for _, tmp := range []string{os.TempDir(), "/tmp", "/private/tmp", "/var/folders", "/private/var/folders"} {
+		if r, err := filepath.EvalSymlinks(tmp); err == nil {
+			tmp = r
+		}
+		if strings.HasPrefix(real+"/", strings.TrimSuffix(tmp, "/")+"/") {
+			t.Skip("checkout is under a temp dir, which the sandbox leaves writable")
+		}
 	}
 }

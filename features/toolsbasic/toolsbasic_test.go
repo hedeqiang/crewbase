@@ -215,6 +215,7 @@ func TestBashSeatbeltBlocked(t *testing.T) {
 	}
 	e := setup(t, confinedSandbox())
 	wd, _ := os.Getwd()
+	skipIfUnderTemp(t, wd)
 	base, _ := os.MkdirTemp(wd, ".tbtest-")
 	defer os.RemoveAll(base)
 	e.ws = filepath.Join(base, "ws")
@@ -274,5 +275,23 @@ func TestPendingWithoutCapabilities(t *testing.T) {
 	p, _ := h.Plugin("@crewbase/tools-basic")
 	if p.State != kernel.StatePending || len(p.Missing) != 2 {
 		t.Fatal(p)
+	}
+}
+
+// skipIfUnderTemp: the sandbox profile deliberately leaves temp dirs
+// writable, so "outside the workspace" checks need a checkout elsewhere.
+func skipIfUnderTemp(t *testing.T, dir string) {
+	t.Helper()
+	real, err := filepath.EvalSymlinks(dir)
+	if err != nil {
+		real = dir
+	}
+	for _, tmp := range []string{os.TempDir(), "/tmp", "/private/tmp", "/var/folders", "/private/var/folders"} {
+		if r, err := filepath.EvalSymlinks(tmp); err == nil {
+			tmp = r
+		}
+		if strings.HasPrefix(real+"/", strings.TrimSuffix(tmp, "/")+"/") {
+			t.Skip("checkout is under a temp dir, which the sandbox leaves writable")
+		}
 	}
 }
