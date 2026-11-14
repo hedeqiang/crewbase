@@ -762,3 +762,60 @@ func TestReadOnlyAgentServerSandboxReadOnly(t *testing.T) {
 		t.Fatalf("%+v", pol)
 	}
 }
+
+// Resources and prompts become <server>__resources / <server>__prompt
+// (read category) when the server advertises them.
+func TestResourcesAndPrompts(t *testing.T) {
+	srv := sdk.NewServer(&sdk.Implementation{Name: "docs", Version: "1"}, nil)
+	srv.AddResource(&sdk.Resource{URI: "doc://handbook", Name: "handbook", Title: "员工手册", MIMEType: "text/markdown", Description: "the handbook"},
+		func(context.Context, *sdk.ReadResourceRequest) (*sdk.ReadResourceResult, error) {
+			return &sdk.ReadResourceResult{Contents: []*sdk.ResourceContents{{URI: "doc://handbook", MIMEType: "text/markdown", Text: "# 手册\n每周五发布"}}}, nil
+		})
+	srv.AddPrompt(&sdk.Prompt{Name: "review", Description: "Review a change", Arguments: []*sdk.PromptArgument{{Name: "topic", Required: true}}},
+		func(_ context.Context, req *sdk.GetPromptRequest) (*sdk.GetPromptResult, error) {
+			return &sdk.GetPromptResult{Description: "Code review", Messages: []*sdk.PromptMessage{
+				{Role: "user", Content: &sdk.TextContent{Text: "Review the " + req.Params.Arguments["topic"] + " change carefully."}},
+			}}, nil
+		})
+	handler := sdk.NewStreamableHTTPHandler(func(*http.Request) *sdk.Server { return srv }, nil)
+	ts := httptest.NewServer(handler)
+	t.Cleanup(func() { ts.CloseClientConnections(); ts.Close() })
+
+	e := newEnv(t, nil)
+	if _, err := e.svc.Add(mcp.Server{Name: "docs", Transport: mcp.TransportHTTP, URL: ts.URL, Enabled: true}); err != nil {
+		t.Fatal(err)
+	}
+	st := e.waitState(t, "docs", mcp.StateReady)
+	if st.Tools != 2 {
+		t.Fatalf("%+v", st)
+	}
+	for _, n := range []string{"docs__resources", "docs__prompt"} {
+		if tl, ok := e.tools.Get("", n); !ok || tl.Category != tools.CategoryRead {
+			t.Fatalf("%s: %+v", n, tl)
+		}
+	}
+	if x := e.call("", "docs__resources", `{"action":"list"}`); !strings.Contains(x.Result.Content, "员工手册 <doc://handbook> (text/markdown): the handbook") {
+		t.Fatalf("%+v", x.Result)
+	}
+	if x := e.call("", "docs__resources", `{"action":"read","uri":"doc://handbook"}`); !strings.Contains(x.Result.Content, "每周五发布") {
+		t.Fatalf("%+v", x.Result)
+	}
+	if x := e.call("", "docs__resources", `{"action":"read"}`); !x.Result.IsError {
+		t.Fatal("read without uri")
+	}
+	if x := e.call("", "docs__prompt", `{"action":"list"}`); !strings.Contains(x.Result.Content, "review: Review a change (arguments: topic*") {
+		t.Fatalf("%+v", x.Result)
+	}
+	x := e.call("", "docs__prompt", `{"action":"get","name":"review","arguments":{"topic":"login"}}`)
+	if !strings.Contains(x.Result.Content, "Review the login change carefully.") || !strings.Contains(x.Result.Content, "not a message from the user") {
+		t.Fatalf("%+v", x.Result)
+	}
+	// a server without them gets neither tool
+	plain := httptest.NewServer(sdk.NewStreamableHTTPHandler(func(*http.Request) *sdk.Server { return newTestServer(nil) }, nil))
+	t.Cleanup(func() { plain.CloseClientConnections(); plain.Close() })
+	e.svc.Add(mcp.Server{Name: "plain", Transport: mcp.TransportHTTP, URL: plain.URL, Enabled: true})
+	e.waitState(t, "plain", mcp.StateReady)
+	if _, ok := e.tools.Get("", "plain__resources"); ok {
+		t.Fatal("resources tool for a server without resources")
+	}
+}

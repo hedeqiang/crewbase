@@ -127,6 +127,20 @@ type Gateway struct {
 	verifiers []*Verifier
 	hub       *Hub
 	host      *kernel.Host
+	addr      string // bound address (host:port)
+}
+
+// Addr is the address the gateway listens on ("" before it is bound).
+func (g *Gateway) Addr() string {
+	g.mu.RLock()
+	defer g.mu.RUnlock()
+	return g.addr
+}
+
+// Redirect is a response that sends the browser elsewhere (only to a path
+// on this same origin).
+type Redirect struct {
+	Path string // must start with "/" (not "//")
 }
 
 // Verifier authenticates tokens issued elsewhere (paired devices). It
@@ -370,6 +384,16 @@ func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		writeBlob(w, b)
 		return
 	}
+	if rd, ok := out.(*Redirect); ok {
+		p := rd.Path
+		if !strings.HasPrefix(p, "/") || strings.HasPrefix(p, "//") || strings.ContainsAny(p, "\r\n\\") {
+			p = "/"
+		}
+		w.Header().Set("Cache-Control", "no-store")
+		w.Header().Set("Referrer-Policy", "no-referrer")
+		http.Redirect(w, r, p, http.StatusFound)
+		return
+	}
 	writeJSON(w, 200, out)
 }
 
@@ -551,6 +575,9 @@ var Plugin = kernel.Register(kernel.Spec{
 				c.Log().Error("gateway serve", "err", err)
 			}
 		})
+		g.mu.Lock()
+		g.addr = ln.Addr().String()
+		g.mu.Unlock()
 		c.Log().Info("gateway listening", "addr", ln.Addr().String())
 		Listening.Emit(c.Host(), ln.Addr().String())
 		return nil

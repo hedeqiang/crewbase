@@ -138,7 +138,7 @@
 - [x] kernel：ApplyEntries 只管理条目加载的插件；LoadEntry；Context.Fail
 - [ ] 浏览器：网关支持原始二进制响应（截图目前 base64 JSON）；有头窗口接管需重启浏览器；浏览器网络不受运行模式白名单约束；跨源 iframe / 新标签页
 - [x] MCP：信任注解默认关闭 + 每工具类别覆盖；只读 Agent 的 MCP 沙箱随之只读
-- [ ] MCP：host 信任服务器无法只读；暴露 resources / prompts；HTTP OAuth
+- [x] MCP：host 信任服务器在只读模式下只能用读取类工具（tools.Tool.Unconfined）；resources / prompts 以 `<server>__resources` / `<server>__prompt` 读取类工具提供（服务端声明了才注册；prompt 作为参考返回，不冒充用户消息）；HTTP OAuth（MCP 授权规范：受保护资源元数据 → 授权服务器元数据 → 动态注册或预注册客户端 → PKCE 授权码；登录链接在服务状态里，浏览器授权后回调网关；令牌与刷新所需信息存系统钥匙串，刷新后写回，移除服务或退出登录即删除）
 - 有意保留：先读后改记录仅内存（重启需重读更安全）；Agent 级规则维护在引擎内部（设计选择）
 - 推迟到 Phase 3：单次提权调用、Docker 白名单出站代理
 
@@ -239,6 +239,7 @@
 ## 迭代日志
 | 日期 | 迭代 | 结果 |
 |---|---|---|
+| 2026-11-15 | 15+ | 收尾：凭证引用变更入审计（只记引用）；MCP resources / prompts、OAuth 登录（真实界面：添加服务 → 等你登录 → 浏览器同意 → 已连接，令牌在钥匙串、测试后已清理）、host 信任服务器只读收紧 |
 | 2026-11-15 | 15 | 迭代 15 完成：团队任务板（DAG、唯一负责人、按根会话共享、工具 + 提示词 + 看板）；成员与角色（admin / member / viewer，审批按类别授权，设备随角色、移除即断开，消息与审批署名并审计）；只读设备档位（网关只放行 GET）。真实验证：三个 Agent 用工具建出依赖链，人在看板上完成 #1 后 #2 变为可以开始；成员手机批准删除被拒（403）、可以拒绝，审计与对话里都记为「小王」 |
 | 2026-11-15 | 14 | 迭代 14 完成：设备配对与分级（一次性码、哈希令牌、移除即断流）；零入站中继（crew-relay，端到端加密，主机签名认证，Go 客户端与网页 WebCrypto 隧道）；手机伴侣 PWA（扫码配对、手机权限界面、后台审批通知）；补丁按键合并配置；修复只读模式下放在 /tmp 的工作区仍可写（Seatbelt 受保护路径）；新对话（⌘N，空白但能用工具）。真实验证：本机中继 + 守护进程，模拟 iPhone 扫码配对，经中继看对话、批准删除操作，手机流量不直连守护进程 |
 | 2026-11-15 | 13 | 迭代 13 完成：对话附件（features/attachments：上传到工作区、按模型能力装载、PDF / docx / pptx / xlsx / 文本提取、超长截断并提示用工具读全文）；llm.Part attachment + FileAccepter；Anthropic / Gemini / OpenAI 兼容 / Ollama / ACP（给路径）适配；DeepSeek Files API；网关 RawBody 与 Blob（只有位图内联，其他一律下载）；输入框选取 / 粘贴 / 拖放、上传中禁止发送、消息内缩略图与文件卡片、文件面板图片预览与下载。真实验证：deepseek-flash 与 Claude Haiku 看图、GPT 读 PDF、DeepSeek 读 docx、三文件同一条消息；发现 magpie 的 Chat Completions 会丢弃 PDF file 段，改为提取文字 |

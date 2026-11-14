@@ -150,7 +150,7 @@ func (c *conn) run(ctx context.Context) {
 			grow()
 			continue
 		}
-		c.install(list)
+		c.install(list, sess)
 		c.mu.Lock()
 		c.cur = sess
 		c.mu.Unlock()
@@ -185,9 +185,13 @@ func (c *conn) connect(ctx context.Context) (*session, []*sdk.Tool, error) {
 	if err != nil {
 		return nil, nil, err
 	}
-	cctx, cancel := context.WithTimeout(ctx, c.s.t.connect)
+	timeout := c.s.t.connect
+	if c.srv.OAuth != nil {
+		timeout = loginTimeout // the person may have to sign in first
+	}
+	cctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
-	sess, err := c.s.dial(cctx, c.srv, ws, c.onListChanged)
+	sess, err := c.s.dialFor(cctx, c, c.srv, ws, c.onListChanged)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -224,14 +228,15 @@ func (c *conn) serve(ctx context.Context, sess *session) {
 				c.setStatus(func(st *Status) { st.RefreshError = msg })
 				continue
 			}
-			c.install(list)
+			c.install(list, sess)
 			c.setStatus(func(st *Status) { st.RefreshError = "" })
 		}
 	}
 }
 
-// install replaces the registered tools with list.
-func (c *conn) install(list []*sdk.Tool) {
+// install replaces the registered tools with list (plus the resource /
+// prompt tools when sess advertises them).
+func (c *conn) install(list []*sdk.Tool, sess *session) {
 	infos := describe(c.srv, list)
 	// Register the new list first, then drop the old one: the scoped
 	// registry lets the newest registration of a name win and disposes in
@@ -254,13 +259,18 @@ func (c *conn) install(list []*sdk.Tool) {
 			Category:     info.Category,
 			PathArgs:     PathArgs(params),
 			AllowedRoots: GrantedRoots(c.srv),
+			Unconfined:   c.srv.Transport == TransportStdio && c.srv.Trust == TrustHost,
 			Execute:      c.execute(info.Original),
 		})
+	}
+	extra := 0
+	if sess != nil {
+		extra = c.installExtras(tc, sess)
 	}
 	c.mu.Lock()
 	old := c.toolCtx
 	c.toolCtx, c.infos = tc, infos
-	c.st.Tools = len(infos)
+	c.st.Tools = len(infos) + extra
 	c.mu.Unlock()
 	if old != nil {
 		old.Dispose()
@@ -452,11 +462,16 @@ func (s *Service) newClient(onChange func()) *sdk.Client {
 
 // dial connects and initializes a session for srv.
 func (s *Service) dial(ctx context.Context, srv Server, ws string, onChange func()) (*session, error) {
+	return s.dialFor(ctx, nil, srv, ws, onChange)
+}
+
+// dialFor dials for a live connection c (nil for probes, which never sign in).
+func (s *Service) dialFor(ctx context.Context, c *conn, srv Server, ws string, onChange func()) (*session, error) {
 	switch srv.Transport {
 	case TransportStdio:
 		return s.dialStdio(ctx, srv, ws, onChange)
 	case TransportHTTP:
-		return s.dialHTTP(ctx, srv, onChange)
+		return s.dialHTTP(ctx, c, srv, onChange)
 	}
 	return nil, invalid("unknown transport %q", srv.Transport)
 }
@@ -609,7 +624,7 @@ func (h *headerTransport) RoundTrip(r *http.Request) (*http.Response, error) {
 	return h.base.RoundTrip(r)
 }
 
-func (s *Service) dialHTTP(ctx context.Context, srv Server, onChange func()) (*session, error) {
+func (s *Service) dialHTTP(ctx context.Context, c *conn, srv Server, onChange func()) (*session, error) {
 	sess := &session{exited: make(chan struct{})} // never closed: no process
 	cr := s.resolver()
 	hdrs, err := resolveMap(ctx, cr, srv.Headers, &sess.secrets)
@@ -633,6 +648,16 @@ func (s *Service) dialHTTP(ctx context.Context, srv Server, onChange func()) (*s
 	}
 	hc.Transport = &headerTransport{base: base, headers: hdrs}
 	t := &sdk.StreamableClientTransport{Endpoint: u, HTTPClient: hc}
+	if srv.OAuth != nil {
+		if c == nil {
+			return nil, errors.New("this server signs in with OAuth; save it to sign in")
+		}
+		h, err := c.oauthHandler(ctx)
+		if err != nil {
+			return nil, err
+		}
+		t.OAuthHandler = h
+	}
 	cs, err := s.newClient(onChange).Connect(ctx, t, nil)
 	if err != nil {
 		return nil, sess.scrubErr(fmt.Errorf("initialize: %w", err))

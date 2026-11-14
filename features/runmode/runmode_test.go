@@ -296,3 +296,21 @@ func TestGrantedRootsAllowed(t *testing.T) {
 		t.Fatal("path outside workspace and granted roots must be denied")
 	}
 }
+
+// Tools that run outside the sandbox (host-trusted MCP servers) get no
+// exec pass in read-only mode, even with a sandbox that enforces it.
+func TestReadOnlyUnconfinedTools(t *testing.T) {
+	ws := t.TempDir()
+	g := &runmode.Guard{Sandbox: func() sandbox.Sandbox { return fixed{enf: sandbox.EnforcementFull} }}
+	for cat, deny := range map[string]bool{tools.CategoryRead: false, tools.CategoryNone: false, tools.CategoryExec: true, tools.CategoryWrite: true} {
+		d := dec("read-only", cat, ws, nil)
+		d.Tool = &tools.Tool{Name: "srv__x", Unconfined: true}
+		if _, denied := g.Check(context.Background(), d); denied != deny {
+			t.Errorf("%s: denied=%v", cat, denied)
+		}
+		d.Call.Mode = "sandbox"
+		if _, denied := g.Check(context.Background(), d); denied {
+			t.Errorf("sandbox mode denied unconfined %s", cat)
+		}
+	}
+}

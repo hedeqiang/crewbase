@@ -440,6 +440,8 @@ export interface McpStatus {
   enforcement?: string;
   since?: string;
   refreshError?: string;
+  /** state "login": where the person signs in (OAuth servers) */
+  loginUrl?: string;
 }
 export interface McpServer {
   name: string;
@@ -452,6 +454,7 @@ export interface McpServer {
   enabled: boolean;
   trust?: string;
   source?: string;
+  oauth?: { clientId?: string; clientSecret?: string };
   status: McpStatus;
 }
 export interface McpTool {
@@ -843,6 +846,7 @@ export const API = {
   cancelRun: (run: string) => api("POST", `/api/workflow-runs/${enc(run)}/cancel`),
 
   mcp: () => api<{ servers: McpServer[] | null }>("GET", "/api/mcp"),
+  mcpSignOut: (name: string) => api("POST", `/api/mcp/${enc(name)}/signout`),
   addMcp: (b: Partial<McpServer>) => api<McpServer>("POST", "/api/mcp", b),
   patchMcp: (name: string, b: Partial<McpServer>) => api<McpServer>("PATCH", `/api/mcp/${enc(name)}`, b),
   deleteMcp: (name: string) => api("DELETE", `/api/mcp/${enc(name)}`),

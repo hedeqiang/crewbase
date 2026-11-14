@@ -101,6 +101,8 @@ type Server struct {
 	// Categories overrides the category per tool (keyed by the server's
 	// tool name or the namespaced name).
 	Categories map[string]string `json:"categories,omitempty"`
+	// OAuth turns on sign-in for an http server (MCP authorization).
+	OAuth *OAuth `json:"oauth,omitempty"`
 }
 
 // knownCategories are the categories a Categories override may name.
@@ -145,8 +147,8 @@ func (s Server) Normalize() (Server, error) {
 		if len(s.Command) == 0 || s.Command[0] == "" {
 			return s, invalid("stdio transport needs a command")
 		}
-		if s.URL != "" || len(s.Headers) > 0 {
-			return s, invalid("url and headers apply to the http transport only")
+		if s.URL != "" || len(s.Headers) > 0 || s.OAuth != nil {
+			return s, invalid("url, headers and oauth apply to the http transport only")
 		}
 		switch s.Trust {
 		case "":
@@ -166,6 +168,9 @@ func (s Server) Normalize() (Server, error) {
 		}
 		if s.Trust != "" {
 			return s, invalid("trust applies to the stdio transport only")
+		}
+		if s.OAuth != nil && s.OAuth.ClientSecret != "" && s.OAuth.ClientID == "" {
+			return s, invalid("an oauth client secret needs a client id")
 		}
 		u, err := url.Parse(s.URL)
 		if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
@@ -223,6 +228,8 @@ type Status struct {
 	Since       time.Time `json:"since,omitzero"`
 	// RefreshError is the last failed tools/list refresh (tools kept).
 	RefreshError string `json:"refreshError,omitempty"`
+	// LoginURL is where the person signs in (state "login", OAuth servers).
+	LoginURL string `json:"loginUrl,omitempty"`
 }
 
 // ToolInfo describes one MCP tool as registered.
@@ -314,9 +321,11 @@ type Service struct {
 
 	op sync.Mutex // serializes mutations (start/stop/persist)
 
-	mu      sync.Mutex
-	entries map[string]*entry
-	closed  bool
+	mu           sync.Mutex
+	entries      map[string]*entry
+	closed       bool
+	redirectBase string // gateway origin for OAuth callbacks
+	logins       logins
 }
 
 func (s *Service) agents() *agent.Registry {
@@ -640,6 +649,7 @@ func (s *Service) Remove(name string) error {
 	if err := s.persist(); err != nil {
 		return err
 	}
+	_ = s.SignOut(name) // a removed server's sign-in token goes too
 	s.emit(name)
 	return nil
 }

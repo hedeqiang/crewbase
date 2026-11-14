@@ -132,6 +132,9 @@ func (g *Guard) Check(ctx context.Context, d *tools.Decision) (string, bool) {
 		return "", false
 	}
 	if mode == agent.ModeReadOnly {
+		if d.Tool != nil && d.Tool.Unconfined && d.Category != tools.CategoryRead && d.Category != tools.CategoryNone {
+			return fmt.Sprintf("read-only mode: %s runs outside the sandbox (a host-trusted server), so only its read tools may run", call.Name), true
+		}
 		if reason, deny := g.readOnly(ctx, d.Category); deny {
 			return reason, true
 		}

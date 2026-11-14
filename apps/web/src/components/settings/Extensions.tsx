@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
-import { Download, FolderInput, Plug, Plus, RefreshCw, Server, ShieldAlert, Trash, X } from "lucide-react";
+import { Download, FolderInput, Plug, Plus, RefreshCw, Server, ShieldAlert, Trash, X, LogIn } from "lucide-react";
 import { API, type MarketEntry, type McpServer, type McpTool, type Permissions, type PluginView } from "../../api";
 import { t, type Key } from "../../i18n";
 import { ago } from "../../format";
-import { toast, useStore } from "../../store";
+import { toast, useStore, setState } from "../../store";
 import { Head } from "../Settings";
 import { catLabel } from "../Settings";
 import { PanelView, SlotIcon, useSlot } from "../UISlots";
@@ -11,7 +11,14 @@ import { PanelView, SlotIcon, useSlot } from "../UISlots";
 type Tab = "plugins" | "mcp";
 
 export function Extensions() {
-  const [tab, setTab] = useState<Tab>("plugins");
+  const want = useStore((s) => s.settingsTab);
+  const [tab, setTab] = useState<Tab>(want === "mcp" ? "mcp" : "plugins");
+  useEffect(() => {
+    if (want === "mcp" || want === "plugins") {
+      setTab(want);
+      setState({ settingsTab: null });
+    }
+  }, [want]);
   return (
     <>
       <Head
@@ -363,7 +370,7 @@ function ApproveDialog({ p, onClose, onDone }: { p: PluginView; onClose: () => v
 
 // ---------------------------------------------------------------- MCP
 
-const MCP_TONE: Record<string, string> = { ready: "ok", connecting: "blue", error: "red", disabled: "" };
+const MCP_TONE: Record<string, string> = { ready: "ok", connecting: "blue", error: "red", disabled: "", login: "amber" };
 
 function Mcp() {
   const tick = useStore((s) => s.mcpTick);
@@ -449,6 +456,14 @@ function Mcp() {
               {s.source === "config" && <span>{t("ext.fromConfig")}</span>}
             </div>
             {s.status?.error && <div className="small errt">{s.status.error}</div>}
+            {s.status?.state === "login" && s.status.loginUrl && (
+              <div className="mcplogin">
+                <span className="small">{t("ext.mcpLoginNeed")}</span>
+                <a className="btn pri sm" href={s.status.loginUrl} target="_blank" rel="noreferrer noopener">
+                  <LogIn size={13} /> {t("ext.mcpLogin")}
+                </a>
+              </div>
+            )}
             {s.env && Object.keys(s.env).length > 0 && (
               <div className="kvs small">
                 {Object.entries(s.env).map(([k, v]) => (
@@ -463,6 +478,18 @@ function Mcp() {
                 {t("ext.tools")}
               </button>
               <span className="sp" />
+              {s.oauth && s.status?.state === "ready" && (
+                <button
+                  className="btn ghost"
+                  type="button"
+                  onClick={async () => {
+                    await API.mcpSignOut(s.name).catch(() => {});
+                    toast(t("ext.mcpSignedOut", { name: s.name }));
+                  }}
+                >
+                  {t("ext.mcpSignOut")}
+                </button>
+              )}
               {s.source !== "config" && (
                 <button className="ix" type="button" aria-label={t("common.delete")} title={t("common.delete")} onClick={() => remove(s)}>
                   <Trash size={13} />
@@ -534,6 +561,7 @@ function McpForm({ onCancel, onSaved }: { onCancel: () => void; onSaved: (s: Mcp
   const [env, setEnv] = useState<[string, string][]>([["", ""]]);
   const [scope, setScope] = useState("global");
   const [trust, setTrust] = useState("sandboxed");
+  const [oauth, setOauth] = useState(false);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const save = async () => {
@@ -543,7 +571,7 @@ function McpForm({ onCancel, onSaved }: { onCancel: () => void; onSaved: (s: Mcp
     const body: Partial<McpServer> =
       transport === "stdio"
         ? { name: name.trim(), transport, command: splitCommand(command), env: kv, scope, enabled: true, trust }
-        : { name: name.trim(), transport, url: url.trim(), headers: kv, scope, enabled: true };
+        : { name: name.trim(), transport, url: url.trim(), headers: kv, scope, enabled: true, ...(oauth ? { oauth: {} } : {}) };
     try {
       const s = await API.addMcp(body);
       toast(t("ext.mcpAdded", { name: s.name }));
@@ -590,6 +618,11 @@ function McpForm({ onCancel, onSaved }: { onCancel: () => void; onSaved: (s: Mcp
           <>
             <label className="fl">URL</label>
             <input className="fi sm mono" value={url} placeholder="https://mcp.example.com/mcp" onChange={(e) => setUrl(e.target.value)} />
+            <label className="fl">{t("ext.mcpOAuth")}</label>
+            <label className="chk">
+              <input type="checkbox" checked={oauth} onChange={(e) => setOauth(e.target.checked)} />
+              <span className="small">{t("ext.mcpOAuthDesc")}</span>
+            </label>
           </>
         )}
         <label className="fl">{transport === "stdio" ? t("ext.env") : t("ext.headers")}</label>

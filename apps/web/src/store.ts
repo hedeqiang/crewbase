@@ -92,6 +92,8 @@ export interface State {
   boardTick: Record<string, number>;
   /** Member to pair a device for when 主机与设备 opens (from 成员与角色). */
   pairFor: string | null;
+  /** Sub-tab a deep link asks a settings page to open (e.g. market/mcp). */
+  settingsTab: string | null;
   /** Folders created from the list; kept even while empty (settings.json). */
   savedFolders: string[];
   /** Interface slot contributions from plugins (GET /api/ui). */
@@ -163,6 +165,7 @@ let state: State = {
   me: null,
   boardTick: {},
   pairFor: null,
+  settingsTab: null,
   connected: false,
   agents: {},
   sessions: {},
@@ -286,10 +289,13 @@ export function openSettings(sec: SettingsSection = "general") {
 /** Deep links the desktop shell (tray, notifications, ⌘,) sets as the
  *  location hash: #/session/<id>, #/settings, #/settings/<section>. */
 export function applyHashRoute(hash = location.hash): boolean {
-  const m = /^#\/(session|settings)(?:\/([^/?#]+))?/.exec(hash);
+  const m = /^#\/(session|settings)(?:\/([^/?#]+))?(?:\/([^/?#]+))?/.exec(hash);
   if (!m) return false;
   if (m[1] === "session" && m[2]) openSession(decodeURIComponent(m[2]));
-  else if (m[1] === "settings") openSettings(((m[2] && decodeURIComponent(m[2])) || "general") as SettingsSection);
+  else if (m[1] === "settings") {
+    openSettings(((m[2] && decodeURIComponent(m[2])) || "general") as SettingsSection);
+    if (m[3]) setState({ settingsTab: decodeURIComponent(m[3]) });
+  }
   else return false;
   // consume it so the same link can be followed again
   history.replaceState(null, "", location.pathname + location.search);

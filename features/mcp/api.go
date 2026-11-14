@@ -95,6 +95,38 @@ var APIPlugin = kernel.Register(kernel.Spec{
 		}
 		StatusChanged.Listen(c, func(ev StatusEvent) { g.Hub().Publish("mcp", ev) })
 
+		// OAuth sign-in returns here. The redirect origin is the gateway's
+		// own (loopback) address; the state is the credential: only a
+		// pending sign-in's state is accepted, once.
+		if a := g.Addr(); a != "" {
+			s.SetRedirectBase("http://" + a)
+		}
+		gateway.Listening.Listen(c, func(a string) { s.SetRedirectBase("http://" + a) })
+		g.Handle(c, gateway.Route{Method: "GET", Path: "/api/mcp/oauth/callback", Public: true,
+			Validate: func(r *gateway.Request) error {
+				if !s.OAuthPending(r.HTTP.URL.Query().Get("state")) {
+					return &gateway.Error{Status: 401, Code: "unknown_state", Message: "no sign-in is waiting for this response"}
+				}
+				return nil
+			},
+			Handle: func(_ context.Context, r *gateway.Request) (any, error) {
+				q := r.HTTP.URL.Query()
+				if e := q.Get("error"); e != "" {
+					// the person declined: wake the waiting sign-in with no code
+					s.OAuthCallback("", q.Get("state"), "")
+					return &gateway.Redirect{Path: "/#/settings/market/mcp"}, nil
+				}
+				s.OAuthCallback(q.Get("code"), q.Get("state"), q.Get("iss"))
+				return &gateway.Redirect{Path: "/#/settings/market/mcp"}, nil
+			}})
+		g.Handle(c, gateway.Route{Method: "POST", Path: "/api/mcp/{name}/signout",
+			Handle: func(_ context.Context, r *gateway.Request) (any, error) {
+				if _, ok := s.Get(r.Params["name"]); !ok {
+					return nil, gateway.NotFound()
+				}
+				return nil, s.SignOut(r.Params["name"])
+			}})
+
 		g.Handle(c, gateway.Route{Method: "GET", Path: "/api/mcp",
 			Handle: func(context.Context, *gateway.Request) (any, error) {
 				return map[string]any{"servers": s.List()}, nil

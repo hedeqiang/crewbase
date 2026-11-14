@@ -103,6 +103,10 @@ type Tool struct {
 	// "channel"); elsewhere it is invisible and indistinguishable from
 	// absent. Empty = every session.
 	SessionKinds []string
+	// Unconfined marks tools whose work happens outside Crewbase's sandbox
+	// (e.g. a host-trusted MCP server's process): in read-only mode only
+	// their read / none categories may run, whatever sandbox is loaded.
+	Unconfined bool
 	// Classify optionally derives the category and a human summary from
 	// the arguments (e.g. bash: `git push` → push).
 	Classify func(call Call) (category, summary string)

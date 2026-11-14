@@ -1226,3 +1226,6 @@ button.tg:disabled { opacity: .5; cursor: not-allowed; }
 .bacts { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
 .bacts .ssel select { min-width: 0; }
 .tiernote.viewnote { margin: 0; text-align: center; }
+.mcplogin { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 8px 10px; border-radius: 10px; background: var(--amber-soft); margin-top: 6px; }
+.mcplogin .small { color: var(--amber-text); flex: 1; min-width: 160px; }
+.chk { display: flex; align-items: center; gap: 8px; }
