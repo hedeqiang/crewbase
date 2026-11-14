@@ -17,6 +17,7 @@ import (
 	"github.com/hedeqiang/crewbase/core/prompt"
 	"github.com/hedeqiang/crewbase/core/session"
 	"github.com/hedeqiang/crewbase/core/tools"
+	"github.com/hedeqiang/crewbase/capabilities/credentials"
 	"github.com/hedeqiang/crewbase/features/audit"
 	"github.com/hedeqiang/crewbase/features/gateway"
 	"github.com/hedeqiang/crewbase/features/rules"
@@ -226,5 +227,42 @@ func TestRequiresDir(t *testing.T) {
 	p, _ := h.Load(audit.Plugin, kernel.LoadOptions{})
 	if info, _ := h.Plugin(p.ID()); info.State != kernel.StateFailed {
 		t.Fatalf("%+v", info)
+	}
+}
+
+// Credential reference writes are audited by reference, never by value.
+func TestCredentialRefAudited(t *testing.T) {
+	h := kernel.NewHost(nil)
+	defer h.Close()
+	root := t.TempDir()
+	load(t, h, credentials.Plugin, nil)
+	cs := kernel.Use[*credentials.Service](h.Root(), credentials.ServiceKey)
+	cs.SetBackend("keychain", credentials.NewMemory())
+	load(t, h, audit.Plugin, map[string]any{"dir": root})
+	a := kernel.Use[*audit.Service](h.Root(), audit.ServiceKey)
+	if err := cs.Set("keychain:crewbase/provider-x", "sk-very-secret-value"); err != nil {
+		t.Fatal(err)
+	}
+	cs.Delete("keychain:crewbase/provider-x")
+	cs.Set("mem:scratch", "x") // test refs are not recorded
+	var got []string
+	waitFor(t, func() bool {
+		recs, _ := a.Log().Query(time.Time{}, time.Now().Add(time.Hour), audit.TypeCredentialRef, 100)
+		got = nil
+		for _, r := range recs {
+			got = append(got, string(r.Data))
+		}
+		return len(got) == 2
+	})
+	all := strings.Join(got, " ")
+	if !strings.Contains(all, `"action":"set"`) || !strings.Contains(all, `"action":"delete"`) || !strings.Contains(all, "provider-x") {
+		t.Fatal(all)
+	}
+	files, _ := filepath.Glob(filepath.Join(root, "audit", "*.jsonl"))
+	for _, f := range files {
+		b, _ := os.ReadFile(f)
+		if strings.Contains(string(b), "sk-very-secret-value") || strings.Contains(string(b), "mem:scratch") {
+			t.Fatal("secret or test ref in the audit log")
+		}
 	}
 }

@@ -61,6 +61,7 @@ type Backend interface {
 // Service is the `credentials` service.
 type Service struct {
 	timeout time.Duration
+	host    *kernel.Host // for RefChanged; nil outside a host
 
 	mu       sync.Mutex
 	backends map[string]Backend
@@ -215,7 +216,29 @@ func (s *Service) setLocked(ref, value string) error {
 	s.track(value)
 	ctx, cancel := s.bg()
 	defer cancel()
-	return b.Set(ctx, id, value)
+	if err := b.Set(ctx, id, value); err != nil {
+		return err
+	}
+	s.changed(ref, "set")
+	return nil
+}
+
+// RefChange reports that the value behind a reference was written or
+// removed. It never carries the value.
+type RefChange struct {
+	Ref    string `json:"ref"`
+	Action string `json:"action"` // set | delete
+}
+
+// RefChanged fires after a successful Set or Delete (audited).
+var RefChanged = kernel.NewEmit[RefChange]("credentials/ref-changed")
+
+func (s *Service) changed(ref, action string) {
+	// test-only in-memory refs (mem:) are not worth a record
+	if s.host == nil || strings.HasPrefix(ref, "mem:") {
+		return
+	}
+	RefChanged.Emit(s.host, RefChange{Ref: ref, Action: action})
 }
 
 // Delete removes ref. Deleting a missing ref is not an error.
@@ -236,6 +259,9 @@ func (s *Service) deleteLocked(ref string) error {
 	err = b.Delete(ctx, id)
 	if errors.Is(err, ErrNotFound) {
 		return nil
+	}
+	if err == nil {
+		s.changed(ref, "delete")
 	}
 	return err
 }
@@ -339,6 +365,8 @@ var Plugin = kernel.Register(kernel.Spec{
 	Name:        "@crewbase/credentials",
 	Description: "Credential references: keychain, env, memory (credentials service).",
 	Apply: func(c *kernel.Context) error {
-		return c.Provide(ServiceKey, New())
+		s := New()
+		s.host = c.Host()
+		return c.Provide(ServiceKey, s)
 	},
 })

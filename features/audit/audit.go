@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/hedeqiang/crewbase/capabilities/approval"
+	"github.com/hedeqiang/crewbase/capabilities/credentials"
 	"github.com/hedeqiang/crewbase/core/agent"
 	"github.com/hedeqiang/crewbase/core/session"
 	"github.com/hedeqiang/crewbase/core/tools"
@@ -42,6 +43,7 @@ const (
 	TypeDeviceRenamed   = "device/renamed"
 	TypeAuthFailed      = "gateway/auth-failed"
 	TypeMemberAdded     = "member/added"
+	TypeCredentialRef   = "credential/ref"
 	TypeMemberChanged   = "member/changed"
 	TypeMemberRemoved   = "member/removed"
 	// Session events with these prefixes are copied (goal authorisation
@@ -214,6 +216,9 @@ var Plugin = kernel.Register(kernel.Spec{
 			rec(Entry{Type: typ, Actor: actor, Data: map[string]any{
 				"device": ev.Device.ID, "name": ev.Device.Name, "tier": ev.Device.Tier, "via": ev.Device.Via, "platform": ev.Device.Platform, "member": ev.Device.Member,
 			}})
+		})
+		credentials.RefChanged.Listen(c, func(ch credentials.RefChange) {
+			rec(Entry{Type: TypeCredentialRef, Actor: "user", Data: map[string]any{"ref": ch.Ref, "action": ch.Action}})
 		})
 		members.Changed.Listen(c, func(ev members.Event) {
 			typ := map[string]string{"added": TypeMemberAdded, "changed": TypeMemberChanged, "removed": TypeMemberRemoved}[ev.Kind]
