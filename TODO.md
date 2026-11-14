@@ -48,12 +48,12 @@
 - [ ] `browser` 能力：CDP 本地池、每 Agent 独立 Profile、接管暂停（S-5）
 
 ## 迭代 5 — 守护进程与 Agent 持久化（第 5–6 周）
-- [ ] `apps/crewd`：加载 Profile、HTTP + WebSocket API（远程方法白名单：鉴权 → 校验 → 激活）
+- [x] `apps/crewd`：加载 Profile、HTTP + WebSocket API（远程方法白名单：鉴权 → 校验 → 激活）
 - [ ] 工作区 `workspaces/<agent-id>/`、INSTRUCTIONS.md、MEMORY.md + SQLite FTS（A-1）
 - [ ] 每 Agent 工具 / 提示词 / 模型（A-2）
-- [ ] `apps/cli`：`crew plugins [--state pending]`、`crew --dump-config`、`crew agent`、`crew chat`
+- [x] `apps/cli`：`crew plugins [--state pending]`、`crew --dump-config`、`crew agent`、`crew chat`
 - [ ] 进程组管理：退出清理子进程树
-- [ ] Phase 1 出口 e2e：mock 额度耗尽 → 切换 → `git push` 审批 → 批准后继续 → 日志重建
+- [x] Phase 1 出口 e2e（mock 模型版）：mock 额度耗尽 → 切换 → `git push` 审批 → 批准后继续 → 日志重建
 
 ## 迭代 6 — 桌面 Web UI（Phase 1 界面）
 - [ ] `apps/web`：React + TS + Vite；视觉 token（docs/03 §2，深浅色）
@@ -96,6 +96,7 @@
 ## 迭代日志
 | 日期 | 迭代 | 结果 |
 |---|---|---|
+| 2026-11-14 | 5a | gateway（远程方法白名单：鉴权→校验→激活、设备分级、SSE 事件流）、core API、bundles / profiles（${root} 替换、补丁层）、crewd 与 crew CLI；本机冒烟通过。并行中：API 模型适配器、执行与沙箱、规则与凭证、ACP 桥接、压缩与记忆 |
 | 2026-11-14 | 2b | prompt / agents（工作区、INSTRUCTIONS/MEMORY、作用域、FIFO 队列可从日志恢复）/ agent-loop / router-default / llm-mock；Phase 1 出口用 mock 模型跑通（切换、请求可从日志重建、push 审批断点续跑、重启恢复） |
 | 2026-11-14 | 2a | session 日志（JSONL、残行容错、投影、fork）、tools 流水线（先记录、pre-execute、守卫、审批、post-execute 脱敏）、approval（never / 无应答方 / 审计失败均关闭式失败）、作用域覆盖与限制；greet-tool + tool-logger 通过 |
 | 2026-11-14 | 0 + 1 | 骨架、kernel（服务 / PENDING / 五种分发 / Effect / 作用域分发 / 隔离组 / Profile 补丁），race 测试通过；greet-tool 示例待 core/tools 完成后补 |
