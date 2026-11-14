@@ -1,11 +1,12 @@
 import { useMemo, useState } from "react";
-import { Bot, ChevronDown, FolderPlus, Hash, LogOut, Plus, Search, Settings, User, Keyboard } from "lucide-react";
+import { Bot, ChevronDown, Workflow, FolderPlus, Hash, LogOut, Plus, Search, Settings, User, Keyboard } from "lucide-react";
 import type { AgentView, SessionMeta } from "../api";
 import { setToken } from "../api";
 import { t } from "../i18n";
-import { ago, statusLabel, pillTone } from "../format";
+import { ago, detailLabel, statusLabel, pillTone } from "../format";
+import { takeoverReason } from "./Browser";
 import { lastSnippet } from "../projection";
-import { disconnectEvents, openNewAgent, openSession, openSettings, setState, setTheme, useStore, type Theme } from "../store";
+import { disconnectEvents, openNewAgent, openNewChannel, openSession, openSettings, setState, setTheme, useStore, type Theme } from "../store";
 import { Avatar, MeAvatar } from "./Avatar";
 import { Popover, useMenu } from "./Popover";
 
@@ -22,6 +23,8 @@ export function SessionList() {
   const plus = useMenu();
   const me = useMenu();
 
+  const summaries = useStore((s) => s.summaries);
+  const channels = useStore((s) => s.channels);
   const groups = useMemo(() => {
     const ql = q.trim().toLowerCase();
     const match = (...xs: (string | undefined)[]) => !ql || xs.some((x) => x?.toLowerCase().includes(ql));
@@ -30,14 +33,30 @@ export function SessionList() {
       if (!g.has(f)) g.set(f, { agents: [], channels: [] });
       return g.get(f)!;
     };
-    const list = Object.values(agents).sort((a, b) => a.created.localeCompare(b.created));
-    for (const a of list) if (match(a.name, a.role, a.folder)) get(a.folder ?? "").agents.push(a);
-    for (const m of Object.values(sessions))
-      if (m.kind === "channel" && match(m.title, m.folder)) get(m.folder ?? "").channels.push(m);
+    // Most recently active first; fall back to creation order.
+    const upd = (sid: string, created: string) => summaries[sid]?.updated ?? created;
+    const list = Object.values(agents).sort((a, b) => upd(b.session, b.created).localeCompare(upd(a.session, a.created)));
+    for (const a of list) if (match(a.name, a.role, a.folder, summaries[a.session]?.topic)) get(a.folder ?? "").agents.push(a);
+    const chs = Object.values(sessions)
+      .filter((m) => m.kind === "channel")
+      .sort((a, b) => {
+        const ar = channels[a.id]?.state === "archived" ? 1 : 0;
+        const br = channels[b.id]?.state === "archived" ? 1 : 0;
+        return ar - br || upd(b.id, b.created).localeCompare(upd(a.id, a.created));
+      });
+    for (const m of chs) if (match(m.title, m.folder, summaries[m.id]?.topic)) get(m.folder ?? "").channels.push(m);
     // ungrouped first, then folders alphabetically
     return [...g.entries()].sort(([a], [b]) => (a === "" ? -1 : b === "" ? 1 : a.localeCompare(b)));
-  }, [agents, sessions, q]);
+  }, [agents, sessions, summaries, channels, q]);
 
+  const snippet = (sid: string): { text: string; time: string; agent?: string } | null => {
+    const sm = summaries[sid];
+    const local = lastSnippet(events[sid]);
+    if (sm?.last && (!local || sm.last.time >= local.time)) return sm.last;
+    return local ?? (sm ? { text: "", time: sm.updated } : null);
+  };
+
+  const takeovers = useMemo(() => Object.values(agents).filter((a) => !!takeoverReason(a)), [agents]);
   const pendingBy = useMemo(() => {
     const m: Record<string, number> = {};
     for (const r of approvals) m[r.agent] = (m[r.agent] ?? 0) + 1;
@@ -59,20 +78,33 @@ export function SessionList() {
         </button>
       </div>
       <div className="lscroll">
-        {approvals.length > 0 && !q && (
+        {approvals.length + takeovers.length > 0 && !q && (
           <>
             <div className="lsec">
               {t("list.needsYou")}
-              <span className="cnt amber">{approvals.length}</span>
+              <span className="cnt amber">{approvals.length + takeovers.length}</span>
             </div>
+            {takeovers.map((a) => (
+              <button key={"tk" + a.id} className="ci" type="button" aria-current={view === "chat" && current === a.session} onClick={() => openSession(a.session)}>
+                <Avatar agent={a} size={36} status />
+                <span style={{ minWidth: 0 }}>
+                  <span className="ttl">
+                    <b>{a.name}</b>
+                    <span className="pill amber">{t("list.waitTakeover")}</span>
+                  </span>
+                  <span className="snip">{takeoverReason(a)}</span>
+                </span>
+                <span className="meta" />
+              </button>
+            ))}
             {approvals.map((r) => {
               const a = agents[r.agent];
               return (
                 <button key={r.callId} className="ci" type="button" aria-current={view === "chat" && current === r.session} onClick={() => openSession(r.session)}>
-                  <Avatar agent={a} size={36} status />
+                  {a ? <Avatar agent={a} size={36} status /> : <span className="chav"><Workflow size={18} /></span>}
                   <span style={{ minWidth: 0 }}>
                     <span className="ttl">
-                      <b>{a?.name ?? r.agent}</b>
+                      <b>{a?.name ?? (r.agent || t("appr.workflow"))}</b>
                       <span className="pill amber">{t("list.waitApprove")}</span>
                     </span>
                     <span className="snip">{r.summary || r.tool}</span>
@@ -93,24 +125,51 @@ export function SessionList() {
                 </span>
               </button>
             )}
+            {!folder && g.channels.length > 0 && g.agents.length > 0 && <div className="lsec">{t("list.channels")}</div>}
             {!folded[folder] &&
-              g.channels.map((m) => (
-                <button key={m.id} className="ci" type="button" aria-current={view === "chat" && current === m.id} onClick={() => openSession(m.id)}>
-                  <span className="chav">
-                    <Hash size={18} />
-                  </span>
-                  <span style={{ minWidth: 0 }}>
-                    <span className="ttl">
-                      <b>{m.title || m.id}</b>
+              g.channels.map((m) => {
+                const ch = channels[m.id];
+                const owner = ch ? agents[ch.owner] : undefined;
+                const snip = snippet(m.id);
+                const who = snip?.agent ? agents[snip.agent]?.name : undefined;
+                const topic = summaries[m.id]?.topic;
+                return (
+                  <button
+                    key={m.id}
+                    className={"ci" + (ch?.state === "archived" ? " arch" : "")}
+                    type="button"
+                    aria-current={view === "chat" && current === m.id}
+                    onClick={() => openSession(m.id)}
+                  >
+                    <span className="chav">
+                      <Hash size={18} />
+                      {owner && (
+                        <span className="chown">
+                          <Avatar agent={owner} size={16} status />
+                        </span>
+                      )}
                     </span>
-                    <span className="snip">{lastSnippet(events[m.id])?.text ?? t("list.channels")}</span>
-                  </span>
-                  <span className="meta" />
-                </button>
-              ))}
+                    <span style={{ minWidth: 0 }}>
+                      <span className="ttl">
+                        <b>{m.title || m.id}</b>
+                        {ch?.state === "paused" && <span className="pill">{t("ch.paused")}</span>}
+                        {ch?.state === "archived" && <span className="pill">{t("ch.archived")}</span>}
+                      </span>
+                      {topic && <span className="topic">{topic}</span>}
+                      <span className="snip">
+                        {who ? <span className="who">{who}：</span> : null}
+                        {snip?.text || (owner ? t("ch.ownerIs", { name: owner.name }) : t("list.channels"))}
+                      </span>
+                    </span>
+                    <span className="meta">{snip?.time && <span>{ago(snip.time)}</span>}</span>
+                  </button>
+                );
+              })}
+            {!folder && g.channels.length > 0 && g.agents.length > 0 && <div className="lsec">{t("list.agents")}</div>}
             {!folded[folder] &&
               g.agents.map((a) => {
-                const snip = lastSnippet(events[a.session]);
+                const snip = snippet(a.session);
+                const topic = summaries[a.session]?.topic;
                 const pend = pendingBy[a.id] ?? 0;
                 return (
                   <button key={a.id} className="ci" type="button" aria-current={view === "chat" && current === a.session} onClick={() => openSession(a.session)}>
@@ -120,9 +179,10 @@ export function SessionList() {
                         <b>{a.name}</b>
                         {a.role && <span className="tag">{a.role}</span>}
                       </span>
+                      {topic && <span className="topic">{topic}</span>}
                       <span className="snip">
-                        {a.status !== "idle" ? <span className={"stx " + pillTone(a.status)}>{a.detail || statusLabel(a.status)} · </span> : null}
-                        {snip?.text ?? a.role ?? ""}
+                        {a.status !== "idle" ? <span className={"stx " + pillTone(a.status)}>{detailLabel(a.detail) || statusLabel(a.status)} · </span> : null}
+                        {snip?.text || a.role || ""}
                       </span>
                     </span>
                     <span className="meta">
@@ -181,11 +241,19 @@ export function SessionList() {
           <span className="g">{t("list.newAgent")}</span>
           <kbd>⌘N</kbd>
         </button>
-        <button className="mi" type="button" disabled>
+        <button
+          className="mi"
+          type="button"
+          disabled={Object.keys(agents).length === 0}
+          onClick={() => {
+            plus.close();
+            openNewChannel();
+          }}
+        >
           <Hash size={16} />
           <span className="g">
             {t("list.newChannel")}
-            <span>{t("common.soon")}</span>
+            <span>{t("list.newChannelDesc")}</span>
           </span>
         </button>
         <button className="mi" type="button" disabled>

@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   Bell,
   ChevronLeft,
@@ -15,10 +15,14 @@ import {
   User,
   Workflow,
 } from "lucide-react";
-import type { ProviderView } from "../api";
+import { API, type ApprovalHistoryItem, type ProviderView, type RememberedChoice, type Settings as SettingsData } from "../api";
 import { t, type Key, type Lang } from "../i18n";
-import { ago, kfmt, providerName, until } from "../format";
-import { openSession, setLang, setState, useStore, type SettingsSection } from "../store";
+import { ago, kfmt, modeLabel, providerName, until } from "../format";
+import { openSession, setLang, setState, toast, useStore, type SettingsSection } from "../store";
+import { Automation } from "./settings/Automation";
+import { Extensions } from "./settings/Extensions";
+import { Profile } from "./settings/Profile";
+import { Routing } from "./settings/Routing";
 import { Avatar } from "./Avatar";
 import { ApprovalActions } from "./Approval";
 import { ProviderMark } from "./ProviderMark";
@@ -87,13 +91,16 @@ export function Settings() {
         {sec === "general" && <General />}
         {sec === "models" && <Models />}
         {sec === "approvals" && <Approvals />}
-        {!["general", "models", "approvals"].includes(sec) && <Soon sec={sec} />}
+        {sec === "auto" && <Automation />}
+        {sec === "market" && <Extensions />}
+        {sec === "profile" && <Profile />}
+        {!["general", "models", "approvals", "auto", "market", "profile"].includes(sec) && <Soon sec={sec} />}
       </div>
     </div>
   );
 }
 
-function Head({ title, sub, right }: { title: string; sub?: string; right?: ReactNode }) {
+export function Head({ title, sub, right }: { title: string; sub?: string; right?: ReactNode }) {
   return (
     <div className="vh">
       <h2>{title}</h2>
@@ -118,7 +125,7 @@ function Soon({ sec }: { sec: SettingsSection }) {
   );
 }
 
-function Row({ title, desc, children, dim }: { title: string; desc?: string; children: ReactNode; dim?: boolean }) {
+export function Row({ title, desc, children, dim }: { title: string; desc?: string; children: ReactNode; dim?: boolean }) {
   return (
     <div className={"srow" + (dim ? " dim" : "")}>
       <div className="g">
@@ -159,12 +166,7 @@ function General() {
           </Row>
         </div>
         <div className="vsec">{t("set.defaults")}</div>
-        <div className="sbox">
-          <Row title={t("set.defaultMode")} desc={t("set.defaultModeDesc")} dim>
-            <span className="pill">{t("mode.sandbox")}</span>
-            <span className="small">{t("common.soon")}</span>
-          </Row>
-        </div>
+        <Defaults />
         <div className="vsec">{t("set.connection")}</div>
         <div className="sbox">
           <Row title={connected ? t("set.connected") : t("set.disconnected")} desc={window.location.host}>
@@ -173,6 +175,46 @@ function General() {
         </div>
       </div>
     </>
+  );
+}
+
+export function useSettingsData() {
+  const [st, setSt] = useState<SettingsData | null>(null);
+  useEffect(() => {
+    API.settings().then(setSt, () => {});
+  }, []);
+  const patch = async (b: Partial<SettingsData>) => {
+    try {
+      const r = await API.patchSettings(b);
+      setSt(r);
+      toast(t("panel.saved"));
+    } catch (e: any) {
+      toast(e?.message ?? String(e));
+    }
+  };
+  return [st, patch] as const;
+}
+
+function Defaults() {
+  const [st, patch] = useSettingsData();
+  const cur = st?.defaultMode || "sandbox";
+  return (
+    <div className="sbox">
+      <Row title={t("set.defaultMode")} desc={t("set.defaultModeDesc")}>
+        <div className="seg">
+          {(["read-only", "sandbox"] as const).map((m) => (
+            <button key={m} type="button" aria-pressed={cur === m} disabled={!st} onClick={() => patch({ defaultMode: m })}>
+              {modeLabel(m)}
+            </button>
+          ))}
+        </div>
+      </Row>
+      <Row title={t("set.defaultModels")} desc={t("set.defaultModelsDesc", { n: st?.defaultModels.length ?? 0 })}>
+        <button className="btn" type="button" onClick={() => setState({ settings: "models", modelsTab: "routing" })}>
+          {t("set.routing")}
+        </button>
+      </Row>
+    </div>
   );
 }
 
@@ -185,7 +227,8 @@ function Models() {
   const models = useStore((s) => s.models);
   const agents = useStore((s) => s.agents);
   const [sel, setSel] = useState<string | null>(null);
-  const [tab, setTab] = useState<"providers" | "routing">("providers");
+  const tab = useStore((s) => s.modelsTab);
+  const setTab = (v: "providers" | "routing") => setState({ modelsTab: v });
   const [q, setQ] = useState("");
   const providers = models?.providers ?? [];
   const exhaustedOf = (p: ProviderView) =>
@@ -225,16 +268,7 @@ function Models() {
         }
       />
       {tab === "routing" ? (
-        <div className="vb">
-          <div className="box rulenote">
-            <Info size={16} />
-            <div>
-              <b>{t("common.soon")}</b>
-              <span>{t("set.routingSoon")}</span>
-            </div>
-          </div>
-          {models?.switches !== undefined && <p className="small">{t("set.switches", { n: models.switches })}</p>}
-        </div>
+        <Routing />
       ) : providers.length === 0 ? (
         <div className="vb">
           <div className="empty">{models ? t("set.noProviders") : t("common.loading")}</div>
@@ -371,11 +405,11 @@ function Approvals() {
           const a = agents[r.agent];
           return (
             <div className="ap" key={r.callId}>
-              <Avatar agent={a} size={36} />
+              {a ? <Avatar agent={a} size={36} /> : <span className="wfi big"><Workflow size={17} /></span>}
               <div style={{ minWidth: 0 }}>
                 <div className="small" style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
                   <span className="pill amber">{t("appr.waiting")}</span>
-                  {a?.name ?? r.agent} · 「{r.reason || r.category}」 · {ago(r.asked)}
+                  {a?.name ?? (r.agent || t("appr.workflow"))} · 「{r.reason || r.category}」 · {ago(r.asked)}
                 </div>
                 <h4>{r.summary || r.tool}</h4>
                 <div className="small mono">
@@ -394,10 +428,8 @@ function Approvals() {
             </div>
           );
         })}
-        <div className="vsec">{t("set.remembered")}</div>
-        <p className="small" style={{ margin: 0 }}>
-          {t("set.rememberedSoon")}
-        </p>
+        <Remembered />
+        <History />
         <div className="box rulenote">
           <Info size={16} />
           <div>
@@ -406,6 +438,115 @@ function Approvals() {
           </div>
         </div>
       </div>
+    </>
+  );
+}
+
+function Remembered() {
+  const agents = useStore((s) => s.agents);
+  const n = useStore((s) => s.approvals.length);
+  const [list, setList] = useState<RememberedChoice[] | null>(null);
+  const load = () => API.remembered().then((r) => setList(r.remembered ?? []), () => setList([]));
+  useEffect(() => {
+    void load();
+  }, [n]);
+  const revoke = async (c: RememberedChoice) => {
+    const name = agents[c.agent]?.name ?? c.agent;
+    if (!window.confirm(t("set.revokeConfirm", { agent: name, category: c.category }))) return;
+    try {
+      await API.forget(c.agent, c.category);
+      toast(t("set.revoked", { agent: name, category: c.category }));
+      void load();
+    } catch (e: any) {
+      toast(e?.message ?? String(e));
+    }
+  };
+  return (
+    <>
+      <div className="vsec">
+        {t("set.remembered")} {list && list.length > 0 ? `· ${list.length}` : ""}
+      </div>
+      {list === null ? (
+        <p className="small">{t("common.loading")}</p>
+      ) : list.length === 0 ? (
+        <p className="small" style={{ margin: 0 }}>
+          {t("set.rememberedNone")}
+        </p>
+      ) : (
+        <div className="sbox">
+          {list.map((c) => {
+            const a = agents[c.agent];
+            return (
+              <div className="srow" key={c.agent + "/" + c.category}>
+                <Avatar agent={a} size={28} />
+                <div className="g">
+                  <b>{t("set.rememberedRow", { agent: a?.name ?? c.agent, category: catLabel(c.category) })}</b>
+                  <span>
+                    {t("set.rememberedAt", { time: ago(c.at) })}
+                    {c.overridden ? ` · ${t("set.overridden")}` : ""}
+                  </span>
+                </div>
+                <div className="c">
+                  <button className="btn" type="button" onClick={() => revoke(c)}>
+                    {t("set.revoke")}
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </>
+  );
+}
+
+export function catLabel(c: string): string {
+  const k = `cat.${c}` as Key;
+  const v = t(k);
+  return v === k ? c : v;
+}
+
+function History() {
+  const agents = useStore((s) => s.agents);
+  const n = useStore((s) => s.approvals.length);
+  const [list, setList] = useState<ApprovalHistoryItem[] | null>(null);
+  useEffect(() => {
+    API.approvalHistory(60).then((r) => setList((r.history ?? []).filter((h) => h.decision)), () => setList([]));
+  }, [n]);
+  return (
+    <>
+      <div className="vsec">{t("set.history")}</div>
+      {list === null ? (
+        <p className="small">{t("common.loading")}</p>
+      ) : list.length === 0 ? (
+        <p className="small" style={{ margin: 0 }}>
+          {t("set.historyNone")}
+        </p>
+      ) : (
+        <div className="htable">
+          {list.map((h) => {
+            const a = agents[h.agent];
+            const o = h.decision?.outcome ?? "";
+            const tone = o === "allowed-once" ? "ok" : o === "rejected" ? "red" : "";
+            return (
+              <button className="hrow" type="button" key={h.callId} onClick={() => openSession(h.session)}>
+                <Avatar agent={a} size={22} />
+                <span className="g">
+                  <b>{h.summary || h.tool}</b>
+                  <span>
+                    {a?.name ?? h.agent} · {catLabel(h.category || h.tool)}
+                    {h.decision?.message ? ` · 「${h.decision.message}」` : ""}
+                  </span>
+                </span>
+                <span className={"pill " + tone}>
+                  {t(o === "allowed-once" ? (h.decision?.remember ? "set.hAllowedRemember" : "set.hAllowed") : o === "rejected" ? "set.hRejected" : o === "cancelled" ? "set.hCancelled" : "set.hOther")}
+                </span>
+                <span className="small tm">{ago(h.decided || h.asked)}</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
     </>
   );
 }

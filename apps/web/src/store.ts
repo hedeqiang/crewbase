@@ -9,6 +9,9 @@ import {
   API,
   type AgentView,
   type ApprovalRequest,
+  type BrowserState,
+  type ChannelView,
+  type SessionSummary,
   type ModelsResponse,
   type SessionEvent,
   type SessionMeta,
@@ -49,6 +52,15 @@ export interface State {
   sessions: Record<string, SessionMeta>;
   approvals: ApprovalRequest[];
   models: ModelsResponse | null;
+  summaries: Record<string, SessionSummary>;
+  channels: Record<string, ChannelView>;
+  browser: Record<string, BrowserState>; // agent id → browser state
+  newChannel: boolean;
+  modelsTab: "providers" | "routing";
+  /** File to open in the right panel's 文件 tab. */
+  fileOpen: string | null;
+  /** Bumped on SSE "mcp" pushes so settings pages can refetch. */
+  mcpTick: number;
   events: Record<string, SessionEvent[]>;
   loadErr: Record<string, string>;
   streams: Record<string, StreamBuf>; // key `${session}|${agent}`
@@ -105,6 +117,13 @@ let state: State = {
   sessions: {},
   approvals: [],
   models: null,
+  summaries: {},
+  channels: {},
+  browser: {},
+  newChannel: false,
+  modelsTab: "providers",
+  fileOpen: null,
+  mcpTick: 0,
   events: {},
   loadErr: {},
   streams: {},
@@ -214,9 +233,12 @@ export function openNewAgent() {
 
 // ---------------------------------------------------------------- server sync
 
+/** The agent a session talks to: the agent itself, or a channel's owner. */
 export function sessionAgent(sessionId: string | null): AgentView | undefined {
   if (!sessionId) return undefined;
   const meta = state.sessions[sessionId];
+  const ch = state.channels[sessionId];
+  if (ch) return state.agents[ch.owner] ?? state.agents[ch.members?.[0] ?? ""];
   const id = meta?.agents?.[0];
   if (id && state.agents[id]) return state.agents[id];
   return Object.values(state.agents).find((a) => a.session === sessionId);
@@ -239,6 +261,48 @@ export async function refreshSessions() {
     tabs: s.tabs.filter((t) => sessions[t]),
     current: s.current && sessions[s.current] ? s.current : null,
   }));
+}
+
+export async function refreshSummaries() {
+  try {
+    const r = await API.summaries();
+    const summaries: Record<string, SessionSummary> = {};
+    for (const m of r.sessions ?? []) summaries[m.id] = m;
+    setState({ summaries });
+  } catch {
+    /* older daemon: fall back to local snippets */
+  }
+}
+
+export async function refreshChannels() {
+  try {
+    const r = await API.channels();
+    const channels: Record<string, ChannelView> = {};
+    for (const c of r.channels ?? []) channels[c.id] = c;
+    setState({ channels });
+  } catch {
+    /* ignore */
+  }
+}
+
+export async function refreshChannel(id: string) {
+  try {
+    const c = await API.channel(id);
+    setState((s) => ({ channels: { ...s.channels, [id]: c } }));
+  } catch {
+    /* ignore */
+  }
+}
+
+export function openNewChannel() {
+  setState({ newChannel: true, palette: false });
+}
+
+let sumTimer: number | undefined;
+/** Debounced summary refresh (snippets, order, topics). */
+export function scheduleSummaries(ms = 600) {
+  window.clearTimeout(sumTimer);
+  sumTimer = window.setTimeout(() => void refreshSummaries(), ms);
 }
 
 export async function refreshApprovals() {
@@ -295,7 +359,7 @@ function loadSessionNow(id: string): Promise<void> {
 }
 
 export async function resync() {
-  await Promise.allSettled([refreshAgents(), refreshSessions(), refreshApprovals(), refreshModels()]);
+  await Promise.allSettled([refreshAgents(), refreshSessions(), refreshApprovals(), refreshModels(), refreshSummaries(), refreshChannels()]);
   for (const id of Object.keys(state.events)) void loadSession(id);
   if (state.current && !state.events[state.current]) void loadSession(state.current);
 }
@@ -318,8 +382,13 @@ function clearStream(session: string, agent?: string) {
   });
 }
 
+const SUMMARY_TYPES = new Set(["message/user", "message/assistant", "approval/asked", "session/meta"]);
+
 function applySessionEvent(ev: SessionEvent) {
   if (!state.sessions[ev.session]) void refreshSessions();
+  if (SUMMARY_TYPES.has(ev.type)) scheduleSummaries();
+  if (ev.type.startsWith("channel/")) void refreshChannel(ev.session);
+  if (ev.type === "session/meta") void refreshSessions();
   if (ev.type === "message/assistant" || ev.type === "turn/end") clearStream(ev.session, ev.agent);
   if (ev.type === "tool/call" && ev.agent) clearStream(ev.session, ev.agent);
   const cur = state.events[ev.session];
@@ -389,6 +458,9 @@ export function connectEvents() {
   });
   on("agent.stream", (d: StreamChunk) => applyStream(d));
   on("approvals.changed", () => void refreshApprovals());
+  on("channel.owner", (d: { channel: string }) => void refreshChannel(d.channel));
+  on("browser.state", (d: BrowserState) => setState((s) => ({ browser: { ...s.browser, [d.agent]: d } })));
+  on("mcp", () => setState((s) => ({ mcpTick: s.mcpTick + 1 })));
   on("models.changed", () => void refreshModels());
   src.onerror = () => {
     setState({ connected: false });

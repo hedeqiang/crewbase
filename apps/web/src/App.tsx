@@ -10,6 +10,7 @@ import { NewAgent, emptyDraft, type Draft } from "./components/NewAgent";
 import { Settings } from "./components/Settings";
 import { Palette } from "./components/Palette";
 import { TokenScreen } from "./components/TokenScreen";
+import { NewChannel } from "./components/NewChannel";
 
 export function App() {
   const authed = useStore((s) => s.authed);
@@ -54,8 +55,9 @@ function Shell() {
   const current = useStore((s) => s.current);
   const agents = useStore((s) => s.agents);
   const sessions = useStore((s) => s.sessions);
+  const channels = useStore((s) => s.channels);
   const [draft, setDraft] = useState<Draft>(emptyDraft);
-  const hasAgent = !!sessionAgent(current) && (agents || sessions);
+  const hasAgent = !!sessionAgent(current) && (agents || sessions || channels);
   const showPanel = view === "chat" && panelOpen && hasAgent;
   const showList = listOpen && view !== "settings";
 
@@ -71,6 +73,7 @@ function Shell() {
       } else if (e.key === "Escape") {
         const s = getState();
         if (s.palette) setState({ palette: false });
+        else if (s.newChannel) setState({ newChannel: false });
         else if (s.hostConfirm) setState({ hostConfirm: null });
         else if (window.matchMedia("(max-width: 820px)").matches && s.listOpen) setState({ listOpen: false });
         else if (window.matchMedia("(max-width: 1100px)").matches && s.panelOpen) setState({ panelOpen: false });
@@ -107,6 +110,7 @@ function Shell() {
         )}
       </div>
       <Palette />
+      <NewChannel />
       <Toasts />
     </div>
   );

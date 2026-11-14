@@ -23,6 +23,14 @@ export function statusTone(s: string): "run" | "wait" | "err" | "idle" | "ok" {
   }
 }
 
+/** Human text for an agent's status detail ("takeover:<reason>", "approval:<id>"). */
+export function detailLabel(detail?: string): string {
+  if (!detail) return "";
+  if (detail.startsWith("takeover:")) return t("status.takeover", { reason: detail.slice(9) || "login" });
+  if (detail.startsWith("approval:")) return t("list.waitApprove");
+  return detail;
+}
+
 export function pillTone(s: string): string {
   return { running: "blue", waiting: "amber", failed: "red" }[s] ?? "";
 }

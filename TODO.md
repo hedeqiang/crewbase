@@ -65,12 +65,12 @@
 - [x] 三列窗口：会话列表 / 对话区 / 右侧面板；标题栏「需要你」胶囊；⌘K；窄屏浮层
 - [x] 输入框：主机、运行权限（宿主机红色确认条）、模型选择器；状态行（目录、额度、上下文占用浮层）
 - [x] 对话节点：消息、步骤折叠、模型切换说明、审批卡（以后都允许 / 二次确认）、压缩与模式变更行
-- [ ] 浏览器接管卡（UI：逐帧画面 + 点击 / 键入 / 交还控制权）
+- [x] 浏览器接管卡（逐帧画面 + 点击 / 键入 / 滚动 / 交还控制权；真实 GitHub 登录页验证）
 - [x] 新建 Agent 表单与模板（18 色 × 7 形状头像）
 - [x] 后端：`GET /api/usage`（tokens、峰值日、53 周热力图数据、来源占比、Agent 排行、自动切换次数 / 需人工介入次数、订阅复用节省估算；仅本地）
 - [~] 设置：通用 ✓、模型与订阅 ✓（只读）、审批（待处理）✓；路由与切换 / 添加提供方 / 已记住选择 / 通知 / 快捷键 待接 API
 - [x] UI 所需后端接口（features/console）：会话摘要、上下文构成、立即压缩、新对话、工作区文件读写（防越界含符号链接）、已记住选择与撤销、审批历史、模型重置、任务分流规则、默认值设置、主机列表；Agent 等审批时 waiting ✓
-- [ ] UI 接入上述接口 + 频道 / 例行巡检 / 工作流 / 插件 / MCP 页面（原：Agent 等审批时状态 waiting、会话摘要（updated/last/unread）、上下文构成、立即压缩、新对话、文件树与读写 INSTRUCTIONS/MEMORY、已记住选择列表与撤销、审批历史、模型重置/启用开关/多窗口额度、设置（默认模式与模型顺序）、主机列表、频道 UI）
+- [x] UI 接入上述接口 + 频道（@提及、交接线、改派、归档、交接需确认）/ 文件面板 / 上下文构成 / 联网搜索开关 / 来源引用 / 例行巡检 + 晨报 / 工作流表单编辑器 / 审批（已记住、历史）/ 插件市场与授权 / MCP / 用量与热力图 / 路由与切换 / 新 Agent 默认值（原：Agent 等审批时状态 waiting、会话摘要（updated/last/unread）、上下文构成、立即压缩、新对话、文件树与读写 INSTRUCTIONS/MEMORY、已记住选择列表与撤销、审批历史、模型重置/启用开关/多窗口额度、设置（默认模式与模型顺序）、主机列表、频道 UI）
 - [ ] 设置：通用、模型与订阅（提供方 / 路由与切换 / 添加提供方）、审批（记住的选择）、个人资料与用量
 - [ ] 插槽机制（conversation.node / sidebar-right.tab / settings.card / composer.action …）
 - [-] 原生桌面壳（托盘、自动更新）D-1 —— 需验证 Wails；先以 crewd 内嵌静态资源 + 浏览器打开交付
@@ -88,7 +88,8 @@
 - [x] 进程外插件桥接：stdio JSON-RPC 2.0、清单权限（交集授权）、Waterfall 2s 超时、只能拒绝不能放行、退出即撤销、崩溃退避后 FAILED、可选沙箱（S-6）
 - [x] 插件 SDK：TypeScript / Python / Go（宿主注入，无需 npm install）；示例 word-count / hello-py / hello-go
 - [x] 插件市场后端：索引（URL / 内置）、本地 / tarball / npm 安装、授权、启停、热重载、新版本重新授权、trustFutureVersions；CLI `crew plugin …` / `crew dev`
-- [ ] 市场与授权 UI；角色模板导入（C-5）
+- [x] 市场与授权 UI
+- [ ] 角色模板导入（C-5）；工作流画布编辑器；新建文件夹
 - [x] 按任务分流（M-5）：routine / 摘要·日志清洗 / 编码 / 超长文档 → 配置的模型，不可用时回落到 Agent 顺序；节省见 `/api/usage`
 - [ ] WASM 插件档（wazero）
 - [ ] UI：频道与任务卡、交接 / 改派、审批中心、自动化页、插件与技能页
@@ -163,7 +164,7 @@
 - [ ] 压缩摘要优先用 summarize 路由模型
 - [ ] 与模型无关的 `web` 能力：DeepSeek Search / Fetch 独立 API 作为 web_search / web_fetch 工具提供方（待官方文档）
 - [ ] 文件输入（PDF / Office / 图片）、ASR / TTS（移动端语音）
-- [ ] UI：Agent 设置「联网搜索」开关、回复下方来源列表
+- [x] UI：Agent 设置「联网搜索 / 阅读链接」开关、回复下方来源列表与搜索步骤（当前构建真实验证：thinking → server_tool → text → citation）
 
 ## 真实联调（本机 magpie，`go test -tags live ./test/live`）
 - [x] 跨厂商对话：Claude Haiku / Sonnet、DeepSeek、OpenAI GPT、Codex 订阅、Cursor Composer
@@ -178,6 +179,7 @@
 ## 迭代日志
 | 日期 | 迭代 | 结果 |
 |---|---|---|
+| 2026-11-14 | 9d | 桌面 UI 第二轮（子 agent，真实 crewd + magpie 驱动，浅/深色多宽度截图审阅）提交 |
 | 2026-11-14 | 9c | Go 依赖全量升级 + tidy；kernel 插件生命周期事件替代审计轮询（修复偶发失败）；54 包 race 通过，Windows / Linux 交叉编译通过 |
 | 2026-11-14 | 9b | Phase 3 平台（子 agent）：部署、审计、目标续跑、OTel、crew doctor 接入；修 IM 审批卡跨端决定竞态；全量 53 包 race 测试通过 |
 | 2026-11-14 | 9a | IM 网关（子 agent）接入，默认关闭 |

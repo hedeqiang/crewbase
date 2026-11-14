@@ -20,13 +20,35 @@ export interface Decision {
 export type FeedItem =
   | { k: "time"; id: string; time: string }
   | { k: "user"; id: string; text: string; from?: string; time: string }
-  | { k: "agent"; id: string; agent: string; text: string; thinking: string; model?: ModelRef; time: string }
+  | {
+      k: "agent";
+      id: string;
+      agent: string;
+      text: string;
+      thinking: string;
+      model?: ModelRef;
+      time: string;
+      citations: Citation[];
+      searches: string[];
+      refusal: boolean;
+    }
+  | { k: "handover"; id: string; from: string; to: string; note: string; files: string[]; time: string }
+  | { k: "owner"; id: string; owner: string; prev?: string; by?: string; reason: string }
+  | { k: "chstate"; id: string; state: string; by?: string }
   | { k: "steps"; id: string; agent: string; steps: Step[] }
   | { k: "approval"; id: string; req: ApprovalRequest; decided?: Decision; call?: ToolCall; time: string }
   | { k: "switch"; id: string; agent: string; from: ModelRef; to: ModelRef; reason: string; detail?: string }
   | { k: "mode"; id: string; agent: string; to: string; until?: string }
   | { k: "compact"; id: string; summary: string; before: number; after: number }
   | { k: "sys"; id: string; tone: "info" | "error" | "muted"; text: string; key?: string; vars?: Record<string, string> };
+
+export interface Citation {
+  title: string;
+  url: string;
+}
+
+/** Inputs the daemon writes on a person's or agent's behalf in channels. */
+const INJECTED = /^\[(handover|reassigned|resumed)\]/;
 
 export interface Projection {
   items: FeedItem[];
@@ -57,6 +79,7 @@ export function project(events: SessionEvent[]): Projection {
   const approvals = new Map<string, Extract<FeedItem, { k: "approval" }>>();
   let group: Extract<FeedItem, { k: "steps" }> | null = null;
   let lastTime = 0;
+  let seenState = false;
 
   const push = (it: FeedItem, time: string) => {
     const ts = new Date(time).getTime();
@@ -70,6 +93,7 @@ export function project(events: SessionEvent[]): Projection {
     const id = String(e.seq);
     switch (e.type) {
       case "message/user":
+        if (INJECTED.test(d.text ?? "")) break;
         group = null;
         push({ k: "user", id, text: d.text ?? "", from: d.from, time: e.time }, e.time);
         break;
@@ -78,9 +102,20 @@ export function project(events: SessionEvent[]): Projection {
         if (d.model?.provider) lastModel[e.agent ?? ""] = d.model;
         const text = textOf(parts, "text");
         const thinking = textOf(parts, "thinking");
-        if (text || thinking) {
+        const citations: Citation[] = [];
+        const seen = new Set<string>();
+        for (const p of parts) {
+          const url = p.meta?.url;
+          if (p.type === "citation" && url && !seen.has(url)) {
+            seen.add(url);
+            citations.push({ title: p.text || url, url });
+          }
+        }
+        const searches = parts.filter((p) => p.type === "server_tool" && p.text).map((p) => p.text as string);
+        const refusal = d.stop === "refusal";
+        if (text || thinking || citations.length || searches.length || refusal) {
           group = null;
-          push({ k: "agent", id, agent: e.agent ?? "", text, thinking, model: d.model, time: e.time }, e.time);
+          push({ k: "agent", id, agent: e.agent ?? "", text, thinking, model: d.model, time: e.time, citations, searches, refusal }, e.time);
         }
         break;
       }
@@ -146,6 +181,27 @@ export function project(events: SessionEvent[]): Projection {
       case "step/start":
         context[e.agent ?? ""] = { tokens: d.contextTokens ?? 0, window: d.contextWindow ?? 0, model: d.model };
         if (d.model?.provider) lastModel[e.agent ?? ""] = d.model;
+        break;
+      case "channel/handover":
+        group = null;
+        push({ k: "handover", id, from: d.from ?? e.agent ?? "", to: d.to ?? "", note: d.note ?? "", files: d.files ?? [], time: e.time }, e.time);
+        break;
+      case "channel/owner":
+        // created: implied by the channel; handover: shown by channel/handover.
+        if (d.reason === "assigned" || d.reason === "reassigned") {
+          group = null;
+          push({ k: "owner", id, owner: d.owner, prev: d.prev, by: d.by, reason: d.reason }, e.time);
+        }
+        break;
+      case "channel/state":
+        if (seenState) {
+          group = null;
+          const prev = items[items.length - 1];
+          // Archive stops first: show one line, not "stopped" + "archived".
+          if (d.state === "archived" && prev?.k === "chstate" && prev.state === "paused") items.pop();
+          push({ k: "chstate", id, state: d.state, by: d.by }, e.time);
+        }
+        seenState = true;
         break;
       case "notice":
         push({ k: "sys", id, tone: "info", text: d.text ?? "" }, e.time);

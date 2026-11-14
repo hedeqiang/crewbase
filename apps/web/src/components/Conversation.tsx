@@ -14,14 +14,24 @@ import {
   Shield,
   Wrench,
   MessageSquarePlus,
+  ArrowRightLeft,
+  Search as SearchIcon,
+  Link2,
+  Info,
+  UserRound,
+  Pause,
+  Archive,
+  Play,
 } from "lucide-react";
-import { API, parseRef, refString, type AgentView, type ModelRef } from "../api";
+import { API, parseRef, refString, type AgentView, type ChannelView, type ContextBreakdown, type ModelRef } from "../api";
 import { t, type Key } from "../i18n";
 import { argsFull, argsPreview, project, type FeedItem, type Step } from "../projection";
-import { loadSession, setState, toast, useStore, sessionAgent } from "../store";
+import { loadSession, openSession, refreshAgents, refreshSessions, setState, toast, useStore, sessionAgent } from "../store";
+import { TakeoverCard, takeoverReason } from "./Browser";
 import {
   activeModel,
   ago,
+  detailLabel,
   allModels,
   dayLabel,
   effortLabel,
@@ -44,10 +54,12 @@ export function Conversation() {
   const current = useStore((s) => s.current);
   const sessions = useStore((s) => s.sessions);
   const agents = useStore((s) => s.agents);
+  const channels = useStore((s) => s.channels);
   useEffect(() => {
     if (current) void loadSession(current);
   }, [current]);
-  const agent = useMemo(() => sessionAgent(current), [current, sessions, agents]);
+  const agent = useMemo(() => sessionAgent(current), [current, sessions, agents, channels]);
+  const channel = current ? channels[current] : undefined;
 
   if (!current || !agent)
     return (
@@ -61,25 +73,39 @@ export function Conversation() {
         </div>
       </section>
     );
-  return <ConversationView key={current} sessionId={current} agent={agent} />;
+  return <ConversationView key={current} sessionId={current} agent={agent} channel={channel} />;
 }
 
-function ConversationView({ sessionId, agent }: { sessionId: string; agent: AgentView }) {
+function ConversationView({ sessionId, agent, channel }: { sessionId: string; agent: AgentView; channel?: ChannelView }) {
   const events = useStore((s) => s.events[sessionId]);
   const err = useStore((s) => s.loadErr[sessionId]);
   const proj = useMemo(() => project(events ?? []), [events]);
   const ctx = proj.context[agent.id];
   return (
     <section className="main">
-      <Feed sessionId={sessionId} agent={agent} items={proj.items} loading={!events} error={err} />
-      <Composer sessionId={sessionId} agent={agent} ctx={ctx} lastModel={proj.lastModel[agent.id]} />
+      <Feed sessionId={sessionId} agent={agent} channel={channel} items={proj.items} loading={!events} error={err} />
+      <Composer sessionId={sessionId} agent={agent} channel={channel} ctx={ctx} lastModel={proj.lastModel[agent.id]} />
     </section>
   );
 }
 
 // ---------------------------------------------------------------- feed
 
-function Feed({ sessionId, agent, items, loading, error }: { sessionId: string; agent: AgentView; items: FeedItem[]; loading: boolean; error?: string }) {
+function Feed({
+  sessionId,
+  agent,
+  channel,
+  items,
+  loading,
+  error,
+}: {
+  sessionId: string;
+  agent: AgentView;
+  channel?: ChannelView;
+  items: FeedItem[];
+  loading: boolean;
+  error?: string;
+}) {
   const ref = useRef<HTMLDivElement>(null);
   const stick = useRef(true);
   const streams = useStore((s) => s.streams);
@@ -87,6 +113,15 @@ function Feed({ sessionId, agent, items, loading, error }: { sessionId: string; 
   const live = Object.entries(streams).filter(([k]) => k.startsWith(sessionId + "|"));
   const waitingApproval = useStore((s) => s.approvals.some((a) => a.agent === agent.id && a.session === sessionId));
   const typing = agent.status === "running" && !waitingApproval && !live.some(([k, v]) => k.endsWith("|" + agent.id) && v.text);
+  // Agents in this conversation that wait for a person to take over their browser.
+  const takeovers = useMemo(() => {
+    const ids = channel ? channel.members : [agent.id];
+    const pendingCall = new Set<string>();
+    for (const it of items) if (it.k === "steps") for (const st of it.steps) if (st.call.name === "browser_request_takeover" && !st.result) pendingCall.add(it.agent);
+    return ids
+      .map((id) => agents[id])
+      .filter((a): a is AgentView => !!a && !!takeoverReason(a) && (pendingCall.has(a.id) || (!channel && a.session === sessionId)));
+  }, [items, agents, channel, agent.id, sessionId]);
 
   const onScroll = () => {
     const el = ref.current;
@@ -108,11 +143,22 @@ function Feed({ sessionId, agent, items, loading, error }: { sessionId: string; 
           </button>
         </div>
       )}
-      {!loading && items.length === 0 && (
+      {!loading && items.length === 0 && !channel && (
         <div className="feedintro">
           <Avatar agent={agent} size={56} />
           <b>{t("chat.empty", { name: agent.name })}</b>
           <span className="small">{t("chat.emptyDesc", { dir: agent.workspace })}</span>
+        </div>
+      )}
+      {!loading && channel && !items.some((i) => i.k === "user" || i.k === "agent") && (
+        <div className="feedintro">
+          <div className="avstack">
+            {channel.members.map((id) => (
+              <Avatar key={id} agent={agents[id]} size={44} />
+            ))}
+          </div>
+          <b>{t("ch.empty", { name: channel.title || channel.id })}</b>
+          <span className="small">{t("ch.emptyDesc", { owner: agents[channel.owner]?.name ?? channel.owner })}</span>
         </div>
       )}
       {items.map((it) => (
@@ -140,10 +186,13 @@ function Feed({ sessionId, agent, items, loading, error }: { sessionId: string; 
           </div>
         );
       })}
+      {takeovers.map((a) => (
+        <TakeoverCard key={a.id} agent={a} reason={takeoverReason(a) ?? ""} />
+      ))}
       {typing && (
         <div className="typing">
           <Avatar agent={agent} size={24} />
-          <span>{agent.detail || t("chat.thinking", { name: agent.name })}</span>
+          <span>{detailLabel(agent.detail) || t("chat.thinking", { name: agent.name })}</span>
           <span className="dots">
             <i />
             <i />
@@ -206,6 +255,28 @@ function FeedRow({ it, agents }: { it: FeedItem; agents: Record<string, AgentVie
     }
     case "compact":
       return <Compact it={it} />;
+    case "handover": {
+      const from = agents[it.from];
+      const to = agents[it.to];
+      return <Handover it={it} from={from} to={to} />;
+    }
+    case "owner": {
+      const o = agents[it.owner]?.name ?? it.owner;
+      const by = !it.by || it.by === "desktop" || it.by === "mobile" ? t("common.you") : agents[it.by]?.name ?? it.by;
+      return (
+        <div className="sys">
+          <UserRound size={14} />
+          <span>{it.reason === "reassigned" ? t("ch.reassigned", { by, name: o }) : t("ch.assigned", { by, name: o })}</span>
+        </div>
+      );
+    }
+    case "chstate":
+      return (
+        <div className="sys muted">
+          {it.state === "archived" ? <Archive size={14} /> : it.state === "paused" ? <Pause size={14} /> : <Play size={14} />}
+          <span>{t(it.state === "archived" ? "ch.stArchived" : it.state === "paused" ? "ch.stPaused" : "ch.stActive")}</span>
+        </div>
+      );
     case "sys":
       return (
         <div className={"sys " + (it.tone === "error" ? "err" : it.tone)}>
@@ -246,12 +317,80 @@ function AgentMsg({ it, agent }: { it: Extract<FeedItem, { k: "agent" }>; agent?
           </button>
         )}
         {showThink && <div className="thinking small">{it.thinking}</div>}
+        {it.searches.map((q, i) => (
+          <div className="srvtool" key={i}>
+            <SearchIcon size={13} />
+            <span>{t("chat.searched", { q })}</span>
+          </div>
+        ))}
         {it.text && (
           <div className="mt">
             <Markdown text={it.text} />
           </div>
         )}
+        {it.refusal && (
+          <div className="refusal">
+            <Info size={14} />
+            <span>{t("chat.refusal", { name: agent?.name ?? it.agent })}</span>
+          </div>
+        )}
+        {it.citations.length > 0 && (
+          <div className="cites">
+            <span className="small">{t("chat.sources")}</span>
+            {it.citations.map((c, i) => (
+              <a key={c.url} className="cite" href={c.url} target="_blank" rel="noreferrer noopener" title={c.url}>
+                <span className="n">{i + 1}</span>
+                <span className="site">{siteOf(c.url)}</span>
+                <span className="ct">{c.title}</span>
+              </a>
+            ))}
+          </div>
+        )}
       </div>
+    </div>
+  );
+}
+
+function siteOf(u: string): string {
+  try {
+    return new URL(u).hostname.replace(/^www\./, "");
+  } catch {
+    return u;
+  }
+}
+
+function Handover({ it, from, to }: { it: Extract<FeedItem, { k: "handover" }>; from?: AgentView; to?: AgentView }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="handover">
+      <div className="sys">
+        <ArrowRightLeft size={14} />
+        <Avatar agent={from} size={18} />
+        <span>
+          {t("ch.handover", { from: from?.name ?? it.from, to: to?.name ?? it.to })}
+        </span>
+        <Avatar agent={to} size={18} />
+        {(it.note || it.files.length > 0) && (
+          <button className="linkbtn" type="button" onClick={() => setOpen(!open)}>
+            {open ? t("ch.hideNote") : t("ch.showNote")}
+          </button>
+        )}
+      </div>
+      {open && (
+        <div className="brief">
+          {it.note && <Markdown text={it.note} />}
+          {it.files.length > 0 && (
+            <div className="hfiles">
+              {it.files.map((f) => (
+                <span key={f} className="fchip mono">
+                  <Link2 size={12} />
+                  {f}
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -371,7 +510,34 @@ function Compact({ it }: { it: Extract<FeedItem, { k: "compact" }> }) {
 
 // ---------------------------------------------------------------- composer
 
-function Composer({ sessionId, agent, ctx, lastModel }: { sessionId: string; agent: AgentView; ctx?: { tokens: number; window: number; model?: ModelRef }; lastModel?: ModelRef }) {
+interface Mention {
+  start: number;
+  q: string;
+}
+
+/** "@xx" right before the caret (letters, digits, _ and -, like the daemon). */
+function mentionAt(text: string, caret: number): Mention | null {
+  const m = /(^|\s)@([\p{L}\p{N}_-]*)$/u.exec(text.slice(0, caret));
+  if (!m) return null;
+  return { start: caret - m[2].length - 1, q: m[2].toLowerCase() };
+}
+
+function Composer({
+  sessionId,
+  agent,
+  channel,
+  ctx,
+  lastModel,
+}: {
+  sessionId: string;
+  agent: AgentView;
+  channel?: ChannelView;
+  ctx?: { tokens: number; window: number; model?: ModelRef };
+  lastModel?: ModelRef;
+}) {
+  const agents = useStore((s) => s.agents);
+  const [mention, setMention] = useState<Mention | null>(null);
+  const [msel, setMsel] = useState(0);
   const draft = useStore((s) => s.drafts[sessionId] ?? "");
   const override = useStore((s) => s.overrides[agent.id] ?? null);
   const hostConfirm = useStore((s) => s.hostConfirm === agent.id);
@@ -395,16 +561,56 @@ function Composer({ sessionId, agent, ctx, lastModel }: { sessionId: string; age
   }, [sessionId]);
 
   const setDraft = (v: string) => setState((s) => ({ drafts: { ...s.drafts, [sessionId]: v } }));
-  const overrideRef = override ? parseRef(override) : null;
+  const overrideRef = override && !channel ? parseRef(override) : null;
   const shown = overrideRef ?? activeModel(models, agent) ?? lastModel ?? null;
   const prov = shown ? findProvider(models, shown.provider) : undefined;
   const quota = prov?.quota?.known ? Math.round(prov.quota.remaining * 100) : null;
   const pct = ctx && ctx.window > 0 ? Math.min(100, Math.round((ctx.tokens / ctx.window) * 100)) : null;
 
+  const candidates = useMemo(() => {
+    if (!channel || !mention) return [];
+    return channel.members
+      .map((id) => agents[id])
+      .filter((a): a is AgentView => !!a && (!mention.q || a.name.toLowerCase().startsWith(mention.q) || a.id.toLowerCase().startsWith(mention.q)));
+  }, [channel, mention, agents]);
+
+  const pick = (a: AgentView) => {
+    const el = ta.current;
+    if (!el || !mention) return;
+    const caret = el.selectionStart ?? draft.length;
+    // The daemon matches names made of letters, digits, _ and -.
+    const handle = /^[\p{L}\p{N}_-]+$/u.test(a.name) ? a.name : a.id;
+    const next = draft.slice(0, mention.start) + "@" + handle + " " + draft.slice(caret);
+    setDraft(next);
+    setMention(null);
+    const pos = mention.start + handle.length + 2;
+    requestAnimationFrame(() => {
+      el.focus();
+      el.setSelectionRange(pos, pos);
+    });
+  };
+
+  const archived = channel?.state === "archived";
+
   const send = async () => {
     const text = draft.trim();
-    if (!text || sending) return;
+    if (!text || sending || archived) return;
     setSending(true);
+    if (channel) {
+      try {
+        const r = await API.postChannel(sessionId, text);
+        setDraft("");
+        setMention(null);
+        const who = agents[r.agent]?.name ?? r.agent;
+        toast(r.position > 0 ? t("ch.queued", { name: who, n: r.position }) : t("ch.sentTo", { name: who }));
+      } catch (e: any) {
+        toast(t("chat.sendFailed", { error: e?.message ?? String(e) }));
+      } finally {
+        setSending(false);
+        ta.current?.focus();
+      }
+      return;
+    }
     try {
       const wasBusy = agent.status === "running" || agent.queue.length > 0;
       await API.send(agent.id, { text, model: override ?? undefined, session: sessionId === agent.session ? undefined : sessionId });
@@ -470,14 +676,69 @@ function Composer({ sessionId, agent, ctx, lastModel }: { sessionId: string; age
           void send();
         }}
       >
+        {candidates.length > 0 && (
+          <div className="mention" role="listbox" aria-label={t("ch.mention")}>
+            <div className="mlbl">{t("ch.mention")}</div>
+            {candidates.map((a, i) => (
+              <button
+                key={a.id}
+                type="button"
+                role="option"
+                aria-selected={i === msel % candidates.length}
+                className="mi"
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  pick(a);
+                }}
+              >
+                <Avatar agent={a} size={22} status />
+                <span className="g">
+                  <b>{a.name}</b>
+                  <span>
+                    {a.role || a.id}
+                    {a.id === channel?.owner ? ` · ${t("ch.owner")}` : ""}
+                    {a.queue.length ? ` · ${t("ch.queueLen", { n: a.queue.length })}` : ""}
+                  </span>
+                </span>
+              </button>
+            ))}
+          </div>
+        )}
         <textarea
           ref={ta}
           rows={1}
           value={draft}
-          placeholder={t("chat.placeholder", { name: agent.name })}
-          aria-label={t("chat.placeholder", { name: agent.name })}
-          onChange={(e) => setDraft(e.target.value)}
+          disabled={archived}
+          placeholder={archived ? t("ch.archivedPh") : channel ? t("chat.placeholderChannel", { name: channel.title || channel.id }) : t("chat.placeholder", { name: agent.name })}
+          aria-label={channel ? t("chat.placeholderChannel", { name: channel.title || channel.id }) : t("chat.placeholder", { name: agent.name })}
+          onChange={(e) => {
+            setDraft(e.target.value);
+            if (channel) {
+              const m = mentionAt(e.target.value, e.target.selectionStart ?? e.target.value.length);
+              setMention(m);
+              setMsel(0);
+            }
+          }}
+          onBlur={() => setMention(null)}
           onKeyDown={(e) => {
+            if (candidates.length > 0) {
+              if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+                e.preventDefault();
+                setMsel((i) => (i + (e.key === "ArrowDown" ? 1 : candidates.length - 1)) % candidates.length);
+                return;
+              }
+              if (e.key === "Enter" || e.key === "Tab") {
+                e.preventDefault();
+                pick(candidates[msel % candidates.length]);
+                return;
+              }
+              if (e.key === "Escape") {
+                e.preventDefault();
+                e.stopPropagation();
+                setMention(null);
+                return;
+              }
+            }
             if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
               e.preventDefault();
               void send();
@@ -499,7 +760,14 @@ function Composer({ sessionId, agent, ctx, lastModel }: { sessionId: string; age
             <ChevronDown size={14} />
           </button>
           <span className="sp" />
-          <button className={"cbtn cmodel" + (override ? " ov" : "")} type="button" ref={modelM.ref} onClick={modelM.toggle} title={t("comp.modelTitle")} aria-haspopup="menu">
+          <button
+            className={"cbtn cmodel" + (override && !channel ? " ov" : "")}
+            type="button"
+            ref={modelM.ref}
+            onClick={modelM.toggle}
+            title={channel ? t("ch.modelOwner", { name: agent.name }) : t("comp.modelTitle")}
+            aria-haspopup="menu"
+          >
             {shown ? (
               <>
                 <ProviderMark provider={shown.provider} model={shown.model} size={12} />
@@ -587,7 +855,23 @@ function Composer({ sessionId, agent, ctx, lastModel }: { sessionId: string; age
         </p>
       </Popover>
 
-      <Popover anchor={modelM.anchor} open={modelM.open} onClose={modelM.close} placement="top" align="end" width={320}>
+      <Popover anchor={modelM.anchor} open={modelM.open && !!channel} onClose={modelM.close} placement="top" align="end" width={300}>
+        <div className="mlbl">{t("ch.modelOwner", { name: agent.name })}</div>
+        {order.map((r, i) => (
+          <div key={refString(r)} className="mi">
+            <ProviderMark provider={r.provider} model={r.model} size={16} />
+            <span className="g">
+              {modelLabel(models, r)}
+              <span>{i === 0 ? t("comp.modelPrimary") : t("comp.modelBackup")}</span>
+            </span>
+          </div>
+        ))}
+        <hr />
+        <p className="small" style={{ margin: "4px 9px 6px" }}>
+          {t("ch.modelNote")}
+        </p>
+      </Popover>
+      <Popover anchor={modelM.anchor} open={modelM.open && !channel} onClose={modelM.close} placement="top" align="end" width={320}>
         <div className="mlbl">{t("comp.modelTitle")}</div>
         <button
           className="mi"
@@ -669,14 +953,83 @@ function Composer({ sessionId, agent, ctx, lastModel }: { sessionId: string; age
       </Popover>
 
       <Popover anchor={ctxM.anchor} open={ctxM.open} onClose={ctxM.close} placement="top" align="end" width={320}>
-        <ContextPopover agent={agent} ctx={ctx} pct={pct} />
+        <ContextPopover agent={agent} sessionId={sessionId} channel={!!channel} ctx={ctx} close={ctxM.close} />
       </Popover>
     </div>
   );
 }
 
-function ContextPopover({ agent, ctx, pct }: { agent: AgentView; ctx?: { tokens: number; window: number; model?: ModelRef }; pct: number | null }) {
+const SEG_COLORS: Record<string, string> = {
+  system: "var(--seg-system)",
+  memory: "var(--seg-memory)",
+  tools: "var(--seg-tools)",
+  skills: "var(--seg-skills)",
+  toolio: "var(--seg-toolio)",
+  messages: "var(--seg-messages)",
+  free: "var(--active)",
+};
+
+export function ContextPopover({
+  agent,
+  sessionId,
+  channel,
+  ctx,
+  close,
+}: {
+  agent: AgentView;
+  sessionId: string;
+  channel: boolean;
+  ctx?: { tokens: number; window: number; model?: ModelRef };
+  close: () => void;
+}) {
   const models = useStore((s) => s.models);
+  const [bd, setBd] = useState<ContextBreakdown | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  const [busy, setBusy] = useState<"" | "compact" | "new">("");
+  const load = () =>
+    API.context(agent.id, sessionId)
+      .then((b) => {
+        setBd(b);
+        setErr(null);
+      })
+      .catch((e) => setErr(e?.message ?? String(e)));
+  useEffect(() => {
+    void load();
+  }, [agent.id, sessionId]);
+
+  const window_ = bd?.window || ctx?.window || 0;
+  const used = bd?.used ?? ctx?.tokens ?? 0;
+  const pct = window_ ? Math.round((used / window_) * 100) : null;
+  const thr = Math.round((bd?.threshold || 0.8) * 100);
+  const model = bd?.model?.provider ? bd.model : ctx?.model;
+
+  const compact = async () => {
+    setBusy("compact");
+    try {
+      await API.compact(agent.id, sessionId);
+      toast(t("ctx.compacted", { name: agent.name }));
+      await load();
+    } catch (e: any) {
+      toast(t("ctx.compactFailed", { error: e?.message ?? String(e) }));
+    } finally {
+      setBusy("");
+    }
+  };
+  const fresh = async () => {
+    setBusy("new");
+    try {
+      const m = await API.newConversation(agent.id);
+      await Promise.allSettled([refreshAgents(), refreshSessions()]);
+      close();
+      openSession(m.id);
+      toast(t("ctx.newChatDone", { name: agent.name }));
+    } catch (e: any) {
+      toast(e?.message ?? String(e));
+    } finally {
+      setBusy("");
+    }
+  };
+
   return (
     <>
       <div className="ctxp">
@@ -684,35 +1037,39 @@ function ContextPopover({ agent, ctx, pct }: { agent: AgentView; ctx?: { tokens:
           <b>{t("ctx.title")}</b>
           <span>{pct === null ? "—" : t("ctx.used", { pct })}</span>
         </div>
-        {ctx && pct !== null ? (
+        {pct !== null ? (
           <>
             <div className="cbar">
-              <i style={{ flex: Math.max(pct, 1), background: pct >= 80 ? "var(--amber)" : "var(--accent)" }} />
-              <i style={{ flex: Math.max(100 - pct, 0.001), background: "var(--active)" }} />
-              <span className="thr" style={{ left: "80%" }} title="80%" />
+              {bd
+                ? bd.segments
+                    .filter((g) => g.tokens > 0)
+                    .map((g) => <i key={g.key} title={`${segLabel(g.key, g.label)} · ${kfmt(g.tokens)}`} style={{ flex: Math.max(g.tokens, window_ * 0.004), background: SEG_COLORS[g.key] ?? "var(--muted)" }} />)
+                : [
+                    <i key="u" style={{ flex: Math.max(pct, 1), background: "var(--accent)" }} />,
+                    <i key="f" style={{ flex: Math.max(100 - pct, 0.001), background: "var(--active)" }} />,
+                  ]}
+              <span className="thr" style={{ left: thr + "%" }} title={thr + "%"} />
             </div>
             <div className="small">
-              {t("ctx.tokens", { used: kfmt(ctx.tokens), total: kfmt(ctx.window), model: ctx.model ? modelLabel(models, ctx.model) : "—" })}
+              {t("ctx.tokens", { used: kfmt(used), total: kfmt(window_), model: model ? modelLabel(models, model) : "—" })}
             </div>
-            <div className="clist">
-              <div>
-                <i style={{ background: pct >= 80 ? "var(--amber)" : "var(--accent)" }} />
-                <span>{t("ctx.usedLabel")}</span>
-                <b>{kfmt(ctx.tokens)}</b>
+            {bd && (
+              <div className="clist">
+                {bd.segments.map((g) => (
+                  <div key={g.key}>
+                    <i style={{ background: SEG_COLORS[g.key] ?? "var(--muted)" }} />
+                    <span>{segLabel(g.key, g.label)}</span>
+                    <b>{kfmt(g.tokens)}</b>
+                  </div>
+                ))}
               </div>
-              <div>
-                <i style={{ background: "var(--active)" }} />
-                <span>{t("ctx.free")}</span>
-                <b>{kfmt(Math.max(0, ctx.window - ctx.tokens))}</b>
-              </div>
-            </div>
-            <p className="small" style={{ margin: "8px 0 0" }}>
-              {t("ctx.breakdownSoon")}
-            </p>
+            )}
+            {bd?.overThreshold && <p className="small warnline" style={{ margin: "8px 0 0" }}>{t("ctx.over")}</p>}
+            {bd && bd.compactions > 0 && <p className="small" style={{ margin: "6px 0 0" }}>{t("ctx.compactions", { n: bd.compactions })}</p>}
           </>
         ) : (
           <p className="small" style={{ margin: 0 }}>
-            {t("ctx.noData")}
+            {err ?? t("ctx.noData")}
           </p>
         )}
         <p className="small" style={{ margin: "8px 0 0" }}>
@@ -720,22 +1077,30 @@ function ContextPopover({ agent, ctx, pct }: { agent: AgentView; ctx?: { tokens:
         </p>
       </div>
       <hr />
-      <button className="mi" type="button" disabled title={t("common.soon")}>
-        <Minimize2 size={16} />
+      <button className="mi" type="button" disabled={!!busy || !bd} onClick={compact}>
+        {busy === "compact" ? <span className="spin sm" /> : <Minimize2 size={16} />}
         <span className="g">
           {t("ctx.compact")}
-          <span>{t("common.soon")}</span>
+          <span>{t("ctx.compactDesc")}</span>
         </span>
       </button>
-      <button className="mi" type="button" disabled title={t("common.soon")}>
-        <Plus size={16} />
-        <span className="g">
-          {t("ctx.newChat")}
-          <span>{t("ctx.newChatDesc", { name: agent.name })} · {t("common.soon")}</span>
-        </span>
-      </button>
+      {!channel && (
+        <button className="mi" type="button" disabled={!!busy} onClick={fresh}>
+          {busy === "new" ? <span className="spin sm" /> : <Plus size={16} />}
+          <span className="g">
+            {t("ctx.newChat")}
+            <span>{t("ctx.newChatDesc", { name: agent.name })}</span>
+          </span>
+        </button>
+      )}
     </>
   );
+}
+
+function segLabel(key: string, fallback: string): string {
+  const k = `ctx.seg.${key}` as Key;
+  const v = t(k);
+  return v === k ? fallback : v;
 }
 
 export function shortPath(p: string): string {

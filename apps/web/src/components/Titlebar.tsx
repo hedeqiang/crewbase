@@ -6,6 +6,7 @@ import { closeTab, openSession, setState, useStore } from "../store";
 import { Avatar, AvatarRaw } from "./Avatar";
 import { Logo } from "./Logo";
 import { ApprovalActions } from "./Approval";
+import { takeoverReason } from "./Browser";
 import { Popover, useMenu } from "./Popover";
 
 export function Titlebar({ draftColor, draftShape }: { draftColor: string; draftShape: string }) {
@@ -26,7 +27,8 @@ export function Titlebar({ draftColor, draftShape }: { draftColor: string; draft
   }, [agents]);
 
   const curAgent = current ? byAgentSession[current] ?? agents[sessions[current]?.agents?.[0] ?? ""] : undefined;
-  const n = approvals.length;
+  const takeovers = useMemo(() => Object.values(agents).filter((a) => !!takeoverReason(a)), [agents]);
+  const n = approvals.length + takeovers.length;
 
   return (
     <header className="tbar">
@@ -55,7 +57,7 @@ export function Titlebar({ draftColor, draftShape }: { draftColor: string; draft
               {meta?.kind === "channel" ? <span className="hash">#</span> : <Avatar agent={a} size={16} />}
               <span className="tl">
                 {meta?.kind === "channel" ? meta.title || id : a?.name ?? meta?.title ?? id}
-                {a?.role && <span className="role"> · {a.role}</span>}
+                {meta?.kind !== "channel" && a?.role && <span className="role"> · {a.role}</span>}
               </span>
               <button
                 className="x"
@@ -82,11 +84,19 @@ export function Titlebar({ draftColor, draftShape }: { draftColor: string; draft
         )}
       </div>
       <div className="curttl">
-        {view === "chat" && curAgent && (
+        {view === "chat" && current && sessions[current]?.kind === "channel" ? (
           <>
-            <Avatar agent={curAgent} size={16} />
-            <span>{curAgent.name}</span>
+            <span className="hash">#</span>
+            <span>{sessions[current]?.title || current}</span>
           </>
+        ) : (
+          view === "chat" &&
+          curAgent && (
+            <>
+              <Avatar agent={curAgent} size={16} />
+              <span>{curAgent.name}</span>
+            </>
+          )
         )}
         {view === "newAgent" && <span>{t("tb.newAgent")}</span>}
         {view === "settings" && <span>{t("tb.settings")}</span>}
@@ -124,13 +134,34 @@ export function Titlebar({ draftColor, draftShape }: { draftColor: string; draft
           {t("tb.needsYou")} · {n}
         </div>
         {n === 0 && <p className="small" style={{ margin: "4px 9px 8px" }}>{t("appr.none")}</p>}
+        {takeovers.map((a) => (
+          <div key={"tk" + a.id} className="mi top">
+            <Avatar agent={a} size={26} status />
+            <span className="g">
+              <b>{t("br.title", { name: a.name })}</b>
+              <span>{takeoverReason(a)}</span>
+              <span className="acts sm">
+                <button
+                  className="btn blue"
+                  type="button"
+                  onClick={() => {
+                    inbox.close();
+                    openSession(a.session);
+                  }}
+                >
+                  {t("tb.goTakeover")}
+                </button>
+              </span>
+            </span>
+          </div>
+        ))}
         {approvals.map((r) => {
           const a = agents[r.agent];
           return (
             <div key={r.callId} className="mi top">
               <Avatar agent={a} size={26} status />
               <span className="g">
-                <b>{t("appr.wants", { agent: a?.name ?? r.agent, summary: r.summary || r.tool })}</b>
+                <b>{t("appr.wants", { agent: a?.name ?? (r.agent || t("appr.workflow")), summary: r.summary || r.tool })}</b>
                 <span>
                   「{r.reason || r.category}」 · {ago(r.asked)}
                 </span>

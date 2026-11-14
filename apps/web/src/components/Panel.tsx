@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
-import { ArrowDown, ArrowUp, FileText, GripVertical, Pause, Play, Plus, Square, Trash, X } from "lucide-react";
-import { API, refString, type AgentView, type ModelRef } from "../api";
+import { Archive, ArrowDown, ArrowUp, Globe, GripVertical, Link2, Minimize2, Pause, Play, Plus, Shuffle, Square, Trash, UserPlus, X } from "lucide-react";
+import { API, refString, type AgentView, type ChannelView, type ContextBreakdown, type ModelRef } from "../api";
 import { t, type Key } from "../i18n";
-import { activeModel, allModels, effortLabel, isExhausted, kfmt, modeLabel, modelLabel, pillTone, sameRef, statusLabel, until } from "../format";
+import { activeModel, allModels, detailLabel, effortLabel, isExhausted, kfmt, modeLabel, modelLabel, pillTone, sameRef, statusLabel, until } from "../format";
 import { project } from "../projection";
-import { setState, toast, useStore, sessionAgent } from "../store";
+import { refreshChannel, setState, toast, useStore, sessionAgent } from "../store";
+import { FilesTab } from "./Files";
 import { Avatar } from "./Avatar";
 import { Popover, useMenu } from "./Popover";
 import { ProviderMark } from "./ProviderMark";
@@ -15,7 +16,9 @@ export function Panel() {
   const tab = useStore((s) => s.panelTab);
   const agents = useStore((s) => s.agents);
   const sessions = useStore((s) => s.sessions);
-  const agent = useMemo(() => sessionAgent(current), [current, agents, sessions]);
+  const channels = useStore((s) => s.channels);
+  const agent = useMemo(() => sessionAgent(current), [current, agents, sessions, channels]);
+  const channel = current ? channels[current] : undefined;
   if (!agent) return null;
   const tabs: [typeof tab, string][] = [
     ["task", t("panel.task")],
@@ -36,11 +39,186 @@ export function Panel() {
         </button>
       </div>
       <div className="pbody">
-        {tab === "task" && <TaskTab agent={agent} />}
+        {tab === "task" && (channel ? <ChannelTask key={channel.id} channel={channel} /> : <TaskTab agent={agent} />)}
         {tab === "files" && <FilesTab agent={agent} />}
-        {tab === "agent" && <AgentTab key={agent.id} agent={agent} />}
+        {tab === "agent" && <AgentTab key={agent.id} agent={agent} sessionId={current ?? agent.session} />}
       </div>
     </aside>
+  );
+}
+
+function ChannelTask({ channel }: { channel: ChannelView }) {
+  const agents = useStore((s) => s.agents);
+  const models = useStore((s) => s.models);
+  const owner = agents[channel.owner];
+  const re = useMenu();
+  const addM = useMenu();
+  const [busy, setBusy] = useState(false);
+  const archived = channel.state === "archived";
+  const run = async (fn: () => Promise<unknown>, ok?: string) => {
+    setBusy(true);
+    try {
+      await fn();
+      if (ok) toast(ok);
+      await refreshChannel(channel.id);
+    } catch (e: any) {
+      toast(e?.message ?? String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+  const others = Object.values(agents).filter((a) => !channel.members.includes(a.id));
+  const m = owner ? activeModel(models, owner) : null;
+  const chQueue = (a: AgentView) => a.queue.filter((q) => q.session === channel.id);
+
+  return (
+    <>
+      <div className="psec">{t("ch.ownerSec")}</div>
+      <div className={"ownerban" + (channel.state === "paused" ? " paused" : "") + (archived ? " arch" : "")}>
+        <div className="oh">
+          <Avatar agent={owner} size={34} status />
+          <div className="g">
+            <span className="small">{t("ch.owner")}</span>
+            <b>{owner?.name ?? channel.owner}</b>
+          </div>
+          <span className={"pill " + (archived ? "" : channel.state === "paused" ? "" : owner ? pillTone(owner.status) : "")}>
+            {archived ? t("ch.archived") : channel.state === "paused" ? t("ch.paused") : owner ? statusLabel(owner.status) : "—"}
+          </span>
+        </div>
+        {owner?.detail && <div className="small od">{detailLabel(owner.detail)}</div>}
+        {m && (
+          <div className="small od">
+            <ProviderMark provider={m.provider} model={m.model} size={12} /> {modelLabel(models, m)}
+          </div>
+        )}
+        <div className="acts">
+          {channel.state === "paused" ? (
+            <button className="btn" type="button" disabled={busy || archived} onClick={() => run(() => API.channelAction(channel.id, "resume"), t("ch.resumedToast"))}>
+              <Play size={12} />
+              {t("panel.resume")}
+            </button>
+          ) : (
+            <button className="btn" type="button" disabled={busy || archived} onClick={() => run(() => API.channelAction(channel.id, "stop"), t("ch.stoppedToast"))}>
+              <Square size={12} />
+              {t("panel.stop")}
+            </button>
+          )}
+          <button className="btn" type="button" ref={re.ref} disabled={busy || archived || channel.members.length < 2} onClick={re.toggle} aria-haspopup="menu">
+            <Shuffle size={12} />
+            {t("ch.reassign")}
+          </button>
+          <button
+            className="btn ghost"
+            type="button"
+            disabled={busy || archived}
+            onClick={() => window.confirm(t("ch.archiveConfirm", { name: channel.title || channel.id })) && run(() => API.channelAction(channel.id, "archive"), t("ch.archivedToast"))}
+          >
+            <Archive size={12} />
+            {t("ch.archive")}
+          </button>
+        </div>
+      </div>
+
+      <div className="psec">{t("ch.members", { n: channel.members.length })}</div>
+      {channel.members.map((id) => {
+        const a = agents[id];
+        const q = a ? chQueue(a) : [];
+        return (
+          <div className="qi mem" key={id}>
+            <Avatar agent={a} size={24} status />
+            <span className="g">
+              <b>{a?.name ?? id}</b>
+              <span className="small" style={{ display: "block" }}>
+                {id === channel.owner ? t("ch.owner") + " · " : ""}
+                {a ? statusLabel(a.status) : "—"}
+                {a ? ` · ${t("ch.queueLen", { n: a.queue.length })}` : ""}
+              </span>
+              {q.map((x) => (
+                <span key={x.id} className="qt small" style={{ display: "block" }}>
+                  {x.text}
+                </span>
+              ))}
+            </span>
+          </div>
+        );
+      })}
+      {!archived && (
+        <button className="btn ghost addm" type="button" ref={addM.ref} onClick={addM.toggle} disabled={others.length === 0} style={{ marginTop: 6 }}>
+          <UserPlus size={13} />
+          {t("ch.addMember")}
+        </button>
+      )}
+
+      <div className="psec">{t("ch.settings")}</div>
+      <div className="tglist">
+        <div className="tgrow">
+          <span className="g">
+            <b>{t("ch.handoverConfirm")}</b>
+            <span>{t("ch.handoverConfirmDesc")}</span>
+          </span>
+          <button
+            className="tg"
+            type="button"
+            role="switch"
+            aria-checked={channel.settings?.handoverConfirm ?? false}
+            aria-label={t("ch.handoverConfirm")}
+            disabled={busy || archived}
+            onClick={() => run(() => API.patchChannel(channel.id, { handoverConfirm: !channel.settings?.handoverConfirm }))}
+          />
+        </div>
+      </div>
+
+      <Popover anchor={re.anchor} open={re.open} onClose={re.close} width={280}>
+        <div className="mlbl">{t("ch.reassignTo")}</div>
+        {channel.members
+          .filter((id) => id !== channel.owner)
+          .map((id) => {
+            const a = agents[id];
+            return (
+              <button
+                key={id}
+                className="mi"
+                type="button"
+                onClick={() => {
+                  re.close();
+                  void run(() => API.reassign(channel.id, id), t("ch.reassignedToast", { name: a?.name ?? id }));
+                }}
+              >
+                <Avatar agent={a} size={22} status />
+                <span className="g">
+                  {a?.name ?? id}
+                  <span>
+                    {a ? statusLabel(a.status) : ""} · {t("ch.queueLen", { n: a?.queue.length ?? 0 })}
+                  </span>
+                </span>
+              </button>
+            );
+          })}
+        <hr />
+        <p className="small" style={{ margin: "4px 9px 6px" }}>
+          {t("ch.reassignNote")}
+        </p>
+      </Popover>
+      <Popover anchor={addM.anchor} open={addM.open} onClose={addM.close} width={260}>
+        {others.map((a) => (
+          <button
+            key={a.id}
+            className="mi"
+            type="button"
+            onClick={() => {
+              addM.close();
+              void run(() => API.addMember(channel.id, a.id), t("ch.memberAdded", { name: a.name }));
+            }}
+          >
+            <Avatar agent={a} size={22} />
+            <span className="g">
+              {a.name}
+              <span>{a.role || a.id}</span>
+            </span>
+          </button>
+        ))}
+      </Popover>
+    </>
   );
 }
 
@@ -69,7 +247,7 @@ function TaskTab({ agent }: { agent: AgentView }) {
           <dt>{t("panel.status")}</dt>
           <dd>
             <span className={"pill " + pillTone(agent.status)}>{statusLabel(agent.status)}</span>
-            {agent.detail && <span className="small">{agent.detail}</span>}
+            {agent.detail && <span className="small">{detailLabel(agent.detail)}</span>}
           </dd>
           <dt>{t("panel.model")}</dt>
           <dd>
@@ -139,31 +317,28 @@ function TaskTab({ agent }: { agent: AgentView }) {
   );
 }
 
-function FilesTab({ agent }: { agent: AgentView }) {
-  return (
-    <>
-      <div className="psec mono">{shortPath(agent.workspace)}</div>
-      <div className="tree">
-        <div className="tn">
-          <FileText size={14} />
-          INSTRUCTIONS.md
-        </div>
-        <div className="tn">
-          <FileText size={14} />
-          MEMORY.md
-        </div>
-      </div>
-      <div className="empty" style={{ marginTop: 12 }}>
-        {t("panel.filesSoon")}
-      </div>
-    </>
-  );
+/** Models that can use provider-hosted web search / URL reading. */
+export function supportsNative(r: ModelRef | null | undefined): boolean {
+  if (!r) return false;
+  return r.provider === "deepseek" || (r.provider === "magpie" && r.model.startsWith("deepseek/"));
 }
 
-function AgentTab({ agent }: { agent: AgentView }) {
+function AgentTab({ agent, sessionId }: { agent: AgentView; sessionId: string }) {
   const models = useStore((s) => s.models);
-  const events = useStore((s) => s.events[agent.session]);
+  const events = useStore((s) => s.events[sessionId]);
   const ctx = useMemo(() => project(events ?? []).context[agent.id], [events, agent.id]);
+  const [bd, setBd] = useState<ContextBreakdown | null>(null);
+  const [compacting, setCompacting] = useState(false);
+  const evCount = events?.length ?? 0;
+  useEffect(() => {
+    let live = true;
+    API.context(agent.id, sessionId)
+      .then((b) => live && setBd(b))
+      .catch(() => live && setBd(null));
+    return () => {
+      live = false;
+    };
+  }, [agent.id, sessionId, Math.floor(evCount / 5)]);
   const [role, setRole] = useState(agent.role ?? "");
   const [order, setOrder] = useState<ModelRef[]>(agent.models ?? []);
   const [drag, setDrag] = useState<number | null>(null);
@@ -171,7 +346,34 @@ function AgentTab({ agent }: { agent: AgentView }) {
   useEffect(() => setRole(agent.role ?? ""), [agent.role]);
   useEffect(() => setOrder(agent.models ?? []), [agent.models]);
   const active = activeModel(models, agent);
-  const pct = ctx && ctx.window ? Math.min(100, Math.round((ctx.tokens / ctx.window) * 100)) : null;
+  const used = bd?.used ?? ctx?.tokens ?? 0;
+  const win = bd?.window || ctx?.window || 0;
+  const pct = win ? Math.min(100, Math.round((used / win) * 100)) : null;
+  const native = new Set(agent.nativeTools ?? []);
+  const nativeOk = order.some((r) => supportsNative(r));
+  const setNative = async (tool: string, on: boolean) => {
+    const next = new Set(native);
+    if (on) next.add(tool);
+    else next.delete(tool);
+    try {
+      await API.patchAgent(agent.id, { nativeTools: [...next] });
+      toast(t("panel.saved"));
+    } catch (e: any) {
+      toast(e?.message ?? String(e));
+    }
+  };
+  const compact = async () => {
+    setCompacting(true);
+    try {
+      await API.compact(agent.id, sessionId);
+      toast(t("ctx.compacted", { name: agent.name }));
+      setBd(await API.context(agent.id, sessionId));
+    } catch (e: any) {
+      toast(t("ctx.compactFailed", { error: e?.message ?? String(e) }));
+    } finally {
+      setCompacting(false);
+    }
+  };
 
   const saveOrder = async (next: ModelRef[]) => {
     setOrder(next);
@@ -328,28 +530,70 @@ function AgentTab({ agent }: { agent: AgentView }) {
         ))}
       </div>
 
+      {nativeOk && (
+        <>
+          <div className="psec">{t("panel.native")}</div>
+          <div className="tglist">
+            {(["web_search", "read_url"] as const).map((k) => (
+              <div className="tgrow" key={k}>
+                <Globe size={14} className="muted" />
+                <span className="g">
+                  <b>{t(`panel.native.${k}` as Key)}</b>
+                  <span>{t(`panel.native.${k}.desc` as Key)}</span>
+                </span>
+                <button className="tg" type="button" role="switch" aria-checked={native.has(k)} aria-label={t(`panel.native.${k}` as Key)} onClick={() => setNative(k, !native.has(k))} />
+              </div>
+            ))}
+          </div>
+          <div className="small" style={{ marginTop: 6 }}>
+            {t("panel.nativeNote")}
+          </div>
+        </>
+      )}
+
       <div className="psec">{t("panel.context")}</div>
       <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12.5 }}>
-        <span>{ctx ? `${kfmt(ctx.tokens)} / ${kfmt(ctx.window)}` : "—"}</span>
+        <span>{win ? `${kfmt(used)} / ${kfmt(win)}` : "—"}</span>
         <b>{pct === null ? "—" : pct + "%"}</b>
       </div>
-      <div className="meter">
-        <i className={pct !== null && pct >= 80 ? "amber" : ""} style={{ width: (pct ?? 0) + "%" }} />
-        <span className="th" style={{ left: "80%" }} />
-      </div>
+      {bd ? (
+        <div className="cbar" style={{ margin: "7px 0 6px" }}>
+          {bd.segments
+            .filter((g) => g.tokens > 0)
+            .map((g) => (
+              <i key={g.key} title={`${g.label} · ${kfmt(g.tokens)}`} style={{ flex: Math.max(g.tokens, win * 0.004), background: `var(--seg-${g.key === "free" ? "free" : g.key})` }} />
+            ))}
+          <span className="thr" style={{ left: Math.round((bd.threshold || 0.8) * 100) + "%" }} />
+        </div>
+      ) : (
+        <div className="meter">
+          <i className={pct !== null && pct >= 80 ? "amber" : ""} style={{ width: (pct ?? 0) + "%" }} />
+          <span className="th" style={{ left: "80%" }} />
+        </div>
+      )}
       <div className="small">{t("panel.contextNote")}</div>
+      <div className="acts sm">
+        <button className="btn" type="button" disabled={compacting || !bd} onClick={compact}>
+          {compacting ? <span className="spin sm" /> : <Minimize2 size={12} />}
+          {t("ctx.compact")}
+        </button>
+      </div>
 
       <div className="psec">{t("panel.instrMem")}</div>
-      <dl className="kv">
-        <dt>{t("panel.files.instructions")}</dt>
-        <dd className="mono" style={{ fontSize: 12 }}>
-          INSTRUCTIONS.md
-        </dd>
-        <dt>{t("panel.files.memory")}</dt>
-        <dd className="mono" style={{ fontSize: 12 }}>
-          MEMORY.md
-        </dd>
-      </dl>
+      <div className="tree">
+        {(["INSTRUCTIONS.md", "MEMORY.md"] as const).map((f) => (
+          <button
+            key={f}
+            className="tn"
+            type="button"
+            onClick={() => setState({ panelTab: "files", fileOpen: f })}
+          >
+            <Link2 size={13} />
+            <span className="g">{f}</span>
+            <span className="small">{t(f === "MEMORY.md" ? "panel.files.memory" : "panel.files.instructions")}</span>
+          </button>
+        ))}
+      </div>
       <div style={{ marginTop: 20 }}>
         <button className="btn dng" type="button" onClick={del}>
           <Trash size={13} />

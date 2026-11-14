@@ -1,0 +1,150 @@
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Check, Folder, Hash, X } from "lucide-react";
+import { API } from "../api";
+import { t } from "../i18n";
+import { openSession, refreshChannels, refreshSessions, setState, toast, useStore } from "../store";
+import { Avatar } from "./Avatar";
+
+/** 新建频道: name, members (first selected = owner), folder (docs/03 §5.2). */
+export function NewChannel() {
+  const open = useStore((s) => s.newChannel);
+  if (!open) return null;
+  return <Dialog />;
+}
+
+function Dialog() {
+  const agents = useStore((s) => s.agents);
+  const sessions = useStore((s) => s.sessions);
+  const [name, setName] = useState("");
+  const [members, setMembers] = useState<string[]>([]);
+  const [folder, setFolder] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const nameRef = useRef<HTMLInputElement>(null);
+  const list = useMemo(() => Object.values(agents).sort((a, b) => a.name.localeCompare(b.name)), [agents]);
+  const folders = useMemo(
+    () =>
+      [...new Set([...Object.values(agents).map((a) => a.folder), ...Object.values(sessions).map((m) => m.folder)].filter(Boolean) as string[])].sort(),
+    [agents, sessions],
+  );
+  const close = () => setState({ newChannel: false });
+
+  useEffect(() => {
+    nameRef.current?.focus();
+    const key = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        e.stopPropagation();
+        close();
+      }
+    };
+    window.addEventListener("keydown", key, true);
+    return () => window.removeEventListener("keydown", key, true);
+  }, []);
+
+  const toggle = (id: string) => setMembers((m) => (m.includes(id) ? m.filter((x) => x !== id) : [...m, id]));
+
+  const create = async () => {
+    const n = name.trim().replace(/^#/, "").trim();
+    if (!n) {
+      setErr(t("nc.needName"));
+      nameRef.current?.focus();
+      return;
+    }
+    if (members.length === 0) {
+      setErr(t("nc.needMember"));
+      return;
+    }
+    setBusy(true);
+    try {
+      const ch = await API.createChannel({ name: n, members, folder: folder.trim() || undefined });
+      setState((s) => ({ channels: { ...s.channels, [ch.id]: ch }, sessions: { ...s.sessions, [ch.id]: ch }, newChannel: false }));
+      await Promise.allSettled([refreshSessions(), refreshChannels()]);
+      openSession(ch.id);
+      toast(t("nc.created", { name: n }));
+    } catch (e: any) {
+      setErr(e?.message ?? String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <>
+      <div className="scrim" onClick={close} />
+      <div className="modal" role="dialog" aria-modal="true" aria-labelledby="ncTitle">
+        <div className="mhd">
+          <h3 id="ncTitle">{t("list.newChannel")}</h3>
+          <button className="ix" type="button" aria-label={t("common.close")} onClick={close}>
+            <X size={14} />
+          </button>
+        </div>
+        <form
+          className="mbd"
+          onSubmit={(e) => {
+            e.preventDefault();
+            void create();
+          }}
+        >
+          <label className="fl" htmlFor="ncName">
+            {t("nc.name")} <i>*</i>
+          </label>
+          <label className="fi sm iwrap">
+            <Hash size={14} className="muted" />
+            <input
+              id="ncName"
+              ref={nameRef}
+              value={name}
+              placeholder={t("nc.namePh")}
+              onChange={(e) => {
+                setName(e.target.value);
+                setErr(null);
+              }}
+            />
+          </label>
+          <div className="fl">
+            {t("nc.members")} <span className="small">{t("nc.membersHint")}</span>
+          </div>
+          <div className="mpick" role="listbox" aria-multiselectable="true">
+            {list.length === 0 && <div className="small">{t("nc.noAgents")}</div>}
+            {list.map((a) => {
+              const i = members.indexOf(a.id);
+              return (
+                <button key={a.id} type="button" role="option" aria-selected={i >= 0} className="mopt" onClick={() => toggle(a.id)}>
+                  <Avatar agent={a} size={26} />
+                  <span className="g">
+                    <b>{a.name}</b>
+                    <span>{a.role || a.id}</span>
+                  </span>
+                  {i === 0 && <span className="pill blue">{t("ch.owner")}</span>}
+                  {i > 0 && <span className="pill">{t("nc.member")}</span>}
+                  <span className="ck">{i >= 0 && <Check size={14} />}</span>
+                </button>
+              );
+            })}
+          </div>
+          <label className="fl" htmlFor="ncFolder">
+            {t("na.folder")}
+          </label>
+          <label className="fi sm iwrap">
+            <Folder size={14} className="muted" />
+            <input id="ncFolder" list="ncFolders" value={folder} placeholder={t("na.folderPh")} onChange={(e) => setFolder(e.target.value)} />
+            <datalist id="ncFolders">
+              {folders.map((x) => (
+                <option key={x} value={x} />
+              ))}
+            </datalist>
+          </label>
+          {err && <div className="ferr">{err}</div>}
+          <div className="mft">
+            <button className="btn ghost" type="button" onClick={close}>
+              {t("common.cancel")}
+            </button>
+            <button className="btn pri" type="submit" disabled={busy}>
+              {busy ? t("na.creating") : t("nc.create")}
+            </button>
+          </div>
+        </form>
+      </div>
+    </>
+  );
+}
