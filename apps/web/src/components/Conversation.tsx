@@ -15,7 +15,6 @@ import {
   Plus,
   Shield,
   Wrench,
-
   ArrowRightLeft,
   Search as SearchIcon,
   Link2,
@@ -24,12 +23,16 @@ import {
   Pause,
   Archive,
   Play,
+  MicOff,
+  Volume2,
+  Square,
 } from "lucide-react";
 import { API, parseRef, refString, type AgentView, type ChannelView, type ContextBreakdown, type ModelRef } from "../api";
 import { t, type Key } from "../i18n";
 import { argsFull, argsPreview, project, type FeedItem, type Step } from "../projection";
 import { loadSession, openSession, refreshAgents, refreshSessions, setState, toast, useStore, sessionAgent } from "../store";
 import { TakeoverCard, takeoverReason } from "./Browser";
+import { dictate, dictationSupported, speak, speaking, speakSupported } from "../voice";
 import { addFiles, clearFiles, filesFrom, MsgAttachments, PendingChips } from "./Attachments";
 import {
   activeModel,
@@ -344,6 +347,7 @@ const REASONS: Record<string, true> = {
 function AgentMsg({ it, agent, showModel }: { it: Extract<FeedItem, { k: "agent" }>; agent?: AgentView; showModel: boolean }) {
   const models = useStore((s) => s.models);
   const [showThink, setShowThink] = useState(false);
+  const [reading, setReading] = useState(false);
   const sm = it.model ? shortModelEffort(models, it.model) : null;
   return (
     <div className="m-agent">
@@ -357,6 +361,20 @@ function AgentMsg({ it, agent, showModel }: { it: Extract<FeedItem, { k: "agent"
               {sm.name}
               {sm.effort && <span className="effs">{sm.effort}</span>}
             </span>
+          )}
+          {it.text && speakSupported() && (
+            <button
+              type="button"
+              className={"ix readout" + (reading ? " on" : "")}
+              aria-label={reading ? t("voice.stop") : t("voice.read")}
+              title={reading ? t("voice.stop") : t("voice.read")}
+              onClick={() => {
+                setReading(!speaking(it.id));
+                speak(it.id, it.text, () => setReading(false));
+              }}
+            >
+              {reading ? <Square size={11} /> : <Volume2 size={13} />}
+            </button>
           )}
         </div>
         {it.thinking && (
@@ -660,6 +678,35 @@ function Composer({
 
   const archived = channel?.state === "archived";
 
+  // dictation appends to the draft; interim words show live and are
+  // replaced by the final transcript
+  const [listening, setListening] = useState(false);
+  const stopRec = useRef<null | (() => void)>(null);
+  const baseDraft = useRef("");
+  const toggleDictation = () => {
+    if (listening) {
+      stopRec.current?.();
+      return;
+    }
+    if (!dictationSupported()) {
+      toast(t("voice.unsupported"));
+      return;
+    }
+    baseDraft.current = draft && !/\s$/.test(draft) ? draft + " " : draft;
+    setListening(true);
+    stopRec.current = dictate(
+      (fin, interim) => setDraft(baseDraft.current + fin + interim),
+      (error) => {
+        setListening(false);
+        stopRec.current = null;
+        if (error === "denied") toast(t("voice.denied"));
+        else if (error && error !== "silence" && error !== "aborted") toast(t("voice.failed", { error }));
+        ta.current?.focus();
+      },
+    );
+  };
+  useEffect(() => () => stopRec.current?.(), []);
+
   const canSend = (!!draft.trim() || pending.some((f) => f.state === "ok")) && !pending.some((f) => f.state === "up");
 
   const attach = (files: File[]) => {
@@ -922,8 +969,16 @@ function Composer({
             )}
             <ChevronDown size={14} />
           </button>
-          <button className="cbtn round ghost" type="button" aria-label={t("chat.voice")} title={t("chat.voice")} onClick={() => toast(t("chat.voice"))}>
-            <Mic size={15} />
+          <button
+            className={"cbtn round ghost" + (listening ? " rec" : "")}
+            type="button"
+            aria-label={listening ? t("voice.stopDictation") : t("chat.voice")}
+            aria-pressed={listening}
+            title={!dictationSupported() ? t("voice.unsupported") : listening ? t("voice.stopDictation") : t("chat.voice")}
+            disabled={archived}
+            onClick={toggleDictation}
+          >
+            {listening ? <MicOff size={15} /> : <Mic size={15} />}
           </button>
           <button className={"send" + (canSend ? " on" : "")} type="submit" disabled={!canSend || sending} aria-label={t("chat.send")} title={t("chat.send")}>
             <ArrowUp size={16} />

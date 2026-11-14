@@ -1288,3 +1288,9 @@ button.tg:disabled { opacity: .5; cursor: not-allowed; }
 .wfcol { flex: 1; min-width: 0; }
 .pubok { display: inline-flex; align-items: center; gap: 3px; color: var(--ok-text); }
 .pubno { color: var(--amber-text); }
+.cbtn.rec { color: var(--danger-text); background: var(--danger-soft); border-color: transparent; animation: recpulse 1.4s ease-in-out infinite; }
+@keyframes recpulse { 50% { box-shadow: 0 0 0 4px color-mix(in srgb, var(--danger) 18%, transparent); } }
+@media (prefers-reduced-motion: reduce) { .cbtn.rec { animation: none; } }
+.readout { width: 22px; height: 22px; opacity: 0; color: var(--muted); }
+.m-agent:hover .readout, .readout.on, .readout:focus-visible { opacity: 1; }
+.readout.on { color: var(--accent-text); }
