@@ -16,7 +16,7 @@ import (
 	"github.com/hedeqiang/crewbase/core/tools"
 	"github.com/hedeqiang/crewbase/features/router"
 	"github.com/hedeqiang/crewbase/kernel"
-	"github.com/hedeqiang/crewbase/providers/llmmock"
+	"github.com/hedeqiang/crewbase/providers/llm/mock"
 )
 
 type env struct {
@@ -42,7 +42,7 @@ func newEnv(t *testing.T, root string) *env {
 	load(approval.Plugin, nil)
 	load(approval.DesktopPlugin, nil)
 	load(llm.Plugin, nil)
-	load(llmmock.Plugin, map[string]any{"ids": []string{"claude-code", "codex"}})
+	load(mock.Plugin, map[string]any{"ids": []string{"claude-code", "codex"}})
 	load(router.Plugin, nil)
 	load(agent.Plugin, map[string]any{"root": root, "defaultModels": []string{"claude-code/default", "codex/default"}})
 	load(agentloop.Plugin, nil)
@@ -115,7 +115,7 @@ func TestPhase1ExitCriteria(t *testing.T) {
 
 	// Claude Code quota exhausted → switch to Codex, keep going.
 	cc, _ := e.llms.Get("claude-code")
-	cc.(*llmmock.Adapter).SetExhausted(true)
+	cc.(*mock.Adapter).SetExhausted(true)
 	start := time.Now()
 	send(t, a, "continue")
 	agentloop.WaitIdle(a, 2*time.Second)
@@ -139,7 +139,7 @@ func TestPhase1ExitCriteria(t *testing.T) {
 	// Codex's request is reconstructible from the log: it contains the
 	// earlier exchange answered by Claude Code.
 	cx, _ := e.llms.Get("codex")
-	reqs := cx.(*llmmock.Adapter).Requests()
+	reqs := cx.(*mock.Adapter).Requests()
 	got := reqs[len(reqs)-1].Messages
 	want := session.DeriveMessages(ss.Events(), a.ID(), e.agents.Names())
 	// the log now also holds the final assistant message
@@ -216,7 +216,7 @@ func TestQueuePauseResumeStopAndNoModel(t *testing.T) {
 	// all models exhausted → failed turn with a clear error
 	for _, id := range []string{"claude-code", "codex"} {
 		ad, _ := e.llms.Get(id)
-		ad.(*llmmock.Adapter).SetExhausted(true)
+		ad.(*mock.Adapter).SetExhausted(true)
 	}
 	send(t, a, "x")
 	agentloop.WaitIdle(a, 2*time.Second)

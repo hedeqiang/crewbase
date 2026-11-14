@@ -1,11 +1,11 @@
-// Package llmmock is a deterministic model provider for tests, demos and
+// Package mock is a deterministic model provider for tests, demos and
 // offline use. Behaviour:
 //
 //   - A user message "/tool <name> <json-args>" makes the model call that tool.
 //   - After a tool result, the model replies "Tool <name> returned: <content>".
 //   - Otherwise it echoes: "<model>: <last user text>".
 //   - SetExhausted(true) makes every request fail with quota_exhausted.
-package llmmock
+package mock
 
 import (
 	"context"

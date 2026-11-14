@@ -17,7 +17,7 @@ import (
 	"github.com/hedeqiang/crewbase/core/tools"
 	"github.com/hedeqiang/crewbase/features/memory"
 	"github.com/hedeqiang/crewbase/kernel"
-	"github.com/hedeqiang/crewbase/providers/llmmock"
+	"github.com/hedeqiang/crewbase/providers/llm/mock"
 )
 
 type env struct {
@@ -41,7 +41,7 @@ func newEnv(t *testing.T, root string, withMemory bool) *env {
 	load(tools.Plugin, nil)
 	load(llm.Plugin, nil)
 	load(kernel.Spec{Name: "test-llm", Inject: []string{llm.ServiceKey}, Apply: func(c *kernel.Context) error {
-		return kernel.Use[*llm.Registry](c, llm.ServiceKey).Register(c, llmmock.New("mock", 0))
+		return kernel.Use[*llm.Registry](c, llm.ServiceKey).Register(c, mock.New("mock", 0))
 	}}, nil)
 	load(agent.Plugin, map[string]any{"root": root, "defaultModels": []string{"mock/default"}})
 	load(agentloop.Plugin, nil)

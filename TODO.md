@@ -33,7 +33,7 @@
 - [ ] `llm-anthropic`（M-2）
 - [ ] `llm-gemini`（M-2）
 - [ ] `llm-ollama` + 本地服务自动发现（Ollama / LM Studio / vLLM）（M-3）
-- [x] `llm-mock`（测试与离线演示）
+- [x] `llm-mock`（测试与离线演示）→ `providers/llm/mock`
 - [ ] `llm-acp`：ACP 子进程桥接 Claude Code / Codex / Gemini CLI，额度耗尽信号识别（M-1）
 - [x] `router-default`：每 Agent 模型顺序、`router/quota-exhausted`、`model/switched` 事件、无损切换（M-4）
 - [x] `compaction-summary`：上下文占用追踪、80% 自动压缩、立即压缩、新对话（C-1）
@@ -82,6 +82,11 @@
 - [ ] WASM 插件档（wazero）
 - [ ] UI：频道与任务卡、交接 / 改派、审批中心、自动化页、插件与技能页
 - [~] Phase 2 出口 e2e：三 Agent 两次交接（mock 已通过）；TS 插件安装授权热重载（待做）
+
+## 命名约定（用户反馈后确立）
+- 目录按「能力 / 提供方」两层：`providers/llm/{anthropic,openai,gemini,local,acp,mock}`、`providers/sandbox/{none,docker,seatbelt}`、`providers/shell/local`、`providers/fs/local`
+- 包名即末级目录；与官方 SDK 包名冲突时 SDK 用 `sdk` 别名导入；不再使用 `llmanthropic` 这类拼接名
+- 内核插件名保持 `@crewbase/llm-anthropic` 形式（与文档一致）
 
 ## 技术债 / 待跟进
 - [ ] 交接是否需接收方确认（待决问题 #1）：频道设置「交接需人确认」走 approval

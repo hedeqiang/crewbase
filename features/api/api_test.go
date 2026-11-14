@@ -20,7 +20,7 @@ import (
 	"github.com/hedeqiang/crewbase/features/gateway"
 	"github.com/hedeqiang/crewbase/features/router"
 	"github.com/hedeqiang/crewbase/kernel"
-	"github.com/hedeqiang/crewbase/providers/llmmock"
+	"github.com/hedeqiang/crewbase/providers/llm/mock"
 )
 
 const tok = "test-token-0123456789abcdef0123456789"
@@ -38,7 +38,7 @@ func start(t *testing.T) (string, *kernel.Host) {
 	}{
 		{session.Plugin, map[string]any{"dir": root + "/sessions"}},
 		{prompt.Plugin, nil}, {tools.Plugin, nil}, {approval.Plugin, nil}, {approval.DesktopPlugin, nil},
-		{llm.Plugin, nil}, {llmmock.Plugin, nil}, {router.Plugin, nil},
+		{llm.Plugin, nil}, {mock.Plugin, nil}, {router.Plugin, nil},
 		{agent.Plugin, map[string]any{"root": root, "defaultModels": []string{"mock/default"}}},
 		{agentloop.Plugin, nil},
 		{gateway.Plugin, map[string]any{"addr": "127.0.0.1:0", "token": tok}},

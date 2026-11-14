@@ -18,7 +18,7 @@ import (
 	"github.com/hedeqiang/crewbase/features/compaction"
 	"github.com/hedeqiang/crewbase/features/memory"
 	"github.com/hedeqiang/crewbase/kernel"
-	"github.com/hedeqiang/crewbase/providers/llmmock"
+	"github.com/hedeqiang/crewbase/providers/llm/mock"
 )
 
 const window = 4000
@@ -29,7 +29,7 @@ type env struct {
 	tools  *tools.Registry
 	comp   *compaction.Service
 	mem    *memory.Store
-	mock   *llmmock.Adapter
+	mock   *mock.Adapter
 	fail   atomic.Bool // summarisation requests fail
 	sums   atomic.Int32
 }
@@ -38,7 +38,7 @@ func text(s string) llm.Response {
 	return llm.Response{StopReason: "end", Message: llm.TextMessage(llm.RoleAssistant, s)}
 }
 
-// script mimics llmmock's default behaviour (tool calls via "/tool"), but
+// script mimics the mock provider's default behaviour (tool calls via "/tool"), but
 // acknowledges tool results briefly and answers summarisation requests.
 func (e *env) script(req llm.Request) (llm.Response, error) {
 	if strings.HasPrefix(req.System, compaction.SummaryMarker) {
@@ -79,7 +79,7 @@ func newEnv(t *testing.T, root string, compCfg map[string]any) *env {
 	load(prompt.Plugin, nil)
 	load(tools.Plugin, nil)
 	load(llm.Plugin, nil)
-	e.mock = llmmock.New("tiny", window)
+	e.mock = mock.New("tiny", window)
 	e.mock.Script = e.script
 	load(kernel.Spec{Name: "test-env", Inject: []string{llm.ServiceKey, tools.ServiceKey}, Apply: func(c *kernel.Context) error {
 		kernel.Use[*tools.Registry](c, tools.ServiceKey).Register(c, &tools.Tool{

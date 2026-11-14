@@ -17,7 +17,7 @@ import (
 	"github.com/hedeqiang/crewbase/features/channel"
 	"github.com/hedeqiang/crewbase/features/router"
 	"github.com/hedeqiang/crewbase/kernel"
-	"github.com/hedeqiang/crewbase/providers/llmmock"
+	"github.com/hedeqiang/crewbase/providers/llm/mock"
 )
 
 func setup(t *testing.T) (*channel.Service, *agent.Registry) {
@@ -30,7 +30,7 @@ func setup(t *testing.T) (*channel.Service, *agent.Registry) {
 		cfg map[string]any
 	}{
 		{session.Plugin, nil}, {prompt.Plugin, nil}, {tools.Plugin, nil}, {approval.Plugin, nil},
-		{llm.Plugin, nil}, {llmmock.Plugin, nil}, {router.Plugin, nil},
+		{llm.Plugin, nil}, {mock.Plugin, nil}, {router.Plugin, nil},
 		{agent.Plugin, map[string]any{"root": root, "defaultModels": []string{"mock/default"}}},
 		{agentloop.Plugin, nil}, {channel.Plugin, nil},
 	} {

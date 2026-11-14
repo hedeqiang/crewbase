@@ -22,7 +22,7 @@ import (
 	_ "github.com/hedeqiang/crewbase/features/redact"
 	_ "github.com/hedeqiang/crewbase/features/router"
 	_ "github.com/hedeqiang/crewbase/features/rules"
-	_ "github.com/hedeqiang/crewbase/providers/llmmock"
+	_ "github.com/hedeqiang/crewbase/providers/llm/mock"
 )
 
 // Base is shared by every profile: model adapters, tools, persistence,
