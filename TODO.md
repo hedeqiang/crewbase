@@ -28,13 +28,14 @@
 - [x] `core/agent`：Agent 注册表、组装窗口、`agent.Inject()`、FIFO 队列（暂停 / 恢复 / 插队 / 取消）（A-1 部分）
 - [x] `core/agentloop`：默认 Agent 循环（turn / step 事件流）
 
-## 迭代 3 — 模型（M-1 ~ M-4, M-6）（第 2–5 周）  ← 当前
-- [ ] `llm-openai`（OpenAI-compatible：OpenAI / DeepSeek / Moonshot / Qwen / xAI）（M-2）
-- [ ] `llm-anthropic`（M-2）
-- [ ] `llm-gemini`（M-2）
-- [ ] `llm-ollama` + 本地服务自动发现（Ollama / LM Studio / vLLM）（M-3）
+## 迭代 3 — 模型（M-1 ~ M-4, M-6）（第 2–5 周）
+- [x] `llm-openai`（官方 openai-go v3；预设 openai / deepseek / moonshot / qwen / xai / openrouter / siliconflow / groq / mistral / zhipu；xAI 无官方 Go SDK，按其文档走 OpenAI SDK）（M-2）
+- [x] `llm-anthropic`（官方 anthropic-sdk-go v2；adaptive thinking + effort，默认 claude-opus-5-5，Models API）（M-2）
+- [x] `llm-gemini`（官方 google.golang.org/genai）（M-2）
+- [x] `llm-local`：Ollama 原生 + LM Studio / vLLM 自动发现，上下线自动注册（M-3）
 - [x] `llm-mock`（测试与离线演示）→ `providers/llm/mock`
-- [ ] `llm-acp`：ACP 子进程桥接 Claude Code / Codex / Gemini CLI，额度耗尽信号识别（M-1）
+- [x] `llm-acp`：ACP 桥接 Claude Code / Codex / Gemini CLI / Cursor / OpenCode / Grok，额度耗尽识别、进程组、空闲退出（M-1；真实 CLI 交互待人工验证）
+- [x] `llm-magpie`：接入 magpie 网关（读 settings.json 端口、/api/hello 识别、/v1/models 目录、key `magpie-crewbase`、随 magpie 启停自动注册；本机真实 magpie 只读验证 32 个模型）
 - [x] `router-default`：每 Agent 模型顺序、`router/quota-exhausted`、`model/switched` 事件、无损切换（M-4）
 - [x] `compaction-summary`：上下文占用追踪、80% 自动压缩、立即压缩、新对话（C-1）
 
@@ -107,6 +108,10 @@
 - [ ] 单次提权调用（批准后的更宽策略、每 Agent allowHosts、额外可写目录）进入 tools.Call
 - [ ] Docker 白名单网络需出站代理（目前报 partial）
 - [ ] 先读后改记录仅在内存，重启后需重读
+- [ ] 「添加提供方」流程：API Key 写入钥匙串 + 写补丁 + 热应用（设置 › 模型与订阅）
+- [ ] llm 词汇表缺口：签名等不透明 part 元数据、ModelInfo 大小字段、缓存 token、多窗口额度（5h / 周）
+- [ ] ACP：CLI 权限请求接入 approval；Request 携带 session / workspace；CLI 自行改文件的事件；重新检测 CLI
+- [ ] magpie：读取 /v1/magpie/quotas 显示额度
 - [ ] 中文 FTS：trigram 分词替代子串回退
 - [ ] 记忆索引改为异步写入
 
@@ -123,6 +128,7 @@
 ## 迭代日志
 | 日期 | 迭代 | 结果 |
 |---|---|---|
+| 2026-11-14 | 7a | 模型层完成：官方原生 SDK（OpenAI / Anthropic / Gemini）、本地发现、ACP 订阅桥接、magpie 网关（用户新增需求）；默认 Profile：订阅 CLI 优先，mock 默认关闭；usage 新增 gateway 类别；真实环境发现 4 个订阅 CLI + magpie |
 | 2026-11-14 | 6e | 技能按需加载；Windows 交叉编译检查（生产代码通过，修一处测试构建标签）；并行中：原生 SDK 适配器、ACP、UI、工作流 + 子 Agent |
 | 2026-11-14 | 6d | Routines（schedule 作业承载、独立会话、只读、静默哨兵）、晨报、alerts、routines API；冒烟：Webhook 无密钥 401、带密钥触发 → 巡检运行 |
 | 2026-11-14 | 6c | 执行层（子 agent）：sandbox / shell / fs 能力 + seatbelt/docker/none + 基础工具 + runmode 守卫；端到端：沙箱内 bash、越界写被拦截、git push 挂起审批；调度器（cron 解析、幂等、Webhook 公开路由自带密钥）；notify 能力；core：turn-start 事件、重进宿主机模式重置 24h |

@@ -123,12 +123,16 @@ func (s *Service) Compute() Stats {
 				kind := s.kindOf(am.Model.Provider)
 				st.Kinds[kind] += n
 				cost := float64(am.Usage.InputTokens)/1e6*s.ref.Input + float64(am.Usage.OutputTokens)/1e6*s.ref.Output
-				if kind == "api" {
+				switch kind {
+				case "gateway":
+					// billed (or not) inside the gateway, e.g. magpie: neither
+					// saved nor spent from Crewbase's point of view
+				case "api":
 					if p, ok := s.prices[am.Model.Provider]; ok {
 						cost = float64(am.Usage.InputTokens)/1e6*p.Input + float64(am.Usage.OutputTokens)/1e6*p.Output
 					}
 					st.SpentUSD += cost
-				} else {
+				default:
 					st.SavedUSD += cost
 				}
 				as := byAgent[e.Agent]

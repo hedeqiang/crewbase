@@ -33,7 +33,13 @@ import (
 	_ "github.com/hedeqiang/crewbase/features/toolsbasic"
 	_ "github.com/hedeqiang/crewbase/features/usage"
 	_ "github.com/hedeqiang/crewbase/providers/fs/local"
+	_ "github.com/hedeqiang/crewbase/providers/llm/acp"
+	_ "github.com/hedeqiang/crewbase/providers/llm/anthropic"
+	_ "github.com/hedeqiang/crewbase/providers/llm/gemini"
+	_ "github.com/hedeqiang/crewbase/providers/llm/local"
+	_ "github.com/hedeqiang/crewbase/providers/llm/magpie"
 	_ "github.com/hedeqiang/crewbase/providers/llm/mock"
+	_ "github.com/hedeqiang/crewbase/providers/llm/openai"
 	_ "github.com/hedeqiang/crewbase/providers/sandbox/docker"
 	_ "github.com/hedeqiang/crewbase/providers/sandbox/none"
 	_ "github.com/hedeqiang/crewbase/providers/sandbox/seatbelt"
@@ -51,9 +57,19 @@ var Base = kernel.Bundle{Name: "base", Entries: []kernel.Entry{
 	{ID: "credentials", Name: "@crewbase/credentials"},
 	{ID: "redact", Name: "@crewbase/redact"},
 	{ID: "llm", Name: "@crewbase/llm"},
-	{ID: "llm-mock", Name: "@crewbase/llm-mock", Config: map[string]any{"ids": []string{"mock"}}},
+	// Subscriptions first: logged-in CLIs over ACP, then local models.
+	// API providers (llm-openai / llm-anthropic / llm-gemini) are added by
+	// the user ("add provider"), which writes a patch entry.
+	{ID: "llm-acp", Name: "@crewbase/llm-acp"},
+	{ID: "llm-local", Name: "@crewbase/llm-local"},
+	// magpie gateway, registered only while magpie runs (github.com/yetone/magpie).
+	{ID: "llm-magpie", Name: "@crewbase/llm-magpie"},
+	// Deterministic mock for demos and tests; enable with a patch:
+	//   - id: llm-mock
+	//     disabled: false
+	{ID: "llm-mock", Name: "@crewbase/llm-mock", Config: map[string]any{"ids": []string{"mock"}}, Disabled: true},
 	{ID: "router", Name: "@crewbase/router-default"},
-	{ID: "agents", Name: "@crewbase/agents", Config: map[string]any{"root": "${root}", "defaultModels": []string{"mock/default"}}},
+	{ID: "agents", Name: "@crewbase/agents", Config: map[string]any{"root": "${root}", "defaultModels": []string{"acp-claude-code/default", "acp-codex/default", "acp-gemini-cli/default"}}},
 	{ID: "agent-loop", Name: "@crewbase/agent-loop"},
 	{ID: "channel", Name: "@crewbase/channel-local"},
 	{ID: "sandbox", Name: defaultSandbox()},
