@@ -31,6 +31,7 @@ import (
 	_ "github.com/hedeqiang/crewbase/features/schedule"
 	_ "github.com/hedeqiang/crewbase/features/skills"
 	_ "github.com/hedeqiang/crewbase/features/toolsbasic"
+	_ "github.com/hedeqiang/crewbase/features/usage"
 	_ "github.com/hedeqiang/crewbase/providers/fs/local"
 	_ "github.com/hedeqiang/crewbase/providers/llm/mock"
 	_ "github.com/hedeqiang/crewbase/providers/sandbox/docker"
@@ -77,6 +78,7 @@ var Desktop = kernel.Bundle{Name: "desktop", Entries: []kernel.Entry{
 	{ID: "channel-api", Name: "@crewbase/channel-api"},
 	{ID: "webhook", Name: "@crewbase/webhook"},
 	{ID: "routines-api", Name: "@crewbase/routines-api"},
+	{ID: "usage", Name: "@crewbase/usage"},
 }}
 
 // Server is headless: same API bound to localhost (remote access goes

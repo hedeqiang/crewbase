@@ -50,6 +50,9 @@ func (a *Adapter) Models(context.Context) ([]llm.ModelInfo, error) {
 	return append([]llm.ModelInfo(nil), a.models...), nil
 }
 
+// SetKind sets the provider kind reported by Kind (subscription/api/local).
+func (a *Adapter) SetKind(k string) { a.kind = k }
+
 // SetExhausted toggles simulated quota exhaustion.
 func (a *Adapter) SetExhausted(v bool) { a.exhausted.Store(v) }
 

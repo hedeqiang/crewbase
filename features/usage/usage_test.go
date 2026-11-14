@@ -1,0 +1,64 @@
+package usage_test
+
+import (
+	"testing"
+	"time"
+
+	"github.com/hedeqiang/crewbase/capabilities/approval"
+	"github.com/hedeqiang/crewbase/core/agent"
+	"github.com/hedeqiang/crewbase/core/agentloop"
+	"github.com/hedeqiang/crewbase/core/llm"
+	"github.com/hedeqiang/crewbase/core/prompt"
+	"github.com/hedeqiang/crewbase/core/session"
+	"github.com/hedeqiang/crewbase/core/tools"
+	"github.com/hedeqiang/crewbase/features/router"
+	"github.com/hedeqiang/crewbase/features/usage"
+	"github.com/hedeqiang/crewbase/kernel"
+	"github.com/hedeqiang/crewbase/providers/llm/mock"
+)
+
+func TestUsageAndSavings(t *testing.T) {
+	h := kernel.NewHost(nil)
+	t.Cleanup(h.Close)
+	root := t.TempDir()
+	for _, x := range []struct {
+		s   kernel.Spec
+		cfg map[string]any
+	}{
+		{session.Plugin, nil}, {prompt.Plugin, nil}, {tools.Plugin, nil}, {approval.Plugin, nil},
+		{llm.Plugin, nil}, {mock.Plugin, map[string]any{"ids": []string{"claude-code", "codex"}}}, {router.Plugin, nil},
+		{agent.Plugin, map[string]any{"root": root, "defaultModels": []string{"claude-code/default", "codex/default"}}},
+		{agentloop.Plugin, nil},
+		{usage.Plugin, map[string]any{"reference": map[string]float64{"input": 1e6, "output": 1e6}}},
+	} {
+		h.Load(x.s, kernel.LoadOptions{Config: x.cfg})
+	}
+	r := h.Root()
+	llms := kernel.Use[*llm.Registry](r, llm.ServiceKey)
+	cc, _ := llms.Get("claude-code")
+	cx, _ := llms.Get("codex")
+	cc.(*mock.Adapter).SetKind("subscription")
+	a, _ := kernel.Use[*agent.Registry](r, agent.ServiceKey).Create(agent.Spec{Name: "Kai"})
+	a.Enqueue(agent.Input{Text: "hello"})
+	agentloop.WaitIdle(a, 2*time.Second)
+	cc.(*mock.Adapter).SetExhausted(true)
+	a.Enqueue(agent.Input{Text: "next"}) // switches to codex, succeeds
+	agentloop.WaitIdle(a, 2*time.Second)
+	cx.(*mock.Adapter).SetExhausted(true)
+	a.Enqueue(agent.Input{Text: "fail"}) // nothing left → needs a person
+	agentloop.WaitIdle(a, 2*time.Second)
+
+	st := kernel.Use[*usage.Service](r, usage.ServiceKey).Compute()
+	if st.Messages != 2 || st.Tokens == 0 || st.PeakDay != time.Now().UTC().Format("2006-01-02") {
+		t.Fatalf("%+v", st)
+	}
+	if st.Switches < 1 || st.Interventions != 1 {
+		t.Fatalf("switches=%d interventions=%d", st.Switches, st.Interventions)
+	}
+	if st.Kinds["subscription"] == 0 || st.Kinds["api"] == 0 || st.SavedUSD <= 0 || st.SpentUSD <= 0 {
+		t.Fatalf("%+v", st)
+	}
+	if len(st.ByAgent) != 1 || st.ByAgent[0].Name != "Kai" || len(st.ByProvider) != 2 {
+		t.Fatalf("%+v %+v", st.ByAgent, st.ByProvider)
+	}
+}
