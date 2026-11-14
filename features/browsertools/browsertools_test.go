@@ -388,3 +388,48 @@ func waitSSE(t *testing.T, ch <-chan string, typ string) {
 		}
 	}
 }
+
+func TestHostAllowed(t *testing.T) {
+	allow := []string{"example.com", ".docs.io", "*.cdn.net"}
+	for host, want := range map[string]bool{
+		"example.com": true, "EXAMPLE.com.": true, "www.example.com": false,
+		"docs.io": true, "a.docs.io": true, "cdn.net": true, "x.y.cdn.net": true,
+		"evil-docs.io": false, "docs.io.evil.com": false, "": false,
+	} {
+		if got := browsertools.HostAllowed(allow, host); got != want {
+			t.Errorf("%q: %v", host, got)
+		}
+	}
+}
+
+// In confined modes the browser only loads allowed hosts; a link to
+// another host lands on about:blank with an explanation.
+func TestBrowserAllowlist(t *testing.T) {
+	outside := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, `<html><title>Outside</title><body>secret page</body></html>`)
+	}))
+	defer outside.Close()
+	// "localhost" is allowed; the outside server is reached via 127.0.0.1
+	inside := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprintf(w, `<html><title>Inside</title><body><a href="%s/x">leave</a></body></html>`, outside.URL)
+	}))
+	defer inside.Close()
+	insideURL := strings.Replace(inside.URL, "127.0.0.1", "localhost", 1)
+	e := setup(t, map[string]any{"allowHosts": []string{"localhost"}})
+	r := e.run(t, browsertools.ToolOpen, map[string]any{"url": insideURL})
+	if r.IsError || !strings.Contains(r.Content, "Inside") {
+		t.Fatalf("allowed open: %+v", r)
+	}
+	if r := e.run(t, browsertools.ToolOpen, map[string]any{"url": outside.URL}); !r.IsError || !strings.Contains(r.Content, "not on this agent's allowed hosts") {
+		t.Fatalf("blocked open: %+v", r)
+	}
+	// follow the link out: blocked after the fact, page cleared
+	e.run(t, browsertools.ToolOpen, map[string]any{"url": insideURL})
+	r = e.run(t, browsertools.ToolClick, map[string]any{"ref": 1})
+	if !r.IsError || !strings.Contains(r.Content, "127.0.0.1") {
+		t.Fatalf("click out: %+v", r)
+	}
+	if snap := e.run(t, browsertools.ToolSnapshot, map[string]any{}); strings.Contains(snap.Content, "secret page") {
+		t.Fatalf("page outside the allowlist still shown: %s", snap.Content)
+	}
+}

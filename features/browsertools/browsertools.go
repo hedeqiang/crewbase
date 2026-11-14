@@ -22,6 +22,7 @@ import (
 	"github.com/hedeqiang/crewbase/capabilities/notify"
 	"github.com/hedeqiang/crewbase/core/agent"
 	"github.com/hedeqiang/crewbase/core/tools"
+	"github.com/hedeqiang/crewbase/features/toolsbasic"
 	"github.com/hedeqiang/crewbase/kernel"
 )
 
@@ -33,6 +34,66 @@ type Config struct {
 	ActionTimeout string `json:"actionTimeout,omitempty"`
 	// TakeoverTimeout bounds browser_request_takeover (default 15m).
 	TakeoverTimeout string `json:"takeoverTimeout,omitempty"`
+	// AllowHosts limits what the agent's browser may load in read-only and
+	// sandbox modes (host mode is unrestricted): "example.com" matches that
+	// host, ".example.com" / "*.example.com" also its subdomains. Empty =
+	// no limit (as for commands, see tools-basic allowHosts).
+	AllowHosts []string `json:"allowHosts,omitempty"`
+}
+
+// HostAllowed reports whether host matches an allowlist entry.
+func HostAllowed(allow []string, host string) bool {
+	host = strings.ToLower(strings.TrimSuffix(host, "."))
+	for _, a := range allow {
+		a = strings.ToLower(strings.TrimSpace(a))
+		sub := strings.HasPrefix(a, "*.") || strings.HasPrefix(a, ".")
+		a = strings.TrimPrefix(strings.TrimPrefix(a, "*"), ".")
+		if a == "" {
+			continue
+		}
+		if host == a || (sub && strings.HasSuffix(host, "."+a)) {
+			return true
+		}
+	}
+	return false
+}
+
+// confined reports whether the call's run mode applies the allowlist.
+func (t *bt) confined(call tools.Call) bool {
+	return len(t.allow) > 0 && toolsbasic.EffectiveMode(call.Mode) != agent.ModeHost
+}
+
+// allowedURL checks a URL against the allowlist for this call.
+func (t *bt) allowedURL(call tools.Call, raw string) error {
+	if !t.confined(call) || raw == "about:blank" || raw == "" {
+		return nil
+	}
+	u, err := url.Parse(raw)
+	if err != nil || !HostAllowed(t.allow, u.Hostname()) {
+		host := raw
+		if err == nil {
+			host = u.Hostname()
+		}
+		return fmt.Errorf("%s is not on this agent's allowed hosts (%s); ask the user to add it or to switch to host mode", host, strings.Join(t.allow, ", "))
+	}
+	return nil
+}
+
+// leftAllowlist sends the page back to about:blank when an action (a
+// click, back) took it to a host outside the allowlist.
+func (t *bt) leftAllowlist(ctx context.Context, call tools.Call, s *browser.Session) error {
+	if !t.confined(call) {
+		return nil
+	}
+	cur, _, err := s.Location(ctx)
+	if err != nil {
+		return nil
+	}
+	if err := t.allowedURL(call, cur); err != nil {
+		_ = s.Navigate(ctx, "about:blank")
+		return err
+	}
+	return nil
 }
 
 // Tool names.
@@ -55,6 +116,7 @@ type bt struct {
 	max      int
 	action   time.Duration
 	takeover time.Duration
+	allow    []string
 }
 
 func (t *bt) agents() (*agent.Registry, bool) {
@@ -165,6 +227,9 @@ func (t *bt) open(ctx context.Context, call tools.Call) (tools.Result, error) {
 	if err != nil {
 		return tools.Errorf("%v", err), nil
 	}
+	if err := t.allowedURL(call, u); err != nil {
+		return tools.Errorf("%v", err), nil
+	}
 	s, ctx, cancel, err := t.session(ctx, call)
 	if err != nil {
 		return fail(err)
@@ -172,6 +237,9 @@ func (t *bt) open(ctx context.Context, call tools.Call) (tools.Result, error) {
 	defer cancel()
 	if err := s.Navigate(ctx, u); err != nil {
 		return fail(err)
+	}
+	if err := t.leftAllowlist(ctx, call, s); err != nil { // e.g. a redirect
+		return tools.Errorf("%v", err), nil
 	}
 	return t.snap(ctx, s, "")
 }
@@ -214,6 +282,9 @@ func (t *bt) click(ctx context.Context, call tools.Call) (tools.Result, error) {
 	}
 	if err := settle(ctx, s); err != nil {
 		return fail(err)
+	}
+	if err := t.leftAllowlist(ctx, call, s); err != nil {
+		return tools.Errorf("%v", err), nil
 	}
 	return t.snap(ctx, s, fmt.Sprintf("Clicked [%d].\n", n))
 }
@@ -268,6 +339,9 @@ func (t *bt) typeTool(ctx context.Context, call tools.Call) (tools.Result, error
 		}
 		prefix = fmt.Sprintf("Typed into [%d] and pressed Enter.\n", n)
 	}
+	if err := t.leftAllowlist(ctx, call, s); err != nil {
+		return tools.Errorf("%v", err), nil
+	}
 	return t.snap(ctx, s, prefix)
 }
 
@@ -285,6 +359,9 @@ func (t *bt) back(ctx context.Context, call tools.Call) (tools.Result, error) {
 	}
 	if err := settle(ctx, s); err != nil {
 		return fail(err)
+	}
+	if err := t.leftAllowlist(ctx, call, s); err != nil {
+		return tools.Errorf("%v", err), nil
 	}
 	return t.snap(ctx, s, "Went back.\n")
 }
@@ -426,7 +503,7 @@ var Plugin = kernel.Register(kernel.Spec{
 		if err != nil {
 			return err
 		}
-		t := &bt{c: c, b: kernel.Use[browser.Browser](c, browser.ServiceKey), max: cfg.MaxSnapshotChars,
+		t := &bt{c: c, b: kernel.Use[browser.Browser](c, browser.ServiceKey), max: cfg.MaxSnapshotChars, allow: cfg.AllowHosts,
 			action: 30 * time.Second, takeover: 15 * time.Minute}
 		if t.max <= 0 {
 			t.max = 12000
