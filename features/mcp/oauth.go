@@ -142,10 +142,10 @@ func (s *Service) SignOut(name string) error {
 
 // savingSource persists refreshed tokens.
 type savingSource struct {
-	src   oauth2.TokenSource
-	save  func(*oauth2.Token)
-	mu    sync.Mutex
-	last  string
+	src  oauth2.TokenSource
+	save func(*oauth2.Token)
+	mu   sync.Mutex
+	last string
 }
 
 func (t *savingSource) Token() (*oauth2.Token, error) {
@@ -251,4 +251,3 @@ func (c *conn) oauthHandler(ctx context.Context) (auth.OAuthHandler, error) {
 }
 
 func isLoopback(h string) bool { return h == "127.0.0.1" || h == "localhost" || h == "::1" }
-
