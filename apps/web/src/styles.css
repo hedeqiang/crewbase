@@ -1166,7 +1166,7 @@ button.tg:disabled { opacity: .5; cursor: not-allowed; }
 .relaynote svg { color: var(--ok-text); flex: none; }
 .devhead { display: flex; align-items: center; gap: 8px; }
 .devhead .sp { flex: 1; }
-.devrow { cursor: default; }
+.devrow { cursor: default; grid-template-columns: auto minmax(0, 1fr) auto auto; }
 .devrow .g span { font-size: 12px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .devrow .ix.dng:hover { color: var(--danger-text); }
 .devempty { padding: 14px 0 0; }
@@ -1179,3 +1179,50 @@ button.tg:disabled { opacity: .5; cursor: not-allowed; }
 .waitpair { display: inline-flex; align-items: center; gap: 6px; }
 @media (max-width: 560px) { .pairbody { flex-direction: column; } .pairinfo { align-items: center; text-align: center; } }
 .tiernote { margin: 12px 24px 0; padding: 10px 12px; border-radius: 10px; background: var(--raised); font-size: 12.5px; color: var(--text2); }
+
+/* ---- members & roles */
+.teamrow { cursor: default; align-items: center; grid-template-columns: auto minmax(0, 1fr) auto auto auto; }
+.teamrow .ssel select { min-width: 110px; }
+.teamrow .tcats { white-space: normal; }
+.teamrow .g { display: flex; flex-direction: column; gap: 3px; min-width: 0; flex: 1; }
+.teamrow .g > span { font-size: 12px; color: var(--muted); }
+.tav.owner { width: 30px; height: 30px; border-radius: 15px; display: grid; place-items: center; background: var(--amber-soft); color: var(--amber-text); flex: none; }
+.tcats { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; margin-top: 4px; }
+.tcats .small { margin-right: 2px; }
+.tcat { height: 22px; padding: 0 8px; border-radius: 11px; border: 1px solid var(--border2); font-size: 11.5px; color: var(--muted); background: var(--surface); }
+.tcat.on { border-color: color-mix(in srgb, var(--accent) 45%, transparent); background: var(--accent-soft); color: var(--accent-text); }
+.teamadd { display: flex; gap: 8px; margin-top: 14px; flex-wrap: wrap; }
+.teamadd .fi { flex: 1; min-width: 160px; }
+.apprro { color: var(--muted); }
+.ssel.sm select { padding: 4px 26px 4px 10px; font-size: 12.5px; min-width: 0; line-height: 18px; }
+
+/* ---- task board */
+.boardhead { display: flex; align-items: center; justify-content: space-between; margin-top: 18px; }
+.bprog { height: 4px; border-radius: 2px; background: var(--sunken); overflow: hidden; margin: -2px 0 8px; }
+.bprog i { display: block; height: 100%; background: var(--ok); border-radius: 2px; transition: width .3s; }
+.badd { display: flex; gap: 6px; margin-bottom: 8px; }
+.badd .fi { flex: 1; min-width: 0; }
+.boardempty { margin: 0 0 6px; line-height: 1.55; }
+.board { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.btask { border: 1px solid var(--border); border-radius: 10px; background: var(--surface); }
+.btask .bt { width: 100%; display: flex; align-items: flex-start; gap: 8px; padding: 8px 10px; text-align: left; }
+.btask .bi { color: var(--muted); padding-top: 2px; flex: none; }
+.btask.s-doing .bi { color: var(--accent-text); }
+.btask.s-blocked { border-color: color-mix(in srgb, var(--danger) 35%, transparent); }
+.btask.s-blocked .bi { color: var(--danger-text); }
+.btask.s-done .bi { color: var(--ok-text); }
+.btask.s-done .bg b { color: var(--muted); text-decoration: line-through; text-decoration-color: color-mix(in srgb, var(--muted) 50%, transparent); }
+.btask.ready .bi { color: var(--amber-text); }
+.btask .bg { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.btask .bg b { font-size: 12.5px; font-weight: 500; line-height: 1.4; }
+.btask .bg > span { font-size: 11.5px; color: var(--muted); display: inline-flex; align-items: center; gap: 4px; flex-wrap: wrap; }
+.bid { color: var(--muted); font-weight: 400; font-variant-numeric: tabular-nums; }
+.bdet { padding: 0 10px 10px 32px; display: flex; flex-direction: column; gap: 6px; }
+.bdet p { margin: 0; line-height: 1.5; }
+.bnote.blk { color: var(--danger-text); }
+.bdep { display: inline-block; margin: 0 6px 2px 0; padding: 0 6px; border-radius: 6px; background: var(--sunken); }
+.bdep.ok { color: var(--ok-text); }
+.bmeta { color: var(--muted); }
+.bacts { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.bacts .ssel select { min-width: 0; }
+.tiernote.viewnote { margin: 0; text-align: center; }

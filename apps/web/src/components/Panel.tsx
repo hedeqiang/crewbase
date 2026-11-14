@@ -1,3 +1,4 @@
+import { TaskBoard } from "./TaskBoard";
 import { useEffect, useMemo, useState } from "react";
 import { Archive, ArrowDown, ArrowUp, Globe, GripVertical, Link2, Minimize2, Pause, Play, Plus, Shuffle, Square, Trash, UserPlus, X } from "lucide-react";
 import { API, refString, type AgentView, type ChannelView, type ContextBreakdown, type ModelRef } from "../api";
@@ -44,6 +45,7 @@ export function Panel() {
       </div>
       <div className="pbody">
         {tab === "task" && (channel ? <ChannelTask key={channel.id} channel={channel} /> : <TaskTab agent={agent} />)}
+        {tab === "task" && <TaskBoard key={current ?? agent.session} session={current ?? agent.session} />}
         {tab === "files" && <FilesTab agent={agent} />}
         {tab === "agent" && <AgentTab key={agent.id} agent={agent} sessionId={current ?? agent.session} />}
         {pluginTab && (

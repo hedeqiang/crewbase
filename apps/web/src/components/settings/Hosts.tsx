@@ -1,10 +1,10 @@
 import { Cloud, Copy, Laptop, Loader2, Pencil, RefreshCw, ShieldCheck, Smartphone, Trash2, Wifi, X } from "lucide-react";
 import qrcode from "qrcode-generator";
 import { useEffect, useMemo, useState } from "react";
-import { API, type DeviceView, type PairingCode, type RelayStatus } from "../../api";
+import { API, type DeviceView, type MemberView, type PairingCode, type RelayStatus } from "../../api";
 import { ago } from "../../format";
-import { t } from "../../i18n";
-import { toast, useStore } from "../../store";
+import { t, type Key } from "../../i18n";
+import { setState, toast, useStore } from "../../store";
 import { Head } from "../Settings";
 
 /** A QR code drawn as SVG rects (no HTML injection). */
@@ -47,7 +47,21 @@ export function Hosts() {
   const [busy, setBusy] = useState("");
   const [rename, setRename] = useState<{ id: string; name: string } | null>(null);
   const sys = useStore((s) => s.profile.system);
+  const pairFor = useStore((s) => s.pairFor);
+  const [members, setMembers] = useState<MemberView[]>([]);
+  const [who, setWho] = useState("");
   const now = useNow();
+  useEffect(() => {
+    API.members()
+      .then((r) => setMembers(r.members))
+      .catch(() => {});
+  }, []);
+  useEffect(() => {
+    if (pairFor) {
+      setWho(pairFor);
+      setState({ pairFor: null });
+    }
+  }, [pairFor]);
 
   const load = async () => {
     try {
@@ -68,7 +82,7 @@ export function Hosts() {
   const start = async (tier: "mobile" | "desktop") => {
     setBusy("pair");
     try {
-      const p = await API.startPairing(tier);
+      const p = await API.startPairing(tier, who);
       // through the relay when one is set up, else the address of this page
       const link = relay?.configured ? (await API.relayPairLink(p.code)).url : `${location.origin}/#/pair?code=${encodeURIComponent(p.code)}`;
       setOpen({ p, link });
@@ -171,7 +185,19 @@ export function Hosts() {
         <div className="vsec devhead">
           <span>{t("dev.devices")}</span>
           <span className="sp" />
-          <button className="btn sm" type="button" disabled={busy !== "" || !!err} onClick={() => void start("desktop")}>
+          {members.length > 0 && (
+            <span className="ssel sm" title={t("team.pairWho")}>
+              <select value={who} aria-label={t("team.pairWho")} onChange={(e) => setWho(e.target.value)}>
+                <option value="">{t("team.pairOwner")}</option>
+                {members.map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.name} · {t(`team.role.${m.role}` as Key)}
+                  </option>
+                ))}
+              </select>
+            </span>
+          )}
+          <button className="btn sm" type="button" disabled={busy !== "" || !!err} hidden={!!who} onClick={() => void start("desktop")}>
             <Laptop size={13} /> {t("dev.pairComputer")}
           </button>
           <button className="btn pri sm" type="button" disabled={busy !== "" || !!err} onClick={() => void start("mobile")}>
@@ -203,7 +229,7 @@ export function Hosts() {
                     <b>{d.name}</b>
                   )}
                   <span>
-                    {[d.platform, d.tier === "desktop" ? t("dev.tierDesktop") : t("dev.tierMobile"), d.via === "relay" ? t("dev.viaRelay") : t("dev.viaLan"), d.lastSeen ? t("dev.seen", { t: ago(d.lastSeen) }) : ""]
+                    {[d.member ? members.find((m) => m.id === d.member)?.name : "", d.platform, d.tier === "desktop" ? t("dev.tierDesktop") : t("dev.tierMobile"), d.via === "relay" ? t("dev.viaRelay") : t("dev.viaLan"), d.lastSeen ? t("dev.seen", { t: ago(d.lastSeen) }) : ""]
                       .filter(Boolean)
                       .join(" · ")}
                   </span>

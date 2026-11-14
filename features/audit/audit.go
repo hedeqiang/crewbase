@@ -14,6 +14,7 @@ import (
 	"github.com/hedeqiang/crewbase/core/tools"
 	"github.com/hedeqiang/crewbase/features/devices"
 	"github.com/hedeqiang/crewbase/features/gateway"
+	"github.com/hedeqiang/crewbase/features/members"
 	"github.com/hedeqiang/crewbase/features/rules"
 	"github.com/hedeqiang/crewbase/kernel"
 )
@@ -40,6 +41,9 @@ const (
 	TypeDeviceRevoked   = "device/revoked"
 	TypeDeviceRenamed   = "device/renamed"
 	TypeAuthFailed      = "gateway/auth-failed"
+	TypeMemberAdded     = "member/added"
+	TypeMemberChanged   = "member/changed"
+	TypeMemberRemoved   = "member/removed"
 	// Session events with these prefixes are copied (goal authorisation
 	// and status changes are security relevant: docs/06 §9).
 	goalPrefix = "goal/"
@@ -208,8 +212,15 @@ var Plugin = kernel.Register(kernel.Spec{
 				actor = ev.Device.ID
 			}
 			rec(Entry{Type: typ, Actor: actor, Data: map[string]any{
-				"device": ev.Device.ID, "name": ev.Device.Name, "tier": ev.Device.Tier, "via": ev.Device.Via, "platform": ev.Device.Platform,
+				"device": ev.Device.ID, "name": ev.Device.Name, "tier": ev.Device.Tier, "via": ev.Device.Via, "platform": ev.Device.Platform, "member": ev.Device.Member,
 			}})
+		})
+		members.Changed.Listen(c, func(ev members.Event) {
+			typ := map[string]string{"added": TypeMemberAdded, "changed": TypeMemberChanged, "removed": TypeMemberRemoved}[ev.Kind]
+			if typ == "" {
+				return
+			}
+			rec(Entry{Type: typ, Actor: ev.By, Data: map[string]any{"member": ev.Member.ID, "name": ev.Member.Name, "role": ev.Member.Role, "approve": ev.Member.Approve}})
 		})
 		// Rejected tokens: at most one record per remote address a minute
 		// (a scanner must not be able to flood the chain).

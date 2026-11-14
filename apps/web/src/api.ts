@@ -684,6 +684,47 @@ export interface DeviceView {
   created: string;
   lastSeen?: string;
   via?: "lan" | "relay";
+  member?: string;
+}
+
+export interface MemberView {
+  id: string;
+  name: string;
+  role: "admin" | "member" | "viewer";
+  approve: string[];
+  created: string;
+  devices?: number;
+}
+
+export interface TaskView {
+  id: string;
+  title: string;
+  detail?: string;
+  owner?: string;
+  status: "todo" | "doing" | "blocked" | "done";
+  deps?: string[];
+  scope?: string[];
+  note?: string;
+  by: string;
+  created: string;
+  updated: string;
+  ready: boolean;
+  waiting?: string[];
+}
+
+export interface BoardView {
+  root: string;
+  tasks: TaskView[];
+}
+
+export interface TaskChange {
+  title?: string;
+  detail?: string;
+  owner?: string;
+  status?: string;
+  deps?: string[];
+  scope?: string[];
+  note?: string;
 }
 
 export interface PairingCode {
@@ -702,8 +743,17 @@ export const API = {
   health: () => api<{ ok: boolean }>("GET", "/api/health"),
   pair: (b: { code: string; name: string; platform: string }) => api<{ token: string; device: DeviceView }>("POST", "/api/pair", b),
   whoami: () => api<{ tier: string; device?: DeviceView }>("GET", "/api/whoami"),
+  me: () => api<{ id: string; name: string; role: "owner" | "admin" | "member" | "viewer"; approve: string[] }>("GET", "/api/me"),
+  members: () => api<{ members: MemberView[]; ownerDevices: number; roles: string[]; approvable: string[] }>("GET", "/api/members"),
+  addTeamMember: (b: { name: string; role: string }) => api<MemberView>("POST", "/api/members", b),
+  updateMember: (id: string, b: { name?: string; role?: string; approve?: string[] }) => api<MemberView>("PATCH", `/api/members/${enc(id)}`, b),
+  removeMember: (id: string) => api<{ devices: number }>("DELETE", `/api/members/${enc(id)}`),
+  board: (session: string) => api<BoardView>("GET", `/api/board?session=${encodeURIComponent(session)}`),
+  addTask: (session: string, b: TaskChange) => api<TaskView>("POST", `/api/board/tasks?session=${encodeURIComponent(session)}`, b),
+  updateTask: (session: string, id: string, b: TaskChange) => api<TaskView>("PATCH", `/api/board/tasks/${enc(id)}?session=${encodeURIComponent(session)}`, b),
+  removeTask: (session: string, id: string) => api("DELETE", `/api/board/tasks/${enc(id)}?session=${encodeURIComponent(session)}`),
   devices: () => api<{ devices: DeviceView[]; pending: PairingCode[] }>("GET", "/api/devices"),
-  startPairing: (tier: string) => api<PairingCode>("POST", "/api/devices/pairing", { tier }),
+  startPairing: (tier: string, member = "") => api<PairingCode>("POST", "/api/devices/pairing", { tier, member }),
   cancelPairing: (code: string) => api("DELETE", `/api/devices/pairing/${enc(code)}`),
   renameDevice: (id: string, name: string) => api<DeviceView>("PATCH", `/api/devices/${enc(id)}`, { name }),
   revokeDevice: (id: string) => api("DELETE", `/api/devices/${enc(id)}`),

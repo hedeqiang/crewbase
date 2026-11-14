@@ -606,6 +606,7 @@ function Composer({
   const models = useStore((s) => s.models);
   const composerActions = useSlot("composer.action");
   const manage = useStore((s) => s.tier === "desktop");
+  const viewer = useStore((s) => s.tier === "viewer");
   const [sending, setSending] = useState(false);
   const pending = useStore((s) => s.attach[sessionId]) ?? NO_FILES;
   const [dragging, setDragging] = useState(false);
@@ -743,6 +744,12 @@ function Composer({
   const others = allModels(models).filter((m) => !order.some((r) => sameRef(r, m.ref)));
   const mode = agent.effectiveMode || agent.mode || "sandbox";
 
+  if (viewer)
+    return (
+      <div className="cwrap">
+        <p className="tiernote viewnote">{t("team.viewerComposer")}</p>
+      </div>
+    );
   return (
     <div className="cwrap">
       {hostConfirm && (

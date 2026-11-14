@@ -4,6 +4,7 @@ package api
 
 import (
 	"context"
+	"fmt"
 	"strconv"
 	"strings"
 	"time"
@@ -49,6 +50,13 @@ type ProviderView struct {
 	Models []llm.ModelInfo `json:"models"`
 	Quota  *llm.Quota      `json:"quota,omitempty"`
 	Error  string          `json:"error,omitempty"`
+}
+
+// Approver is the `members` service as seen by the API: who may approve
+// what, and the name a device's messages carry.
+type Approver interface {
+	CanApprove(deviceID, category string) (name string, ok bool)
+	SenderName(deviceID string) string
 }
 
 type sendBody struct {
@@ -284,6 +292,10 @@ var Plugin = kernel.Register(kernel.Spec{
 				var b sendBody
 				_ = r.Decode(&b)
 				in := agent.Input{Text: b.Text, From: b.From, Session: b.Session, Front: b.Front}
+				// a team member's messages carry their name, whatever the client says
+				if who, ok := kernel.Lookup[Approver](c, "members"); ok && r.DeviceID != "" {
+					in.From = who.SenderName(r.DeviceID)
+				}
 				for _, x := range b.Attachments {
 					at, err := attachments.Resolve(a.Workspace(), x.Path, x.Name)
 					if err != nil {
@@ -412,7 +424,27 @@ var Plugin = kernel.Register(kernel.Spec{
 				if r.Device != "desktop" {
 					b.Remember = false
 				}
-				if !in.Decide(r.Params["callId"], approval.Decision{Outcome: b.Outcome, Message: b.Message, Remember: b.Remember, Confirmed: b.Confirmed, By: r.Device}) {
+				by := r.Device
+				// Team members approve only what their role trusts them with.
+				if who, ok := kernel.Lookup[Approver](c, "members"); ok && r.DeviceID != "" {
+					cat := ""
+					for _, p := range in.Pending() {
+						if p.CallID == r.Params["callId"] {
+							cat = p.Category
+						}
+					}
+					if cat == "" {
+						return nil, gateway.NotFound()
+					}
+					name, allowed := who.CanApprove(r.DeviceID, cat)
+					if !allowed && b.Outcome != approval.OutcomeRejected {
+						return nil, &gateway.Error{Status: 403, Code: "forbidden", Message: fmt.Sprintf("your role cannot approve %s actions; you can reject it or ask the owner", cat)}
+					}
+					if name != "" {
+						by = name
+					}
+				}
+				if !in.Decide(r.Params["callId"], approval.Decision{Outcome: b.Outcome, Message: b.Message, Remember: b.Remember, Confirmed: b.Confirmed, By: by}) {
 					return nil, gateway.NotFound()
 				}
 				return nil, nil

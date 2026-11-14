@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { API, type ApprovalRequest } from "../api";
 import { t } from "../i18n";
-import { refreshApprovals, toast, useStore } from "../store";
+import { refreshApprovals, toast, useStore, canApprove } from "../store";
 
 /** 批准 / 拒绝(填原因) / 以后都允许 — shared by the card, the 需要你 menu and settings. */
 export function ApprovalActions({ req, small = false, extra }: { req: ApprovalRequest; small?: boolean; extra?: React.ReactNode }) {
@@ -10,6 +10,9 @@ export function ApprovalActions({ req, small = false, extra }: { req: ApprovalRe
   const [mode, setMode] = useState<"idle" | "reject" | "confirm">("idle");
   const [reason, setReason] = useState("");
   const [busy, setBusy] = useState(false);
+  const me = useStore((s) => s.me);
+  const tier = useStore((s) => s.tier);
+  const mayApprove = canApprove(me, req.category);
 
   const decide = async (outcome: "allowed-once" | "rejected", opts: { message?: string; remember?: boolean; confirmed?: boolean } = {}) => {
     setBusy(true);
@@ -66,15 +69,22 @@ export function ApprovalActions({ req, small = false, extra }: { req: ApprovalRe
       </div>
     );
 
+  if (tier === "viewer") return <p className="small apprro">{t("team.viewerApproval")}</p>;
   return (
     <div className={"acts" + (small ? " sm" : "")}>
-      <button className="btn pri" type="button" disabled={busy} onClick={() => decide("allowed-once")}>
-        {t("appr.approve")}
-      </button>
+      {mayApprove ? (
+        <button className="btn pri" type="button" disabled={busy} onClick={() => decide("allowed-once")}>
+          {t("appr.approve")}
+        </button>
+      ) : (
+        <span className="small apprro" title={t("team.cannotApproveTitle", { category: req.category })}>
+          {t("team.cannotApprove", { category: req.category })}
+        </span>
+      )}
       <button className="btn" type="button" disabled={busy} onClick={() => setMode("reject")}>
         {t("appr.reject")}
       </button>
-      {req.rememberable && (
+      {req.rememberable && tier === "desktop" && (
         <button
           className="btn ghost"
           type="button"

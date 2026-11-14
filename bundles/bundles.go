@@ -32,6 +32,7 @@ import (
 	_ "github.com/hedeqiang/crewbase/features/goals"
 	_ "github.com/hedeqiang/crewbase/features/im"
 	_ "github.com/hedeqiang/crewbase/features/mcp"
+	_ "github.com/hedeqiang/crewbase/features/members"
 	_ "github.com/hedeqiang/crewbase/features/memory"
 	_ "github.com/hedeqiang/crewbase/features/plugins"
 	_ "github.com/hedeqiang/crewbase/features/providers"
@@ -45,6 +46,7 @@ import (
 	_ "github.com/hedeqiang/crewbase/features/schedule"
 	_ "github.com/hedeqiang/crewbase/features/skills"
 	_ "github.com/hedeqiang/crewbase/features/subagent"
+	_ "github.com/hedeqiang/crewbase/features/taskboard"
 	_ "github.com/hedeqiang/crewbase/features/telemetry"
 	_ "github.com/hedeqiang/crewbase/features/toolsbasic"
 	_ "github.com/hedeqiang/crewbase/features/topics"
@@ -114,6 +116,7 @@ var Base = kernel.Bundle{Name: "base", Entries: []kernel.Entry{
 	{ID: "topics", Name: "@crewbase/topics"},
 	{ID: "audit", Name: "@crewbase/audit", Config: map[string]any{"dir": "${root}"}},
 	{ID: "goals", Name: "@crewbase/goals"},
+	{ID: "taskboard", Name: "@crewbase/taskboard"},
 	// OpenTelemetry export is off by default (no telemetry leaves the machine).
 	{ID: "otel", Name: "@crewbase/otel", Config: map[string]any{"endpoint": "http://127.0.0.1:4318"}, Disabled: true},
 	// IM gateways: outbound connections only (no public webhook). Enable
@@ -162,6 +165,8 @@ var Desktop = kernel.Bundle{Name: "desktop", Entries: []kernel.Entry{
 	{ID: "ui-api", Name: "@crewbase/ui-api"},
 	{ID: "attachments-api", Name: "@crewbase/attachments-api"},
 	{ID: "devices", Name: "@crewbase/devices", Config: map[string]any{"dir": "${root}"}},
+	{ID: "members", Name: "@crewbase/members", Config: map[string]any{"dir": "${root}"}},
+	{ID: "taskboard-api", Name: "@crewbase/taskboard-api"},
 	// Outbound relay link (zero inbound ports); set config.url to enable.
 	{ID: "relay", Name: "@crewbase/relay", Config: map[string]any{"dir": "${root}"}, Disabled: true},
 	{ID: "audit-ui", Name: "@crewbase/audit-ui"},
@@ -175,6 +180,8 @@ var Server = kernel.Bundle{Name: "server", Entries: []kernel.Entry{
 	{ID: "api", Name: "@crewbase/api"},
 	{ID: "channel-api", Name: "@crewbase/channel-api"},
 	{ID: "devices", Name: "@crewbase/devices", Config: map[string]any{"dir": "${root}"}},
+	{ID: "members", Name: "@crewbase/members", Config: map[string]any{"dir": "${root}"}},
+	{ID: "taskboard-api", Name: "@crewbase/taskboard-api"},
 	{ID: "relay", Name: "@crewbase/relay", Config: map[string]any{"dir": "${root}"}, Disabled: true},
 }}
 

@@ -36,7 +36,16 @@ const ServiceKey = "devices"
 const (
 	TierMobile  = "mobile"
 	TierDesktop = "desktop"
+	// TierViewer may only read (GET routes open to mobile).
+	TierViewer = "viewer"
 )
+
+// RoleResolver maps a member to the tier of their role; ok=false when the
+// member no longer exists (their devices then stop working). Implemented
+// by the `members` service.
+type RoleResolver interface {
+	MemberTier(member string) (tier string, ok bool)
+}
 
 // Limits.
 const (
@@ -58,8 +67,10 @@ type Device struct {
 	Created  time.Time `json:"created"`
 	LastSeen time.Time `json:"lastSeen,omitzero"`
 	// Via is how it reaches this computer: "lan" (direct) or "relay".
-	Via  string `json:"via,omitempty"`
-	Hash string `json:"hash"` // sha256(token), hex
+	Via string `json:"via,omitempty"`
+	// Member is the person the device belongs to ("" = the owner).
+	Member string `json:"member,omitempty"`
+	Hash   string `json:"hash"` // sha256(token), hex
 }
 
 // View is a device without its hash.
@@ -71,16 +82,18 @@ type View struct {
 	Created  time.Time `json:"created"`
 	LastSeen time.Time `json:"lastSeen,omitzero"`
 	Via      string    `json:"via,omitempty"`
+	Member   string    `json:"member,omitempty"`
 }
 
 func (d Device) view() View {
-	return View{ID: d.ID, Name: d.Name, Tier: d.Tier, Platform: d.Platform, Created: d.Created, LastSeen: d.LastSeen, Via: d.Via}
+	return View{ID: d.ID, Name: d.Name, Tier: d.Tier, Platform: d.Platform, Created: d.Created, LastSeen: d.LastSeen, Via: d.Via, Member: d.Member}
 }
 
 // Pairing is an open pairing code.
 type Pairing struct {
 	Code    string    `json:"code"` // XXXX-XXXX
 	Tier    string    `json:"tier"`
+	Member  string    `json:"member,omitempty"`
 	Expires time.Time `json:"expires"`
 }
 
@@ -109,6 +122,9 @@ var (
 type Service struct {
 	path string
 	now  func() time.Time
+	// roles resolves member devices' tiers at every request (nil: members
+	// are not loaded, so member devices are refused).
+	roles func() (RoleResolver, bool)
 
 	mu      sync.Mutex
 	devices map[string]*Device
@@ -178,12 +194,37 @@ func (s *Service) sweepLocked() {
 	}
 }
 
-// StartPairing opens a pairing code for a device of tier.
-func (s *Service) StartPairing(tier string) (Pairing, error) {
+// SetRoles installs the member role resolver.
+func (s *Service) SetRoles(f func() (RoleResolver, bool)) { s.roles = f }
+
+func (s *Service) memberTier(member string) (string, bool) {
+	if s.roles == nil {
+		return "", false
+	}
+	r, ok := s.roles()
+	if !ok {
+		return "", false
+	}
+	return r.MemberTier(member)
+}
+
+// StartPairing opens a pairing code for a device of tier. For a member's
+// device the tier comes from the member's role.
+func (s *Service) StartPairing(tier string) (Pairing, error) { return s.StartPairingFor(tier, "") }
+
+// StartPairingFor opens a code for a device of member ("" = the owner).
+func (s *Service) StartPairingFor(tier, member string) (Pairing, error) {
+	if member != "" {
+		t, ok := s.memberTier(member)
+		if !ok {
+			return Pairing{}, fmt.Errorf("unknown member %q", member)
+		}
+		tier = t
+	}
 	if tier == "" {
 		tier = TierMobile
 	}
-	if tier != TierMobile && tier != TierDesktop {
+	if tier != TierMobile && tier != TierDesktop && tier != TierViewer {
 		return Pairing{}, fmt.Errorf("unknown tier %q", tier)
 	}
 	raw, err := randString(8, codeAlphabet)
@@ -199,7 +240,7 @@ func (s *Service) StartPairing(tier string) (Pairing, error) {
 	if len(s.devices) >= maxDevices {
 		return Pairing{}, fmt.Errorf("at most %d devices can be paired", maxDevices)
 	}
-	p := Pairing{Code: raw[:4] + "-" + raw[4:], Tier: tier, Expires: s.now().Add(CodeTTL)}
+	p := Pairing{Code: raw[:4] + "-" + raw[4:], Tier: tier, Member: member, Expires: s.now().Add(CodeTTL)}
 	s.pending[raw] = p
 	return p, nil
 }
@@ -267,7 +308,7 @@ func (s *Service) Redeem(code, name, platform, via string) (Paired, error) {
 	if via == "" {
 		via = "lan"
 	}
-	d := &Device{ID: "dev_" + id, Name: name, Tier: p.Tier, Platform: cleanName(platform), Created: s.now().UTC(), LastSeen: s.now().UTC(), Via: via, Hash: hashToken(tok)}
+	d := &Device{ID: "dev_" + id, Name: name, Tier: p.Tier, Member: p.Member, Platform: cleanName(platform), Created: s.now().UTC(), LastSeen: s.now().UTC(), Via: via, Hash: hashToken(tok)}
 	s.mu.Lock()
 	s.devices[d.ID] = d
 	err = s.saveLocked()
@@ -298,6 +339,14 @@ func (s *Service) Verify(tok string) (View, bool) {
 	if found == nil {
 		return View{}, false
 	}
+	if found.Member != "" {
+		// the member's current role decides; a removed member's devices stop
+		tier, ok := s.memberTier(found.Member)
+		if !ok {
+			return View{}, false
+		}
+		found.Tier = tier
+	}
 	now := s.now().UTC()
 	found.LastSeen = now
 	if now.Sub(s.saved[found.ID]) > seenInterval {
@@ -316,6 +365,26 @@ func (s *Service) List() []View {
 		out = append(out, d.view())
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].LastSeen.After(out[j].LastSeen) })
+	return out
+}
+
+// RevokeMember removes every device of member; it returns them.
+func (s *Service) RevokeMember(member string) []View {
+	if member == "" {
+		return nil
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	var out []View
+	for id, d := range s.devices {
+		if d.Member == member {
+			out = append(out, d.view())
+			delete(s.devices, id)
+		}
+	}
+	if len(out) > 0 {
+		_ = s.saveLocked()
+	}
 	return out
 }
 

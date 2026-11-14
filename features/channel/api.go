@@ -83,6 +83,10 @@ var APIPlugin = kernel.Register(kernel.Spec{
 					From string `json:"from"`
 				}
 				_ = r.Decode(&b)
+				// a team member's messages carry their name
+				if who, ok := kernel.Lookup[interface{ SenderName(string) string }](c, "members"); ok && r.DeviceID != "" {
+					b.From = who.SenderName(r.DeviceID)
+				}
 				res, err := s.Post(r.Params["id"], b.Text, b.From)
 				if err != nil {
 					return nil, gateway.Conflict("%v", err)

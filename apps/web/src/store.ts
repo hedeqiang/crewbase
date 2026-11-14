@@ -40,7 +40,8 @@ export type SettingsSection =
   | "computer"
   | "auto"
   | "approvals"
-  | "hosts";
+  | "hosts"
+  | "team";
 
 export interface StreamBuf {
   text: string;
@@ -60,6 +61,13 @@ export interface PendingFile {
   preview?: string;
 }
 
+export interface Me {
+  id: string;
+  name: string;
+  role: "owner" | "admin" | "member" | "viewer";
+  approve: string[];
+}
+
 export interface Toast {
   id: number;
   text: string;
@@ -77,7 +85,13 @@ export interface State {
   authed: boolean | null; // null = checking
   /** What this client may do: "desktop" (full control) or "mobile"
    *  (view, approve, send) — paired phones (GET /api/whoami). */
-  tier: "desktop" | "mobile";
+  tier: "desktop" | "mobile" | "viewer";
+  /** Who is using this client (GET /api/me): the owner or a team member. */
+  me: Me | null;
+  /** Bumped per board root on SSE "board.changed". */
+  boardTick: Record<string, number>;
+  /** Member to pair a device for when 主机与设备 opens (from 成员与角色). */
+  pairFor: string | null;
   /** Folders created from the list; kept even while empty (settings.json). */
   savedFolders: string[];
   /** Interface slot contributions from plugins (GET /api/ui). */
@@ -146,6 +160,9 @@ const HIST_MAX = 30;
 let state: State = {
   authed: null,
   tier: "desktop",
+  me: null,
+  boardTick: {},
+  pairFor: null,
   connected: false,
   agents: {},
   sessions: {},
@@ -493,12 +510,14 @@ export async function refreshUI() {
 }
 
 export async function refreshTier() {
-  try {
-    const r = await API.whoami();
-    setState({ tier: r.tier === "desktop" ? "desktop" : "mobile" });
-  } catch {
-    /* older daemon: the local token is full control */
-  }
+  const [w, m] = await Promise.allSettled([API.whoami(), API.me()]);
+  if (w.status === "fulfilled") setState({ tier: w.value.tier === "desktop" ? "desktop" : w.value.tier === "viewer" ? "viewer" : "mobile" });
+  if (m.status === "fulfilled") setState({ me: m.value });
+}
+
+/** Whether this person may approve an action of category. */
+export function canApprove(me: Me | null, category: string): boolean {
+  return !me || me.role === "owner" || me.approve.includes(category);
 }
 
 /** Phones (and other mobile-tier devices) may not manage things. */
@@ -631,6 +650,8 @@ export function connectEvents() {
   on("mcp", () => setState((s) => ({ mcpTick: s.mcpTick + 1 })));
   on("models.changed", () => void refreshModels());
   on("ui.changed", () => void refreshUI());
+  on("members.changed", () => void refreshTier());
+  on("board.changed", (d: { root: string }) => setState((s) => ({ boardTick: { ...s.boardTick, [d.root]: (s.boardTick[d.root] ?? 0) + 1 } })));
   if (!src) return;
   const es2 = src;
   for (const type of handlers.keys()) es2.addEventListener(type, (m) => dispatch(type, (m as MessageEvent).data));

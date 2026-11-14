@@ -323,7 +323,8 @@ func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	allowed := dev == "desktop" || route.Public
 	for _, d := range route.Devices {
-		if d == dev {
+		// viewers read whatever phones may read, and change nothing
+		if d == dev || (dev == "viewer" && d == "mobile" && r.Method == http.MethodGet) {
 			allowed = true
 		}
 	}

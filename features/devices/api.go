@@ -63,6 +63,7 @@ var Plugin = kernel.Register(kernel.Spec{
 		if err != nil {
 			return err
 		}
+		s.SetRoles(func() (RoleResolver, bool) { return kernel.Lookup[RoleResolver](c, "members") })
 		g := kernel.Use[*gateway.Gateway](c, gateway.ServiceKey)
 		g.AddVerifier(c, func(tok string) (string, string, bool) {
 			v, ok := s.Verify(tok)
@@ -76,17 +77,18 @@ var Plugin = kernel.Register(kernel.Spec{
 			g.Hub().Publish("devices.changed", Event{Kind: kind, Device: v})
 		}
 		redeemLimit := &limiter{n: 20, window: time.Minute}
-		everyone := []string{TierMobile, "im"}
+		everyone := []string{TierMobile, TierViewer, "im"}
 
 		g.Handle(c, gateway.Route{Method: "POST", Path: "/api/devices/pairing",
 			Handle: func(_ context.Context, r *gateway.Request) (any, error) {
 				var b struct {
-					Tier string `json:"tier"`
+					Tier   string `json:"tier"`
+					Member string `json:"member"`
 				}
 				if err := r.Decode(&b); err != nil {
 					return nil, err
 				}
-				p, err := s.StartPairing(b.Tier)
+				p, err := s.StartPairingFor(b.Tier, b.Member)
 				if err != nil {
 					return nil, gateway.BadRequest("%v", err)
 				}
