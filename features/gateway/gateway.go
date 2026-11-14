@@ -17,6 +17,7 @@ import (
 	"io/fs"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -118,20 +119,27 @@ func (g *Gateway) AddToken(token, device string) {
 	g.mu.Unlock()
 }
 
-func match(pattern, path string) (map[string]string, bool) {
+// match matches the escaped request path against pattern, segment by
+// segment, so a parameter may contain an encoded "/" (%2F), as approval
+// call ids do ("acp/<session>/<tool>", "<run>/<step>").
+func match(pattern, escapedPath string) (map[string]string, bool) {
 	ps := strings.Split(strings.Trim(pattern, "/"), "/")
-	xs := strings.Split(strings.Trim(path, "/"), "/")
+	xs := strings.Split(strings.Trim(escapedPath, "/"), "/")
 	if len(ps) != len(xs) {
 		return nil, false
 	}
 	params := map[string]string{}
 	for i := range ps {
+		seg, err := url.PathUnescape(xs[i])
+		if err != nil {
+			return nil, false
+		}
 		if strings.HasPrefix(ps[i], "{") && strings.HasSuffix(ps[i], "}") {
-			if xs[i] == "" {
+			if seg == "" {
 				return nil, false
 			}
-			params[ps[i][1:len(ps[i])-1]] = xs[i]
-		} else if ps[i] != xs[i] {
+			params[ps[i][1:len(ps[i])-1]] = seg
+		} else if ps[i] != seg {
 			return nil, false
 		}
 	}
@@ -163,7 +171,7 @@ func (g *Gateway) isPublic(r *http.Request) bool {
 	defer g.mu.RUnlock()
 	for _, rt := range g.routes {
 		if rt.Public && rt.Method == r.Method {
-			if _, ok := match(rt.Path, r.URL.Path); ok {
+			if _, ok := match(rt.Path, r.URL.EscapedPath()); ok {
 				return true
 			}
 		}
@@ -202,7 +210,7 @@ func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	var params map[string]string
 	methodSeen := false
 	for _, rt := range g.routes {
-		if p, ok := match(rt.Path, r.URL.Path); ok {
+		if p, ok := match(rt.Path, r.URL.EscapedPath()); ok {
 			methodSeen = true
 			if rt.Method == r.Method {
 				route, params = rt, p

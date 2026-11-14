@@ -180,6 +180,25 @@
 - [ ] 文件输入（PDF / Office / 图片）、ASR / TTS（移动端语音）
 - [x] UI：Agent 设置「联网搜索 / 阅读链接」开关、回复下方来源列表与搜索步骤（当前构建真实验证：thinking → server_tool → text → citation）
 
+## 真实环境验证（2026-11-14，本机 + OrbStack Linux）
+- [x] 完整桌面 Profile（含 ACP）启动：50 个插件条目全部 ACTIVE；`crew doctor` 全绿
+- [x] Claude Code（ACP）真实轮次；CLI 写文件的权限请求进入 Crewbase 审批 → 批准 → 文件落入 Agent 工作区
+- [x] Codex（ACP）真实轮次；Gemini CLI 未配置 key → 自动切到 Codex（auth）并完成
+- [x] 真实 MCP 服务器（@modelcontextprotocol/server-filesystem，npx，seatbelt 沙箱内）探测 → 启用 → 真实模型调用其工具读文件
+- [x] 插件市场：CLI 安装 TS 插件 → 授权 → 真实模型调用 → 改源码 → reload → 新行为生效
+- [x] 浏览器：Agent 用本机 Chrome 打开 example.com 并正确读出标题与链接
+- [x] Linux（Ubuntu 24.04 + systemd 容器）：install-server.sh 安装、幂等重跑、仅监听 127.0.0.1、数据目录 0700 / token 0600
+- [x] Linux 沙箱：真实模型 → bash 在 bubblewrap 内执行，工作区内写入成功，/etc 写入被只读文件系统拦截
+- [x] 加固 docker-compose：用户 65532、只读根、cap_drop ALL、seccomp、无端口映射、healthcheck healthy；容器内连真实模型
+- 真实环境才暴露并已修复：
+  - 网关路径参数含 `/`（ACP 审批 id `acp/<session>/<tool>`）无法批准 → 按转义路径逐段匹配
+  - MCP 文件服务器服务的目录不在工作区 → 守卫拒绝；新增 Tool.AllowedRoots / Server.roots（命令行中的目录自动授予）
+  - Linux 只有 Docker 沙箱提供方，容器 / 服务器无 Docker 时无法执行命令 → 新增 `sandbox-namespace`（bubblewrap），Linux 默认，安装脚本自动安装并自检
+  - systemd 的 ProtectKernelTunables / ProtectKernelLogs / ProtectHostname 组合使 bubblewrap 无法挂载 /proc → 仅在 Docker 沙箱时启用（逐项二分定位）
+  - `crew doctor` 与 crewd 读取的补丁不一致 → CREWBASE_PATCH 环境变量统一（compose 与 systemd 均已切换）
+- [ ] 完整镜像构建（本机网络拉取 golang / node 基础镜像极慢，构建进行中）
+- [-] IM 网关、阿里云 / AWS 云主机：无账号，无法真实验证
+
 ## 真实联调（本机 magpie，`go test -tags live ./test/live`）
 - [x] 跨厂商对话：Claude Haiku / Sonnet、DeepSeek、OpenAI GPT、Codex 订阅、Cursor Composer
 - [x] 沙箱内真实工具调用（bash 写文件、读回）
@@ -193,6 +212,7 @@
 ## 迭代日志
 | 日期 | 迭代 | 结果 |
 |---|---|---|
+| 2026-11-14 | 10a | 真实环境验证一轮：ACP 订阅 CLI、MCP、插件、浏览器、Linux systemd、bubblewrap 沙箱、加固 compose；修复 5 个真实环境问题；55 包 race 通过 |
 | 2026-11-14 | 9f | 高强度代码评审 10 项全部修复；54 包 race、Windows 编译、真实模型回归通过 |
 | 2026-11-14 | 9e | UI 反馈的 4 处接口缺口修复；确认当前构建联网引用真实可用（UI agent 测的是旧构建） |
 | 2026-11-14 | 9d | 桌面 UI 第二轮（子 agent，真实 crewd + magpie 驱动，浅/深色多宽度截图审阅）提交 |

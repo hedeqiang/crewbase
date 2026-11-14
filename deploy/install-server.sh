@@ -5,7 +5,7 @@
 #
 #   sudo ./deploy/install-server.sh                 # build from this checkout (needs Go 1.27)
 #   sudo ./deploy/install-server.sh --bin-dir DIR   # use prebuilt DIR/crewd and DIR/crew
-#   sudo ./deploy/install-server.sh --with-docker   # let crewd use the Docker sandbox
+#   sudo ./deploy/install-server.sh --with-docker   # Docker sandbox instead of bubblewrap
 #
 # What it does:
 #   - creates the system user `crewbase` (no login shell, no password)
@@ -101,10 +101,18 @@ if [ ! -f "$CONF_DIR/crewbase.patch.yml" ]; then
 #   name: '@crewbase/llm-openai'
 #   config:
 #     providers:
-#       - { id: deepseek, apiKeyRef: 'env:DEEPSEEK_API_KEY', models: [deepseek-chat, deepseek-reasoner] }
+#       - { id: deepseek, apiKeyRef: 'env:DEEPSEEK_API_KEY', models: [deepseek-flash, deepseek-v4-pro] }
 #       - { id: qwen, apiKeyRef: 'env:DASHSCOPE_API_KEY', models: [qwen-plus, qwen-max] }
 #       - { id: moonshot, apiKeyRef: 'env:MOONSHOT_API_KEY', models: [kimi-k2-0905-preview] }
 PATCH
+	if [ "$WITH_DOCKER" -eq 1 ]; then
+		cat >>"$CONF_DIR/crewbase.patch.yml" <<'PATCH'
+
+# Sandbox: Docker (chosen with --with-docker; default is bubblewrap).
+- id: sandbox
+  name: '@crewbase/sandbox-docker'
+PATCH
+	fi
 	chown root:"$SVC_USER" "$CONF_DIR/crewbase.patch.yml"
 	chmod 0640 "$CONF_DIR/crewbase.patch.yml"
 else
@@ -123,7 +131,24 @@ ENV
 	chmod 0640 "$CONF_DIR/env"
 fi
 
-# ---------------------------------------------------------------- docker sandbox
+# ---------------------------------------------------------------- sandbox
+# Default: bubblewrap (Linux namespaces, no daemon, no root-equivalent group).
+if ! command -v bwrap >/dev/null 2>&1; then
+	if command -v apt-get >/dev/null 2>&1; then
+		log "installing bubblewrap (sandbox)"
+		DEBIAN_FRONTEND=noninteractive apt-get install -y -qq bubblewrap >/dev/null || warn "could not install bubblewrap"
+	elif command -v dnf >/dev/null 2>&1; then
+		dnf install -y -q bubblewrap || warn "could not install bubblewrap"
+	fi
+fi
+if command -v bwrap >/dev/null 2>&1; then
+	if ! su -s /bin/sh "$SVC_USER" -c 'bwrap --ro-bind / / --unshare-net --unshare-pid --dev /dev --proc /proc true' 2>/dev/null; then
+		warn "bubblewrap cannot create namespaces for $SVC_USER (unprivileged user namespaces disabled?); sandbox-mode commands will be refused. Fix: sysctl kernel.unprivileged_userns_clone=1 (Debian) or kernel.apparmor_restrict_unprivileged_userns=0 (Ubuntu 24.04), or use --with-docker"
+	fi
+else
+	warn "bubblewrap is not installed; sandbox-mode commands will be refused (fail closed)"
+fi
+
 SUPP_GROUPS=""
 if [ "$WITH_DOCKER" -eq 1 ]; then
 	command -v docker >/dev/null 2>&1 || die "--with-docker: docker CLI not found"
@@ -131,15 +156,26 @@ if [ "$WITH_DOCKER" -eq 1 ]; then
 	warn "membership in the docker group is root-equivalent on this host; crewd only uses it to start sandbox containers"
 	usermod -aG docker "$SVC_USER"
 	SUPP_GROUPS="docker"
-elif ! id -nG "$SVC_USER" | tr ' ' '\n' | grep -qx docker; then
-	warn "no Docker sandbox: sandbox-mode commands will be refused (fail closed). Re-run with --with-docker to enable it."
-else
+elif id -nG "$SVC_USER" | tr ' ' '\n' | grep -qx docker; then
 	SUPP_GROUPS="docker"
 fi
 
 # ---------------------------------------------------------------- systemd unit
 log "writing $UNIT"
 RW_PATHS="$DATA_DIR"
+# bubblewrap mounts a fresh /proc for each sandboxed command. The kernel
+# refuses that while parts of /proc are masked (ProtectKernelTunables,
+# ProtectKernelLogs) or in combination with the UTS namespace systemd sets
+# up for ProtectHostname (verified on Ubuntu 24.04 / systemd 255), so these
+# are only set with the Docker sandbox. The daemon runs unprivileged and can
+# neither write sysctls, read kernel logs nor change the hostname anyway.
+if [ "$WITH_DOCKER" -eq 1 ]; then
+	KERNEL_PROTECT="ProtectKernelTunables=yes
+ProtectKernelLogs=yes
+ProtectHostname=yes"
+else
+	KERNEL_PROTECT="# ProtectKernelTunables / ProtectKernelLogs / ProtectHostname: off for bubblewrap (see installer)"
+fi
 cat >"$UNIT.new" <<UNITEOF
 # Managed by deploy/install-server.sh; local overrides: systemctl edit crewbase
 [Unit]
@@ -155,8 +191,9 @@ Group=$SVC_USER
 ${SUPP_GROUPS:+SupplementaryGroups=$SUPP_GROUPS}
 Environment=CREWBASE_HOME=$DATA_DIR
 Environment=HOME=$DATA_DIR
+Environment=CREWBASE_PATCH=$CONF_DIR/crewbase.patch.yml
 EnvironmentFile=-$CONF_DIR/env
-ExecStart=$PREFIX/crewd --profile server --root $DATA_DIR --addr 127.0.0.1:7788 --patch $CONF_DIR/crewbase.patch.yml
+ExecStart=$PREFIX/crewd --profile server --root $DATA_DIR --addr 127.0.0.1:7788
 Restart=on-failure
 RestartSec=5
 KillMode=mixed
@@ -171,12 +208,10 @@ PrivateDevices=yes
 ProtectSystem=strict
 ProtectHome=yes
 ReadWritePaths=$RW_PATHS
-ProtectKernelTunables=yes
 ProtectKernelModules=yes
-ProtectKernelLogs=yes
+$KERNEL_PROTECT
 ProtectControlGroups=yes
 ProtectClock=yes
-ProtectHostname=yes
 RestrictSUIDSGID=yes
 RestrictRealtime=yes
 # RestrictNamespaces is not set: Chromium's sandbox needs user namespaces.
@@ -217,7 +252,7 @@ Crewbase is installed.
   service   systemctl status crewbase   |  journalctl -u crewbase -f
   data      $DATA_DIR (token, sessions, audit)
   config    $CONF_DIR/crewbase.patch.yml, $CONF_DIR/env (API keys)
-  checks    sudo -u $SVC_USER CREWBASE_HOME=$DATA_DIR crew doctor
+  checks    sudo -u $SVC_USER CREWBASE_HOME=$DATA_DIR CREWBASE_PATCH=$CONF_DIR/crewbase.patch.yml crew doctor
 
 No inbound port was opened. The API listens on 127.0.0.1:7788 only.
 

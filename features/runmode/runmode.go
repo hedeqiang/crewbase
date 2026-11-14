@@ -136,7 +136,11 @@ func (g *Guard) Check(ctx context.Context, d *tools.Decision) (string, bool) {
 			return reason, true
 		}
 	}
-	return checkPaths(call, argNames(d.Tool))
+	var extra []string
+	if d.Tool != nil {
+		extra = d.Tool.AllowedRoots
+	}
+	return checkPaths(call, argNames(d.Tool), extra...)
 }
 
 // argNames is the tool's declared path arguments, or the well-known names.
@@ -175,7 +179,7 @@ func (g *Guard) readOnly(ctx context.Context, cat string) (string, bool) {
 }
 
 // checkPaths denies path arguments that leave the workspace.
-func checkPaths(call *tools.Call, names []string) (string, bool) {
+func checkPaths(call *tools.Call, names []string, granted ...string) (string, bool) {
 	paths := pathArgs(call, names)
 	if len(paths) == 0 {
 		return "", false
@@ -184,14 +188,23 @@ func checkPaths(call *tools.Call, names []string) (string, bool) {
 	if ws == "" || !filepath.IsAbs(ws) {
 		return "no workspace is set for this agent; file paths are not allowed outside host mode", true
 	}
-	root := realPath(filepath.Clean(ws))
+	roots := []string{realPath(filepath.Clean(ws))}
+	for _, g := range granted {
+		if filepath.IsAbs(g) {
+			roots = append(roots, realPath(filepath.Clean(g)))
+		}
+	}
 	for _, p := range paths {
 		abs := p
 		if !filepath.IsAbs(abs) {
 			abs = filepath.Join(ws, abs)
 		}
 		real := realPath(filepath.Clean(abs))
-		if !within(real, root) {
+		ok := false
+		for _, root := range roots {
+			ok = ok || within(real, root)
+		}
+		if !ok {
 			return fmt.Sprintf("path %q is outside the workspace (%s); only host mode may touch it", p, ws), true
 		}
 	}

@@ -3,8 +3,10 @@ package api_test
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"encoding/json"
 	"net/http"
+	"net/url"
 	"strings"
 	"testing"
 	"time"
@@ -146,5 +148,26 @@ func TestMessageAndEventStream(t *testing.T) {
 	code, out := do(t, base, tok, "GET", "/api/models", nil)
 	if code != 200 || len(out["providers"].([]any)) != 1 {
 		t.Fatal(code, out)
+	}
+}
+
+func TestApprovalIDWithSlashes(t *testing.T) {
+	base, h := start(t)
+	in := kernel.Use[*approval.Inbox](h.Root(), approval.InboxKey)
+	svc := kernel.Use[*approval.Service](h.Root(), approval.ServiceKey)
+	st := kernel.Use[*session.Store](h.Root(), session.ServiceKey)
+	ss, _ := st.Create(session.Meta{})
+	done := make(chan approval.Decision, 1)
+	go func() {
+		done <- svc.Ask(context.Background(), ss, approval.Request{CallID: "acp/s_1/toolu_2", Session: ss.ID()})
+	}()
+	for len(in.Pending()) == 0 {
+		time.Sleep(5 * time.Millisecond)
+	}
+	if code, out := do(t, base, tok, "POST", "/api/approvals/"+url.PathEscape("acp/s_1/toolu_2"), map[string]string{"outcome": "allowed-once"}); code != 200 {
+		t.Fatal(code, out)
+	}
+	if d := <-done; d.Outcome != approval.OutcomeAllowedOnce {
+		t.Fatal(d)
 	}
 }

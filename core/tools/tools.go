@@ -95,6 +95,10 @@ type Tool struct {
 	// PathArgs names the arguments that are file-system paths, so guards
 	// can confine them (relative paths resolve against the workspace).
 	PathArgs []string
+	// AllowedRoots are directories outside the workspace this tool was
+	// explicitly granted (e.g. the folder a filesystem MCP server serves);
+	// guards accept paths inside them in confined modes.
+	AllowedRoots []string
 	// SessionKinds limits the tool to sessions of these kinds (e.g.
 	// "channel"); elsewhere it is invisible and indistinguishable from
 	// absent. Empty = every session.

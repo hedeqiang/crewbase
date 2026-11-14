@@ -84,6 +84,11 @@ type Server struct {
 	// http
 	URL     string            `json:"url,omitempty"`
 	Headers map[string]string `json:"headers,omitempty"` // values may be credential refs
+	// Roots are directories the user grants this server's tools outside
+	// the agent workspace (writable in its sandbox, accepted by the path
+	// guard). Existing absolute directories in Command are granted too,
+	// since the user wrote them there (e.g. server-filesystem <dir>).
+	Roots []string `json:"roots,omitempty"`
 	// Scope is "global" or an agent id (tools visible to that agent only).
 	Scope   string `json:"scope"`
 	Enabled bool   `json:"enabled"`
@@ -868,3 +873,29 @@ var Plugin = kernel.Register(kernel.Spec{
 		return nil
 	},
 })
+
+// GrantedRoots returns the server's explicit roots plus existing absolute
+// directories named in its command line.
+func GrantedRoots(srv Server) []string {
+	seen := map[string]bool{}
+	var out []string
+	add := func(d string) {
+		d = filepath.Clean(d)
+		if !filepath.IsAbs(d) || seen[d] || d == "/" {
+			return
+		}
+		seen[d] = true
+		out = append(out, d)
+	}
+	for _, r := range srv.Roots {
+		add(r)
+	}
+	if len(srv.Command) > 1 {
+		for _, a := range srv.Command[1:] {
+			if fi, err := os.Stat(a); err == nil && fi.IsDir() && filepath.IsAbs(a) {
+				add(a)
+			}
+		}
+	}
+	return out
+}

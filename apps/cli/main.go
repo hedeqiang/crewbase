@@ -25,9 +25,12 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"github.com/hedeqiang/crewbase/capabilities/sandbox"
+	"github.com/hedeqiang/crewbase/providers/sandbox/bubblewrap"
 	"io"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"os/signal"
@@ -349,7 +352,7 @@ func decide(cmd string, args []string) error {
 	if cmd == "reject" {
 		body = map[string]any{"outcome": "rejected", "message": strings.Join(args[1:], " ")}
 	}
-	return call("POST", "/api/approvals/"+args[0], body, nil)
+	return call("POST", "/api/approvals/"+url.PathEscape(args[0]), body, nil)
 }
 
 func dumpConfig(args []string) error {
@@ -752,6 +755,8 @@ func doctor(args []string) error {
 	dataDir := fs.String("root", root, "data directory")
 	offline := fs.Bool("offline", false, "skip checks that need the running daemon")
 	health := fs.Bool("health", false, "only check that the daemon answers /api/health")
+	var patches multi
+	fs.Var(&patches, "patch", "patch file the daemon runs with (repeatable; CREWBASE_PATCH also applies)")
 	fs.Parse(args)
 	if *dataDir != root {
 		if b, err := os.ReadFile(filepath.Join(*dataDir, "token")); err == nil && os.Getenv("CREWBASE_TOKEN") == "" {
@@ -773,7 +778,7 @@ func doctor(args []string) error {
 	}
 	rep := &doctorReport{}
 	fmt.Printf("crew doctor — profile %s, data %s (%s/%s)\n\n", *profile, *dataDir, runtime.GOOS, runtime.GOARCH)
-	entries, err := launch.Resolve(launch.Options{Profile: *profile, Root: *dataDir})
+	entries, err := launch.Resolve(launch.Options{Profile: *profile, Root: *dataDir, Patches: patches})
 	if err != nil {
 		rep.line("fail", "config", err.Error())
 		return fmt.Errorf("%d check(s) failed", rep.fails)
@@ -867,6 +872,13 @@ func doctorSandbox(rep *doctorReport, entries []kernel.Entry) {
 			return
 		}
 		rep.line("ok", "sandbox", "seatbelt (sandbox-exec) works")
+	case "@crewbase/sandbox-namespace":
+		b := bubblewrap.New(bubblewrap.Config{})
+		if _, err := b.Check(ctx, sandbox.Policy{Mode: sandbox.ModeWorkspaceWrite, Network: sandbox.NetworkNone}); err != nil {
+			rep.line("fail", "sandbox", "bubblewrap: "+err.Error())
+			return
+		}
+		rep.line("ok", "sandbox", "bubblewrap (Linux namespaces) works")
 	case "@crewbase/sandbox-none":
 		rep.line("warn", "sandbox", "sandbox-none: commands run unconfined")
 	default:

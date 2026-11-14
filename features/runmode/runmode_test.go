@@ -278,3 +278,21 @@ func TestDeclaredPathArgs(t *testing.T) {
 		t.Fatal("fallback names not checked")
 	}
 }
+
+func TestGrantedRootsAllowed(t *testing.T) {
+	ws := t.TempDir()
+	granted := t.TempDir()
+	other := t.TempDir()
+	mk := func(p string) *tools.Decision {
+		b, _ := json.Marshal(map[string]string{"path": p})
+		return &tools.Decision{Call: &tools.Call{Name: "fs__read", Args: b, Mode: "sandbox", Workspace: ws},
+			Tool: &tools.Tool{Name: "fs__read", PathArgs: []string{"path"}, AllowedRoots: []string{granted}}, Category: tools.CategoryRead}
+	}
+	g := &runmode.Guard{}
+	if reason, denied := g.Check(context.Background(), mk(filepath.Join(granted, "note.txt"))); denied {
+		t.Fatal("granted root denied:", reason)
+	}
+	if _, denied := g.Check(context.Background(), mk(filepath.Join(other, "x"))); !denied {
+		t.Fatal("path outside workspace and granted roots must be denied")
+	}
+}

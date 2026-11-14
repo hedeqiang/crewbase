@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/hedeqiang/crewbase/bundles"
@@ -57,6 +58,15 @@ func Resolve(o Options) ([]kernel.Entry, error) {
 		filepath.Join(o.Root, "crewbase.patch.yml"),
 	}
 	files = append(files, o.Patches...)
+	// CREWBASE_PATCH (colon-separated) lets the daemon and the CLI checks
+	// resolve the same configuration (e.g. in a container).
+	if v := os.Getenv("CREWBASE_PATCH"); v != "" {
+		for _, f := range strings.Split(v, string(os.PathListSeparator)) {
+			if f = strings.TrimSpace(f); f != "" && !slices.Contains(files, f) {
+				files = append(files, f)
+			}
+		}
+	}
 	for _, f := range files {
 		pe, err := kernel.ReadPatchFile(f)
 		if err != nil {

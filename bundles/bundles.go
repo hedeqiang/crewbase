@@ -57,6 +57,7 @@ import (
 	_ "github.com/hedeqiang/crewbase/providers/llm/magpie"
 	_ "github.com/hedeqiang/crewbase/providers/llm/mock"
 	_ "github.com/hedeqiang/crewbase/providers/llm/openai"
+	_ "github.com/hedeqiang/crewbase/providers/sandbox/bubblewrap"
 	_ "github.com/hedeqiang/crewbase/providers/sandbox/docker"
 	_ "github.com/hedeqiang/crewbase/providers/sandbox/none"
 	_ "github.com/hedeqiang/crewbase/providers/sandbox/seatbelt"
@@ -167,12 +168,15 @@ func cheapRoutes() []map[string]string {
 }
 
 // defaultSandbox picks the sandbox provider for this platform: Seatbelt on
-// macOS, Docker elsewhere. Switch with a patch:
+// macOS, bubblewrap (Linux namespaces) on Linux, Docker elsewhere. Switch with a patch:
 //   - id: sandbox
 //     name: '@crewbase/sandbox-docker'
 func defaultSandbox() string {
-	if runtime.GOOS == "darwin" {
+	switch runtime.GOOS {
+	case "darwin":
 		return "@crewbase/sandbox-seatbelt"
+	case "linux":
+		return "@crewbase/sandbox-namespace"
 	}
 	return "@crewbase/sandbox-docker"
 }

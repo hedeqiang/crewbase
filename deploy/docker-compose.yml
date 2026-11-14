@@ -21,7 +21,9 @@ services:
         NPM_REGISTRY: ${NPM_REGISTRY:-}
         ALPINE_MIRROR: ${ALPINE_MIRROR:-}
     image: ${CREWBASE_IMAGE:-crewbase:local}
-    command: ["--profile", "server", "--patch", "/etc/crewbase/crewbase.patch.yml"]
+    # The patch is applied through CREWBASE_PATCH so `crew doctor` inside the
+    # container checks exactly the configuration the daemon runs.
+    command: ["--profile", "server"]
     restart: unless-stopped
     init: true
     user: "65532:65532"
@@ -39,6 +41,7 @@ services:
       nofile: { soft: 65536, hard: 65536 }
     environment:
       CREWBASE_HOME: /data
+      CREWBASE_PATCH: /etc/crewbase/crewbase.patch.yml
       TZ: ${TZ:-UTC}
       # Model keys are read through credential references (env:NAME); keep
       # them in deploy/.env (chmod 600), never in the patch file.

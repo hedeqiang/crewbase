@@ -248,12 +248,13 @@ func (c *conn) install(list []*sdk.Tool) {
 			desc = t.Title
 		}
 		c.s.tools.Register(tc, &tools.Tool{
-			Name:        info.Name,
-			Description: truncate(fmt.Sprintf("[MCP %s] %s", c.srv.Name, desc), 2000),
-			Params:      params,
-			Category:    info.Category,
-			PathArgs:    PathArgs(params),
-			Execute:     c.execute(info.Original),
+			Name:         info.Name,
+			Description:  truncate(fmt.Sprintf("[MCP %s] %s", c.srv.Name, desc), 2000),
+			Params:       params,
+			Category:     info.Category,
+			PathArgs:     PathArgs(params),
+			AllowedRoots: GrantedRoots(c.srv),
+			Execute:      c.execute(info.Original),
 		})
 	}
 	c.mu.Lock()
@@ -527,6 +528,7 @@ func (s *Service) dialStdio(ctx context.Context, srv Server, ws string, onChange
 		if sd := s.serverDir(srv.Name); sd != ws {
 			roots = append(roots, sd)
 		}
+		roots = append(roots, GrantedRoots(srv)...)
 		pol := sandbox.Policy{Mode: sandbox.ModeWorkspaceWrite, WritableRoots: roots, Network: sandbox.NetworkOpen}
 		if s.agentReadOnly(srv) {
 			// The agent may not write: neither may its server.
