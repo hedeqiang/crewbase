@@ -13,6 +13,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/hedeqiang/crewbase/capabilities/approval"
@@ -91,6 +92,10 @@ type Tool struct {
 	Description string
 	Params      map[string]any // JSON Schema object
 	Category    string         // default action category
+	// SessionKinds limits the tool to sessions of these kinds (e.g.
+	// "channel"); elsewhere it is invisible and indistinguishable from
+	// absent. Empty = every session.
+	SessionKinds []string
 	// Classify optionally derives the category and a human summary from
 	// the arguments (e.g. bash: `git push` → push).
 	Classify func(call Call) (category, summary string)
@@ -210,10 +215,20 @@ func (r *Registry) Visible(agent string) []*Tool {
 	return out
 }
 
-// Schemas returns tool schemas for prompt assembly.
-func (r *Registry) Schemas(agent string) []llm.ToolSchema {
+// Schemas returns tool schemas for prompt assembly (all session kinds).
+func (r *Registry) Schemas(agent string) []llm.ToolSchema { return r.SchemasFor(agent, "") }
+
+func availableIn(t *Tool, kind string) bool {
+	return kind == "" || len(t.SessionKinds) == 0 || slices.Contains(t.SessionKinds, kind)
+}
+
+// SchemasFor returns the schemas visible to agent in a session of kind.
+func (r *Registry) SchemasFor(agent, kind string) []llm.ToolSchema {
 	var out []llm.ToolSchema
 	for _, t := range r.Visible(agent) {
+		if !availableIn(t, kind) {
+			continue
+		}
 		p := t.Params
 		if p == nil {
 			p = Schema(map[string]any{})
@@ -237,6 +252,9 @@ func (r *Registry) Run(ctx context.Context, c *kernel.Context, call Call) Execut
 	OnCall.Emit(d, call)
 
 	tool, ok := r.Get(call.Agent, call.Name)
+	if ok && ss != nil && !availableIn(tool, ss.Meta().Kind) {
+		ok = false
+	}
 	if !ok {
 		return r.finish(ctx, d, Execution{Call: call, Result: Errorf("unknown tool: %s", call.Name)})
 	}

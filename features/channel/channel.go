@@ -417,7 +417,8 @@ func (s *Service) handoverTool() *tools.Tool {
 			"note":  tools.Prop("string", "handover note: what was done and what the receiver should do next"),
 			"files": map[string]any{"type": "array", "items": map[string]any{"type": "string"}, "description": "artifact file paths (references)"},
 		}, "to", "note"),
-		Category: tools.CategoryNone,
+		Category:     tools.CategoryNone,
+		SessionKinds: []string{"channel"},
 		Execute: func(ctx context.Context, call tools.Call) (tools.Result, error) {
 			if call.Session == nil || call.Session.Meta().Kind != "channel" {
 				return tools.Errorf("handover is only available inside a channel"), nil

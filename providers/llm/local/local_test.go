@@ -144,7 +144,7 @@ func TestOllamaErrors(t *testing.T) {
 		body   string
 		kind   llm.ErrorKind
 	}{
-		{404, `{"error":"model 'nope' not found"}`, llm.ErrBadRequest},
+		{404, `{"error":"model 'nope' not found"}`, llm.ErrModelNotFound},
 		{500, `{"error":"model requires more system memory (12 GiB) than is available"}`, llm.ErrUnavailable},
 		{429, `{"error":"server busy, please try again. maximum pending requests exceeded"}`, llm.ErrRateLimited},
 		{400, `{"error":"input length exceeds the context length"}`, llm.ErrContextOverflow},

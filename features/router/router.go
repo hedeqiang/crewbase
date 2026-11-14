@@ -89,7 +89,7 @@ func backoff(err error, now time.Time) (time.Time, string) {
 			return now.Add(le.RetryAfter), string(kind)
 		}
 		return now.Add(time.Minute), string(kind)
-	case llm.ErrAuth:
+	case llm.ErrAuth, llm.ErrModelNotFound:
 		return now.Add(10 * time.Minute), string(kind)
 	default:
 		return now.Add(30 * time.Second), string(kind)

@@ -343,7 +343,7 @@ func (l *loop) build(a *agent.Agent, ss *session.Session, ref llm.ModelRef) llm.
 		Effort:   ref.Effort,
 		System:   l.prompts.Assemble(a.ID()),
 		Messages: session.DeriveMessages(ss.Events(), a.ID(), l.agents.Names()),
-		Tools:    l.toolsReg.Schemas(a.ID()),
+		Tools:    l.toolsReg.SchemasFor(a.ID(), ss.Meta().Kind),
 	}
 }
 

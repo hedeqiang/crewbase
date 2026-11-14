@@ -226,6 +226,9 @@ func classify(provider string, status int, h http.Header, msg, code, secret stri
 		e.Kind = llm.ErrAuth
 	case status == 0 && containsAny(lower, rateWords...):
 		e.Kind, e.RetryAfter = llm.ErrRateLimited, retry
+	case status == http.StatusNotFound,
+		status >= 400 && status < 500 && containsAny(lower, "model_not_found", "model not found", "no such model", "unknown model", "knows no model", "does not exist"):
+		e.Kind = llm.ErrModelNotFound
 	case status >= 500, status == http.StatusRequestTimeout:
 		e.Kind, e.RetryAfter = llm.ErrUnavailable, retry
 	case status >= 400:

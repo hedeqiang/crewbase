@@ -125,9 +125,19 @@
 - [ ] 持久目标续跑（R-4）
 - [ ] OpenTelemetry 导出（默认关闭）
 
+## 真实联调（本机 magpie，`go test -tags live ./test/live`）
+- [x] 跨厂商对话：Claude Haiku / Sonnet、DeepSeek、OpenAI GPT、Codex 订阅、Cursor Composer
+- [x] 沙箱内真实工具调用（bash 写文件、读回）
+- [x] git push 触发审批 → 拒绝 → 模型重新规划
+- [x] 请求时故障切换（magpie 404 → 下一个模型）
+- [x] memory_add 写入 MEMORY.md
+- [x] 频道 @指派 + 真实模型调用 handover → 接收方完成
+- 发现并修复：模型 id 含 `@`（cursor/grok-4.7@500k）被误解析为推理强度；404「模型不存在」不触发切换；频道专用工具在一对一会话里暴露导致模型误用
+
 ## 迭代日志
 | 日期 | 迭代 | 结果 |
 |---|---|---|
+| 2026-11-14 | 7b | 本机 magpie 真实联调 6 个模型 + 6 个场景全部通过；修复 3 个真实环境才暴露的问题（见上） |
 | 2026-11-14 | 7a | 模型层完成：官方原生 SDK（OpenAI / Anthropic / Gemini）、本地发现、ACP 订阅桥接、magpie 网关（用户新增需求）；默认 Profile：订阅 CLI 优先，mock 默认关闭；usage 新增 gateway 类别；真实环境发现 4 个订阅 CLI + magpie |
 | 2026-11-14 | 6e | 技能按需加载；Windows 交叉编译检查（生产代码通过，修一处测试构建标签）；并行中：原生 SDK 适配器、ACP、UI、工作流 + 子 Agent |
 | 2026-11-14 | 6d | Routines（schedule 作业承载、独立会话、只读、静默哨兵）、晨报、alerts、routines API；冒烟：Webhook 无密钥 401、带密钥触发 → 巡检运行 |

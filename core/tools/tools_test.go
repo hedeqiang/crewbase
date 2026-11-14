@@ -269,3 +269,20 @@ func TestFailClosedWithoutPolicyAndOnPostExecuteError(t *testing.T) {
 		t.Fatal("raw result leaked after post-execute failure")
 	}
 }
+
+func TestSessionKindScopedTool(t *testing.T) {
+	h, reg, ss := setup(t) // ss is an "agent" session
+	reg.Register(h.Root(), &tools.Tool{Name: "handover", SessionKinds: []string{"channel"},
+		Execute: func(context.Context, tools.Call) (tools.Result, error) { return tools.Text("ok"), nil }})
+	for _, s := range reg.SchemasFor("", "agent") {
+		if s.Name == "handover" {
+			t.Fatal("channel-only tool offered in an agent session")
+		}
+	}
+	if len(reg.SchemasFor("", "channel")) != 1 {
+		t.Fatal("channel tool missing in channel session")
+	}
+	if exe := reg.Run(context.Background(), h.Root(), call(ss, "", "handover", nil)); !strings.Contains(exe.Result.Content, "unknown tool") {
+		t.Fatal(exe.Result)
+	}
+}

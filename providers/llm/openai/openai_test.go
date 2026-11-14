@@ -188,7 +188,7 @@ func TestErrorClasses(t *testing.T) {
 		{"server", 503, nil, `upstream overloaded`, llm.ErrUnavailable, 0},
 		{"overflow", 400, nil, `{"error":{"message":"This model's maximum context length is 128000 tokens.","code":"context_length_exceeded"}}`, llm.ErrContextOverflow, 0},
 		{"bad", 400, nil, `{"error":{"message":"Invalid value for 'temperature'"}}`, llm.ErrBadRequest, 0},
-		{"notfound", 404, nil, `{"error":{"message":"model not found"}}`, llm.ErrBadRequest, 0},
+		{"notfound", 404, nil, `{"error":{"message":"model not found"}}`, llm.ErrModelNotFound, 0},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

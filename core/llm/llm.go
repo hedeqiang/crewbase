@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -164,6 +165,9 @@ const (
 	ErrAuth            ErrorKind = "auth"
 	ErrBadRequest      ErrorKind = "bad_request"
 	ErrContextOverflow ErrorKind = "context_overflow"
+	// ErrModelNotFound: the provider no longer serves this model (removed,
+	// renamed, not enabled). Fails over like an outage.
+	ErrModelNotFound ErrorKind = "model_not_found"
 )
 
 // Error is a classified provider error.
@@ -189,7 +193,7 @@ func KindOf(err error) ErrorKind {
 // ShouldFailover reports whether the router should try the next model.
 func ShouldFailover(err error) bool {
 	switch KindOf(err) {
-	case ErrRateLimited, ErrQuotaExhausted, ErrUnavailable, ErrAuth:
+	case ErrRateLimited, ErrQuotaExhausted, ErrUnavailable, ErrAuth, ErrModelNotFound:
 		return true
 	}
 	return false
@@ -204,10 +208,23 @@ type ModelRef struct {
 
 func (m ModelRef) String() string { return m.Provider + "/" + m.Model }
 
-// ParseRef parses "provider/model[@effort]".
+// Full renders the ref including the effort, as ParseRef accepts it.
+func (m ModelRef) Full() string {
+	if m.Effort == "" {
+		return m.String()
+	}
+	return m.String() + "@" + m.Effort
+}
+
+// Efforts are the recognised reasoning effort levels.
+var Efforts = []string{"minimal", "low", "medium", "high", "xhigh", "max"}
+
+// ParseRef parses "provider/model[@effort]". A trailing "@x" is an effort
+// only when x is a known level, so model ids that contain "@" (e.g.
+// "cursor/grok-4.7@500k" behind a gateway) stay intact.
 func ParseRef(s string) (ModelRef, error) {
 	var effort string
-	if i := strings.LastIndex(s, "@"); i > 0 {
+	if i := strings.LastIndex(s, "@"); i > 0 && slices.Contains(Efforts, s[i+1:]) {
 		s, effort = s[:i], s[i+1:]
 	}
 	p, m, ok := strings.Cut(s, "/")
