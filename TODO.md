@@ -119,7 +119,7 @@
 - [x] compaction 对保留区内超大工具结果产出 tool/pruned（上下文真正缩小，history_read 可取原文）
 - [x] Tool.PathArgs 声明路径参数
 - [x] runmode 守卫使用 PathArgs；toolsbasic / MCP 声明
-- [ ] 「添加提供方」流程：API Key 写入钥匙串 + 写补丁 + 热应用（设置 › 模型与订阅）
+- [x] 「添加提供方」流程：12 个预设 + 自定义（OpenAI/Anthropic/Gemini 协议）→ 测试并拉取模型 → 勾选 → 添加；Key 写入系统钥匙串（keychain:crewbase/provider-<id>），providers.json 只存引用；独立 kernel 上下文热挂载/卸载，无需重启；移除时同步删除钥匙串条目（features/providers，2026-11-14 真机验证：经 magpie OpenAI 兼容端点添加 → 真实对话 → 移除）
 - [x] llm 词汇表：Part.Meta、ModelInfo.SizeBytes、Usage.CacheRead/Write、Quota.Windows、Request.Agent/Session/Workspace
 - [x] 提供方采用：Anthropic / Gemini 签名入 Part.Meta（重启可续）、Ollama SizeBytes、缓存 token；magpie 读取 /v1/magpie/quotas 多窗口额度
 - [x] ACP：CLI 权限请求接入审批；会话按 agent+session、cwd = 工作区

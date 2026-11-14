@@ -31,6 +31,7 @@ import (
 	_ "github.com/hedeqiang/crewbase/features/mcp"
 	_ "github.com/hedeqiang/crewbase/features/memory"
 	_ "github.com/hedeqiang/crewbase/features/plugins"
+	_ "github.com/hedeqiang/crewbase/features/providers"
 	_ "github.com/hedeqiang/crewbase/features/redact"
 	_ "github.com/hedeqiang/crewbase/features/router"
 	_ "github.com/hedeqiang/crewbase/features/routines"
@@ -82,6 +83,8 @@ var Base = kernel.Bundle{Name: "base", Entries: []kernel.Entry{
 	{ID: "llm-local", Name: "@crewbase/llm-local"},
 	// magpie gateway, registered only while magpie runs (github.com/yetone/magpie).
 	{ID: "llm-magpie", Name: "@crewbase/llm-magpie"},
+	// API providers added from the UI (keys in the keychain), hot-applied.
+	{ID: "providers", Name: "@crewbase/providers", Config: map[string]any{"dir": "${root}"}},
 	// Deterministic mock for demos and tests; enable with a patch:
 	//   - id: llm-mock
 	//     disabled: false
@@ -146,6 +149,8 @@ var Desktop = kernel.Bundle{Name: "desktop", Entries: []kernel.Entry{
 	{ID: "plugin-manager", Name: "@crewbase/plugin-manager", Config: map[string]any{"dir": "${root}/plugins"}},
 	{ID: "plugin-manager-api", Name: "@crewbase/plugin-manager-api"},
 	{ID: "console", Name: "@crewbase/console", Config: map[string]any{"dir": "${root}"}},
+	{ID: "providers-api", Name: "@crewbase/providers-api"},
+	{ID: "usage-api", Name: "@crewbase/usage-api"},
 }}
 
 // Server is headless: same API bound to localhost (remote access goes

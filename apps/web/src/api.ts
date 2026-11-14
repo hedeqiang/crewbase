@@ -584,6 +584,10 @@ export const API = {
   patchChannel: (id: string, b: { handoverConfirm: boolean }) => api<ChannelView>("PATCH", `/api/channels/${enc(id)}`, b),
   postChannel: (id: string, text: string) =>
     api<{ agent: string; input: string; position: number }>("POST", `/api/channels/${enc(id)}/messages`, { text }),
+  providers: () => api<{ providers: UserProvider[]; presets: ProviderPreset[] }>("GET", "/api/providers"),
+  testProvider: (b: ProviderInput) => api<ProviderTestResult>("POST", "/api/providers/test", b),
+  addProvider: (b: ProviderInput & { models: string[] }) => api<UserProvider>("POST", "/api/providers", b),
+  removeProvider: (id: string) => api("DELETE", `/api/providers/${enc(id)}`),
   updateChannel: (id: string, b: { title?: string; folder?: string; handoverConfirm?: boolean }) => api<ChannelView>("PATCH", `/api/channels/${enc(id)}`, b),
   deleteChannel: (id: string) => api("DELETE", `/api/channels/${enc(id)}`),
   renameFolder: (name: string, to: string) => api<{ moved: number }>("PATCH", `/api/folders/${enc(name)}`, { name: to }),
@@ -654,4 +658,43 @@ export function parseRef(s: string): ModelRef | null {
   const i = s.indexOf("/");
   if (i <= 0 || i === s.length - 1) return null;
   return { provider: s.slice(0, i), model: s.slice(i + 1), effort };
+}
+
+/** A provider offered in the add dialog. */
+export interface ProviderPreset {
+  id: string;
+  name: string;
+  api: string;
+  baseURL: string;
+  keyURL?: string;
+}
+
+/** A provider added from the UI (GET /api/providers). */
+export interface UserProvider {
+  id: string;
+  name?: string;
+  api: string;
+  preset?: string;
+  baseURL?: string;
+  keyRef?: string;
+  models?: string[];
+  masked?: string;
+  active: boolean;
+  error?: string;
+}
+
+export interface ProviderInput {
+  id: string;
+  name?: string;
+  preset?: string;
+  api: string;
+  baseURL: string;
+  apiKey?: string;
+}
+
+export interface ProviderTestResult {
+  ok: boolean;
+  latencyMs: number;
+  models: ModelInfo[];
+  error?: string;
 }

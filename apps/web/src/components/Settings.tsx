@@ -1,3 +1,4 @@
+import { AddProviderDialog } from "./settings/AddProvider";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   Bell,
@@ -15,10 +16,10 @@ import {
   User,
   Workflow,
 } from "lucide-react";
-import { API, type ApprovalHistoryItem, type ProviderView, type RememberedChoice, type Settings as SettingsData } from "../api";
+import { API, type ApprovalHistoryItem, type ProviderView, type RememberedChoice, type Settings as SettingsData, type UserProvider } from "../api";
 import { t, type Key, type Lang } from "../i18n";
 import { ago, kfmt, modeLabel, providerName, until } from "../format";
-import { openSession, setLang, setState, toast, useStore, type SettingsSection } from "../store";
+import { openSession, setLang, setState, toast, useStore, type SettingsSection, resync } from "../store";
 import { Automation } from "./settings/Automation";
 import { Extensions } from "./settings/Extensions";
 import { Profile } from "./settings/Profile";
@@ -276,6 +277,16 @@ function Models() {
   const tab = useStore((s) => s.modelsTab);
   const setTab = (v: "providers" | "routing") => setState({ modelsTab: v });
   const [q, setQ] = useState("");
+  const [adding, setAdding] = useState(false);
+  const [userProv, setUserProv] = useState<UserProvider[]>([]);
+  const pname = (id: string) => userProv.find((u) => u.id === id)?.name || providerName(id);
+  const loadUser = () =>
+    API.providers()
+      .then((r) => setUserProv(r.providers))
+      .catch(() => setUserProv([]));
+  useEffect(() => {
+    void loadUser();
+  }, [models]);
   const providers = models?.providers ?? [];
   const exhaustedOf = (p: ProviderView) =>
     (models?.exhausted ?? []).filter((x) => x.model === p.id || x.model.startsWith(p.id + "/"));
@@ -306,13 +317,14 @@ function Models() {
                 {t("set.routing")}
               </button>
             </div>
-            <button className="btn" type="button" disabled title={t("common.soon")}>
+            <button className="btn" type="button" onClick={() => setAdding(true)}>
               <Plus size={14} />
               {t("set.addProvider")}
             </button>
           </>
         }
       />
+      {adding && <AddProviderDialog existing={providers.map((p) => p.id)} onClose={() => setAdding(false)} />}
       {tab === "routing" ? (
         <Routing />
       ) : providers.length === 0 ? (
@@ -335,7 +347,7 @@ function Models() {
                     <button key={p.id} type="button" className="pvi" aria-current={cur?.id === p.id} onClick={() => setSel(p.id)}>
                       <ProviderMark provider={p.id} size={22} />
                       <span className="g">
-                        <b>{providerName(p.id)}</b>
+                        <b>{pname(p.id)}</b>
                         <span>{p.error ? t("set.errorState") : isEx(p) ? t("set.exhaustedState") : t("set.connectedState")}</span>
                       </span>
                       {st && <span className={"sdot " + st} />}
@@ -350,7 +362,7 @@ function Models() {
               <div className="pvh">
                 <ProviderMark provider={cur.id} size={36} />
                 <div className="g">
-                  <b>{providerName(cur.id)}</b>
+                  <b>{pname(cur.id)}</b>
                   <span>
                     {cur.id} · {t(`kind.${cur.kind}` as Key)}
                   </span>
@@ -375,6 +387,35 @@ function Models() {
                 )}
               </div>
               {cur.error && <div className="confirmbar errbar">{cur.error}</div>}
+              {(() => {
+                const up = userProv.find((u) => u.id === cur.id);
+                if (!up) return null;
+                return (
+                  <div className="kv2 upv">
+                    <span className="small">
+                      {t("ap.keyStored")} <code>{up.masked || "••••"}</code>
+                      {up.baseURL ? <> · <span className="mono">{up.baseURL}</span></> : null}
+                    </span>
+                    <button
+                      className="btn dng sm"
+                      type="button"
+                      onClick={async () => {
+                        if (!window.confirm(t("ap.removeQ", { name: up.name || up.id }))) return;
+                        try {
+                          await API.removeProvider(up.id);
+                          toast(t("ap.removed", { name: up.name || up.id }));
+                          await resync();
+                          void loadUser();
+                        } catch (e: any) {
+                          toast(t("ap.failed", { error: e?.message ?? String(e) }));
+                        }
+                      }}
+                    >
+                      {t("ap.remove")}
+                    </button>
+                  </div>
+                );
+              })()}
               {exhaustedOf(cur).map((x) => (
                 <div key={x.model} className="confirmbar errbar">
                   {t("set.exhaustedUntil", { model: x.model, time: until(x.until) })}

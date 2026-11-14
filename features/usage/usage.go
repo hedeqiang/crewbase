@@ -192,7 +192,6 @@ type Config struct {
 var Plugin = kernel.Register(kernel.Spec{
 	Name:        "@crewbase/usage",
 	Inject:      []string{session.ServiceKey, agent.ServiceKey, llm.ServiceKey},
-	Optional:    []string{gateway.ServiceKey},
 	Description: "Local usage statistics and subscription-reuse savings.",
 	Apply: func(c *kernel.Context) error {
 		cfg, err := kernel.Decode[Config](c)
@@ -209,13 +208,20 @@ var Plugin = kernel.Register(kernel.Spec{
 			llms:     kernel.Use[*llm.Registry](c, llm.ServiceKey),
 			ref:      ref, prices: cfg.Prices,
 		}
-		if err := c.Provide(ServiceKey, s); err != nil {
-			return err
-		}
-		if g, ok := kernel.Lookup[*gateway.Gateway](c, gateway.ServiceKey); ok {
-			g.Handle(c, gateway.Route{Method: "GET", Path: "/api/usage",
-				Handle: func(context.Context, *gateway.Request) (any, error) { return s.Compute(), nil }})
-		}
+		return c.Provide(ServiceKey, s)
+	},
+})
+
+// APIPlugin serves GET /api/usage; it waits for the gateway, so it works
+// whatever order the bundles load in.
+var APIPlugin = kernel.Register(kernel.Spec{
+	Name:        "@crewbase/usage-api",
+	Inject:      []string{gateway.ServiceKey, ServiceKey},
+	Description: "GET /api/usage.",
+	Apply: func(c *kernel.Context) error {
+		s := kernel.Use[*Service](c, ServiceKey)
+		kernel.Use[*gateway.Gateway](c, gateway.ServiceKey).Handle(c, gateway.Route{Method: "GET", Path: "/api/usage",
+			Handle: func(context.Context, *gateway.Request) (any, error) { return s.Compute(), nil }})
 		return nil
 	},
 })

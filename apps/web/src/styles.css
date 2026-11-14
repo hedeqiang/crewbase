@@ -964,3 +964,31 @@ button.tg:disabled { opacity: .5; cursor: not-allowed; }
 .shuffle .muted { color: var(--muted); font-variant-numeric: tabular-nums; }
 .sugs { grid-template-columns: 1fr; }
 .sug { align-items: center; }
+
+/* add provider */
+.modal.addprov { width: min(560px, calc(100% - 24px)); }
+.ap-search { margin: 4px 0 12px; }
+.ap-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.ap-card { position: relative; display: flex; align-items: center; gap: 10px; height: 48px; padding: 0 12px; border: 1px solid var(--border2); border-radius: 12px; background: var(--surface); text-align: left; font-size: 13px; }
+.ap-card:hover:not(:disabled) { border-color: var(--accent); }
+.ap-card:disabled { opacity: .55; cursor: default; }
+.ap-card span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ap-done { position: absolute; right: 10px; color: var(--ok-text); }
+.ap-plus { width: 22px; height: 22px; display: grid; place-items: center; border-radius: 6px; border: 1px dashed var(--border2); color: var(--muted); }
+.ap-note { margin: 12px 0 0; line-height: 1.6; }
+.ap-row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; align-items: end; }
+.ap-row2 .fl { margin-top: 6px; }
+.fl { display: flex; flex-direction: column; gap: 6px; margin-top: 12px; font-size: 12.5px; }
+.fl > span:first-child, .flh { font-weight: 500; display: flex; align-items: center; justify-content: space-between; }
+.fl .small { color: var(--muted); }
+.mono { font-family: var(--mono); font-size: 12.5px; }
+.ap-models { margin-top: 14px; border: 1px solid var(--border); border-radius: 12px; padding: 10px 12px; }
+.ap-mh { display: flex; align-items: center; justify-content: space-between; font-size: 12.5px; }
+.okt { color: var(--ok-text); display: inline-flex; align-items: center; gap: 5px; }
+.ap-ml { max-height: 200px; overflow: auto; margin: 8px 0 4px; display: flex; flex-direction: column; gap: 2px; }
+.ap-m { display: flex; align-items: center; gap: 8px; padding: 4px 2px; cursor: pointer; }
+.dngt { color: var(--danger-text); }
+.spin { animation: spin 1s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.upv { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 10px 0; }
+@media (max-width: 560px) { .ap-grid { grid-template-columns: 1fr 1fr; } }
