@@ -55,6 +55,10 @@
 - [ ] 进程组管理：退出清理子进程树
 - [x] Phase 1 出口 e2e（mock 模型版）：mock 额度耗尽 → 切换 → `git push` 审批 → 批准后继续 → 日志重建
 
+## 通知
+- [x] `notify` 能力 + 桌面渠道；alerts：审批（紧急）、失败、交接；模型切换默认不通知
+- [ ] 免打扰时段、事件 × 渠道勾选表持久化（设置 › 通知）
+
 ## 迭代 6 — 桌面 Web UI（Phase 1 界面）
 - [ ] `apps/web`：React + TS + Vite；视觉 token（docs/03 §2，深浅色）
 - [ ] 三列窗口：会话列表 / 对话区 / 右侧面板；标题栏「需要你」胶囊；⌘K
@@ -70,7 +74,7 @@
 - [ ] `subagent`：local / fork / acp，最大深度、诊断 ≤4KB（A-6）
 - [x] 运行模式 A 只读调研（S-1 P1）
 - [x] `schedule` / `webhook`：Cron / every / daily / weekly / at、最小间隔 60s、幂等键先落盘后投递、Webhook 独立密钥（R-1）
-- [ ] Routines + 晨报（R-1 R-2）
+- [x] Routines + 晨报（R-1 R-2）：默认只读、NO_ISSUES 静默、需关注才通知；晨报只列待处理项，正常项折叠计数
 - [ ] Workflows：触发器 → 串并行步骤 → 审批卡点 → 发布，从失败步重跑（R-3 R-5）
 - [ ] MCP 客户端与管理（C-3，P0）
 - [x] `history_search` / `history_read`、`memory_add` / `memory_search`（C-2）
@@ -118,6 +122,7 @@
 ## 迭代日志
 | 日期 | 迭代 | 结果 |
 |---|---|---|
+| 2026-11-14 | 6d | Routines（schedule 作业承载、独立会话、只读、静默哨兵）、晨报、alerts、routines API；冒烟：Webhook 无密钥 401、带密钥触发 → 巡检运行 |
 | 2026-11-14 | 6c | 执行层（子 agent）：sandbox / shell / fs 能力 + seatbelt/docker/none + 基础工具 + runmode 守卫；端到端：沙箱内 bash、越界写被拦截、git push 挂起审批；调度器（cron 解析、幂等、Webhook 公开路由自带密钥）；notify 能力；core：turn-start 事件、重进宿主机模式重置 24h |
 | 2026-11-14 | 6b | 压缩（回合边界切点不拆工具对、模型摘要 + 抽取式回退、用量分段）、记忆（MEMORY.md + SQLite FTS5、history_search/read、memory_add/search）；core：Input 级运行模式（只能收紧）、Agent.SetSession、turn-end 携带最终文本 |
 | 2026-11-14 | 6a | 频道（单一负责人、@指派、交接工具 + Waterfall、停止/恢复/改派/归档、API）；三 Agent 两次交接 e2e；规则引擎、凭证保险箱（Keychain/libsecret/env/mem）、脱敏（子 agent 交付）；工具结果 StopTurn；两处 fail-open 改关闭式失败；用户要求：官方提供方改用原生 SDK（适配器 agent 重做中） |

@@ -17,6 +17,7 @@ import (
 	_ "github.com/hedeqiang/crewbase/core/prompt"
 	_ "github.com/hedeqiang/crewbase/core/session"
 	_ "github.com/hedeqiang/crewbase/core/tools"
+	_ "github.com/hedeqiang/crewbase/features/alerts"
 	_ "github.com/hedeqiang/crewbase/features/api"
 	_ "github.com/hedeqiang/crewbase/features/channel"
 	_ "github.com/hedeqiang/crewbase/features/compaction"
@@ -24,6 +25,7 @@ import (
 	_ "github.com/hedeqiang/crewbase/features/memory"
 	_ "github.com/hedeqiang/crewbase/features/redact"
 	_ "github.com/hedeqiang/crewbase/features/router"
+	_ "github.com/hedeqiang/crewbase/features/routines"
 	_ "github.com/hedeqiang/crewbase/features/rules"
 	_ "github.com/hedeqiang/crewbase/features/runmode"
 	_ "github.com/hedeqiang/crewbase/features/schedule"
@@ -59,6 +61,8 @@ var Base = kernel.Bundle{Name: "base", Entries: []kernel.Entry{
 	{ID: "runmode", Name: "@crewbase/runmode"},
 	{ID: "notify", Name: "@crewbase/notify"},
 	{ID: "schedule", Name: "@crewbase/schedule", Config: map[string]any{"dir": "${root}"}},
+	{ID: "routines", Name: "@crewbase/routines", Config: map[string]any{"dir": "${root}"}},
+	{ID: "alerts", Name: "@crewbase/alerts"},
 	{ID: "compaction", Name: "@crewbase/compaction-summary"},
 	{ID: "memory", Name: "@crewbase/memory-markdown-sqlite", Config: map[string]any{"root": "${root}"}},
 }}
@@ -70,6 +74,7 @@ var Desktop = kernel.Bundle{Name: "desktop", Entries: []kernel.Entry{
 	{ID: "api", Name: "@crewbase/api"},
 	{ID: "channel-api", Name: "@crewbase/channel-api"},
 	{ID: "webhook", Name: "@crewbase/webhook"},
+	{ID: "routines-api", Name: "@crewbase/routines-api"},
 }}
 
 // Server is headless: same API bound to localhost (remote access goes
