@@ -140,15 +140,17 @@
 - 推迟到 Phase 3：单次提权调用、Docker 白名单出站代理
 
 ## Phase 3 — 远程、IM、团队
-- [ ] `server` Profile、install-server.sh、加固 docker-compose.yml、阿里云 / AWS 模板（D-2）
+- [x] `server` Profile、install-server.sh（systemd）、加固 docker-compose（no-new-privileges、seccomp、只读根、shm 1g、不映射端口、可选 Tailscale）、Dockerfile、阿里云 ECS / AWS EC2 + Fargate 模板、docs/deploy.md（D-2）
+- [ ] 部署：真实 Docker 构建与云主机实跑；容器内无 Docker 沙箱（改 sandbox-none 拒绝沙箱命令）
 - [ ] 零入站配对（WebSocket Relay）、设备分级权限
 - [x] IM 网关：Slack（Socket Mode）/ Telegram（长轮询）/ Discord（Gateway）/ 飞书（长连接），全部只出站；通知 + 审批卡（push / payment 只给拒绝和「稍后在桌面处理」，不提供「以后都允许」）、白名单用户、@Agent 发消息、回复回传线程、免打扰、限速、令牌不落日志；默认关闭（D-4）
 - [ ] IM：真实机器人账号联调；线程映射持久化；飞书显示名；长回复分段；附件；设置页 UI
 - [ ] 移动端伴侣（D-3）
-- [ ] 审计日志哈希链（S-7）
+- [x] 审计日志哈希链（S-7）：规则判定 Ask/Deny、审批、规则变更、运行模式、插件启停、Agent 增删；跨月续链、校验 API；不进入模型上下文
+- [ ] 审计：网关鉴权失败、凭证引用变更、设备配对；内核插件生命周期事件（目前轮询）
 - [ ] 团队任务板 DAG（A-7）、成员与角色
-- [ ] 持久目标续跑（R-4）
-- [ ] OpenTelemetry 导出（默认关闭）
+- [x] 持久目标续跑（R-4）：轮次上限、阻塞原因码、重启 / fork 后需重新授权、goal_complete / goal_blocked 工具
+- [x] OpenTelemetry 导出（默认关闭，默认不含内容）；`crew doctor` 部署自检
 
 ## DeepSeek 全家桶（2026-11-13 发布）利用
 - [x] 调研：deepseek-flash（V4.1-Flash-1017）三协议；原生 `deepseek_web_search` / `deepseek_read_url`；`safety_check`；`title`；独立 Search / Fetch / OCR / ASR / TTS
@@ -175,6 +177,7 @@
 ## 迭代日志
 | 日期 | 迭代 | 结果 |
 |---|---|---|
+| 2026-11-14 | 9b | Phase 3 平台（子 agent）：部署、审计、目标续跑、OTel、crew doctor 接入；修 IM 审批卡跨端决定竞态；全量 53 包 race 测试通过 |
 | 2026-11-14 | 9a | IM 网关（子 agent）接入，默认关闭 |
 | 2026-11-14 | 8g | DeepSeek 原生联网搜索 / 阅读链接 / 安全检查端到端打通（真实调用） |
 | 2026-11-14 | 8f | 技术债第三批（子 agent，10 项）接入；ACP 委派共享父工作区（SharedWorkspace），subagent-acp 接入 |

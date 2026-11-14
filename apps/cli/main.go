@@ -14,20 +14,25 @@
 //	crew plugin list|market
 //	crew plugin enable|disable|reload|remove <name>
 //	crew dev <dir> [--approve] [--interval 500ms]   install, watch, hot reload
+//	crew doctor [--profile server] [--offline] [--health]   readiness checks
 package main
 
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"os"
+	"os/exec"
 	"os/signal"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"syscall"
 	"text/tabwriter"
@@ -38,6 +43,8 @@ import (
 	// them with a patch entry until bundles include them.
 	_ "github.com/hedeqiang/crewbase/features/plugins"
 	"github.com/hedeqiang/crewbase/kernel"
+	"github.com/hedeqiang/crewbase/providers/browser/chrome"
+	dockersb "github.com/hedeqiang/crewbase/providers/sandbox/docker"
 	"github.com/hedeqiang/crewbase/sdk"
 )
 
@@ -87,6 +94,8 @@ func main() {
 		err = pluginCmd(args)
 	case "dev":
 		err = devCmd(args)
+	case "doctor":
+		err = doctor(args)
 	default:
 		usage()
 	}
@@ -97,7 +106,7 @@ func main() {
 }
 
 func usage() {
-	fmt.Fprintln(os.Stderr, "usage: crew plugins|plugin|dev|agents|agent new|chat|approvals|approve|reject|dump-config|daemon")
+	fmt.Fprintln(os.Stderr, "usage: crew plugins|plugin|dev|agents|agent new|chat|approvals|approve|reject|dump-config|daemon|doctor")
 	os.Exit(2)
 }
 
@@ -697,5 +706,266 @@ func devCmd(args []string) error {
 			}
 		}
 		printPlugin(np)
+	}
+}
+
+// ---------------------------------------------------------------- doctor
+
+// doctorReport collects check results: ok, warn or fail.
+type doctorReport struct{ fails, warns int }
+
+func (d *doctorReport) line(level, what, detail string) {
+	switch level {
+	case "fail":
+		d.fails++
+	case "warn":
+		d.warns++
+	}
+	fmt.Printf("[%-4s] %-18s %s\n", level, what, detail)
+}
+
+func entryByID(entries []kernel.Entry, id string) (kernel.Entry, bool) {
+	for _, e := range entries {
+		if e.ID == id && !e.Disabled {
+			return e, true
+		}
+	}
+	return kernel.Entry{}, false
+}
+
+func cfgString(e kernel.Entry, key string) string {
+	s, _ := e.Config[key].(string)
+	return s
+}
+
+// doctor checks that this machine is ready to run a profile (default
+// server): sandbox, browser, data directory, gateway binding and, when the
+// daemon is running, model provider reachability.
+//
+//	crew doctor [--profile server] [--root dir] [--offline] [--health]
+//
+// --health only asks the running daemon for /api/health (container
+// healthchecks). The exit status is non-zero when a check fails.
+func doctor(args []string) error {
+	fs := flag.NewFlagSet("doctor", flag.ExitOnError)
+	profile := fs.String("profile", "server", "profile to check")
+	dataDir := fs.String("root", root, "data directory")
+	offline := fs.Bool("offline", false, "skip checks that need the running daemon")
+	health := fs.Bool("health", false, "only check that the daemon answers /api/health")
+	fs.Parse(args)
+	if *dataDir != root {
+		if b, err := os.ReadFile(filepath.Join(*dataDir, "token")); err == nil && os.Getenv("CREWBASE_TOKEN") == "" {
+			token = strings.TrimSpace(string(b))
+		}
+	}
+	if *health {
+		var out struct {
+			OK bool `json:"ok"`
+		}
+		if err := call("GET", "/api/health", nil, &out); err != nil {
+			return err
+		}
+		if !out.OK {
+			return errors.New("daemon reports unhealthy")
+		}
+		fmt.Println("ok")
+		return nil
+	}
+	rep := &doctorReport{}
+	fmt.Printf("crew doctor — profile %s, data %s (%s/%s)\n\n", *profile, *dataDir, runtime.GOOS, runtime.GOARCH)
+	entries, err := launch.Resolve(launch.Options{Profile: *profile, Root: *dataDir})
+	if err != nil {
+		rep.line("fail", "config", err.Error())
+		return fmt.Errorf("%d check(s) failed", rep.fails)
+	}
+	rep.line("ok", "config", fmt.Sprintf("%d plugin entries resolved", len(entries)))
+	doctorDataDir(rep, *dataDir)
+	doctorSandbox(rep, entries)
+	doctorBrowser(rep, entries)
+	doctorGateway(rep, entries)
+	if *offline {
+		rep.line("warn", "daemon", "skipped (--offline)")
+	} else {
+		doctorDaemon(rep)
+	}
+	fmt.Printf("\n%d failed, %d warnings\n", rep.fails, rep.warns)
+	if rep.fails > 0 {
+		return fmt.Errorf("%d check(s) failed", rep.fails)
+	}
+	return nil
+}
+
+func doctorDataDir(rep *doctorReport, dir string) {
+	st, err := os.Stat(dir)
+	switch {
+	case os.IsNotExist(err):
+		rep.line("warn", "data dir", dir+" does not exist yet (crewd creates it with 0700)")
+		return
+	case err != nil:
+		rep.line("fail", "data dir", err.Error())
+		return
+	case !st.IsDir():
+		rep.line("fail", "data dir", dir+" is not a directory")
+		return
+	}
+	if perm := st.Mode().Perm(); perm&0o077 != 0 {
+		rep.line("warn", "data dir", fmt.Sprintf("%s is %04o; other users can read it (chmod 700)", dir, perm))
+	} else {
+		rep.line("ok", "data dir", fmt.Sprintf("%s (%04o)", dir, perm))
+	}
+	probe := filepath.Join(dir, ".doctor-probe")
+	if err := os.WriteFile(probe, []byte("x"), 0o600); err != nil {
+		rep.line("fail", "data dir write", err.Error())
+	} else {
+		os.Remove(probe)
+	}
+	if st, err := os.Stat(filepath.Join(dir, "token")); err == nil {
+		if st.Mode().Perm()&0o077 != 0 {
+			rep.line("fail", "token file", fmt.Sprintf("token is %04o; must be 0600", st.Mode().Perm()))
+		} else {
+			rep.line("ok", "token file", "0600")
+		}
+	}
+	for _, sub := range []string{"sessions", "audit"} {
+		if st, err := os.Stat(filepath.Join(dir, sub)); err == nil && st.Mode().Perm()&0o077 != 0 {
+			rep.line("warn", sub, fmt.Sprintf("%04o; other users can read it", st.Mode().Perm()))
+		}
+	}
+}
+
+func doctorSandbox(rep *doctorReport, entries []kernel.Entry) {
+	e, ok := entryByID(entries, "sandbox")
+	if !ok {
+		rep.line("fail", "sandbox", "no sandbox entry: sandbox-mode commands cannot run")
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	switch e.Name {
+	case "@crewbase/sandbox-docker":
+		var cfg dockersb.Config
+		if b, err := json.Marshal(e.Config); err == nil {
+			_ = json.Unmarshal(b, &cfg)
+		}
+		d := dockersb.New(cfg)
+		if err := d.Available(ctx); err != nil {
+			rep.line("fail", "sandbox", "docker: "+err.Error())
+			return
+		}
+		rep.line("ok", "sandbox", "docker daemon reachable, image "+d.Image())
+		if cfg.SeccompProfile == "" {
+			rep.line("warn", "sandbox seccomp", "no seccompProfile configured (Docker's default profile applies)")
+		}
+	case "@crewbase/sandbox-seatbelt":
+		if _, err := os.Stat("/usr/bin/sandbox-exec"); err != nil {
+			rep.line("fail", "sandbox", "seatbelt: /usr/bin/sandbox-exec not found")
+			return
+		}
+		out, err := exec.CommandContext(ctx, "/usr/bin/sandbox-exec", "-p", "(version 1)(allow default)", "/usr/bin/true").CombinedOutput()
+		if err != nil {
+			rep.line("fail", "sandbox", fmt.Sprintf("seatbelt probe failed: %v %s", err, strings.TrimSpace(string(out))))
+			return
+		}
+		rep.line("ok", "sandbox", "seatbelt (sandbox-exec) works")
+	case "@crewbase/sandbox-none":
+		rep.line("warn", "sandbox", "sandbox-none: commands run unconfined")
+	default:
+		rep.line("warn", "sandbox", "unknown provider "+e.Name+" (not checked)")
+	}
+}
+
+func doctorBrowser(rep *doctorReport, entries []kernel.Entry) {
+	e, ok := entryByID(entries, "browser")
+	if !ok {
+		rep.line("ok", "browser", "disabled")
+		return
+	}
+	if cfgString(e, "attach") != "" {
+		rep.line("ok", "browser", "attaches to "+cfgString(e, "attach"))
+		return
+	}
+	exe := cfgString(e, "executable")
+	if exe == "" {
+		exe = chrome.FindExecutable()
+	}
+	if exe == "" {
+		rep.line("warn", "browser", "no Chrome/Chromium found (set CREWBASE_BROWSER or browser.executable); browser tools will fail")
+		return
+	}
+	if st, err := os.Stat(exe); err != nil || st.Mode()&0o111 == 0 {
+		rep.line("fail", "browser", exe+" is not executable")
+		return
+	}
+	rep.line("ok", "browser", exe)
+}
+
+func doctorGateway(rep *doctorReport, entries []kernel.Entry) {
+	e, ok := entryByID(entries, "gateway")
+	if !ok {
+		rep.line("ok", "gateway", "not configured (no API)")
+		return
+	}
+	a := cfgString(e, "addr")
+	if a == "" {
+		a = "127.0.0.1:7788"
+	}
+	host, _, err := net.SplitHostPort(a)
+	if err != nil {
+		rep.line("fail", "gateway", fmt.Sprintf("bad addr %q: %v", a, err))
+		return
+	}
+	ip := net.ParseIP(host)
+	if host == "localhost" || (ip != nil && ip.IsLoopback()) {
+		rep.line("ok", "gateway", a+" (loopback only)")
+		return
+	}
+	rep.line("warn", "gateway", a+" is not loopback: never expose it publicly; use an SSH tunnel, Tailscale or the relay (docs/deploy.md)")
+}
+
+func doctorDaemon(rep *doctorReport) {
+	var h struct {
+		OK bool `json:"ok"`
+	}
+	if err := call("GET", "/api/health", nil, &h); err != nil {
+		rep.line("warn", "daemon", err.Error())
+		return
+	}
+	rep.line("ok", "daemon", "answering at "+addr)
+	var plugins struct {
+		Plugins []kernel.PluginInfo `json:"plugins"`
+	}
+	if err := call("GET", "/api/plugins", nil, &plugins); err == nil {
+		for _, p := range plugins.Plugins {
+			if p.State == kernel.StateFailed {
+				rep.line("warn", "plugin", p.ID+" FAILED: "+p.Error)
+			}
+		}
+	}
+	var models struct {
+		Providers []struct {
+			ID     string            `json:"id"`
+			Kind   string            `json:"kind"`
+			Error  string            `json:"error"`
+			Models []json.RawMessage `json:"models"`
+		} `json:"providers"`
+	}
+	if err := call("GET", "/api/models", nil, &models); err != nil {
+		rep.line("warn", "models", err.Error())
+		return
+	}
+	usable := 0
+	for _, p := range models.Providers {
+		switch {
+		case p.Error != "":
+			rep.line("warn", "model "+p.ID, p.Error)
+		case len(p.Models) == 0:
+			rep.line("warn", "model "+p.ID, "reachable but lists no models")
+		default:
+			usable++
+			rep.line("ok", "model "+p.ID, fmt.Sprintf("%s, %d models", p.Kind, len(p.Models)))
+		}
+	}
+	if usable == 0 {
+		rep.line("fail", "models", "no reachable model provider: add one (e.g. deploy/aliyun/crewbase.patch.yml)")
 	}
 }

@@ -1,0 +1,40 @@
+# Crewbase on Alibaba Cloud: container patch with mainland-China model
+# presets. user-data.sh copies this over deploy/crewbase.patch.yml.
+# Keys are environment references (deploy/.env, chmod 600); the patch never
+# holds secrets.
+
+- id: sandbox
+  name: '@crewbase/sandbox-none' # no Docker socket in the container (fails closed)
+- id: browser
+  disabled: true
+- id: browser-tools
+  disabled: true
+
+- id: audit
+  name: '@crewbase/audit'
+  config:
+    dir: /data
+
+# DeepSeek (api.deepseek.com), Qwen (DashScope, 通义千问) and Kimi (Moonshot)
+# are OpenAI-compatible presets of @crewbase/llm-openai. Remove the ones you
+# have no key for: a provider without a key is reported by `crew doctor`.
+- id: llm-openai
+  name: '@crewbase/llm-openai'
+  config:
+    providers:
+      - id: deepseek
+        apiKeyRef: 'env:DEEPSEEK_API_KEY'
+        models: [deepseek-chat, deepseek-reasoner]
+      - id: qwen
+        apiKeyRef: 'env:DASHSCOPE_API_KEY'
+        models: [qwen-plus, qwen-max, qwen-flash]
+      - id: moonshot
+        apiKeyRef: 'env:MOONSHOT_API_KEY'
+        models: [kimi-k2-0905-preview, kimi-k2-turbo-preview]
+
+# Default model order for new agents (first reachable wins at runtime).
+- id: agents
+  name: '@crewbase/agents'
+  config:
+    root: /data
+    defaultModels: [deepseek/deepseek-chat, qwen/qwen-plus, moonshot/kimi-k2-0905-preview]

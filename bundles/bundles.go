@@ -20,11 +20,13 @@ import (
 	_ "github.com/hedeqiang/crewbase/core/tools"
 	_ "github.com/hedeqiang/crewbase/features/alerts"
 	_ "github.com/hedeqiang/crewbase/features/api"
+	_ "github.com/hedeqiang/crewbase/features/audit"
 	_ "github.com/hedeqiang/crewbase/features/browsertools"
 	_ "github.com/hedeqiang/crewbase/features/channel"
 	_ "github.com/hedeqiang/crewbase/features/compaction"
 	_ "github.com/hedeqiang/crewbase/features/console"
 	_ "github.com/hedeqiang/crewbase/features/gateway"
+	_ "github.com/hedeqiang/crewbase/features/goals"
 	_ "github.com/hedeqiang/crewbase/features/im"
 	_ "github.com/hedeqiang/crewbase/features/mcp"
 	_ "github.com/hedeqiang/crewbase/features/memory"
@@ -37,6 +39,7 @@ import (
 	_ "github.com/hedeqiang/crewbase/features/schedule"
 	_ "github.com/hedeqiang/crewbase/features/skills"
 	_ "github.com/hedeqiang/crewbase/features/subagent"
+	_ "github.com/hedeqiang/crewbase/features/telemetry"
 	_ "github.com/hedeqiang/crewbase/features/toolsbasic"
 	_ "github.com/hedeqiang/crewbase/features/topics"
 	_ "github.com/hedeqiang/crewbase/features/usage"
@@ -98,6 +101,10 @@ var Base = kernel.Bundle{Name: "base", Entries: []kernel.Entry{
 	{ID: "routines", Name: "@crewbase/routines", Config: map[string]any{"dir": "${root}"}},
 	{ID: "alerts", Name: "@crewbase/alerts"},
 	{ID: "topics", Name: "@crewbase/topics"},
+	{ID: "audit", Name: "@crewbase/audit", Config: map[string]any{"dir": "${root}"}},
+	{ID: "goals", Name: "@crewbase/goals"},
+	// OpenTelemetry export is off by default (no telemetry leaves the machine).
+	{ID: "otel", Name: "@crewbase/otel", Config: map[string]any{"endpoint": "http://127.0.0.1:4318"}, Disabled: true},
 	// IM gateways: outbound connections only (no public webhook). Enable
 	// with a patch once channel and allowUsers are set; tokens live in the
 	// keychain under these refs.
@@ -133,6 +140,8 @@ var Desktop = kernel.Bundle{Name: "desktop", Entries: []kernel.Entry{
 	{ID: "mcp-api", Name: "@crewbase/mcp-api"},
 	{ID: "browser-api", Name: "@crewbase/browser-api"},
 	{ID: "im-api", Name: "@crewbase/im-api"},
+	{ID: "audit-api", Name: "@crewbase/audit-api"},
+	{ID: "goals-api", Name: "@crewbase/goals-api"},
 	{ID: "plugin-manager", Name: "@crewbase/plugin-manager", Config: map[string]any{"dir": "${root}/plugins"}},
 	{ID: "plugin-manager-api", Name: "@crewbase/plugin-manager-api"},
 	{ID: "console", Name: "@crewbase/console", Config: map[string]any{"dir": "${root}"}},

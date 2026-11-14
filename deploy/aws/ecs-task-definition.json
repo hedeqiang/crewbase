@@ -1,0 +1,68 @@
+{
+  "family": "crewbase",
+  "requiresCompatibilities": ["FARGATE"],
+  "networkMode": "awsvpc",
+  "cpu": "2048",
+  "memory": "4096",
+  "runtimePlatform": { "operatingSystemFamily": "LINUX", "cpuArchitecture": "ARM64" },
+  "executionRoleArn": "arn:aws:iam::<ACCOUNT_ID>:role/crewbaseTaskExecutionRole",
+  "taskRoleArn": "arn:aws:iam::<ACCOUNT_ID>:role/crewbaseTaskRole",
+  "containerDefinitions": [
+    {
+      "name": "crewbase",
+      "image": "<ACCOUNT_ID>.dkr.ecr.<REGION>.amazonaws.com/crewbase:<TAG>",
+      "essential": true,
+      "command": ["--profile", "server", "--patch", "/data/crewbase.patch.yml"],
+      "user": "65532:65532",
+      "readonlyRootFilesystem": true,
+      "portMappings": [],
+      "linuxParameters": {
+        "capabilities": { "drop": ["ALL"] },
+        "initProcessEnabled": true
+      },
+      "environment": [
+        { "name": "CREWBASE_HOME", "value": "/data" },
+        { "name": "TMPDIR", "value": "/data/tmp" },
+        { "name": "TZ", "value": "UTC" }
+      ],
+      "secrets": [
+        { "name": "DEEPSEEK_API_KEY", "valueFrom": "arn:aws:secretsmanager:<REGION>:<ACCOUNT_ID>:secret:crewbase/deepseek" },
+        { "name": "ANTHROPIC_API_KEY", "valueFrom": "arn:aws:secretsmanager:<REGION>:<ACCOUNT_ID>:secret:crewbase/anthropic" }
+      ],
+      "mountPoints": [
+        { "sourceVolume": "crewbase-data", "containerPath": "/data", "readOnly": false }
+      ],
+      "healthCheck": {
+        "command": ["CMD", "/usr/local/bin/crew", "doctor", "--health"],
+        "interval": 30,
+        "timeout": 5,
+        "retries": 3,
+        "startPeriod": 30
+      },
+      "ulimits": [ { "name": "nofile", "softLimit": 65536, "hardLimit": 65536 } ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/crewbase",
+          "awslogs-region": "<REGION>",
+          "awslogs-stream-prefix": "crewbase",
+          "awslogs-create-group": "true"
+        }
+      }
+    }
+  ],
+  "volumes": [
+    {
+      "name": "crewbase-data",
+      "efsVolumeConfiguration": {
+        "fileSystemId": "fs-<EFS_ID>",
+        "rootDirectory": "/",
+        "transitEncryption": "ENABLED",
+        "authorizationConfig": {
+          "accessPointId": "fsap-<ACCESS_POINT_ID>",
+          "iam": "ENABLED"
+        }
+      }
+    }
+  ]
+}

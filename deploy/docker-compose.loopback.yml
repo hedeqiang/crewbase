@@ -1,0 +1,14 @@
+# Optional override: make the API reachable from the HOST's loopback only,
+# for SSH tunnels / AWS SSM port forwarding to the host.
+#
+#   docker compose -f docker-compose.yml -f docker-compose.loopback.yml up -d
+#
+# Inside the container the gateway must then bind 0.0.0.0 (its own network
+# namespace); the mapping publishes it on 127.0.0.1 of the host only, so it
+# is still not reachable from the network. Never change 127.0.0.1 below to
+# 0.0.0.0 or drop it: that would expose 7788 publicly.
+services:
+  crewbase:
+    command: ["--profile", "server", "--patch", "/etc/crewbase/crewbase.patch.yml", "--addr", "0.0.0.0:7788"]
+    ports:
+      - "127.0.0.1:7788:7788"

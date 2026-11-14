@@ -1,0 +1,14 @@
+.git
+.gitignore
+bin/
+dist/
+**/node_modules
+apps/web/dist
+apps/web/tsconfig.tsbuildinfo
+*.test
+coverage.out
+.DS_Store
+crewbase-prototype.html
+deploy/
+docs/
+TODO.md

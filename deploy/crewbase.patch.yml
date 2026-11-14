@@ -1,0 +1,39 @@
+# Container patch for `crewd --profile server` (mounted read-only at
+# /etc/crewbase/crewbase.patch.yml by docker-compose.yml). Entries are merged
+# by id over the profile; see `docker compose exec crewbase crew dump-config
+# --profile server`.
+
+# The container has no Docker socket (mounting it would hand the agent root
+# on the host). sandbox-none fails closed: sandbox-mode commands are refused
+# with SANDBOX_UNAVAILABLE instead of running unconfined. For confined
+# command execution run Crewbase with install-server.sh on a host with Docker.
+- id: sandbox
+  name: '@crewbase/sandbox-none'
+
+# The default (distroless) image has no browser. With CREWBASE_RUNTIME=chromium
+# replace this entry with:
+#   - id: browser
+#     name: '@crewbase/browser-chrome'
+#     config:
+#       executable: /usr/bin/chromium
+#       # Chromium's own sandbox needs user namespaces, which seccomp.json
+#       # blocks; the container (no caps, seccomp, read-only root) is the
+#       # boundary instead.
+#       args: ['--no-sandbox', '--disable-dev-shm-usage']
+- id: browser
+  disabled: true
+- id: browser-tools
+  disabled: true
+
+# Audit log (docs/06 §10): append-only, hash-chained, in /data/audit.
+- id: audit
+  name: '@crewbase/audit'
+  config:
+    dir: /data
+
+# Model providers: keys come from the environment (deploy/.env).
+# - id: llm-openai
+#   name: '@crewbase/llm-openai'
+#   config:
+#     providers:
+#       - { id: deepseek, apiKeyRef: 'env:DEEPSEEK_API_KEY', models: [deepseek-chat, deepseek-reasoner] }

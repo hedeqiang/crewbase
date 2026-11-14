@@ -1,0 +1,93 @@
+# Hardened Crewbase server (docs/deploy.md).
+#
+#   cd deploy && docker compose up -d --build
+#   docker compose exec crewbase crew doctor
+#   docker compose exec crewbase crew agents
+#
+# Zero inbound ports: nothing is published. The gateway listens on
+# 127.0.0.1:7788 *inside* the container. Reach it with `docker compose exec`,
+# the optional Tailscale sidecar below, or an outbound relay. Never add a
+# `ports:` mapping for 7788 on a public host.
+name: crewbase
+
+services:
+  crewbase:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+      args:
+        RUNTIME: ${CREWBASE_RUNTIME:-distroless} # chromium = image with a browser
+        GOPROXY: ${GOPROXY:-https://proxy.golang.org,direct}
+        NPM_REGISTRY: ${NPM_REGISTRY:-}
+        ALPINE_MIRROR: ${ALPINE_MIRROR:-}
+    image: ${CREWBASE_IMAGE:-crewbase:local}
+    command: ["--profile", "server", "--patch", "/etc/crewbase/crewbase.patch.yml"]
+    restart: unless-stopped
+    init: true
+    user: "65532:65532"
+    read_only: true
+    tmpfs:
+      - /tmp:rw,nosuid,nodev,size=512m,mode=1777
+    shm_size: 1g
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+      - seccomp=./seccomp.json
+    pids_limit: 1024
+    mem_limit: ${CREWBASE_MEMORY:-4g}
+    ulimits:
+      nofile: { soft: 65536, hard: 65536 }
+    environment:
+      CREWBASE_HOME: /data
+      TZ: ${TZ:-UTC}
+      # Model keys are read through credential references (env:NAME); keep
+      # them in deploy/.env (chmod 600), never in the patch file.
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
+      DASHSCOPE_API_KEY: ${DASHSCOPE_API_KEY:-}
+      MOONSHOT_API_KEY: ${MOONSHOT_API_KEY:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+    volumes:
+      - crewbase-data:/data
+      - ./crewbase.patch.yml:/etc/crewbase/crewbase.patch.yml:ro
+    # No `ports:` on purpose.
+    healthcheck:
+      test: ["CMD", "/usr/local/bin/crew", "doctor", "--health"]
+      interval: 30s
+      timeout: 5s
+      start_period: 20s
+      retries: 3
+    logging:
+      driver: local
+      options: { max-size: 20m, max-file: "5" }
+
+  # Optional: private access over Tailscale (outbound only). Shares the
+  # crewbase network namespace, so `tailscale serve` can proxy 127.0.0.1:7788
+  # to your tailnet. Enable with: docker compose --profile tailscale up -d
+  tailscale:
+    profiles: ["tailscale"]
+    image: tailscale/tailscale:v1.84.3
+    network_mode: service:crewbase
+    restart: unless-stopped
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    environment:
+      TS_AUTHKEY: ${TS_AUTHKEY:-}
+      TS_HOSTNAME: ${TS_HOSTNAME:-crewbase}
+      TS_STATE_DIR: /var/lib/tailscale
+      TS_USERSPACE: "true"
+      TS_SERVE_CONFIG: /config/serve.json
+    volumes:
+      - tailscale-state:/var/lib/tailscale
+      - ./tailscale-serve.json:/config/serve.json:ro
+    depends_on:
+      crewbase:
+        condition: service_healthy
+
+volumes:
+  crewbase-data:
+    # On a cloud VM, bind the volume to the data disk instead, e.g.
+    # driver: local
+    # driver_opts: { type: none, o: bind, device: /data/crewbase }
+  tailscale-state:

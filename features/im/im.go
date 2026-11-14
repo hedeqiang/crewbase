@@ -301,9 +301,10 @@ type Gateway struct {
 	connected bool
 	lastErr   string
 	since     time.Time
-	pending   map[string]*pendingCard // token → card
-	closed    map[string]closedCard   // callID → card awaiting final outcome
-	bindings  map[string]*binding     // chat\x00msgID → binding
+	pending   map[string]*pendingCard         // token → card
+	closed    map[string]closedCard           // callID → card awaiting final outcome
+	early     map[string]approval.DecidedData // outcome that arrived before the card was closed
+	bindings  map[string]*binding             // chat\x00msgID → binding
 	byID      map[string]*binding
 	order     []string // binding ids, oldest first (bounded)
 	refused   map[string]time.Time
@@ -709,6 +710,14 @@ type closedCard struct {
 
 func (g *Gateway) awaitOutcome(callID string, ref Ref, card Message) {
 	g.mu.Lock()
+	if d, ok := g.early[callID]; ok {
+		// The decision was announced before this responder noticed it
+		// lost the race: apply it now.
+		delete(g.early, callID)
+		g.mu.Unlock()
+		g.applyOutcome(closedCard{ref: ref, card: card}, d)
+		return
+	}
 	defer g.mu.Unlock()
 	if len(g.closed) > 500 {
 		clear(g.closed)
@@ -720,11 +729,31 @@ func (g *Gateway) onDecided(d approval.DecidedData) {
 	g.mu.Lock()
 	cc, ok := g.closed[d.CallID]
 	delete(g.closed, d.CallID)
+	if !ok {
+		// Our card may still be open (the responder has not seen its
+		// context end yet): remember the outcome for awaitOutcome.
+		for _, p := range g.pending {
+			if p.req.CallID == d.CallID {
+				if g.early == nil {
+					g.early = map[string]approval.DecidedData{}
+				}
+				if len(g.early) > 500 {
+					clear(g.early)
+				}
+				g.early[d.CallID] = d
+				break
+			}
+		}
+	}
 	g.mu.Unlock()
-	ref, card := cc.ref, cc.card
 	if !ok {
 		return
 	}
+	g.applyOutcome(cc, d)
+}
+
+func (g *Gateway) applyOutcome(cc closedCard, d approval.DecidedData) {
+	ref, card := cc.ref, cc.card
 	var footer string
 	switch d.Outcome {
 	case approval.OutcomeAllowedOnce:
