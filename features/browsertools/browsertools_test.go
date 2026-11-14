@@ -467,3 +467,27 @@ func TestBrowserAllowlistSubresources(t *testing.T) {
 		t.Fatal("host mode still filtered")
 	}
 }
+
+// Links that would open a new tab load in the agent's tab instead.
+func TestNewTabLinksStayInTab(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/next":
+			fmt.Fprint(w, `<html><title>Next page</title><body>arrived</body></html>`)
+		case "/js":
+			fmt.Fprint(w, `<html><title>JS opener</title><body><button onclick="window.open('/next')">open</button></body></html>`)
+		default:
+			fmt.Fprint(w, `<html><title>Start</title><body><a href="/next" target="_blank">go</a></body></html>`)
+		}
+	}))
+	defer srv.Close()
+	e := setup(t, nil)
+	e.run(t, browsertools.ToolOpen, map[string]any{"url": srv.URL})
+	if r := e.run(t, browsertools.ToolClick, map[string]any{"ref": 1}); !strings.Contains(r.Content, "Next page") {
+		t.Fatalf("target=_blank left the tab: %s", r.Content)
+	}
+	e.run(t, browsertools.ToolOpen, map[string]any{"url": srv.URL + "/js"})
+	if r := e.run(t, browsertools.ToolClick, map[string]any{"ref": 1}); !strings.Contains(r.Content, "Next page") {
+		t.Fatalf("window.open left the tab: %s", r.Content)
+	}
+}

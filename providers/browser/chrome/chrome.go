@@ -23,6 +23,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/chromedp/cdproto/cdp"
+	"github.com/chromedp/cdproto/page"
 	"io"
 	"net/url"
 	"os"
@@ -457,9 +459,32 @@ func bounded(ctx context.Context, timeout time.Duration, fn func() error) error 
 
 func initTab(ctx, tab context.Context, timeout time.Duration) error {
 	return bounded(ctx, timeout, func() error {
-		return chromedp.Do(tab, chromedp.Func(func(context.Context, *chromedp.Target) error { return nil }))
+		return chromedp.Do(tab, chromedp.Func(func(ctx context.Context, t *chromedp.Target) error {
+			run := true
+			_, err := cdp.Call(ctx, t, page.AddScriptToEvaluateOnNewDocument, page.AddScriptToEvaluateOnNewDocumentParams{Source: sameTabJS, RunImmediately: &run})
+			return err
+		}))
 	})
 }
+
+// sameTabJS keeps the agent in one tab: links with a target and
+// window.open load in the current tab, so the agent sees where it went
+// (new tabs would be invisible to it). Forms with a target likewise.
+const sameTabJS = `(() => {
+  if (window.top !== window || window.__crewSameTab) return;
+  window.__crewSameTab = true;
+  const fix = (e) => {
+    const el = e.target && e.target.closest && e.target.closest("a[target], area[target], form[target]");
+    if (el && el.target && el.target !== "_self" && el.target !== "_top" && el.target !== "_parent") el.target = "_self";
+  };
+  document.addEventListener("click", fix, true);
+  document.addEventListener("submit", fix, true);
+  const open = window.open;
+  window.open = function (url) {
+    if (url) { location.href = new URL(url, location.href).href; return window; }
+    return open.apply(window, arguments);
+  };
+})();`
 
 func targets(ctx, browserCtx context.Context, timeout time.Duration) ([]*target.Info, error) {
 	var ts []*target.Info
