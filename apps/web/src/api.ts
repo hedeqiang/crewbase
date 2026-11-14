@@ -207,6 +207,46 @@ export interface ApprovalHistoryItem extends ApprovalRequest {
 export interface Settings {
   defaultMode: "read-only" | "sandbox" | string;
   defaultModels: string[];
+  /** How the person is called in the UI (empty = "你"). */
+  displayName?: string;
+  /** Do-not-disturb until this RFC 3339 time; "" = off. */
+  dndUntil?: string;
+}
+
+/** GET /api/system */
+export interface SystemInfo {
+  version?: string;
+  startedAt?: string;
+  hostname?: string;
+  os?: string;
+  arch?: string;
+  dataDir?: string;
+}
+
+/** Injected by the Crewbase desktop shell (MyGo window). Absent in a browser. */
+export interface CrewbaseDesktop {
+  version?: string;
+  platform?: "darwin" | "windows" | "linux";
+  quit?: () => void;
+  openExternal?: (url: string) => void;
+  setBadge?: (n: number) => void;
+}
+
+declare global {
+  interface Window {
+    crewbaseDesktop?: CrewbaseDesktop;
+  }
+}
+
+export function desktop(): CrewbaseDesktop | undefined {
+  return typeof window !== "undefined" ? window.crewbaseDesktop : undefined;
+}
+
+/** Open a URL outside the app: the desktop shell's browser, or a new tab. */
+export function openExternal(url: string) {
+  const d = desktop();
+  if (d?.openExternal) d.openExternal(url);
+  else window.open(url, "_blank", "noopener,noreferrer");
 }
 export interface TaskRoute {
   task: string;
@@ -589,6 +629,7 @@ export const API = {
   browserInput: (id: string, b: BrowserInput) => api("POST", `/api/agents/${enc(id)}/browser/input`, b),
 
   usage: () => api<UsageStats>("GET", "/api/usage"),
+  system: () => api<SystemInfo>("GET", "/api/system"),
 };
 
 function enc(s: string) {

@@ -42,6 +42,7 @@ import {
   modeLabel,
   modelLabel,
   sameRef,
+  shortModelEffort,
   until,
 } from "../format";
 import { Avatar } from "./Avatar";
@@ -164,15 +165,23 @@ function Feed({
           <span className="small">{t("ch.emptyDesc", { owner: agents[channel.owner]?.name ?? channel.owner })}</span>
         </div>
       )}
-      {items.map((it) => (
-        <FeedRow key={it.id} it={it} agents={agents} />
-      ))}
+      {groupFeed(items).map((g) =>
+        g.sys ? (
+          <div className="sysgrp" key={g.items[0].it.id}>
+            {g.items.map((x) => (
+              <FeedRow key={x.it.id} it={x.it} agents={agents} />
+            ))}
+          </div>
+        ) : (
+          g.items.map((x) => <FeedRow key={x.it.id} it={x.it} agents={agents} showModel={x.showModel} />)
+        ),
+      )}
       {live.map(([k, v]) => {
         const a = agents[k.split("|")[1]];
         if (!v.text && !v.thinking) return null;
         return (
           <div className="m-agent live" key={k}>
-            <Avatar agent={a} size={30} />
+            <Avatar agent={a} size={28} />
             <div style={{ minWidth: 0 }}>
               <div className="mh">
                 <b>{a?.name ?? k.split("|")[1]}</b>
@@ -207,7 +216,33 @@ function Feed({
   );
 }
 
-function FeedRow({ it, agents }: { it: FeedItem; agents: Record<string, AgentView> }) {
+const SYS_KINDS = new Set<FeedItem["k"]>(["switch", "mode", "compact", "handover", "owner", "chstate", "sys"]);
+
+function isSysItem(it: FeedItem): boolean {
+  return SYS_KINDS.has(it.k) || (it.k === "approval" && !!it.decided);
+}
+
+/** Split the feed into runs; consecutive system lines become one compact group.
+ *  Agent messages show their model only when it differs from the previous one. */
+function groupFeed(items: FeedItem[]): { sys: boolean; items: { it: FeedItem; showModel?: boolean }[] }[] {
+  const out: { sys: boolean; items: { it: FeedItem; showModel?: boolean }[] }[] = [];
+  let prev = "";
+  for (const it of items) {
+    const sys = isSysItem(it);
+    let showModel: boolean | undefined;
+    if (it.k === "agent" && it.model) {
+      const key = it.model.provider + "/" + it.model.model + "@" + (it.model.effort ?? "");
+      showModel = key !== prev;
+      prev = key;
+    }
+    const last = out[out.length - 1];
+    if (last && sys && last.sys) last.items.push({ it });
+    else out.push({ sys, items: [{ it, showModel }] });
+  }
+  return out;
+}
+
+function FeedRow({ it, agents, showModel }: { it: FeedItem; agents: Record<string, AgentView>; showModel?: boolean }) {
   const models = useStore((s) => s.models);
   switch (it.k) {
     case "time":
@@ -222,7 +257,7 @@ function FeedRow({ it, agents }: { it: FeedItem; agents: Record<string, AgentVie
         </div>
       );
     case "agent":
-      return <AgentMsg it={it} agent={agents[it.agent]} />;
+      return <AgentMsg it={it} agent={agents[it.agent]} showModel={!!showModel} />;
     case "steps":
       return <Steps steps={it.steps} />;
     case "approval":
@@ -296,20 +331,21 @@ const REASONS: Record<string, true> = {
   "chat.reason.unavailable": true,
 };
 
-function AgentMsg({ it, agent }: { it: Extract<FeedItem, { k: "agent" }>; agent?: AgentView }) {
+function AgentMsg({ it, agent, showModel }: { it: Extract<FeedItem, { k: "agent" }>; agent?: AgentView; showModel: boolean }) {
   const models = useStore((s) => s.models);
   const [showThink, setShowThink] = useState(false);
+  const sm = it.model ? shortModelEffort(models, it.model) : null;
   return (
     <div className="m-agent">
-      <Avatar agent={agent} size={30} />
+      <Avatar agent={agent} size={28} />
       <div style={{ minWidth: 0 }}>
         <div className="mh">
           <b>{agent?.name ?? it.agent}</b>
           <span className="t">{hhmm(it.time)}</span>
-          {it.model && (
-            <span className="via">
-              {t("chat.via", { model: modelLabel(models, it.model) })}
-              {it.model.effort ? ` · ${effortLabel(it.model.effort)}` : ""}
+          {sm && it.model && (
+            <span className={"via" + (showModel ? "" : " hov")} title={modelLabel(models, it.model)}>
+              {sm.name}
+              {sm.effort && <span className="effs">{sm.effort}</span>}
             </span>
           )}
         </div>
@@ -562,7 +598,7 @@ function Composer({
     const el = ta.current;
     if (!el) return;
     el.style.height = "auto";
-    el.style.height = Math.min(el.scrollHeight, 220) + "px";
+    el.style.height = Math.min(el.scrollHeight, 8 * 21 + 10) + "px";
   }, [draft]);
 
   useEffect(() => {
@@ -780,18 +816,18 @@ function Composer({
             {shown ? (
               <>
                 <ProviderMark provider={shown.provider} model={shown.model} size={12} />
-                <span className="lbl">{modelLabel(models, shown)}</span>
-                {shown.effort && <span className="eff">· {effortLabel(shown.effort)}</span>}
+                <span className="lbl">{shortModelEffort(models, shown).name}</span>
+                {shortModelEffort(models, shown).effort && <span className="eff">{shortModelEffort(models, shown).effort}</span>}
               </>
             ) : (
               <span className="lbl">{t("na.modelNone")}</span>
             )}
             <ChevronDown size={14} />
           </button>
-          <button className="cbtn round" type="button" aria-label={t("chat.voice")} title={t("chat.voice")} onClick={() => toast(t("chat.voice"))}>
+          <button className="cbtn round ghost" type="button" aria-label={t("chat.voice")} title={t("chat.voice")} onClick={() => toast(t("chat.voice"))}>
             <Mic size={15} />
           </button>
-          <button className="send" type="submit" disabled={!draft.trim() || sending} aria-label={t("chat.send")} title={t("chat.send")}>
+          <button className={"send" + (draft.trim() ? " on" : "")} type="submit" disabled={!draft.trim() || sending} aria-label={t("chat.send")} title={t("chat.send")}>
             <ArrowUp size={16} />
           </button>
         </div>
@@ -806,18 +842,26 @@ function Composer({
           }}
         >
           <Folder size={13} />
-          <span className="path">{shortPath(agent.workspace)}</span>
+          <MidPath path={shortPath(agent.workspace)} />
         </button>
         <span className="sp" />
         {shown && quota !== null && (
-          <span className={quota <= 10 ? "warnq" : ""}>
+          <span className={"quota" + (quota <= 10 ? " warnq" : "")}>
             <ProviderMark provider={shown.provider} model={shown.model} size={11} />
-            {t("comp.quota", { model: modelLabel(models, shown), pct: quota })}
+            {t("comp.quota", { model: shortModelEffort(models, shown).name, pct: quota })}
           </span>
         )}
-        <button className="ctxbtn" type="button" ref={ctxM.ref} onClick={ctxM.toggle} aria-haspopup="menu">
+        <button
+          className="ctxbtn"
+          type="button"
+          ref={ctxM.ref}
+          onClick={ctxM.toggle}
+          aria-haspopup="menu"
+          title={pct === null ? t("comp.contextNone") : t("comp.context", { pct })}
+          aria-label={pct === null ? t("comp.contextNone") : t("comp.context", { pct })}
+        >
           <i className={"ring" + (pct !== null && pct >= 80 ? " hi" : "")} style={{ ["--p" as any]: pct ?? 0 }} />
-          {pct === null ? t("comp.contextNone") : t("comp.context", { pct })}
+          {pct ? t("comp.context", { pct }) : null}
         </button>
       </div>
 
@@ -1115,4 +1159,16 @@ function segLabel(key: string, fallback: string): string {
 export function shortPath(p: string): string {
   const m = p.match(/^\/(Users|home)\/[^/]+(\/.*)?$/);
   return m ? "~" + (m[2] ?? "") : p;
+}
+
+/** Middle-ellipsis path: keeps the head and the last segment visible. */
+function MidPath({ path }: { path: string }) {
+  const i = path.lastIndexOf("/");
+  if (i <= 0 || path.length < 28) return <span className="path">{path}</span>;
+  return (
+    <span className="path mid">
+      <span className="hd">{path.slice(0, i)}</span>
+      <span className="tl">{path.slice(i)}</span>
+    </span>
+  );
 }

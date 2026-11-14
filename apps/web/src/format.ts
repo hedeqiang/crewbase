@@ -155,3 +155,36 @@ export function sameRef(a: ModelRef | null | undefined, b: ModelRef | null | und
 export function clamp(n: number, lo: number, hi: number) {
   return Math.max(lo, Math.min(hi, n));
 }
+
+/** Compact time for list rows: 14:05 today, 昨天, then M/D. */
+export function listTime(iso: string): string {
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return "";
+  const now = new Date();
+  if (d.toDateString() === now.toDateString()) return hhmm(iso);
+  const y = new Date(now);
+  y.setDate(now.getDate() - 1);
+  if (d.toDateString() === y.toDateString()) return t("time.yesterday");
+  return `${d.getMonth() + 1}/${d.getDate()}`;
+}
+
+/** "3 小时 12 分" style duration since iso. */
+export function sinceLabel(iso: string, now = Date.now()): string {
+  const m = Math.max(0, Math.floor((now - new Date(iso).getTime()) / 60000));
+  if (m < 60) return t("dur.m", { n: Math.max(1, m) });
+  if (m < 1440) return m % 60 ? t("dur.hm", { h: Math.floor(m / 60), m: m % 60 }) : t("dur.h", { n: m / 60 });
+  return t("dur.d", { n: Math.floor(m / 1440) });
+}
+
+/** Model display name without the provider / gateway suffix, e.g.
+ *  "GPT-6.1 Sol · AlchemyPay-OpenAI" → "GPT-6.1 Sol". */
+export function shortModel(models: ModelsResponse | null, r: ModelRef): string {
+  const m = findModel(models, r);
+  const name = m?.name || r.model.split("/").pop() || r.model;
+  return name.split(" · ")[0].replace(/\s*\((?:via|through)[^)]*\)\s*$/i, "").trim();
+}
+
+/** Short label plus a tiny effort suffix when not the default/medium. */
+export function shortModelEffort(models: ModelsResponse | null, r: ModelRef): { name: string; effort: string } {
+  return { name: shortModel(models, r), effort: r.effort && r.effort !== "medium" ? effortLabel(r.effort) : "" };
+}

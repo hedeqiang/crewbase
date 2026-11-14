@@ -1,14 +1,32 @@
-import { useMemo, useState } from "react";
-import { Bot, ChevronDown, Workflow, FolderPlus, Hash, LogOut, Plus, Search, Settings, User, Keyboard } from "lucide-react";
-import type { AgentView, SessionMeta } from "../api";
-import { setToken } from "../api";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Bot, Check, ChevronRight, Workflow, FolderPlus, Hash, LifeBuoy, LogOut, Moon, Plus, Power, Search, Settings, Keyboard } from "lucide-react";
+import type { AgentView, SessionMeta, UsageStats } from "../api";
+import { API, desktop, openExternal, setToken } from "../api";
 import { t } from "../i18n";
-import { ago, detailLabel, statusLabel, pillTone } from "../format";
+import { hhmm, kfmt, listTime, sinceLabel } from "../format";
 import { takeoverReason } from "./Browser";
 import { lastSnippet } from "../projection";
-import { disconnectEvents, openNewAgent, openNewChannel, openSession, openSettings, setState, setTheme, useStore, type Theme } from "../store";
+import {
+  disconnectEvents,
+  dndActive,
+  myName,
+  openNewAgent,
+  openNewChannel,
+  openSession,
+  openSettings,
+  patchProfile,
+  refreshProfile,
+  setState,
+  setTheme,
+  useStore,
+  type Profile,
+  type Theme,
+} from "../store";
 import { Avatar, MeAvatar } from "./Avatar";
+import { ListToggle } from "./Header";
 import { Popover, useMenu } from "./Popover";
+
+const ISSUES_URL = "https://github.com/hedeqiang/crewbase/issues";
 
 export function SessionList() {
   const agents = useStore((s) => s.agents);
@@ -18,6 +36,7 @@ export function SessionList() {
   const current = useStore((s) => s.current);
   const view = useStore((s) => s.view);
   const connected = useStore((s) => s.connected);
+  const profile = useStore((s) => s.profile);
   const [q, setQ] = useState("");
   const [folded, setFolded] = useState<Record<string, boolean>>({});
   const plus = useMenu();
@@ -65,135 +84,154 @@ export function SessionList() {
 
   const empty = Object.keys(agents).length === 0;
   const noMatch = !empty && groups.length === 0;
+  const needs = approvals.length + takeovers.length;
+  const sel = (sid: string) => view === "chat" && current === sid;
+  const dnd = dndActive(profile);
+  const host = profile.system?.hostname;
+
+  const agentRow = (a: AgentView) => {
+    const snip = snippet(a.session);
+    const topic = summaries[a.session]?.topic;
+    const waiting = (pendingBy[a.id] ?? 0) > 0 || !!takeoverReason(a);
+    return (
+      <button key={a.id} className="ci" type="button" aria-current={sel(a.session)} onClick={() => openSession(a.session)}>
+        <Avatar agent={a} size={32} status />
+        <span className="ct">
+          <span className="l1">
+            <b>{a.name}</b>
+            {waiting && <span className="wchip">{t("list.wait")}</span>}
+            <span className="tm">{snip?.time ? listTime(snip.time) : ""}</span>
+          </span>
+          <span className="l2">{topic || snip?.text || a.role || " "}</span>
+        </span>
+      </button>
+    );
+  };
+
+  const channelRow = (m: SessionMeta) => {
+    const ch = channels[m.id];
+    const owner = ch ? agents[ch.owner] : undefined;
+    const snip = snippet(m.id);
+    const who = snip?.agent ? agents[snip.agent]?.name : undefined;
+    const topic = summaries[m.id]?.topic;
+    return (
+      <button key={m.id} className={"ci" + (ch?.state === "archived" ? " arch" : "")} type="button" aria-current={sel(m.id)} onClick={() => openSession(m.id)}>
+        <span className="chav">
+          <Hash size={16} />
+          {owner && (
+            <span className="chown">
+              <Avatar agent={owner} size={14} />
+            </span>
+          )}
+        </span>
+        <span className="ct">
+          <span className="l1">
+            <b>{m.title || m.id}</b>
+            {ch?.state === "paused" && <span className="pill sm">{t("ch.paused")}</span>}
+            {ch?.state === "archived" && <span className="pill sm">{t("ch.archived")}</span>}
+            <span className="tm">{snip?.time ? listTime(snip.time) : ""}</span>
+          </span>
+          <span className="l2">
+            {topic ? (
+              topic
+            ) : (
+              <>
+                {who && snip?.text ? <span className="who">{who}：</span> : null}
+                {snip?.text || (owner ? t("ch.ownerIs", { name: owner.name }) : " ")}
+              </>
+            )}
+          </span>
+        </span>
+      </button>
+    );
+  };
 
   return (
     <aside className="list">
+      <div className="lbar">
+        <ListToggle />
+      </div>
       <div className="lhead">
         <label className="search">
-          <Search size={15} />
+          <Search size={14} />
           <input value={q} onChange={(e) => setQ(e.target.value)} placeholder={t("list.search")} />
         </label>
-        <button className="ib" type="button" ref={plus.ref} onClick={plus.toggle} aria-label={t("list.new")} title={t("list.new")} aria-haspopup="menu">
+        <button className="ib bordered" type="button" ref={plus.ref} onClick={plus.toggle} aria-label={t("list.new")} title={t("list.new")} aria-haspopup="menu">
           <Plus size={16} />
         </button>
       </div>
       <div className="lscroll">
-        {approvals.length + takeovers.length > 0 && !q && (
+        {needs > 0 && !q && (
           <>
             <div className="lsec">
-              {t("list.needsYou")}
-              <span className="cnt amber">{approvals.length + takeovers.length}</span>
+              <span>{t("list.needsYou")}</span>
+              <span className="cnt amber">{needs}</span>
             </div>
             {takeovers.map((a) => (
-              <button key={"tk" + a.id} className="ci" type="button" aria-current={view === "chat" && current === a.session} onClick={() => openSession(a.session)}>
-                <Avatar agent={a} size={36} status />
-                <span style={{ minWidth: 0 }}>
-                  <span className="ttl">
+              <button key={"tk" + a.id} className="ci" type="button" aria-current={false} onClick={() => openSession(a.session)}>
+                <Avatar agent={a} size={32} status />
+                <span className="ct">
+                  <span className="l1">
                     <b>{a.name}</b>
-                    <span className="pill amber">{t("list.waitTakeover")}</span>
+                    <span className="wchip">{t("list.waitTakeover")}</span>
+                    <span className="tm" />
                   </span>
-                  <span className="snip">{takeoverReason(a)}</span>
+                  <span className="l2">{takeoverReason(a)}</span>
                 </span>
-                <span className="meta" />
               </button>
             ))}
             {approvals.map((r) => {
               const a = agents[r.agent];
               return (
-                <button key={r.callId} className="ci" type="button" aria-current={view === "chat" && current === r.session} onClick={() => openSession(r.session)}>
-                  {a ? <Avatar agent={a} size={36} status /> : <span className="chav"><Workflow size={18} /></span>}
-                  <span style={{ minWidth: 0 }}>
-                    <span className="ttl">
-                      <b>{a?.name ?? (r.agent || t("appr.workflow"))}</b>
-                      <span className="pill amber">{t("list.waitApprove")}</span>
+                <button key={r.callId} className="ci" type="button" aria-current={false} onClick={() => openSession(r.session)}>
+                  {a ? (
+                    <Avatar agent={a} size={32} status />
+                  ) : (
+                    <span className="chav">
+                      <Workflow size={16} />
                     </span>
-                    <span className="snip">{r.summary || r.tool}</span>
+                  )}
+                  <span className="ct">
+                    <span className="l1">
+                      <b>{a?.name ?? (r.agent || t("appr.workflow"))}</b>
+                      <span className="wchip">{t("list.waitApprove")}</span>
+                      <span className="tm">{listTime(r.asked)}</span>
+                    </span>
+                    <span className="l2">{r.summary || r.tool}</span>
                   </span>
-                  <span className="meta">{ago(r.asked)}</span>
                 </button>
               );
             })}
           </>
         )}
-        {groups.map(([folder, g]) => (
-          <div key={folder || "_"}>
-            {folder && (
-              <button className="lsec grp" type="button" onClick={() => setFolded((f) => ({ ...f, [folder]: !f[folder] }))}>
-                {folder}
-                <span className="fold" style={{ transform: folded[folder] ? "rotate(-90deg)" : undefined }}>
-                  <ChevronDown size={14} />
-                </span>
-              </button>
-            )}
-            {!folder && g.channels.length > 0 && g.agents.length > 0 && <div className="lsec">{t("list.channels")}</div>}
-            {!folded[folder] &&
-              g.channels.map((m) => {
-                const ch = channels[m.id];
-                const owner = ch ? agents[ch.owner] : undefined;
-                const snip = snippet(m.id);
-                const who = snip?.agent ? agents[snip.agent]?.name : undefined;
-                const topic = summaries[m.id]?.topic;
-                return (
-                  <button
-                    key={m.id}
-                    className={"ci" + (ch?.state === "archived" ? " arch" : "")}
-                    type="button"
-                    aria-current={view === "chat" && current === m.id}
-                    onClick={() => openSession(m.id)}
-                  >
-                    <span className="chav">
-                      <Hash size={18} />
-                      {owner && (
-                        <span className="chown">
-                          <Avatar agent={owner} size={16} status />
-                        </span>
-                      )}
-                    </span>
-                    <span style={{ minWidth: 0 }}>
-                      <span className="ttl">
-                        <b>{m.title || m.id}</b>
-                        {ch?.state === "paused" && <span className="pill">{t("ch.paused")}</span>}
-                        {ch?.state === "archived" && <span className="pill">{t("ch.archived")}</span>}
-                      </span>
-                      {topic && <span className="topic">{topic}</span>}
-                      <span className="snip">
-                        {who ? <span className="who">{who}：</span> : null}
-                        {snip?.text || (owner ? t("ch.ownerIs", { name: owner.name }) : t("list.channels"))}
-                      </span>
-                    </span>
-                    <span className="meta">{snip?.time && <span>{ago(snip.time)}</span>}</span>
-                  </button>
-                );
-              })}
-            {!folder && g.channels.length > 0 && g.agents.length > 0 && <div className="lsec">{t("list.agents")}</div>}
-            {!folded[folder] &&
-              g.agents.map((a) => {
-                const snip = snippet(a.session);
-                const topic = summaries[a.session]?.topic;
-                const pend = pendingBy[a.id] ?? 0;
-                return (
-                  <button key={a.id} className="ci" type="button" aria-current={view === "chat" && current === a.session} onClick={() => openSession(a.session)}>
-                    <Avatar agent={a} size={36} status />
-                    <span style={{ minWidth: 0 }}>
-                      <span className="ttl">
-                        <b>{a.name}</b>
-                        {a.role && <span className="tag">{a.role}</span>}
-                      </span>
-                      {topic && <span className="topic">{topic}</span>}
-                      <span className="snip">
-                        {a.status !== "idle" ? <span className={"stx " + pillTone(a.status)}>{detailLabel(a.detail) || statusLabel(a.status)} · </span> : null}
-                        {snip?.text || a.role || ""}
-                      </span>
-                    </span>
-                    <span className="meta">
-                      {snip && <span>{ago(snip.time)}</span>}
-                      {pend > 0 && <span className="ub amber">{pend}</span>}
-                    </span>
-                  </button>
-                );
-              })}
-          </div>
-        ))}
+        {groups.map(([folder, g]) => {
+          const both = !folder && g.channels.length > 0 && g.agents.length > 0;
+          return (
+            <div key={folder || "_"} className="lgrp">
+              {folder && (
+                <button className="lsec grp" type="button" aria-expanded={!folded[folder]} onClick={() => setFolded((f) => ({ ...f, [folder]: !f[folder] }))}>
+                  <ChevronRight size={12} className="fold" />
+                  <span>{folder}</span>
+                  <span className="cnt">{g.agents.length + g.channels.length}</span>
+                </button>
+              )}
+              {both && (
+                <div className="lsec">
+                  <span>{t("list.channels")}</span>
+                  <span className="cnt">{g.channels.length}</span>
+                </div>
+              )}
+              {!folded[folder] && g.channels.map(channelRow)}
+              {both && (
+                <div className="lsec">
+                  <span>{t("list.agents")}</span>
+                  <span className="cnt">{g.agents.length}</span>
+                </div>
+              )}
+              {!folded[folder] && g.agents.map(agentRow)}
+            </div>
+          );
+        })}
         {empty && (
           <div className="lempty">
             <p className="small">{t("list.empty")}</p>
@@ -206,13 +244,20 @@ export function SessionList() {
         {noMatch && <p className="small lempty">{t("list.noMatch")}</p>}
       </div>
       <div className="lfoot">
-        <button className="mebtn" type="button" ref={me.ref} onClick={me.toggle} aria-haspopup="menu">
-          <MeAvatar size={26} label={t("common.you")} />
+        <button className="mebtn" type="button" ref={me.ref} onClick={me.toggle} aria-haspopup="menu" aria-expanded={me.open}>
+          <span className="mewrap">
+            <MeAvatar size={28} label={Array.from(myName(profile))[0]} />
+            {dnd && (
+              <span className="moon" title={t("me.dndUntil", { time: hhmm(profile.dndUntil) })}>
+                <Moon size={9} />
+              </span>
+            )}
+          </span>
           <span className="g">
-            <b>{t("common.you")}</b>
+            <b>{myName(profile)}</b>
             <span>
-              <i className={"hdot" + (connected ? " on" : "")} />
-              {connected ? t("list.meSub") : t("list.meSubOffline")}
+              {!connected && <i className="hdot" />}
+              {dnd ? t("me.dndUntil", { time: hhmm(profile.dndUntil) }) : host ? t("me.subHost", { host }) : t("me.subLocal")}
             </span>
           </span>
         </button>
@@ -220,7 +265,7 @@ export function SessionList() {
           className="ib"
           type="button"
           aria-label={t("list.settings")}
-          title={t("list.settings")}
+          title={t("list.settings") + "（⌘,）"}
           aria-pressed={view === "settings"}
           onClick={() => (view === "settings" ? setState({ view: "chat" }) : openSettings("general"))}
         >
@@ -265,38 +310,157 @@ export function SessionList() {
         </button>
       </Popover>
 
-      <Popover anchor={me.anchor} open={me.open} onClose={me.close} placement="top" width={260}>
-        <MeMenu close={me.close} />
+      <Popover anchor={me.anchor} open={me.open} onClose={me.close} placement="top" width={280} className="memenu">
+        <MeMenu close={me.close} profile={profile} />
       </Popover>
     </aside>
   );
 }
 
-function MeMenu({ close }: { close: () => void }) {
-  const theme = useStore((s) => s.theme);
+function todayKey() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function usd(n: number) {
+  return "$" + n.toFixed(n < 10 ? 2 : 0);
+}
+
+/** Next 08:00 local time after now. */
+function nextMorning() {
+  const d = new Date();
+  d.setDate(d.getDate() + (d.getHours() >= 8 ? 1 : 0));
+  d.setHours(8, 0, 0, 0);
+  return d;
+}
+
+function MeMenu({ close, profile }: { close: () => void; profile: Profile }) {
+  const [usage, setUsage] = useState<UsageStats | null>(null);
+  const [editing, setEditing] = useState(false);
+  const [name, setName] = useState(profile.displayName);
+  const [dndOpen, setDndOpen] = useState(false);
+  const input = useRef<HTMLInputElement>(null);
+  const shell = desktop();
+  const sys = profile.system;
+  const dnd = dndActive(profile);
+
+  useEffect(() => {
+    void refreshProfile();
+    API.usage().then(setUsage, () => {});
+  }, []);
+  useEffect(() => {
+    if (editing) input.current?.select();
+  }, [editing]);
+
+  const saveName = () => {
+    setEditing(false);
+    const v = name.trim();
+    if (v !== profile.displayName) void patchProfile({ displayName: v });
+  };
+  const setDnd = (until: Date | null) => {
+    setDndOpen(false);
+    void patchProfile({ dndUntil: until ? until.toISOString() : "" });
+  };
+
+  const version = sys?.version || shell?.version;
+  const sub = [version ? t("me.version", { version }) : "", sys?.startedAt ? t("me.uptime", { time: sinceLabel(sys.startedAt) }) : ""].filter(Boolean).join(" · ");
+  const today = usage?.days?.[todayKey()] ?? 0;
+
   return (
     <>
       <div className="mehead">
-        <MeAvatar size={32} label={t("common.you")} />
-        <div>
-          <b>{t("common.you")}</b>
-          <span className="small">{t("list.meSub")}</span>
+        <MeAvatar size={36} label={Array.from(myName(profile))[0]} />
+        <div className="g">
+          {editing ? (
+            <input
+              ref={input}
+              className="mename"
+              value={name}
+              maxLength={40}
+              placeholder={t("me.namePh")}
+              aria-label={t("me.namePh")}
+              onChange={(e) => setName(e.target.value)}
+              onBlur={saveName}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") saveName();
+                if (e.key === "Escape") {
+                  e.stopPropagation();
+                  e.preventDefault();
+                  setName(profile.displayName);
+                  setEditing(false);
+                }
+              }}
+            />
+          ) : (
+            <button
+              className="mename"
+              type="button"
+              title={t("me.rename")}
+              onClick={() => {
+                setName(profile.displayName);
+                setEditing(true);
+              }}
+            >
+              {myName(profile)}
+            </button>
+          )}
+          <span className="small">{sub || (sys?.hostname ? t("me.subHost", { host: sys.hostname }) : t("me.subLocal"))}</span>
         </div>
       </div>
-      <div className="mlbl">{t("me.appearance")}</div>
-      <ThemeSeg theme={theme} />
-      <hr />
+
       <button
-        className="mi"
+        className="mestats"
         type="button"
         onClick={() => {
           close();
           openSettings("profile");
         }}
       >
-        <User size={16} />
-        <span className="g">{t("me.profile")}</span>
+        <span className="lbl">
+          {t("me.today")}
+          <ChevronRight size={12} />
+        </span>
+        <span className="st">
+          <b>{usage ? kfmt(today) : "—"}</b>
+          <span>{t("me.todayTokens")}</span>
+        </span>
+        <span className="st">
+          <b>{usage ? usage.switches : "—"}</b>
+          <span>{t("me.todaySwitches")}</span>
+        </span>
+        <span className="st">
+          <b>{usage ? usd(usage.savedUsd) : "—"}</b>
+          <span>{t("me.todaySaved")}</span>
+        </span>
       </button>
+
+      <hr />
+      <button className="mi" type="button" aria-expanded={dndOpen} onClick={() => setDndOpen(!dndOpen)}>
+        <Moon size={16} />
+        <span className="g">
+          {dnd ? t("me.dndUntil", { time: hhmm(profile.dndUntil) }) : t("me.dnd")}
+          <span>{t("me.dndNote")}</span>
+        </span>
+        <span className="tg" role="switch" aria-checked={dnd} aria-hidden />
+      </button>
+      {dndOpen && (
+        <div className="subm">
+          <button className="mi" type="button" onClick={() => setDnd(new Date(Date.now() + 3600_000))}>
+            <span className="g">{t("me.dnd1h")}</span>
+          </button>
+          <button className="mi" type="button" onClick={() => setDnd(nextMorning())}>
+            <span className="g">{t("me.dndMorning")}</span>
+          </button>
+          <button className="mi" type="button" disabled={!dnd} onClick={() => setDnd(null)}>
+            <span className="g">{t("me.dndOff")}</span>
+            {!dnd && (
+              <span className="ck">
+                <Check size={14} />
+              </span>
+            )}
+          </button>
+        </div>
+      )}
+      <hr />
       <button
         className="mi"
         type="button"
@@ -313,26 +477,58 @@ function MeMenu({ close }: { close: () => void }) {
         type="button"
         onClick={() => {
           close();
-          openSettings("general");
+          openExternal(ISSUES_URL);
         }}
       >
-        <Settings size={16} />
-        <span className="g">{t("me.allSettings")}</span>
+        <LifeBuoy size={16} />
+        <span className="g">{t("me.help")}</span>
       </button>
-      <hr />
       <button
         className="mi"
         type="button"
         onClick={() => {
           close();
-          disconnectEvents();
-          setToken(null);
-          setState({ authed: false, connected: false });
+          openSettings("general");
         }}
       >
-        <LogOut size={16} />
-        <span className="g">{t("me.logout")}</span>
+        <Settings size={16} />
+        <span className="g">{t("me.allSettings")}</span>
+        <kbd>⌘,</kbd>
       </button>
+      <hr />
+      {shell?.quit ? (
+        <button
+          className="mi"
+          type="button"
+          onClick={() => {
+            close();
+            shell.quit?.();
+          }}
+        >
+          <Power size={16} />
+          <span className="g">
+            {t("me.quit")}
+            <span>{t("me.quitDesc")}</span>
+          </span>
+        </button>
+      ) : (
+        <button
+          className="mi"
+          type="button"
+          onClick={() => {
+            close();
+            disconnectEvents();
+            setToken(null);
+            setState({ authed: false, connected: false });
+          }}
+        >
+          <LogOut size={16} />
+          <span className="g">
+            {t("me.logout")}
+            <span>{t("me.logoutDesc")}</span>
+          </span>
+        </button>
+      )}
     </>
   );
 }

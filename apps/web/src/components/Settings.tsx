@@ -94,9 +94,55 @@ export function Settings() {
         {sec === "auto" && <Automation />}
         {sec === "market" && <Extensions />}
         {sec === "profile" && <Profile />}
-        {!["general", "models", "approvals", "auto", "market", "profile"].includes(sec) && <Soon sec={sec} />}
+        {sec === "keys" && <Keys />}
+        {!["general", "models", "approvals", "auto", "market", "profile", "keys"].includes(sec) && <Soon sec={sec} />}
       </div>
     </div>
+  );
+}
+
+const MAC = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
+const mod = MAC ? "⌘" : "Ctrl+";
+
+function Keys() {
+  const groups: { title: Key; rows: [Key, string][] }[] = [
+    {
+      title: "keys.general",
+      rows: [
+        ["keys.palette", mod + "K"],
+        ["keys.newAgent", mod + "N"],
+        ["keys.settings", mod + ","],
+        ["keys.close", "Esc"],
+      ],
+    },
+    {
+      title: "keys.chat",
+      rows: [
+        ["keys.back", mod + "["],
+        ["keys.forward", mod + "]"],
+        ["keys.send", mod + "Enter"],
+        ["keys.mention", "@"],
+      ],
+    },
+  ];
+  return (
+    <>
+      <Head title={t("keys.title")} sub={t("keys.sub")} />
+      <div className="vb">
+        {groups.map((g) => (
+          <div key={g.title} className="kgrp">
+            <div className="vsec">{t(g.title)}</div>
+            <div className="sbox">
+              {g.rows.map(([k, v]) => (
+                <Row key={k} title={t(k)}>
+                  <kbd className="kbig">{v}</kbd>
+                </Row>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+    </>
   );
 }
 

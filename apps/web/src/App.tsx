@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
-import { API, initToken, setUnauthorizedHandler, setToken } from "./api";
+import { API, desktop, initToken, openExternal, setUnauthorizedHandler, setToken } from "./api";
 import { t } from "./i18n";
-import { applyTheme, connectEvents, disconnectEvents, getState, openNewAgent, resync, sessionAgent, setState, useStore } from "./store";
-import { Titlebar } from "./components/Titlebar";
+import { applyTheme, connectEvents, disconnectEvents, getState, goHistory, openNewAgent, openSettings, resync, sessionAgent, setState, useStore } from "./store";
+import { ConvHeader, useNeedsYou } from "./components/Header";
 import { SessionList } from "./components/SessionList";
 import { Conversation } from "./components/Conversation";
 import { Panel } from "./components/Panel";
@@ -60,6 +60,29 @@ function Shell() {
   const hasAgent = !!sessionAgent(current) && (agents || sessions || channels);
   const showPanel = view === "chat" && panelOpen && hasAgent;
   const showList = listOpen && view !== "settings";
+  const { n: needs } = useNeedsYou();
+
+  // Desktop shell: dock / taskbar badge = things waiting for the person.
+  useEffect(() => {
+    try {
+      desktop()?.setBadge?.(needs);
+    } catch {
+      /* shell without badge support */
+    }
+  }, [needs]);
+
+  // Desktop shell: open external links in the system browser.
+  useEffect(() => {
+    if (!desktop()?.openExternal) return;
+    const click = (e: MouseEvent) => {
+      const a = (e.target as HTMLElement | null)?.closest?.("a[href]") as HTMLAnchorElement | null;
+      if (!a || a.target !== "_blank" || !/^https?:/.test(a.href)) return;
+      e.preventDefault();
+      openExternal(a.href);
+    };
+    document.addEventListener("click", click);
+    return () => document.removeEventListener("click", click);
+  }, []);
 
   useEffect(() => {
     const key = (e: KeyboardEvent) => {
@@ -67,6 +90,12 @@ function Shell() {
       if (mod && e.key.toLowerCase() === "k") {
         e.preventDefault();
         setState((s) => ({ palette: !s.palette }));
+      } else if (mod && !e.shiftKey && !e.altKey && (e.key === "[" || e.key === "]")) {
+        e.preventDefault();
+        goHistory(e.key === "[" ? -1 : 1);
+      } else if (mod && e.key === ",") {
+        e.preventDefault();
+        openSettings("general");
       } else if (mod && e.key.toLowerCase() === "n" && !e.shiftKey) {
         e.preventDefault();
         openNewAgent();
@@ -94,7 +123,6 @@ function Shell() {
   const cls = ["inner", showList ? "" : "nolist", showPanel ? "" : "nopanel"].filter(Boolean).join(" ");
   return (
     <div className="app">
-      <Titlebar draftColor={draft.color} draftShape={draft.shape} />
       {!connected && <div className="offline">{t("conn.offline")}</div>}
       <div className={cls}>
         {view === "settings" ? (
@@ -103,7 +131,10 @@ function Shell() {
           <>
             {showList && <SessionList />}
             {showList && <div className="ovscrim list-scrim" onClick={() => setState({ listOpen: false })} />}
-            {view === "newAgent" ? <NewAgent draft={draft} setDraft={setDraft} /> : <Conversation />}
+            <div className="center">
+              <ConvHeader draftColor={draft.color} draftShape={draft.shape} />
+              {view === "newAgent" ? <NewAgent draft={draft} setDraft={setDraft} /> : <Conversation />}
+            </div>
             {showPanel && <Panel />}
             {showPanel && <div className="ovscrim panel-scrim" onClick={() => setState({ panelOpen: false })} />}
           </>

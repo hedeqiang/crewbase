@@ -16,9 +16,10 @@ import {
   type SessionEvent,
   type SessionMeta,
   type StreamChunk,
+  type SystemInfo,
   getToken,
 } from "./api";
-import { getLang, setLang as setLangRaw, type Lang } from "./i18n";
+import { getLang, setLang as setLangRaw, t, type Lang } from "./i18n";
 
 export type View = "chat" | "newAgent" | "settings";
 export type PanelTab = "task" | "files" | "agent";
@@ -45,6 +46,12 @@ export interface Toast {
   text: string;
 }
 
+export interface Profile {
+  displayName: string;
+  dndUntil: string;
+  system: SystemInfo | null;
+}
+
 export interface State {
   authed: boolean | null; // null = checking
   connected: boolean;
@@ -66,7 +73,11 @@ export interface State {
   streams: Record<string, StreamBuf>; // key `${session}|${agent}`
   view: View;
   current: string | null; // session id
-  tabs: string[];
+  /** Recently opened conversations (MRU, oldest first) for ⌘[ / ⌘]. */
+  hist: string[];
+  histPos: number;
+  /** Profile bits from GET /api/settings and /api/system (may be absent on older daemons). */
+  profile: Profile;
   settings: SettingsSection;
   listOpen: boolean;
   panelOpen: boolean;
@@ -101,14 +112,7 @@ const LS = {
 const narrow = () => window.matchMedia("(max-width: 820px)").matches;
 const midWidth = () => window.matchMedia("(max-width: 1100px)").matches;
 
-function loadTabs(): string[] {
-  try {
-    const v = JSON.parse(LS.get("tabs") ?? "[]");
-    return Array.isArray(v) ? v.filter((x) => typeof x === "string") : [];
-  } catch {
-    return [];
-  }
-}
+const HIST_MAX = 30;
 
 let state: State = {
   authed: null,
@@ -129,7 +133,9 @@ let state: State = {
   streams: {},
   view: "chat",
   current: LS.get("current"),
-  tabs: loadTabs(),
+  hist: LS.get("current") ? [LS.get("current")!] : [],
+  histPos: LS.get("current") ? 0 : -1,
+  profile: { displayName: "", dndUntil: "", system: null },
   settings: "general",
   listOpen: !narrow() || !LS.get("current"),
   panelOpen: !midWidth() && LS.get("panel") !== "0",
@@ -155,7 +161,6 @@ export function getState(): State {
 export function setState(patch: Partial<State> | ((s: State) => Partial<State>)) {
   const p = typeof patch === "function" ? patch(state) : patch;
   state = { ...state, ...p };
-  if ("tabs" in p) LS.set("tabs", JSON.stringify(state.tabs));
   if ("current" in p) LS.set("current", state.current);
   if ("panelOpen" in p && !midWidth()) LS.set("panel", state.panelOpen ? "1" : "0");
   subs.forEach((f) => f());
@@ -197,30 +202,31 @@ export function setLang(l: Lang) {
 }
 
 export function openSession(id: string) {
-  setState((s) => ({
-    view: "chat",
-    current: id,
-    tabs: s.tabs.includes(id) ? s.tabs : [...s.tabs, id],
-    listOpen: narrow() ? false : s.listOpen,
-    palette: false,
-  }));
+  setState((s) => {
+    let hist = s.hist;
+    let histPos = s.histPos;
+    if (hist[histPos] !== id) {
+      hist = [...hist.slice(0, histPos + 1).filter((x) => x !== id), id].slice(-HIST_MAX);
+      histPos = hist.length - 1;
+    }
+    return { view: "chat", current: id, hist, histPos, listOpen: narrow() ? false : s.listOpen, palette: false };
+  });
   void loadSession(id);
+}
+
+/** ⌘[ / ⌘]: step through recently opened conversations. */
+export function goHistory(dir: -1 | 1) {
+  const s = state;
+  let i = s.histPos + dir;
+  while (i >= 0 && i < s.hist.length && !s.sessions[s.hist[i]]) i += dir;
+  if (i < 0 || i >= s.hist.length) return;
+  setState({ view: "chat", current: s.hist[i], histPos: i, palette: false });
+  void loadSession(s.hist[i]);
 }
 
 export function openAgent(agentId: string) {
   const a = state.agents[agentId];
   if (a?.session) openSession(a.session);
-}
-
-export function closeTab(id: string) {
-  setState((s) => {
-    const i = s.tabs.indexOf(id);
-    const tabs = s.tabs.filter((x) => x !== id);
-    let current = s.current;
-    if (current === id) current = tabs[Math.min(i, tabs.length - 1)] ?? null;
-    return { tabs, current };
-  });
-  if (state.current) void loadSession(state.current);
 }
 
 export function openSettings(sec: SettingsSection = "general") {
@@ -257,8 +263,9 @@ export async function refreshSessions() {
   for (const m of r.sessions) sessions[m.id] = m;
   setState((s) => ({
     sessions,
-    // forget tabs for sessions that no longer exist
-    tabs: s.tabs.filter((t) => sessions[t]),
+    // forget history entries for sessions that no longer exist
+    hist: s.hist.filter((t) => sessions[t]),
+    histPos: Math.min(s.histPos, s.hist.filter((t) => sessions[t]).length - 1),
     current: s.current && sessions[s.current] ? s.current : null,
   }));
 }
@@ -358,8 +365,41 @@ function loadSessionNow(id: string): Promise<void> {
   });
 }
 
+export async function refreshProfile() {
+  const [st, sys] = await Promise.allSettled([API.settings(), API.system()]);
+  setState((s) => ({
+    profile: {
+      displayName: st.status === "fulfilled" ? st.value.displayName ?? "" : s.profile.displayName,
+      dndUntil: st.status === "fulfilled" ? st.value.dndUntil ?? "" : s.profile.dndUntil,
+      system: sys.status === "fulfilled" ? sys.value : s.profile.system,
+    },
+  }));
+}
+
+export async function patchProfile(b: { displayName?: string; dndUntil?: string }) {
+  const prev = state.profile;
+  setState((s) => ({ profile: { ...s.profile, ...b } }));
+  try {
+    const r = await API.patchSettings(b);
+    setState((s) => ({ profile: { ...s.profile, displayName: r.displayName ?? s.profile.displayName, dndUntil: r.dndUntil ?? s.profile.dndUntil } }));
+  } catch (e: any) {
+    setState({ profile: prev });
+    toast(e?.message ?? String(e));
+  }
+}
+
+/** The name shown for the person ("你" when unset). */
+export function myName(p: Profile): string {
+  return p.displayName.trim() || t("common.you");
+}
+
+/** Whether do-not-disturb is on right now. */
+export function dndActive(p: Profile, now = Date.now()): boolean {
+  return !!p.dndUntil && new Date(p.dndUntil).getTime() > now;
+}
+
 export async function resync() {
-  await Promise.allSettled([refreshAgents(), refreshSessions(), refreshApprovals(), refreshModels(), refreshSummaries(), refreshChannels()]);
+  await Promise.allSettled([refreshAgents(), refreshSessions(), refreshApprovals(), refreshModels(), refreshSummaries(), refreshChannels(), refreshProfile()]);
   for (const id of Object.keys(state.events)) void loadSession(id);
   if (state.current && !state.events[state.current]) void loadSession(state.current);
 }
@@ -451,9 +491,9 @@ export function connectEvents() {
   on("agent.deleted", (d: { id: string }) => {
     setState((s) => {
       const { [d.id]: gone, ...agents } = s.agents;
-      const tabs = gone ? s.tabs.filter((t) => t !== gone.session) : s.tabs;
-      const current = gone && s.current === gone.session ? tabs[0] ?? null : s.current;
-      return { agents, tabs, current };
+      const hist = gone ? s.hist.filter((t) => t !== gone.session) : s.hist;
+      const current = gone && s.current === gone.session ? hist[hist.length - 1] ?? null : s.current;
+      return { agents, hist, histPos: Math.min(s.histPos, hist.length - 1), current };
     });
   });
   on("agent.stream", (d: StreamChunk) => applyStream(d));

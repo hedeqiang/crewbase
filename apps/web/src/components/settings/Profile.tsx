@@ -3,7 +3,7 @@ import { Lock } from "lucide-react";
 import { API, parseRef, type UsageStats } from "../../api";
 import { t, type Key } from "../../i18n";
 import { kfmt, modelLabel, providerName } from "../../format";
-import { openSession, useStore } from "../../store";
+import { myName, openSession, useStore } from "../../store";
 import { Avatar, MeAvatar } from "../Avatar";
 import { ProviderMark } from "../ProviderMark";
 import { Head } from "../Settings";
@@ -19,6 +19,7 @@ export function Profile() {
   const [u, setU] = useState<UsageStats | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const agents = useStore((s) => s.agents);
+  const profile = useStore((s) => s.profile);
   const models = useStore((s) => s.models);
   const connected = useStore((s) => s.connected);
   useEffect(() => {
@@ -30,9 +31,9 @@ export function Profile() {
       <Head title={t("set.profile")} />
       <div className="vb">
         <div className="profhead">
-          <MeAvatar size={44} label={t("common.you")} />
+          <MeAvatar size={44} label={Array.from(myName(profile))[0]} />
           <div>
-            <b>{t("common.you")}</b>
+            <b>{myName(profile)}</b>
             <span className="small">
               <i className={"hdot" + (connected ? " on" : "")} />
               {t("prof.local")}
