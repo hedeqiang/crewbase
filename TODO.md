@@ -142,7 +142,8 @@
 ## Phase 3 — 远程、IM、团队
 - [ ] `server` Profile、install-server.sh、加固 docker-compose.yml、阿里云 / AWS 模板（D-2）
 - [ ] 零入站配对（WebSocket Relay）、设备分级权限
-- [ ] IM 网关：Slack / Telegram / Discord / 飞书（notify + approval 应答方）（D-4）
+- [x] IM 网关：Slack（Socket Mode）/ Telegram（长轮询）/ Discord（Gateway）/ 飞书（长连接），全部只出站；通知 + 审批卡（push / payment 只给拒绝和「稍后在桌面处理」，不提供「以后都允许」）、白名单用户、@Agent 发消息、回复回传线程、免打扰、限速、令牌不落日志；默认关闭（D-4）
+- [ ] IM：真实机器人账号联调；线程映射持久化；飞书显示名；长回复分段；附件；设置页 UI
 - [ ] 移动端伴侣（D-3）
 - [ ] 审计日志哈希链（S-7）
 - [ ] 团队任务板 DAG（A-7）、成员与角色
@@ -174,6 +175,7 @@
 ## 迭代日志
 | 日期 | 迭代 | 结果 |
 |---|---|---|
+| 2026-11-14 | 9a | IM 网关（子 agent）接入，默认关闭 |
 | 2026-11-14 | 8g | DeepSeek 原生联网搜索 / 阅读链接 / 安全检查端到端打通（真实调用） |
 | 2026-11-14 | 8f | 技术债第三批（子 agent，10 项）接入；ACP 委派共享父工作区（SharedWorkspace），subagent-acp 接入 |
 | 2026-11-14 | 8e | DeepSeek：core 词汇 + 默认廉价路由 + 会话主题；适配器部分待技术债 agent 交付后做（同文件） |

@@ -25,6 +25,7 @@ import (
 	_ "github.com/hedeqiang/crewbase/features/compaction"
 	_ "github.com/hedeqiang/crewbase/features/console"
 	_ "github.com/hedeqiang/crewbase/features/gateway"
+	_ "github.com/hedeqiang/crewbase/features/im"
 	_ "github.com/hedeqiang/crewbase/features/mcp"
 	_ "github.com/hedeqiang/crewbase/features/memory"
 	_ "github.com/hedeqiang/crewbase/features/plugins"
@@ -42,6 +43,10 @@ import (
 	_ "github.com/hedeqiang/crewbase/features/workflows"
 	_ "github.com/hedeqiang/crewbase/providers/browser/chrome"
 	_ "github.com/hedeqiang/crewbase/providers/fs/local"
+	_ "github.com/hedeqiang/crewbase/providers/im/discord"
+	_ "github.com/hedeqiang/crewbase/providers/im/feishu"
+	_ "github.com/hedeqiang/crewbase/providers/im/slack"
+	_ "github.com/hedeqiang/crewbase/providers/im/telegram"
 	_ "github.com/hedeqiang/crewbase/providers/llm/acp"
 	_ "github.com/hedeqiang/crewbase/providers/llm/anthropic"
 	_ "github.com/hedeqiang/crewbase/providers/llm/gemini"
@@ -93,6 +98,13 @@ var Base = kernel.Bundle{Name: "base", Entries: []kernel.Entry{
 	{ID: "routines", Name: "@crewbase/routines", Config: map[string]any{"dir": "${root}"}},
 	{ID: "alerts", Name: "@crewbase/alerts"},
 	{ID: "topics", Name: "@crewbase/topics"},
+	// IM gateways: outbound connections only (no public webhook). Enable
+	// with a patch once channel and allowUsers are set; tokens live in the
+	// keychain under these refs.
+	{ID: "im-slack", Name: "@crewbase/im-slack", Config: map[string]any{"botTokenRef": "keychain:crewbase/slack-bot", "appTokenRef": "keychain:crewbase/slack-app"}, Disabled: true},
+	{ID: "im-telegram", Name: "@crewbase/im-telegram", Config: map[string]any{"botTokenRef": "keychain:crewbase/telegram-bot"}, Disabled: true},
+	{ID: "im-discord", Name: "@crewbase/im-discord", Config: map[string]any{"botTokenRef": "keychain:crewbase/discord-bot"}, Disabled: true},
+	{ID: "im-feishu", Name: "@crewbase/im-feishu", Config: map[string]any{"botTokenRef": "keychain:crewbase/feishu-app"}, Disabled: true},
 	{ID: "subagent", Name: "@crewbase/subagent", Config: map[string]any{"maxDepth": 2, "maxConcurrent": 3}},
 	{ID: "subagent-runner", Name: "@crewbase/subagent-runner"},
 	{ID: "subagent-local", Name: "@crewbase/subagent-local"},
@@ -120,6 +132,7 @@ var Desktop = kernel.Bundle{Name: "desktop", Entries: []kernel.Entry{
 	{ID: "workflows-api", Name: "@crewbase/workflows-api"},
 	{ID: "mcp-api", Name: "@crewbase/mcp-api"},
 	{ID: "browser-api", Name: "@crewbase/browser-api"},
+	{ID: "im-api", Name: "@crewbase/im-api"},
 	{ID: "plugin-manager", Name: "@crewbase/plugin-manager", Config: map[string]any{"dir": "${root}/plugins"}},
 	{ID: "plugin-manager-api", Name: "@crewbase/plugin-manager-api"},
 	{ID: "console", Name: "@crewbase/console", Config: map[string]any{"dir": "${root}"}},
