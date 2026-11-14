@@ -228,6 +228,31 @@ export interface NotifyPrefs {
   quiet: QuietHours;
 }
 
+/** Interface slots (GET /api/ui). Declarative: rendered by us, as text. */
+export interface UIField {
+  label: string;
+  value: string;
+  href?: string;
+  mono?: boolean;
+}
+
+export interface UIPanel {
+  sections: { title?: string; text?: string; fields?: UIField[] }[];
+  empty?: string;
+}
+
+export interface UIContribution {
+  slot: "conversation.node" | "sidebar-right.tab" | "settings.card" | "palette.command" | "composer.action";
+  key: string;
+  title?: string;
+  desc?: string;
+  icon?: string;
+  order?: number;
+  owner: string;
+  card?: { title: string; tone?: "info" | "ok" | "warn" | "error"; icon?: string; fields?: UIField[] };
+  confirm?: string;
+}
+
 /** 导入角色模板 (POST /api/agents/import[/preview]). Data is base64. */
 export interface ImportSource {
   files?: { path: string; data: string }[];
@@ -595,6 +620,9 @@ export const API = {
   agents: () => api<{ agents: AgentView[] }>("GET", "/api/agents"),
   agent: (id: string) => api<AgentView>("GET", `/api/agents/${enc(id)}`),
   createAgent: (b: Partial<AgentView> & { modelRefs?: string[] }) => api<AgentView>("POST", "/api/agents", b),
+  ui: () => api<{ slots: string[]; contributions: UIContribution[] }>("GET", "/api/ui"),
+  uiPanel: (slot: string, key: string, session = "") => api<UIPanel>("POST", "/api/ui/panel", { slot, key, session }),
+  uiRun: (slot: string, key: string, session = "") => api<{ toast?: string; open?: string }>("POST", "/api/ui/run", { slot, key, session }),
   previewImport: (src: ImportSource) => api<RoleTemplate>("POST", "/api/agents/import/preview", src),
   importAgent: (src: ImportSource, options: ImportOptions) =>
     api<{ agent: string; session: string; name: string; skills: number }>("POST", "/api/agents/import", { ...src, options }),

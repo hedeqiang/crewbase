@@ -11,6 +11,7 @@ import (
 	_ "github.com/hedeqiang/crewbase/capabilities/approval"
 	_ "github.com/hedeqiang/crewbase/capabilities/credentials"
 	_ "github.com/hedeqiang/crewbase/capabilities/notify"
+	_ "github.com/hedeqiang/crewbase/capabilities/ui"
 	_ "github.com/hedeqiang/crewbase/capabilities/subagent"
 	_ "github.com/hedeqiang/crewbase/core/agent"
 	_ "github.com/hedeqiang/crewbase/core/agentloop"
@@ -102,6 +103,7 @@ var Base = kernel.Bundle{Name: "base", Entries: []kernel.Entry{
 	{ID: "tools-basic", Name: "@crewbase/tools-basic"},
 	{ID: "runmode", Name: "@crewbase/runmode"},
 	{ID: "notify", Name: "@crewbase/notify"},
+	{ID: "ui", Name: "@crewbase/ui"},
 	{ID: "schedule", Name: "@crewbase/schedule", Config: map[string]any{"dir": "${root}"}},
 	{ID: "routines", Name: "@crewbase/routines", Config: map[string]any{"dir": "${root}"}},
 	{ID: "alerts", Name: "@crewbase/alerts"},
@@ -153,6 +155,8 @@ var Desktop = kernel.Bundle{Name: "desktop", Entries: []kernel.Entry{
 	{ID: "providers-api", Name: "@crewbase/providers-api"},
 	{ID: "usage-api", Name: "@crewbase/usage-api"},
 	{ID: "roles", Name: "@crewbase/roles"},
+	{ID: "ui-api", Name: "@crewbase/ui-api"},
+	{ID: "audit-ui", Name: "@crewbase/audit-ui"},
 }}
 
 // Server is headless: same API bound to localhost (remote access goes

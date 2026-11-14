@@ -52,6 +52,7 @@ import { ApprovalActions } from "./Approval";
 import { Markdown } from "./Markdown";
 import { Popover, useMenu } from "./Popover";
 import { ProviderMark } from "./ProviderMark";
+import { PluginCard, SlotIcon, runCommand, useSlot } from "./UISlots";
 
 export function Conversation({ onTemplate }: { onTemplate?: (d: Partial<Draft>) => void } = {}) {
   const current = useStore((s) => s.current);
@@ -76,7 +77,9 @@ export function Conversation({ onTemplate }: { onTemplate?: (d: Partial<Draft>) 
 function ConversationView({ sessionId, agent, channel }: { sessionId: string; agent: AgentView; channel?: ChannelView }) {
   const events = useStore((s) => s.events[sessionId]);
   const err = useStore((s) => s.loadErr[sessionId]);
-  const proj = useMemo(() => project(events ?? []), [events]);
+  const nodeSlots = useSlot("conversation.node");
+  const cardTypes = useMemo(() => new Set(nodeSlots.map((c) => c.key)), [nodeSlots]);
+  const proj = useMemo(() => project(events ?? [], cardTypes), [events, cardTypes]);
   const ctx = proj.context[agent.id];
   return (
     <section className="main">
@@ -238,6 +241,11 @@ function groupFeed(items: FeedItem[]): { sys: boolean; items: { it: FeedItem; sh
   return out;
 }
 
+function PluginFeedCard({ type, data }: { type: string; data: any }) {
+  const c = useSlot("conversation.node").find((x) => x.key === type);
+  return c ? <PluginCard c={c} data={data} /> : null;
+}
+
 function FeedRow({ it, agents, showModel }: { it: FeedItem; agents: Record<string, AgentView>; showModel?: boolean }) {
   const models = useStore((s) => s.models);
   switch (it.k) {
@@ -311,6 +319,8 @@ function FeedRow({ it, agents, showModel }: { it: FeedItem; agents: Record<strin
           <span>{t(it.state === "archived" ? "ch.stArchived" : it.state === "paused" ? "ch.stPaused" : "ch.stActive")}</span>
         </div>
       );
+    case "plugin":
+      return <PluginFeedCard type={it.type} data={it.data} />;
     case "sys":
       return (
         <div className={"sys " + (it.tone === "error" ? "err" : it.tone)}>
@@ -583,6 +593,7 @@ function Composer({
   const override = useStore((s) => s.overrides[agent.id] ?? null);
   const hostConfirm = useStore((s) => s.hostConfirm === agent.id);
   const models = useStore((s) => s.models);
+  const composerActions = useSlot("composer.action");
   const [sending, setSending] = useState(false);
   const ta = useRef<HTMLTextAreaElement>(null);
   const hostM = useMenu();
@@ -800,6 +811,12 @@ function Composer({
             <span className="lbl">{modeLabel(mode)}</span>
             <ChevronDown size={14} />
           </button>
+          {composerActions.map((c) => (
+            <button key={c.key} className="cbtn" type="button" title={c.desc || c.title} onClick={() => void runCommand(c, sessionId)}>
+              <SlotIcon name={c.icon} />
+              <span className="lbl">{c.title}</span>
+            </button>
+          ))}
           <span className="sp" />
           <button
             className={"cbtn cmodel" + (override && !channel ? " ov" : "")}

@@ -89,6 +89,50 @@ export type PreExecuteResult = { verdict?: "deny"; reason?: string; summary?: st
 
 export type PostExecuteResult = { content?: string; isError?: boolean } | null | undefined | void;
 
+/** A label / value row. In cards, value and href may use {{path}} into the event data. Always plain text. */
+export interface UIField {
+  label: string;
+  value: string;
+  /** http(s) only */
+  href?: string;
+  mono?: boolean;
+}
+
+export interface UIPanel {
+  sections: { title?: string; text?: string; fields?: UIField[] }[];
+  empty?: string;
+}
+
+/** Interface contributions (requires service "ui"). Declarative: the host renders them. */
+export type UIContribution =
+  | {
+      /** A card for session events of type `key` (e.g. "deploy/result"). */
+      slot: "conversation.node";
+      key: string;
+      card: { title: string; tone?: "info" | "ok" | "warn" | "error"; icon?: string; fields?: UIField[] };
+    }
+  | {
+      slot: "sidebar-right.tab" | "settings.card";
+      key: string;
+      title: string;
+      desc?: string;
+      icon?: string;
+      order?: number;
+      /** session is the open conversation for tabs, "" for settings cards. */
+      panel(ctx: { session: string }, host: Host): UIPanel | Promise<UIPanel>;
+    }
+  | {
+      slot: "palette.command" | "composer.action";
+      key: string;
+      title: string;
+      desc?: string;
+      icon?: string;
+      order?: number;
+      /** Asked before running. */
+      confirm?: string;
+      run(ctx: { session: string }, host: Host): string | { toast?: string; open?: string } | void | Promise<string | { toast?: string; open?: string } | void>;
+    };
+
 export interface PluginDefinition {
   name?: string;
   version?: string;
@@ -103,6 +147,8 @@ export interface PluginDefinition {
   postExecute?(exe: Execution, host: Host): PostExecuteResult | Promise<PostExecuteResult>;
   /** Notification channels by name (requires service "notify"). */
   notify?: Record<string, (n: Notification, host: Host) => void | Promise<void>>;
+  /** Interface contributions (requires service "ui"). */
+  ui?: UIContribution[];
   setup?(host: Host): void | Promise<void>;
   dispose?(): void | Promise<void>;
 }

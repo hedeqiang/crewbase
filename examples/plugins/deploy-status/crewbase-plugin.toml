@@ -1,0 +1,19 @@
+# Example plugin showing interface slots (docs/05 §8): a conversation card
+# for its tool's results, a settings card, a right-panel tab, a ⌘K command
+# and a composer button. The deployment data is fixed demo data.
+name = "deploy-status"
+version = "0.1.0"
+description = "Demo: deployment status as conversation cards, a panel tab and a settings card."
+author = "Crewbase"
+runtime = "process"
+entry = ["node", "index.js"]
+
+[inject]
+services = ["tools", "ui"]
+
+[permissions]
+events = []
+network = []
+credentials = []
+files = []
+subprocess = false

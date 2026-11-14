@@ -10,6 +10,7 @@ import { Avatar } from "./Avatar";
 import { Popover, useMenu } from "./Popover";
 import { ProviderMark } from "./ProviderMark";
 import { shortPath } from "./Conversation";
+import { PanelView, useSlot } from "./UISlots";
 
 export function Panel() {
   const current = useStore((s) => s.current);
@@ -19,12 +20,15 @@ export function Panel() {
   const channels = useStore((s) => s.channels);
   const agent = useMemo(() => sessionAgent(current), [current, agents, sessions, channels]);
   const channel = current ? channels[current] : undefined;
+  const pluginTabs = useSlot("sidebar-right.tab");
   if (!agent) return null;
   const tabs: [typeof tab, string][] = [
     ["task", t("panel.task")],
     ["files", t("panel.files")],
     ["agent", agent.name || t("panel.agent")],
+    ...pluginTabs.map((c): [typeof tab, string] => [`ui:${c.key}`, c.title || c.key]),
   ];
+  const pluginTab = tab.startsWith("ui:") ? pluginTabs.find((c) => "ui:" + c.key === tab) : undefined;
   return (
     <aside className="panel">
       <div className="ptabs" role="tablist">
@@ -42,6 +46,14 @@ export function Panel() {
         {tab === "task" && (channel ? <ChannelTask key={channel.id} channel={channel} /> : <TaskTab agent={agent} />)}
         {tab === "files" && <FilesTab agent={agent} />}
         {tab === "agent" && <AgentTab key={agent.id} agent={agent} sessionId={current ?? agent.session} />}
+        {pluginTab && (
+          <div className="uitab">
+            <div className="uitabh">
+              <span className="small muted">{t("ui.from", { owner: pluginTab.owner })}</span>
+            </div>
+            <PanelView key={pluginTab.key + (current ?? "")} c={pluginTab} session={current ?? agent.session} />
+          </div>
+        )}
       </div>
     </aside>
   );

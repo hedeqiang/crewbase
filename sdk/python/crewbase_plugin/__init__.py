@@ -70,6 +70,7 @@ class Plugin:
         self._tools = {}
         self._prompts = []
         self._channels = {}
+        self._ui = []
         self._on_result = None
         self._pre = None
         self._post = None
@@ -126,6 +127,37 @@ class Plugin:
 
         return deco
 
+    def card(self, event_type, title, tone="", icon="", fields=None):
+        """A conversation card for session events of ``event_type`` (requires service "ui").
+        ``fields`` are ``{"label", "value", "href"?}``; values may use ``{{path}}``."""
+        self._ui.append({"slot": "conversation.node", "key": event_type,
+                         "card": {"title": title, "tone": tone, "icon": icon, "fields": fields or []}})
+
+    def panel(self, slot, key, title, desc="", icon="", order=0):
+        """Decorator for a ``sidebar-right.tab`` or ``settings.card``: ``fn(session) -> panel dict``."""
+
+        def deco(fn):
+            self._ui.append({"slot": slot, "key": key, "title": title, "desc": desc, "icon": icon, "order": order, "_panel": fn})
+            return fn
+
+        return deco
+
+    def command(self, key, title, slot="palette.command", desc="", icon="", order=0, confirm=""):
+        """Decorator for a ``palette.command`` / ``composer.action``: ``fn(session) -> str | {"toast", "open"}``."""
+
+        def deco(fn):
+            self._ui.append({"slot": slot, "key": key, "title": title, "desc": desc, "icon": icon, "order": order,
+                             "confirm": confirm, "_run": fn})
+            return fn
+
+        return deco
+
+    def _ui_entry(self, p):
+        for u in self._ui:
+            if u["slot"] == p.get("slot") and u["key"] == p.get("key"):
+                return u
+        raise RpcError(-32601, "unknown ui %s %s" % (p.get("slot"), p.get("key")))
+
     # ------------------------------------------------------------ transport
 
     def _write(self, msg):
@@ -169,6 +201,7 @@ class Plugin:
             "prompts": self._prompts,
             "events": events,
             "notify": [{"name": n} for n in self._channels],
+            "ui": [{k: v for k, v in u.items() if not k.startswith("_")} for u in self._ui],
         }
 
     def _handle(self, method, p):
@@ -190,6 +223,19 @@ class Plugin:
             return self._pre(p) if self._pre else None
         if method == "tools/post-execute":
             return self._post(p) if self._post else None
+        if method == "ui/panel":
+            u = self._ui_entry(p)
+            if "_panel" not in u:
+                raise RpcError(-32601, "no panel")
+            return u["_panel"](p.get("session") or "") or {"sections": []}
+        if method == "ui/run":
+            u = self._ui_entry(p)
+            if "_run" not in u:
+                raise RpcError(-32601, "no run handler")
+            out = u["_run"](p.get("session") or "")
+            if isinstance(out, str):
+                return {"toast": out}
+            return out or {}
         if method == "notify/send":
             ch = self._channels.get(p.get("channel"))
             if ch is None:

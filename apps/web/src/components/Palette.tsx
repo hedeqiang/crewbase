@@ -5,6 +5,7 @@ import { t, type Key } from "../i18n";
 import { modeLabel } from "../format";
 import { openNewAgent, openSession, openSettings, sessionAgent, setState, setTheme, toast, useStore } from "../store";
 import { Avatar } from "./Avatar";
+import { SlotIcon, runCommand, useSlot } from "./UISlots";
 import { SECTIONS, SECTION_ICONS } from "./Settings";
 
 interface Item {
@@ -32,6 +33,7 @@ function PaletteInner() {
   const inp = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const close = () => setState({ palette: false });
+  const paletteCmds = useSlot("palette.command");
 
   useEffect(() => inp.current?.focus(), []);
 
@@ -71,10 +73,12 @@ function PaletteInner() {
       if (cur.status === "running" || cur.status === "waiting")
         it.push({ group: t("pal.commands"), icon: <Square size={16} />, title: t("pal.cmd.stop", { name: cur.name }), run: () => void API.action(cur.id, "stop") });
     }
+    for (const c of paletteCmds)
+      it.push({ group: t("ui.pluginCmd"), icon: <SlotIcon name={c.icon} size={16} />, title: c.title || c.key, sub: c.desc || c.owner, run: () => void runCommand(c, current ?? "") });
     const ql = q.trim().toLowerCase();
     if (!ql) return it;
     return it.filter((x) => x.title.toLowerCase().includes(ql) || x.sub?.toLowerCase().includes(ql) || x.group.toLowerCase().includes(ql));
-  }, [agents, sessions, approvals, current, theme, q]);
+  }, [agents, sessions, approvals, current, theme, q, paletteCmds]);
 
   useEffect(() => setSel(0), [q]);
   useEffect(() => {

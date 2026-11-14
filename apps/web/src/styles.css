@@ -1051,3 +1051,30 @@ button.tg:disabled { opacity: .5; cursor: not-allowed; }
 .ir-skg b { font-size: 12px; font-weight: 600; }
 .ir-skg span { font-size: 11.5px; color: var(--muted); overflow-wrap: anywhere; }
 @media (max-width: 640px) { .ir-pick { grid-template-columns: 1fr; } }
+
+/* interface slots (plugin cards, panels) */
+.uicard { margin: 6px 0 6px 38px; max-width: 560px; border: 1px solid var(--border); border-left: 3px solid var(--accent); border-radius: 12px; padding: 10px 14px; background: var(--surface); }
+.uicard.ok { border-left-color: var(--ok); }
+.uicard.warn { border-left-color: var(--amber); }
+.uicard.error { border-left-color: var(--danger); }
+.uich { display: flex; align-items: center; gap: 8px; font-size: 13.5px; }
+.uich b { flex: 1; min-width: 0; font-weight: 600; overflow-wrap: anywhere; }
+.uicard.ok .uich svg { color: var(--ok-text); }
+.uicard.warn .uich svg { color: var(--amber-text); }
+.uicard.error .uich svg { color: var(--danger-text); }
+.uiown { flex: none; font-size: 11px; color: var(--muted); font-family: var(--mono); }
+.uif { margin: 8px 0 0; display: grid; gap: 4px; }
+.uif > div { display: grid; grid-template-columns: minmax(64px, 120px) minmax(0, 1fr); gap: 10px; font-size: 12.5px; }
+.uif dt { color: var(--muted); }
+.uif dd { margin: 0; overflow-wrap: anywhere; }
+.uif .linkbtn { font-size: 12.5px; display: inline-flex; align-items: center; gap: 3px; text-align: left; overflow-wrap: anywhere; }
+.uipanel section + section { margin-top: 12px; }
+.uisec { font-size: 12px; font-weight: 600; color: var(--muted); margin-bottom: 4px; }
+.uitab { padding: 2px 2px 12px; }
+.uitabh { margin-bottom: 10px; }
+.uicards { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 10px; margin-bottom: 8px; }
+.uisc { padding: 12px 14px; }
+.uisch { display: flex; align-items: center; gap: 8px; font-size: 13.5px; }
+.uisch b { flex: 1; font-weight: 600; }
+.uisc > .small { margin: 6px 0 8px; line-height: 1.5; }
+@media (max-width: 640px) { .uicard { margin-left: 0; } }

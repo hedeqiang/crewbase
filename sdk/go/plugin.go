@@ -90,10 +90,59 @@ type Tool struct {
 	Execute     func(ctx context.Context, call Call, h *Host) (Result, error)
 }
 
+// UIField is a label / value row (plain text; in cards Value and Href may
+// use {{path}} into the event data).
+type UIField struct {
+	Label string `json:"label"`
+	Value string `json:"value"`
+	Href  string `json:"href,omitempty"`
+	Mono  bool   `json:"mono,omitempty"`
+}
+
+// UISection groups fields.
+type UISection struct {
+	Title  string    `json:"title,omitempty"`
+	Text   string    `json:"text,omitempty"`
+	Fields []UIField `json:"fields,omitempty"`
+}
+
+// UIPanel is the content of a tab or settings card.
+type UIPanel struct {
+	Sections []UISection `json:"sections"`
+	Empty    string      `json:"empty,omitempty"`
+}
+
+// UICard renders session events of one type (conversation.node).
+type UICard struct {
+	Title  string    `json:"title"`
+	Tone   string    `json:"tone,omitempty"` // info | ok | warn | error
+	Icon   string    `json:"icon,omitempty"`
+	Fields []UIField `json:"fields,omitempty"`
+}
+
+// UIResult is what a command returns.
+type UIResult struct {
+	Toast string `json:"toast,omitempty"`
+	Open  string `json:"open,omitempty"`
+}
+
+// UI is an interface contribution (requires service "ui"). Slots:
+// conversation.node (Card), sidebar-right.tab / settings.card (Panel),
+// palette.command / composer.action (Run).
+type UI struct {
+	Slot, Key, Title, Desc, Icon string
+	Order                        int
+	Card                         *UICard
+	Confirm                      string
+	Panel                        func(ctx context.Context, session string, h *Host) (UIPanel, error)
+	Run                          func(ctx context.Context, session string, h *Host) (UIResult, error)
+}
+
 // Plugin collects registrations and serves the host.
 type Plugin struct {
 	Name, Version string
 
+	ui       []UI
 	tools    map[string]Tool
 	order    []string
 	prompts  []map[string]any
@@ -119,6 +168,24 @@ func (p *Plugin) Tool(t Tool) {
 // Prompt adds a static system prompt fragment.
 func (p *Plugin) Prompt(name, text string, order int) {
 	p.prompts = append(p.prompts, map[string]any{"name": name, "text": text, "order": order})
+}
+
+// UI adds an interface contribution.
+func (p *Plugin) UI(u UI) { p.ui = append(p.ui, u) }
+
+func (p *Plugin) uiEntry(params json.RawMessage) (UI, string, error) {
+	var in struct {
+		Slot, Key, Session string
+	}
+	if err := json.Unmarshal(params, &in); err != nil {
+		return UI{}, "", jsonrpc.NewError(jsonrpc.CodeInvalidParams, err.Error(), nil)
+	}
+	for _, u := range p.ui {
+		if u.Slot == in.Slot && u.Key == in.Key {
+			return u, in.Session, nil
+		}
+	}
+	return UI{}, "", jsonrpc.NewError(jsonrpc.CodeMethodNotFound, fmt.Sprintf("unknown ui %s %s", in.Slot, in.Key), nil)
 }
 
 // OnToolResult observes tools/result.
@@ -210,8 +277,31 @@ func (p *Plugin) handle(ctx context.Context, method string, params json.RawMessa
 		if prompts == nil {
 			prompts = []map[string]any{}
 		}
+		ui := []map[string]any{}
+		for _, u := range p.ui {
+			ui = append(ui, map[string]any{"slot": u.Slot, "key": u.Key, "title": u.Title, "desc": u.Desc, "icon": u.Icon,
+				"order": u.Order, "card": u.Card, "confirm": u.Confirm})
+		}
 		return map[string]any{"protocolVersion": ProtocolVersion, "name": p.Name, "version": p.Version,
-			"tools": tools, "prompts": prompts, "events": events, "notify": []any{}}, nil
+			"tools": tools, "prompts": prompts, "events": events, "notify": []any{}, "ui": ui}, nil
+	case "ui/panel":
+		u, session, err := p.uiEntry(params)
+		if err != nil {
+			return nil, err
+		}
+		if u.Panel == nil {
+			return nil, jsonrpc.NewError(jsonrpc.CodeMethodNotFound, "no panel", nil)
+		}
+		return u.Panel(ctx, session, p.host)
+	case "ui/run":
+		u, session, err := p.uiEntry(params)
+		if err != nil {
+			return nil, err
+		}
+		if u.Run == nil {
+			return nil, jsonrpc.NewError(jsonrpc.CodeMethodNotFound, "no run handler", nil)
+		}
+		return u.Run(ctx, session, p.host)
 	case "tool/execute":
 		var in struct {
 			Tool string `json:"tool"`

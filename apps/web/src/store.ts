@@ -17,12 +17,14 @@ import {
   type SessionMeta,
   type StreamChunk,
   type SystemInfo,
+  type UIContribution,
   getToken,
 } from "./api";
 import { getLang, setLang as setLangRaw, t, type Lang } from "./i18n";
 
 export type View = "chat" | "newAgent" | "settings";
-export type PanelTab = "task" | "files" | "agent";
+/** Built-in tabs, or `ui:<key>` for a plugin's sidebar-right.tab. */
+export type PanelTab = "task" | "files" | "agent" | `ui:${string}`;
 export type Theme = "system" | "light" | "dark";
 export type SettingsSection =
   | "general"
@@ -58,6 +60,8 @@ export interface State {
   authed: boolean | null; // null = checking
   /** Folders created from the list; kept even while empty (settings.json). */
   savedFolders: string[];
+  /** Interface slot contributions from plugins (GET /api/ui). */
+  ui: UIContribution[];
   connected: boolean;
   agents: Record<string, AgentView>;
   sessions: Record<string, SessionMeta>;
@@ -141,6 +145,7 @@ let state: State = {
   histPos: LS.get("current") ? 0 : -1,
   profile: { displayName: "", dndUntil: "", system: null },
   savedFolders: [],
+  ui: [],
   settings: "general",
   listOpen: !narrow() || !LS.get("current"),
   panelOpen: !midWidth() && LS.get("panel") !== "0",
@@ -432,8 +437,31 @@ export function dndActive(p: Profile, now = Date.now()): boolean {
   return !!p.dndUntil && new Date(p.dndUntil).getTime() > now;
 }
 
+export async function refreshUI() {
+  try {
+    const r = await API.ui();
+    setState((s) => {
+      const ui = r.contributions ?? [];
+      // a plugin tab that went away falls back to the task tab
+      const gone = s.panelTab.startsWith("ui:") && !ui.some((c) => c.slot === "sidebar-right.tab" && "ui:" + c.key === s.panelTab);
+      return gone ? { ui, panelTab: "task" } : { ui };
+    });
+  } catch {
+    /* older daemon without the ui service */
+  }
+}
+
 export async function resync() {
-  await Promise.allSettled([refreshAgents(), refreshSessions(), refreshApprovals(), refreshModels(), refreshSummaries(), refreshChannels(), refreshProfile()]);
+  await Promise.allSettled([
+    refreshAgents(),
+    refreshSessions(),
+    refreshApprovals(),
+    refreshModels(),
+    refreshSummaries(),
+    refreshChannels(),
+    refreshProfile(),
+    refreshUI(),
+  ]);
   for (const id of Object.keys(state.events)) void loadSession(id);
   if (state.current && !state.events[state.current]) void loadSession(state.current);
 }
@@ -536,6 +564,7 @@ export function connectEvents() {
   on("browser.state", (d: BrowserState) => setState((s) => ({ browser: { ...s.browser, [d.agent]: d } })));
   on("mcp", () => setState((s) => ({ mcpTick: s.mcpTick + 1 })));
   on("models.changed", () => void refreshModels());
+  on("ui.changed", () => void refreshUI());
   src.onerror = () => {
     setState({ connected: false });
     if (src.readyState === EventSource.CLOSED) {

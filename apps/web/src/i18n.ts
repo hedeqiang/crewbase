@@ -60,6 +60,12 @@ const zh = {
   "list.newAgent": "新建 Agent",
   "list.newChannel": "新建频道",
   "list.newFolder": "新建文件夹",
+  "ui.from": "由插件 {owner} 提供",
+  "ui.failed": "插件界面出错：{error}",
+  "ui.empty": "暂无内容",
+  "ui.cards": "插件卡片",
+  "ui.cardsDesc": "已启用插件在这里提供的状态与配置",
+  "ui.pluginCmd": "插件命令",
   "ir.title": "导入角色模板",
   "ir.entryDesc": "从 Hermes 等产品带来指令和技能；对话与记忆不迁移",
   "ir.note": "只迁移指令与流程（技能）。对话、记忆、密钥和原产品的模型设置不会导入。",
@@ -901,6 +907,12 @@ const zh = {
 export type Key = keyof typeof zh;
 
 const en: Partial<Record<Key, string>> = {
+  "ui.from": "From plugin {owner}",
+  "ui.failed": "Plugin interface error: {error}",
+  "ui.empty": "Nothing here yet",
+  "ui.cards": "Plugin cards",
+  "ui.cardsDesc": "Status and settings contributed by enabled plugins",
+  "ui.pluginCmd": "Plugin commands",
   "ir.title": "Import a role template",
   "ir.entryDesc": "Bring instructions and skills from Hermes and others; chats and memory stay behind",
   "ir.note": "Only instructions and flows (skills) move over. Conversations, memory, keys and the other product’s model settings are never imported.",

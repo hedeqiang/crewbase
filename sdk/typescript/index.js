@@ -168,7 +168,24 @@ class Plugin {
       prompts,
       events,
       notify: Object.keys(d.notify || {}).map((name) => ({ name })),
+      ui: (d.ui || []).map((/** @type {any} */ u) => ({
+        slot: u.slot,
+        key: u.key,
+        title: u.title || "",
+        desc: u.desc || "",
+        icon: u.icon || "",
+        order: u.order || 0,
+        card: u.card || null,
+        confirm: u.confirm || "",
+      })),
     };
+  }
+
+  /** @param {any} p */
+  uiEntry(p) {
+    const u = (this.def.ui || []).find((/** @type {any} */ x) => x.slot === p.slot && x.key === p.key);
+    if (!u) throw new RpcError(-32601, `unknown ui ${p.slot} ${p.key}`);
+    return u;
   }
 
   /** @param {string} method @param {any} p */
@@ -191,6 +208,19 @@ class Plugin {
         return (await d.preExecute?.(p, this.host)) ?? null;
       case "tools/post-execute":
         return (await d.postExecute?.(p, this.host)) ?? null;
+      case "ui/panel": {
+        const u = this.uiEntry(p);
+        if (!u.panel) throw new RpcError(-32601, `ui ${p.key} has no panel`);
+        const out = await u.panel({ session: p.session || "" }, this.host);
+        return out || { sections: [] };
+      }
+      case "ui/run": {
+        const u = this.uiEntry(p);
+        if (!u.run) throw new RpcError(-32601, `ui ${p.key} has no run handler`);
+        const out = await u.run({ session: p.session || "" }, this.host);
+        if (typeof out === "string") return { toast: out };
+        return out || {};
+      }
       case "notify/send": {
         const ch = d.notify?.[p.channel];
         if (!ch) throw new RpcError(-32601, `unknown channel ${p.channel}`);

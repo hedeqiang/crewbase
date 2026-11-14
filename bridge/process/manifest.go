@@ -20,7 +20,7 @@ const ManifestFile = "crewbase-plugin.toml"
 // Host services a process plugin may declare in [inject] services. Each one
 // is both a dependency (the plugin stays PENDING without it) and a
 // permission (what the plugin may register on or call).
-var KnownServices = []string{"tools", "prompt", "notify", "credentials"}
+var KnownServices = []string{"tools", "prompt", "notify", "credentials", "ui"}
 
 // ExposedEvents is the whitelist of events external plugins may listen to.
 var ExposedEvents = []string{"tools/result", "tools/pre-execute", "tools/post-execute"}

@@ -40,7 +40,9 @@ export type FeedItem =
   | { k: "switch"; id: string; agent: string; from: ModelRef; to: ModelRef; reason: string; detail?: string }
   | { k: "mode"; id: string; agent: string; to: string; until?: string }
   | { k: "compact"; id: string; summary: string; before: number; after: number }
-  | { k: "sys"; id: string; tone: "info" | "error" | "muted"; text: string; key?: string; vars?: Record<string, string> };
+  | { k: "sys"; id: string; tone: "info" | "error" | "muted"; text: string; key?: string; vars?: Record<string, string> }
+  /** A plugin's event rendered by its conversation.node card. */
+  | { k: "plugin"; id: string; type: string; data: any; time: string };
 
 export interface Citation {
   title: string;
@@ -69,7 +71,8 @@ function textOf(parts: Part[] | null | undefined, type: string): string {
     .join("");
 }
 
-export function project(events: SessionEvent[]): Projection {
+/** `cards` are event types plugins render (conversation.node keys). */
+export function project(events: SessionEvent[], cards?: ReadonlySet<string>): Projection {
   const items: FeedItem[] = [];
   const context: Projection["context"] = {};
   const lastModel: Projection["lastModel"] = {};
@@ -135,6 +138,17 @@ export function project(events: SessionEvent[]): Projection {
         const r: ToolResult = d;
         const st = steps.get(r.callId);
         if (st) st.result = r;
+        const name = r.name ?? calls.get(r.callId)?.name;
+        if (name && cards?.has("tool:" + name)) {
+          let result: any;
+          try {
+            result = JSON.parse(r.content);
+          } catch {
+            result = { text: r.content };
+          }
+          push({ k: "plugin", id, type: "tool:" + name, data: { args: calls.get(r.callId)?.args ?? {}, result, isError: !!r.isError }, time: e.time }, e.time);
+          group = null; // later steps start a new group under the card
+        }
         break;
       }
       case "approval/asked": {
@@ -214,6 +228,7 @@ export function project(events: SessionEvent[]): Projection {
         break;
       default:
         // session/created, session/meta, input/*, step/end, agent/inject, approval/policy: not shown
+        if (cards?.has(e.type)) push({ k: "plugin", id, type: e.type, data: d, time: e.time }, e.time);
         break;
     }
   }

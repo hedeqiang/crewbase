@@ -6,7 +6,14 @@
     "source": "./examples/plugins/word-count",
     "author": "Crewbase",
     "repo": "https://github.com/hedeqiang/crewbase/tree/main/examples/plugins/word-count",
-    "permissions": { "services": ["tools"], "events": ["tools/result"] }
+    "permissions": {
+      "services": [
+        "tools"
+      ],
+      "events": [
+        "tools/result"
+      ]
+    }
   },
   {
     "name": "hello-py",
@@ -15,6 +22,24 @@
     "source": "./examples/plugins/hello-py",
     "author": "Crewbase",
     "repo": "https://github.com/hedeqiang/crewbase/tree/main/examples/plugins/hello-py",
-    "permissions": { "services": ["tools"] }
+    "permissions": {
+      "services": [
+        "tools"
+      ]
+    }
+  },
+  {
+    "name": "deploy-status",
+    "description": "Deployment status as conversation cards, a right-panel tab, a settings card and commands (demo data). Example of interface slots.",
+    "version": "0.1.0",
+    "source": "./examples/plugins/deploy-status",
+    "author": "Crewbase",
+    "repo": "https://github.com/hedeqiang/crewbase/tree/main/examples/plugins/deploy-status",
+    "permissions": {
+      "services": [
+        "tools",
+        "ui"
+      ]
+    }
   }
 ]

@@ -56,6 +56,7 @@ import (
 	"github.com/hedeqiang/crewbase/capabilities/credentials"
 	"github.com/hedeqiang/crewbase/capabilities/notify"
 	"github.com/hedeqiang/crewbase/capabilities/sandbox"
+	"github.com/hedeqiang/crewbase/capabilities/ui"
 	"github.com/hedeqiang/crewbase/core/prompt"
 	"github.com/hedeqiang/crewbase/core/tools"
 	"github.com/hedeqiang/crewbase/kernel"
@@ -189,6 +190,7 @@ type Status struct {
 	Prompts  []string  `json:"prompts,omitempty"`
 	Events   []string  `json:"events,omitempty"`
 	Notify   []string  `json:"notify,omitempty"`
+	UI       []string  `json:"ui,omitempty"` // slot:key
 	Started  time.Time `json:"started,omitempty"`
 	// Enforcement tells honestly how network/files/subprocess limits are
 	// enforced: "none" without a sandbox, otherwise the sandbox's level.
@@ -641,6 +643,18 @@ type Registrations struct {
 	Notify []struct {
 		Name string `json:"name"`
 	} `json:"notify"`
+	// UI contributions (declarative; panels and commands call back into
+	// the plugin with ui/panel and ui/run).
+	UI []struct {
+		Slot    string   `json:"slot"`
+		Key     string   `json:"key"`
+		Title   string   `json:"title"`
+		Desc    string   `json:"desc"`
+		Icon    string   `json:"icon"`
+		Order   int      `json:"order"`
+		Card    *ui.Card `json:"card"`
+		Confirm string   `json:"confirm"`
+	} `json:"ui"`
 }
 
 var (
@@ -746,6 +760,16 @@ func (g *generation) register(reg Registrations) error {
 			return errors.New("notify service unavailable")
 		}
 	}
+	var usvc *ui.Service
+	if len(reg.UI) > 0 {
+		if err := need(ui.ServiceKey, "interface contributions"); err != nil {
+			return err
+		}
+		var ok bool
+		if usvc, ok = kernel.Lookup[*ui.Service](g.ctx, ui.ServiceKey); !ok {
+			return errors.New("ui service unavailable")
+		}
+	}
 	for _, e := range reg.Events {
 		if !slices.Contains(ExposedEvents, e) {
 			return fmt.Errorf("event %q is not exposed to external plugins", e)
@@ -777,6 +801,37 @@ func (g *generation) register(reg Registrations) error {
 		nsvc.AddChannel(g.ctx, channel{g: g, name: n.Name})
 		st.Notify = append(st.Notify, n.Name)
 	}
+	for _, u := range reg.UI {
+		x := ui.Contribution{Slot: u.Slot, Key: u.Key, Title: capText(u.Title, 80), Desc: capText(u.Desc, 200), Icon: u.Icon, Order: u.Order,
+			Card: u.Card, Confirm: capText(u.Confirm, 300), Owner: p.m.Name}
+		slot, key := u.Slot, u.Key
+		switch slot {
+		case ui.SlotSidebarTab, ui.SlotSettingsCard:
+			x.Panel = func(ctx context.Context, session string) (ui.Panel, error) {
+				var out ui.Panel
+				cctx, cancel := g.callCtx(ctx, 10*time.Second)
+				defer cancel()
+				if err := g.conn.Call(cctx, "ui/panel", map[string]any{"slot": slot, "key": key, "session": session}, &out); err != nil {
+					return ui.Panel{}, fmt.Errorf("plugin %s: %s", p.m.Name, capDiag(err.Error()))
+				}
+				return out, nil
+			}
+		case ui.SlotPaletteCommand, ui.SlotComposerAction:
+			x.Run = func(ctx context.Context, session string) (ui.Result, error) {
+				var out ui.Result
+				cctx, cancel := g.callCtx(ctx, 60*time.Second)
+				defer cancel()
+				if err := g.conn.Call(cctx, "ui/run", map[string]any{"slot": slot, "key": key, "session": session}, &out); err != nil {
+					return ui.Result{}, fmt.Errorf("plugin %s: %s", p.m.Name, capDiag(err.Error()))
+				}
+				return out, nil
+			}
+		}
+		if err := usvc.Register(g.ctx, x); err != nil {
+			return err
+		}
+		st.UI = append(st.UI, slot+":"+key)
+	}
 	for _, e := range uniq(reg.Events) {
 		switch e {
 		case tools.OnResult.Name():
@@ -794,7 +849,9 @@ func (g *generation) register(reg Registrations) error {
 		}
 		st.Events = append(st.Events, e)
 	}
-	p.setState(func(s *Status) { s.Tools, s.Prompts, s.Notify, s.Events = st.Tools, st.Prompts, st.Notify, st.Events })
+	p.setState(func(s *Status) {
+		s.Tools, s.Prompts, s.Notify, s.Events, s.UI = st.Tools, st.Prompts, st.Notify, st.Events, st.UI
+	})
 	return nil
 }
 

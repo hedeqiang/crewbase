@@ -6,6 +6,7 @@ import { ago } from "../../format";
 import { toast, useStore } from "../../store";
 import { Head } from "../Settings";
 import { catLabel } from "../Settings";
+import { PanelView, SlotIcon, useSlot } from "../UISlots";
 
 type Tab = "plugins" | "mcp";
 
@@ -27,7 +28,40 @@ export function Extensions() {
           </div>
         }
       />
-      <div className="vb">{tab === "plugins" ? <Plugins /> : <Mcp />}</div>
+      <div className="vb">
+        {tab === "plugins" ? (
+          <>
+            <PluginCards />
+            <Plugins />
+          </>
+        ) : (
+          <Mcp />
+        )}
+      </div>
+    </>
+  );
+}
+
+/** settings.card contributions from enabled plugins. */
+function PluginCards() {
+  const cards = useSlot("settings.card");
+  if (!cards.length) return null;
+  return (
+    <>
+      <div className="vsec">{t("ui.cards")}</div>
+      <div className="uicards">
+        {cards.map((c) => (
+          <div key={c.key} className="sbox uisc">
+            <div className="uisch">
+              <SlotIcon name={c.icon} size={16} />
+              <b>{c.title}</b>
+              <span className="uiown">{c.owner}</span>
+            </div>
+            {c.desc && <p className="small">{c.desc}</p>}
+            <PanelView c={c} />
+          </div>
+        ))}
+      </div>
     </>
   );
 }
