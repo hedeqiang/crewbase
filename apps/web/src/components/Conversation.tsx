@@ -120,7 +120,10 @@ function Feed({
     for (const it of items) if (it.k === "steps") for (const st of it.steps) if (st.call.name === "browser_request_takeover" && !st.result) pendingCall.add(it.agent);
     return ids
       .map((id) => agents[id])
-      .filter((a): a is AgentView => !!a && !!takeoverReason(a) && (pendingCall.has(a.id) || (!channel && a.session === sessionId)));
+      .filter(
+        (a): a is AgentView =>
+          !!a && !!takeoverReason(a) && (a.statusSession ? a.statusSession === sessionId : pendingCall.has(a.id) || (!channel && a.session === sessionId)),
+      );
   }, [items, agents, channel, agent.id, sessionId]);
 
   const onScroll = () => {
@@ -477,6 +480,12 @@ function ApprovalCard({ it, agent }: { it: Extract<FeedItem, { k: "approval" }>;
       <h4>{t("appr.wants", { agent: name, summary })}</h4>
       <div className="qs">{t("appr.rule", { reason: it.req.reason || it.req.category, wait: ago(it.req.asked || it.time) })}</div>
       {cmd && <code className="cmd">{cmd}</code>}
+      {req.preview && (
+        <details className="apreview">
+          <summary>{t("appr.preview")}</summary>
+          <Markdown text={req.preview} />
+        </details>
+      )}
       <div className="small">
         {it.req.tool}
         {it.req.category ? ` · ${it.req.category}` : ""}

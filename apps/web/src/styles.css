@@ -828,3 +828,7 @@ button.tg:disabled { opacity: .5; cursor: not-allowed; }
 
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
 .waitc { color: var(--amber); }
+
+.apreview { margin: 8px 0 0; font-size: 12.5px; }
+.apreview > summary { cursor: pointer; color: var(--accent-text); }
+.apreview > div { max-height: 240px; overflow: auto; margin-top: 6px; padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--canvas, transparent); }

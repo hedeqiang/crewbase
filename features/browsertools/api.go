@@ -84,7 +84,11 @@ var APIPlugin = kernel.Register(kernel.Spec{
 				if _, err := agentFor(r.Params["id"]); err != nil {
 					return nil, err
 				}
-				return b.State(r.Params["id"]), nil
+				st := b.State(r.Params["id"])
+				return struct {
+					browser.State
+					Mine bool `json:"mine"`
+				}{st, st.TakenOverBy != "" && st.TakenOverBy == Caller(r)}, nil
 			}})
 		g.Handle(c, gateway.Route{Method: "POST", Path: "/api/agents/{id}/browser/takeover",
 			Handle: func(_ context.Context, r *gateway.Request) (any, error) {

@@ -324,7 +324,11 @@ func (t *bt) requestTakeover(ctx context.Context, call tools.Call) (tools.Result
 		a, _ = agents.Get(call.Agent)
 	}
 	if a != nil {
-		a.SetStatus(agent.StatusWaiting, detail)
+		sid := ""
+		if call.Session != nil {
+			sid = call.Session.ID()
+		}
+		a.SetStatusIn(agent.StatusWaiting, detail, sid)
 	}
 	if n, ok := kernel.Lookup[*notify.Service](t.c, notify.ServiceKey); ok {
 		name := call.Agent

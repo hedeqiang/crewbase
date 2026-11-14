@@ -24,9 +24,9 @@ export function TakeoverCard({ agent, reason }: { agent: AgentView; reason: stri
       .catch(() => {});
   }, [agent.id]);
 
-  // Same token = same caller: a takeover held by "us" can be resumed after reload.
+  // The server says whether the takeover is ours (same caller identity).
   const held = !!st?.takenOverBy;
-  const active = held && !other;
+  const active = held && (st?.mine ?? !other);
 
   const takeover = async () => {
     setBusy(true);

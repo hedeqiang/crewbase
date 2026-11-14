@@ -44,7 +44,7 @@ var Plugin = kernel.Register(kernel.Spec{
 		})
 		approval.Asked.Listen(c, func(r approval.Request) {
 			if a, ok := agents.Get(r.Agent); ok {
-				a.SetStatus(agent.StatusWaiting, "approval:"+r.CallID)
+				a.SetStatusIn(agent.StatusWaiting, "approval:"+r.CallID, r.Session)
 			}
 			send(notify.Notification{Kind: notify.KindNeedsYou, Urgent: true, Agent: r.Agent, Session: r.Session,
 				Title: name(r.Agent) + " 等你批准", Body: r.Summary})

@@ -37,14 +37,17 @@ func (o Outcome) Valid() bool {
 // Request references an already-recorded tool call by id; it does not copy
 // the arguments (the card attaches to the streamed call).
 type Request struct {
-	CallID   string    `json:"callId"`
-	Session  string    `json:"session"`
-	Agent    string    `json:"agent"`
-	Tool     string    `json:"tool"`
-	Category string    `json:"category"`
-	Summary  string    `json:"summary"` // human-readable "what it wants to do"
-	Reason   string    `json:"reason"`  // matched rule
-	Asked    time.Time `json:"asked"`
+	CallID   string `json:"callId"`
+	Session  string `json:"session"`
+	Agent    string `json:"agent"`
+	Tool     string `json:"tool"`
+	Category string `json:"category"`
+	Summary  string `json:"summary"` // human-readable "what it wants to do"
+	Reason   string `json:"reason"`  // matched rule
+	// Preview is longer optional context shown on demand (e.g. the output
+	// a workflow gate is about to pass on); Summary stays one line.
+	Preview string    `json:"preview,omitempty"`
+	Asked   time.Time `json:"asked"`
 	// Rememberable is false for categories that may never be remembered
 	// (external payment); ConfirmRemember asks for a second confirmation.
 	Rememberable    bool `json:"rememberable"`

@@ -140,6 +140,8 @@
 - 有意保留：先读后改记录仅内存（重启需重读更安全）；Agent 级规则维护在引擎内部（设计选择）
 - 推迟到 Phase 3：单次提权调用、Docker 白名单出站代理
 
+- [x] UI 反馈的接口缺口：Agent 状态带 statusSession（接管 / 审批属于哪个会话）、浏览器状态 mine、审批 preview（工作流卡点摘要单行 + 可展开内容）、新 Agent 默认模型在 CLI 未安装时回落到可用提供方的强模型
+
 ## Phase 3 — 远程、IM、团队
 - [x] `server` Profile、install-server.sh（systemd）、加固 docker-compose（no-new-privileges、seccomp、只读根、shm 1g、不映射端口、可选 Tailscale）、Dockerfile、阿里云 ECS / AWS EC2 + Fargate 模板、docs/deploy.md（D-2）
 - [ ] 部署：真实 Docker 构建与云主机实跑；容器内无 Docker 沙箱（改 sandbox-none 拒绝沙箱命令）
@@ -179,6 +181,7 @@
 ## 迭代日志
 | 日期 | 迭代 | 结果 |
 |---|---|---|
+| 2026-11-14 | 9e | UI 反馈的 4 处接口缺口修复；确认当前构建联网引用真实可用（UI agent 测的是旧构建） |
 | 2026-11-14 | 9d | 桌面 UI 第二轮（子 agent，真实 crewd + magpie 驱动，浅/深色多宽度截图审阅）提交 |
 | 2026-11-14 | 9c | Go 依赖全量升级 + tidy；kernel 插件生命周期事件替代审计轮询（修复偶发失败）；54 包 race 通过，Windows / Linux 交叉编译通过 |
 | 2026-11-14 | 9b | Phase 3 平台（子 agent）：部署、审计、目标续跑、OTel、crew doctor 接入；修 IM 审批卡跨端决定竞态；全量 53 包 race 测试通过 |

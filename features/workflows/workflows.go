@@ -874,7 +874,7 @@ func (s *Service) runApproval(ctx context.Context, lr *liveRun, st Step, prev st
 	if svc, ok := kernel.Lookup[*approval.Service](s.c, approval.ServiceKey); ok {
 		d = svc.Ask(ctx, lr.ss, approval.Request{
 			CallID: lr.id + "/" + st.ID, Session: lr.id, Tool: "workflow", Category: "workflow",
-			Summary: summary, Reason: "workflow approval gate", Rememberable: false,
+			Summary: oneLine(summary, 160), Preview: truncateRunes(prev, 4000), Reason: "workflow approval gate", Rememberable: false,
 		})
 	}
 	if d.Outcome == approval.OutcomeAllowedOnce {
@@ -1301,3 +1301,20 @@ var Plugin = kernel.Register(kernel.Spec{
 		return c.Provide(ServiceKey, s)
 	},
 })
+
+// oneLine squashes s to its first line, at most n runes.
+func oneLine(s string, n int) string {
+	s = strings.TrimSpace(s)
+	if i := strings.IndexByte(s, '\n'); i >= 0 {
+		s = strings.TrimSpace(s[:i]) + " …"
+	}
+	return truncateRunes(s, n)
+}
+
+func truncateRunes(s string, n int) string {
+	r := []rune(s)
+	if len(r) <= n {
+		return s
+	}
+	return string(r[:n]) + "…"
+}

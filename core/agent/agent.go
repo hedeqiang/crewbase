@@ -4,6 +4,7 @@
 package agent
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -95,15 +96,16 @@ type Agent struct {
 	reg *Registry
 	ctx *kernel.Context // agent scope
 
-	mu       sync.Mutex
-	spec     Spec
-	status   Status
-	queue    []Input
-	paused   bool
-	wake     chan struct{}
-	stopCur  func()
-	curInput string
-	detail   string
+	mu            sync.Mutex
+	spec          Spec
+	status        Status
+	queue         []Input
+	paused        bool
+	wake          chan struct{}
+	statusSession string
+	stopCur       func()
+	curInput      string
+	detail        string
 }
 
 func (a *Agent) ID() string { return a.spec.ID }
@@ -174,14 +176,24 @@ func (a *Agent) Status() (Status, string) {
 }
 
 // SetStatus updates status and notifies listeners.
-func (a *Agent) SetStatus(s Status, detail string) {
+func (a *Agent) SetStatus(s Status, detail string) { a.SetStatusIn(s, detail, "") }
+
+// SetStatusIn updates status, recording the session it concerns.
+func (a *Agent) SetStatusIn(s Status, detail, sessionID string) {
 	a.mu.Lock()
-	changed := a.status != s || a.detail != detail
-	a.status, a.detail = s, detail
+	changed := a.status != s || a.detail != detail || a.statusSession != sessionID
+	a.status, a.detail, a.statusSession = s, detail, sessionID
 	a.mu.Unlock()
 	if changed {
-		StatusChanged.Emit(a.ctx, StatusEvent{Agent: a.spec.ID, Status: s, Detail: detail})
+		StatusChanged.Emit(a.ctx, StatusEvent{Agent: a.spec.ID, Status: s, Detail: detail, Session: sessionID})
 	}
+}
+
+// StatusSession returns the session the current status concerns.
+func (a *Agent) StatusSession() string {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.statusSession
 }
 
 // Update changes the spec and persists it.
@@ -412,6 +424,9 @@ type StatusEvent struct {
 	Agent  string `json:"agent"`
 	Status Status `json:"status"`
 	Detail string `json:"detail,omitempty"`
+	// Session the status concerns (e.g. where an approval or takeover is
+	// waiting); "" when not session-specific.
+	Session string `json:"session,omitempty"`
 }
 
 var (
@@ -461,7 +476,7 @@ func (r *Registry) Create(spec Spec) (*Agent, error) {
 		spec.Mode = ModeSandbox
 	}
 	if len(spec.Models) == 0 {
-		spec.Models = r.DefaultModels()
+		spec.Models = r.availableDefaults()
 	}
 	r.mu.Lock()
 	if spec.ID == "" {
@@ -743,6 +758,68 @@ func (r *Registry) DefaultModels() []llm.ModelRef {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	return append([]llm.ModelRef(nil), r.defaults...)
+}
+
+// availableDefaults is the default order restricted to configured
+// providers; when none of them is configured (e.g. no CLI installed), the
+// first model of each available provider is used instead so a new agent
+// can work out of the box.
+func (r *Registry) availableDefaults() []llm.ModelRef {
+	defs := r.DefaultModels()
+	reg, ok := kernel.Lookup[*llm.Registry](r.c, llm.ServiceKey)
+	if !ok {
+		return defs
+	}
+	var out []llm.ModelRef
+	for _, m := range defs {
+		if _, ok := reg.Get(m.Provider); ok {
+			out = append(out, m)
+		}
+	}
+	if len(out) > 0 {
+		return out
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	for _, ad := range reg.List() {
+		if ad.ID() == "mock" {
+			continue
+		}
+		ms, err := ad.Models(ctx)
+		if err != nil {
+			continue
+		}
+		if id := pickModel(ms); id != "" {
+			out = append(out, llm.ModelRef{Provider: ad.ID(), Model: id})
+		}
+		if len(out) == 3 {
+			break
+		}
+	}
+	if len(out) == 0 {
+		return defs
+	}
+	return out
+}
+
+// preferredModels ranks well-known strong models when a provider (such as
+// a gateway) offers many; the first enabled match wins.
+var preferredModels = []string{"claude-opus-5-5", "claude-sonnet-5-5", "gpt-6.1", "gpt-6", "deepseek-v4-pro", "deepseek-flash", "gemini"}
+
+func pickModel(ms []llm.ModelInfo) string {
+	for _, want := range preferredModels {
+		for _, m := range ms {
+			if m.Enabled && strings.Contains(m.ID, want) {
+				return m.ID
+			}
+		}
+	}
+	for _, m := range ms {
+		if m.Enabled {
+			return m.ID
+		}
+	}
+	return ""
 }
 
 // SetDefaultModels changes the model order given to new agents.

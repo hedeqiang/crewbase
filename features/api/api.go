@@ -22,12 +22,14 @@ import (
 // AgentView is the API shape of an agent.
 type AgentView struct {
 	agent.Spec
-	Status    agent.Status  `json:"status"`
-	Detail    string        `json:"detail,omitempty"`
-	Paused    bool          `json:"paused"`
-	Queue     []agent.Input `json:"queue"`
-	Workspace string        `json:"workspace"`
-	Effective string        `json:"effectiveMode"`
+	Status agent.Status `json:"status"`
+	Detail string       `json:"detail,omitempty"`
+	// StatusSession is where a waiting status is waiting (approval / takeover).
+	StatusSession string        `json:"statusSession,omitempty"`
+	Paused        bool          `json:"paused"`
+	Queue         []agent.Input `json:"queue"`
+	Workspace     string        `json:"workspace"`
+	Effective     string        `json:"effectiveMode"`
 }
 
 func view(a *agent.Agent) AgentView {
@@ -36,7 +38,7 @@ func view(a *agent.Agent) AgentView {
 	if q == nil {
 		q = []agent.Input{}
 	}
-	return AgentView{Spec: a.Spec(), Status: st, Detail: d, Paused: a.Paused(), Queue: q, Workspace: a.Workspace(), Effective: a.Mode()}
+	return AgentView{Spec: a.Spec(), Status: st, Detail: d, StatusSession: a.StatusSession(), Paused: a.Paused(), Queue: q, Workspace: a.Workspace(), Effective: a.Mode()}
 }
 
 // ProviderView describes one model provider.

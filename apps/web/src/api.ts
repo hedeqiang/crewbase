@@ -22,6 +22,8 @@ export interface Input {
 
 export interface AgentView {
   id: string;
+  /** session a waiting status concerns (approval / takeover) */
+  statusSession?: string;
   name: string;
   role?: string;
   instructions?: string;
@@ -114,6 +116,8 @@ export interface ApprovalRequest {
   category: string;
   summary: string;
   reason: string;
+  /** longer context shown on demand (e.g. what a workflow gate passes on) */
+  preview?: string;
   asked: string;
   rememberable: boolean;
   confirmRemember: boolean;
@@ -373,6 +377,8 @@ export interface BrowserState {
   url?: string;
   title?: string;
   takenOverBy?: string;
+  /** true when the takeover is held by this client */
+  mine?: boolean;
   since?: string;
   headless: boolean;
   view?: "frames" | "window" | string;

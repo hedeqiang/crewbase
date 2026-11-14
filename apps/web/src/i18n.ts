@@ -135,6 +135,7 @@ const zh = {
   "appr.cancelled": "已取消：{summary}",
   "appr.unavailable": "未获批准：{summary} · {message}",
   "appr.expired": "这个审批已失效（守护进程重启或已超时）",
+  "appr.preview": "查看将要传递的内容",
   "appr.toastOk": "已批准，{agent} 从断点继续",
   "appr.toastNo": "已拒绝，{agent} 会重新规划",
   "appr.failed": "操作失败：{error}",
