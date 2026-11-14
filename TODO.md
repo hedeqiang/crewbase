@@ -46,7 +46,7 @@
 - [x] 规则引擎：动作类别 Allow / Ask / Block 默认表、Agent 只能收紧、记住的选择（S-2）
 - [x] `approval` 能力：闭合结果集、无应答方 = unavailable、never 策略、审计写入失败即失败（S-3）
 - [x] `credentials`：引用 + macOS Keychain / libsecret / 内存（测试）、post-execute 脱敏（S-4）
-- [ ] `browser` 能力：CDP 本地池、每 Agent 独立 Profile、接管暂停（S-5）
+- [x] `browser` 能力：chromedp + 本机 Chrome、每 Agent 独立 Profile（登录态持久）、空闲回收、进程树清理；接管期间工具全部拒绝、页面内容不入日志；逐帧截图接管（S-5）
 
 ## 迭代 5 — 守护进程与 Agent 持久化（第 5–6 周）
 - [x] `apps/crewd`：加载 Profile、HTTP + WebSocket API（远程方法白名单：鉴权 → 校验 → 激活）
@@ -64,7 +64,8 @@
 - [x] `apps/web`：React + TS + Vite；视觉 token（docs/03 §2，深浅色）；crewd 内嵌静态资源
 - [x] 三列窗口：会话列表 / 对话区 / 右侧面板；标题栏「需要你」胶囊；⌘K；窄屏浮层
 - [x] 输入框：主机、运行权限（宿主机红色确认条）、模型选择器；状态行（目录、额度、上下文占用浮层）
-- [x] 对话节点：消息、步骤折叠、模型切换说明、审批卡（以后都允许 / 二次确认）、压缩与模式变更行；浏览器接管卡待浏览器能力
+- [x] 对话节点：消息、步骤折叠、模型切换说明、审批卡（以后都允许 / 二次确认）、压缩与模式变更行
+- [ ] 浏览器接管卡（UI：逐帧画面 + 点击 / 键入 / 交还控制权）
 - [x] 新建 Agent 表单与模板（18 色 × 7 形状头像）
 - [x] 后端：`GET /api/usage`（tokens、峰值日、53 周热力图数据、来源占比、Agent 排行、自动切换次数 / 需人工介入次数、订阅复用节省估算；仅本地）
 - [~] 设置：通用 ✓、模型与订阅 ✓（只读）、审批（待处理）✓；路由与切换 / 添加提供方 / 已记住选择 / 通知 / 快捷键 待接 API
@@ -131,6 +132,7 @@
 - [x] scope 注册表：同名注册乱序撤销会复活已撤销条目 → 改为栈
 - [ ] 插件：tarball / npm 包签名校验；Windows Job Object 进程树；发布者身份；默认不开沙箱时网络 / 文件限制仅声明
 - [x] kernel：ApplyEntries 只管理条目加载的插件；LoadEntry；Context.Fail
+- [ ] 浏览器：网关支持原始二进制响应（截图目前 base64 JSON）；有头窗口接管需重启浏览器；浏览器网络不受运行模式白名单约束；跨源 iframe / 新标签页
 - [ ] MCP：服务器自报注解决定类别可被滥用 → 每服务器「信任注解」开关 / 类别覆盖；Agent 只读时 MCP 沙箱随之只读；暴露 resources / prompts；HTTP OAuth
 - 有意保留：先读后改记录仅内存（重启需重读更安全）；Agent 级规则维护在引擎内部（设计选择）
 - 推迟到 Phase 3：单次提权调用、Docker 白名单出站代理
@@ -158,6 +160,7 @@
 ## 迭代日志
 | 日期 | 迭代 | 结果 |
 |---|---|---|
+| 2026-11-14 | 8d | 浏览器能力 + 接管（子 agent，真实 Chrome 157 验证）接入；DeepSeek 全家桶调研 + 经 magpie 真实调用原生联网 |
 | 2026-11-14 | 8c | 进程外插件 + SDK + 市场 + 热重载（子 agent）接入 crewd，Phase 2 出口全部满足；kernel 三项改进 |
 | 2026-11-14 | 8b | 技术债第二批（core 接口）：agent/response、PathArgs、llm 词汇表扩展、tool/pruned、临时 Agent、交接确认；提供方 / 功能侧采用交给子 agent |
 | 2026-11-14 | 8a | MCP（子 agent）接入；技术债第一批：二次确认强制、StopInput、scope 乱序撤销复活修复；技术债分类（修 / 保留 / 推迟） |

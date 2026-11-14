@@ -20,6 +20,7 @@ import (
 	_ "github.com/hedeqiang/crewbase/core/tools"
 	_ "github.com/hedeqiang/crewbase/features/alerts"
 	_ "github.com/hedeqiang/crewbase/features/api"
+	_ "github.com/hedeqiang/crewbase/features/browsertools"
 	_ "github.com/hedeqiang/crewbase/features/channel"
 	_ "github.com/hedeqiang/crewbase/features/compaction"
 	_ "github.com/hedeqiang/crewbase/features/console"
@@ -38,6 +39,7 @@ import (
 	_ "github.com/hedeqiang/crewbase/features/toolsbasic"
 	_ "github.com/hedeqiang/crewbase/features/usage"
 	_ "github.com/hedeqiang/crewbase/features/workflows"
+	_ "github.com/hedeqiang/crewbase/providers/browser/chrome"
 	_ "github.com/hedeqiang/crewbase/providers/fs/local"
 	_ "github.com/hedeqiang/crewbase/providers/llm/acp"
 	_ "github.com/hedeqiang/crewbase/providers/llm/anthropic"
@@ -93,6 +95,8 @@ var Base = kernel.Bundle{Name: "base", Entries: []kernel.Entry{
 	{ID: "subagent-fork", Name: "@crewbase/subagent-fork"},
 	{ID: "delegate", Name: "@crewbase/delegate"},
 	{ID: "workflows", Name: "@crewbase/workflows", Config: map[string]any{"dir": "${root}"}},
+	{ID: "browser", Name: "@crewbase/browser-chrome"},
+	{ID: "browser-tools", Name: "@crewbase/browser-tools"},
 	{ID: "mcp", Name: "@crewbase/mcp", Config: map[string]any{"dir": "${root}"}},
 	{ID: "skills", Name: "@crewbase/skills", Config: map[string]any{"dirs": []string{"${root}/skills"}}},
 	{ID: "compaction", Name: "@crewbase/compaction-summary"},
@@ -110,6 +114,7 @@ var Desktop = kernel.Bundle{Name: "desktop", Entries: []kernel.Entry{
 	{ID: "usage", Name: "@crewbase/usage"},
 	{ID: "workflows-api", Name: "@crewbase/workflows-api"},
 	{ID: "mcp-api", Name: "@crewbase/mcp-api"},
+	{ID: "browser-api", Name: "@crewbase/browser-api"},
 	{ID: "plugin-manager", Name: "@crewbase/plugin-manager", Config: map[string]any{"dir": "${root}/plugins"}},
 	{ID: "plugin-manager-api", Name: "@crewbase/plugin-manager-api"},
 	{ID: "console", Name: "@crewbase/console", Config: map[string]any{"dir": "${root}"}},
