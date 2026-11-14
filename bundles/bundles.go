@@ -29,6 +29,7 @@ import (
 	_ "github.com/hedeqiang/crewbase/features/rules"
 	_ "github.com/hedeqiang/crewbase/features/runmode"
 	_ "github.com/hedeqiang/crewbase/features/schedule"
+	_ "github.com/hedeqiang/crewbase/features/skills"
 	_ "github.com/hedeqiang/crewbase/features/toolsbasic"
 	_ "github.com/hedeqiang/crewbase/providers/fs/local"
 	_ "github.com/hedeqiang/crewbase/providers/llm/mock"
@@ -63,6 +64,7 @@ var Base = kernel.Bundle{Name: "base", Entries: []kernel.Entry{
 	{ID: "schedule", Name: "@crewbase/schedule", Config: map[string]any{"dir": "${root}"}},
 	{ID: "routines", Name: "@crewbase/routines", Config: map[string]any{"dir": "${root}"}},
 	{ID: "alerts", Name: "@crewbase/alerts"},
+	{ID: "skills", Name: "@crewbase/skills", Config: map[string]any{"dirs": []string{"${root}/skills"}}},
 	{ID: "compaction", Name: "@crewbase/compaction-summary"},
 	{ID: "memory", Name: "@crewbase/memory-markdown-sqlite", Config: map[string]any{"root": "${root}"}},
 }}

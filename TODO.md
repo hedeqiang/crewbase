@@ -78,7 +78,7 @@
 - [ ] Workflows：触发器 → 串并行步骤 → 审批卡点 → 发布，从失败步重跑（R-3 R-5）
 - [ ] MCP 客户端与管理（C-3，P0）
 - [x] `history_search` / `history_read`、`memory_add` / `memory_search`（C-2）
-- [ ] 技能按需加载（C-4）
+- [x] 技能按需加载（C-4）：目录只进提示词，`skill_load` 取全文；工作区 > 共享目录按名称覆盖
 - [ ] 进程外插件桥接：stdio JSON-RPC 2.0、清单权限、Waterfall 2s 超时、退出即撤销（S-6）
 - [ ] 插件 SDK：TypeScript / Python / Go
 - [ ] 插件与技能市场页、角色模板导入（C-5）
@@ -122,6 +122,7 @@
 ## 迭代日志
 | 日期 | 迭代 | 结果 |
 |---|---|---|
+| 2026-11-14 | 6e | 技能按需加载；Windows 交叉编译检查（生产代码通过，修一处测试构建标签）；并行中：原生 SDK 适配器、ACP、UI、工作流 + 子 Agent |
 | 2026-11-14 | 6d | Routines（schedule 作业承载、独立会话、只读、静默哨兵）、晨报、alerts、routines API；冒烟：Webhook 无密钥 401、带密钥触发 → 巡检运行 |
 | 2026-11-14 | 6c | 执行层（子 agent）：sandbox / shell / fs 能力 + seatbelt/docker/none + 基础工具 + runmode 守卫；端到端：沙箱内 bash、越界写被拦截、git push 挂起审批；调度器（cron 解析、幂等、Webhook 公开路由自带密钥）；notify 能力；core：turn-start 事件、重进宿主机模式重置 24h |
 | 2026-11-14 | 6b | 压缩（回合边界切点不拆工具对、模型摘要 + 抽取式回退、用量分段）、记忆（MEMORY.md + SQLite FTS5、history_search/read、memory_add/search）；core：Input 级运行模式（只能收紧）、Agent.SetSession、turn-end 携带最终文本 |
