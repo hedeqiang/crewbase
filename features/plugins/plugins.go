@@ -31,6 +31,7 @@ import (
 	"time"
 
 	"github.com/hedeqiang/crewbase/bridge/process"
+	"github.com/hedeqiang/crewbase/bridge/wasm"
 	"github.com/hedeqiang/crewbase/kernel"
 	"github.com/hedeqiang/crewbase/sdk"
 )
@@ -335,6 +336,23 @@ func (m *Manager) syncLocked(name string, restart bool) error {
 			}
 		}
 		m.unloadLocked(name)
+	}
+	if in.man.Runtime == process.RuntimeWASM {
+		perms := in.grant.Permissions.Intersect(in.man.Requested())
+		e := kernel.Entry{ID: EntryID(name), Name: in.man.Name, Runtime: process.RuntimeWASM, Permissions: perms.Strings(),
+			Config: map[string]any{"dir": in.dir, "entry": in.man.Entry[0], "hooks": in.man.Hooks, "version": in.man.Version}}
+		spec, err := wasm.Loader(e)
+		if err != nil {
+			return err
+		}
+		if _, err := m.h.Load(spec, kernel.LoadOptions{ID: e.ID, Config: e.Config}); err != nil {
+			return err
+		}
+		m.loaded[name] = true
+		if info, _ := m.h.Plugin(e.ID); info.State == kernel.StateFailed {
+			return fmt.Errorf("plugin %s failed to start: %s", name, info.Error)
+		}
+		return nil
 	}
 	cfg := map[string]any{}
 	for k, v := range m.cfg.Process {

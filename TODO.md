@@ -93,7 +93,7 @@
 - [x] 角色模板导入（C-5）：新建 Agent › 导入角色模板，支持 Hermes 文件夹（SOUL.md + skills/）、.zip、角色 .md（front matter）/ .json（含 tasks / workflows → 技能）、粘贴文本；先预览再导入；只迁移指令（INSTRUCTIONS.md）与技能，记忆 / 对话 / 密钥 / 原产品设置一律不导入并逐项列出原因；路径穿越、超大文件、写入均不可执行；网关按路由设置请求体上限，超限返回 413 而不是截断
 - [x] 工作流画布编辑器：从左到右的流程图（触发 → 各步 → 完成），连线上「+」插入 Agent / 并行 / 审批，拖动节点放到箭头上成为新的一步、放到另一个 Agent 上即并行（单分支自动还原为普通步骤），点节点在右侧检查器编辑（Agent、权限、提示词、往前 / 往后），与后端 steps 一一对应
 - [x] 按任务分流（M-5）：routine / 摘要·日志清洗 / 编码 / 超长文档 → 配置的模型，不可用时回落到 Agent 顺序；节省见 `/api/usage`
-- [ ] WASM 插件档（wazero）
+- [x] WASM 插件档（bridge/wasm，wazero）：清单 runtime = "wasm" + hooks（stream_chunk / tool_result / rule），JSON ABI（alloc + hook_<name>）；16 MiB 内存上限、只给无文件 / 网络 / 环境的 WASI、只认 WASI 导入；每次调用 50 ms 预算，超时 / 出错按「不改」处理并换新实例（编译缓存）；rule 只能收紧；钩子作为权限经安装审批；示例 examples/plugins/wasm-redact（Go wasip1）
 - [x] UI：频道与任务卡、交接 / 改派、审批中心、自动化页、插件与技能页
 - [x] Phase 2 出口 e2e：三 Agent 两次交接（mock + 真实模型）；TS 插件从市场安装 → 授权 → 使用 → 改源码 → 重载生效（自动化测试）
 

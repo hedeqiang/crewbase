@@ -29,12 +29,16 @@ credentials = ["feishu-bot"]
 		t.Fatalf("table runtime: %+v %v", m, err)
 	}
 	for src, msg := range map[string]string{
-		"name = \"X Y\"\nversion = \"1\"\nentry = [\"a\"]":                                      "invalid name",
-		"name = \"x\"\nversion = \"1\"\nentry = [\"a\"]\n[permissions]\nshell = true":           "unknown key",
-		"name = \"x\"\nversion = \"1\"\nentry = [\"a\"]\n[inject]\nservices = [\"llm\"]":        "unknown service",
-		"name = \"x\"\nversion = \"1\"\nentry = [\"a\"]\n[permissions]\nevents = [\"agent/x\"]": "not exposed",
-		"name = \"x\"\nversion = \"../1\"\nentry = [\"a\"]":                                     "invalid version",
-		"name = \"x\"\nversion = \"1\"\nruntime = \"wasm\"\nentry = [\"a\"]":                    "unsupported runtime",
+		"name = \"X Y\"\nversion = \"1\"\nentry = [\"a\"]":                                            "invalid name",
+		"name = \"x\"\nversion = \"1\"\nentry = [\"a\"]\n[permissions]\nshell = true":                 "unknown key",
+		"name = \"x\"\nversion = \"1\"\nentry = [\"a\"]\n[inject]\nservices = [\"llm\"]":              "unknown service",
+		"name = \"x\"\nversion = \"1\"\nentry = [\"a\"]\n[permissions]\nevents = [\"agent/x\"]":       "not exposed",
+		"name = \"x\"\nversion = \"../1\"\nentry = [\"a\"]":                                           "invalid version",
+		"name = \"x\"\nversion = \"1\"\nruntime = \"wasm\"\nentry = [\"a\"]":                          "one .wasm file",
+		"name = \"x\"\nversion = \"1\"\nruntime = \"wasm\"\nentry = [\"p.wasm\"]":                     "declares hooks",
+		"name = \"x\"\nversion = \"1\"\nruntime = \"wasm\"\nentry = [\"p.wasm\"]\nhooks = [\"exec\"]": "unknown hook",
+		"name = \"x\"\nversion = \"1\"\nruntime = \"lua\"\nentry = [\"a\"]":                           "unsupported runtime",
+		"name = \"x\"\nversion = \"1\"\nentry = [\"node\"]\nhooks = [\"rule\"]":                       "wasm plugins only",
 	} {
 		if _, err := ParseManifest([]byte(src)); err == nil || !strings.Contains(err.Error(), msg) {
 			t.Errorf("%q: want %q, got %v", src, msg, err)

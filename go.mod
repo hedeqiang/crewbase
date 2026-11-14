@@ -8,6 +8,7 @@ require (
 	github.com/bwmarrin/discordgo v0.29.0
 	github.com/chromedp/cdproto v0.160.1
 	github.com/chromedp/chromedp v0.23.1
+	github.com/coder/websocket v1.8.15
 	github.com/egoist/mygo v0.9.0
 	github.com/gorilla/websocket v1.5.3
 	github.com/larksuite/oapi-sdk-go/v3 v3.12.2
@@ -15,6 +16,7 @@ require (
 	github.com/modelcontextprotocol/go-sdk v1.8.0
 	github.com/openai/openai-go/v3 v3.99.0
 	github.com/slack-go/slack v0.35.0
+	github.com/tetratelabs/wazero v1.12.0
 	go.opentelemetry.io/otel v1.47.0
 	go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetrichttp v1.47.0
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp v1.47.0
@@ -23,6 +25,7 @@ require (
 	go.opentelemetry.io/otel/sdk/metric v1.47.0
 	go.opentelemetry.io/otel/trace v1.47.0
 	go.opentelemetry.io/proto/otlp v1.11.1
+	golang.org/x/oauth2 v0.38.0
 	golang.org/x/time v0.16.0
 	google.golang.org/genai v1.77.0
 	google.golang.org/protobuf v1.36.12
@@ -40,7 +43,6 @@ require (
 	github.com/cenkalti/backoff/v5 v5.0.3 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/cloudflare/circl v1.6.2 // indirect
-	github.com/coder/websocket v1.8.15 // indirect
 	github.com/dustin/go-humanize v1.1.0 // indirect
 	github.com/ebitengine/purego v0.11.1 // indirect
 	github.com/felixge/httpsnoop v1.1.0 // indirect
@@ -79,7 +81,6 @@ require (
 	go.opentelemetry.io/otel/log v1.47.0 // indirect
 	golang.org/x/crypto v0.59.0 // indirect
 	golang.org/x/net v0.62.0 // indirect
-	golang.org/x/oauth2 v0.38.0 // indirect
 	golang.org/x/sync v0.25.0 // indirect
 	golang.org/x/sys v0.50.0 // indirect
 	golang.org/x/text v0.44.0 // indirect

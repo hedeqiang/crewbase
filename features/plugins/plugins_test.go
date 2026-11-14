@@ -472,3 +472,44 @@ func TestSignedPackages(t *testing.T) {
 		t.Fatalf("requireSigned: %d %v", code, v)
 	}
 }
+
+// A wasm plugin installs like any other, asks to approve its hooks, and
+// then runs in the host (here: masking ticket ids in tool results).
+func TestWasmPlugin(t *testing.T) {
+	goBin, err := exec.LookPath("go")
+	if err != nil {
+		t.Skip("go toolchain not on PATH")
+	}
+	src := t.TempDir()
+	ex := repo(t, "examples/plugins/wasm-redact")
+	for _, f := range []string{"crewbase-plugin.toml", "main.go", "go.mod"} {
+		b, _ := os.ReadFile(filepath.Join(ex, f))
+		os.WriteFile(filepath.Join(src, f), b, 0o644)
+	}
+	cmd := exec.Command(goBin, "build", "-buildmode=c-shared", "-o", "plugin.wasm", ".")
+	cmd.Dir = src
+	cmd.Env = append(os.Environ(), "GOOS=wasip1", "GOARCH=wasm", "GOWORK=off")
+	if b, err := cmd.CombinedOutput(); err != nil {
+		t.Skipf("cannot build the wasm example: %v %s", err, b)
+	}
+	e := start(t, t.TempDir(), nil)
+	v := e.must("POST", "/api/plugins/install", map[string]any{"source": src})
+	if state(v) != plugins.StatePendingApproval || !strings.Contains(needs(v), "hook:tool_result") {
+		t.Fatalf("install: %v", v)
+	}
+	v = e.must("POST", "/api/plugins/wasm-redact/approve", nil)
+	if v["error"] != nil && v["error"] != "" {
+		t.Fatalf("approve: %v", v)
+	}
+	reg := kernel.Use[*tools.Registry](e.h.Root(), tools.ServiceKey)
+	reg.Register(e.h.Root(), &tools.Tool{Name: "logs", Category: tools.CategoryRead, Description: "x",
+		Execute: func(context.Context, tools.Call) (tools.Result, error) { return tools.Text("see INC-31415"), nil }})
+	if x := e.run("logs", `{}`); x.Result.Content != "see INC-•••" {
+		t.Fatalf("not applied: %+v", x.Result)
+	}
+	// disabling removes the hooks at once
+	e.must("POST", "/api/plugins/wasm-redact/disable", nil)
+	if x := e.run("logs", `{}`); x.Result.Content != "see INC-31415" {
+		t.Fatalf("still applied after disable: %+v", x.Result)
+	}
+}

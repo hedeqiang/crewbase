@@ -35,6 +35,9 @@ type Permissions struct {
 	Credentials []string `toml:"credentials" json:"credentials,omitempty"`
 	Files       []string `toml:"files" json:"files,omitempty"`
 	Subprocess  bool     `toml:"subprocess" json:"subprocess,omitempty"`
+	// Hooks a wasm plugin implements (from the manifest's hooks list);
+	// approved like any other permission.
+	Hooks []string `toml:"-" json:"hooks,omitempty"`
 }
 
 // Manifest is a parsed crewbase-plugin.toml.
@@ -65,7 +68,16 @@ type Manifest struct {
 	Entry       []string    `json:"entry"`
 	Services    []string    `json:"services,omitempty"` // [inject] services
 	Permissions Permissions `json:"permissions"`
+	// Hooks are the pipeline hooks a wasm plugin implements
+	// (stream_chunk, tool_result, rule); wasm runtime only.
+	Hooks []string `json:"hooks,omitempty"`
 }
+
+// RuntimeWASM is the manifest runtime of WebAssembly plugins (bridge/wasm).
+const RuntimeWASM = "wasm"
+
+// WASMHooks are the hooks a wasm plugin may implement.
+var WASMHooks = []string{"stream_chunk", "tool_result", "rule"}
 
 type rawManifest struct {
 	Name        string   `toml:"name"`
@@ -79,6 +91,7 @@ type rawManifest struct {
 		Services []string `toml:"services"`
 	} `toml:"inject"`
 	Permissions Permissions `toml:"permissions"`
+	Hooks       []string    `toml:"hooks"`
 }
 
 // ParseManifest parses and validates manifest text.
@@ -102,7 +115,7 @@ func ParseManifest(data []byte) (Manifest, error) {
 		}
 	}
 	m := Manifest{Name: raw.Name, Version: raw.Version, Description: raw.Description, Author: raw.Author,
-		Repo: raw.Repo, Entry: raw.Entry, Services: raw.Inject.Services, Permissions: raw.Permissions}
+		Repo: raw.Repo, Entry: raw.Entry, Services: raw.Inject.Services, Permissions: raw.Permissions, Hooks: raw.Hooks}
 	switch rt := raw.Runtime.(type) {
 	case nil:
 		m.Runtime = RuntimeName
@@ -134,8 +147,31 @@ func (m Manifest) validate() error {
 	if m.Version == "" || strings.ContainsAny(m.Version, "/\\ ") || m.Version == "." || m.Version == ".." {
 		return fmt.Errorf("manifest: invalid version %q", m.Version)
 	}
-	if m.Runtime != RuntimeName {
-		return fmt.Errorf("manifest: unsupported runtime %q (want %q)", m.Runtime, RuntimeName)
+	switch m.Runtime {
+	case RuntimeName:
+		if len(m.Hooks) > 0 {
+			return errors.New("manifest: hooks apply to wasm plugins only")
+		}
+	case RuntimeWASM:
+		// a single module file inside the plugin directory; it gets no
+		// services, only the declared hooks
+		if len(m.Entry) != 1 || !strings.HasSuffix(m.Entry[0], ".wasm") || strings.Contains(m.Entry[0], "..") || filepath.IsAbs(m.Entry[0]) {
+			return errors.New("manifest: a wasm plugin's entry is one .wasm file in the plugin directory, e.g. entry = [\"plugin.wasm\"]")
+		}
+		if len(m.Hooks) == 0 {
+			return fmt.Errorf("manifest: a wasm plugin declares hooks (%s)", strings.Join(WASMHooks, ", "))
+		}
+		for _, h := range m.Hooks {
+			if !slices.Contains(WASMHooks, h) {
+				return fmt.Errorf("manifest: unknown hook %q (known: %s)", h, strings.Join(WASMHooks, ", "))
+			}
+		}
+		if len(m.Services) > 0 || m.Sandbox {
+			return errors.New("manifest: wasm plugins get no services and run in the host's wasm sandbox")
+		}
+		return nil
+	default:
+		return fmt.Errorf("manifest: unsupported runtime %q (want %q or %q)", m.Runtime, RuntimeName, RuntimeWASM)
 	}
 	if len(m.Entry) == 0 || m.Entry[0] == "" {
 		return errors.New("manifest: entry is required, e.g. entry = [\"node\", \"index.js\"]")
@@ -172,6 +208,7 @@ func ReadManifest(dir string) (Manifest, error) {
 func (m Manifest) Requested() Permissions {
 	p := m.Permissions
 	p.Services = append(append([]string(nil), m.Services...), p.Services...)
+	p.Hooks = append([]string(nil), m.Hooks...)
 	return p.Normalize()
 }
 
@@ -190,7 +227,7 @@ func uniq(xs []string) []string {
 // Normalize dedupes and sorts every list.
 func (p Permissions) Normalize() Permissions {
 	return Permissions{Services: uniq(p.Services), Events: uniq(p.Events), Network: uniq(p.Network),
-		Credentials: uniq(p.Credentials), Files: uniq(p.Files), Subprocess: p.Subprocess}
+		Credentials: uniq(p.Credentials), Files: uniq(p.Files), Subprocess: p.Subprocess, Hooks: uniq(p.Hooks)}
 }
 
 // Strings renders the set as entry permission strings: service:x, event:x,
@@ -208,6 +245,7 @@ func (p Permissions) Strings() []string {
 	add("network", p.Network)
 	add("credentials", p.Credentials)
 	add("files", p.Files)
+	add("hook", p.Hooks)
 	if p.Subprocess {
 		out = append(out, "subprocess")
 	}
@@ -237,6 +275,8 @@ func ParsePermissions(ss []string) (Permissions, error) {
 			p.Credentials = append(p.Credentials, v)
 		case "files", "file":
 			p.Files = append(p.Files, v)
+		case "hook", "hooks":
+			p.Hooks = append(p.Hooks, v)
 		default:
 			return Permissions{}, fmt.Errorf("invalid permission %q", s)
 		}

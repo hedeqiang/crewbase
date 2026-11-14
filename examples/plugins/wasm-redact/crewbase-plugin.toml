@@ -1,0 +1,7 @@
+name = "wasm-redact"
+version = "0.1.0"
+description = "Masks internal ticket ids and asks before tools touch prod/ (WebAssembly example)."
+author = "Crewbase"
+runtime = "wasm"
+entry = ["plugin.wasm"]
+hooks = ["stream_chunk", "tool_result", "rule"]

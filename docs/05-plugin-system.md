@@ -382,3 +382,33 @@ credentials = ["feishu-bot"]
 - `signed` 是发布者对 `crewbase-plugin-v1\n<name>\n<version>\n<sha256>` 的 ed25519 签名，只有公钥在 plugin-manager 配置 `publishers` 里的发布者才会被认作「已验证」；签名不符或发布者不受信时拒装，不会降级为未验证。
 - `requireSigned: true` 时只装已验证发布者的包。
 - 发布者用 `crew plugin keygen` 生成密钥对，用 `crew plugin sign <包.tgz> --publisher <id> --key-file <私钥>` 产出上面的字段。
+
+
+## 附：WASM 插件
+
+适合每个流式块、每次工具结果都要跑的轻量纯函数钩子。在宿主进程内用 wazero 执行（纯 Go，无 CGO）。
+
+```toml
+# crewbase-plugin.toml
+name = "wasm-redact"
+version = "0.1.0"
+runtime = "wasm"
+entry = ["plugin.wasm"]
+hooks = ["stream_chunk", "tool_result", "rule"]
+```
+
+**钩子**（JSON 进、JSON 出；输出长度为 0 表示不改）：
+
+| 钩子 | 输入 | 输出 |
+|---|---|---|
+| `stream_chunk` | `{"type","text"}` | `{"text"}` |
+| `tool_result` | `{"tool","category","content","isError"}` | `{"content"}` |
+| `rule` | `{"tool","category","summary","args","mode"}` | `{"verdict":"ask"|"deny"|"","reason"}` |
+
+**ABI**：模块导出 `alloc(size) -> ptr` 和 `hook_<名字>(ptr, len) -> u64`（高 32 位是输出指针，低 32 位是长度）。用 Go 写：`GOOS=wasip1 GOARCH=wasm go build -buildmode=c-shared`，配合 `//go:wasmexport`（示例见 `examples/plugins/wasm-redact`）；Rust / TinyGo 同理。
+
+**隔离与失败**：
+- 独立线性内存，上限 16 MiB；提供 WASI 只为了时钟、随机数和日志（stdout / stderr 进插件日志），没有文件系统、网络、环境变量和参数；导入 WASI 以外的任何东西都拒绝加载。
+- 每次调用有时间预算（默认 50 ms）；超时、报错、越界一律视为「不改」，下次调用换一个新实例。
+- `rule` 钩子只能收紧（要求审批或拒绝），不能放行。
+- 钩子作为权限（`hook:stream_chunk` 等）出现在安装审批里，批准后才生效；停用或卸载立即撤销。
