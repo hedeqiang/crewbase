@@ -53,6 +53,26 @@ type Service struct {
 	enabled map[string]map[string]bool
 	recent  []Notification
 	seq     int
+	// dndUntil suppresses non-urgent notifications to every channel.
+	dndUntil time.Time
+}
+
+// SetDoNotDisturb suppresses non-urgent notifications until t (zero ends
+// it). Urgent ones (approvals, takeovers) are always delivered.
+func (s *Service) SetDoNotDisturb(until time.Time) {
+	s.mu.Lock()
+	s.dndUntil = until
+	s.mu.Unlock()
+}
+
+// DoNotDisturb returns the end of do-not-disturb, zero when off.
+func (s *Service) DoNotDisturb() time.Time {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if time.Now().After(s.dndUntil) {
+		return time.Time{}
+	}
+	return s.dndUntil
 }
 
 func NewService() *Service { return &Service{enabled: map[string]map[string]bool{}} }
@@ -98,7 +118,11 @@ func (s *Service) Send(ctx context.Context, n Notification) []error {
 		n.Time = time.Now().UTC()
 	}
 	var targets []Channel
+	quiet := !n.Urgent && time.Now().Before(s.dndUntil)
 	for _, ch := range s.channels {
+		if quiet {
+			break
+		}
 		on, set := s.enabled[n.Kind][ch.Name()]
 		if (set && on) || (!set && defaultOn(n.Kind)) {
 			targets = append(targets, ch)

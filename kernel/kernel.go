@@ -12,7 +12,15 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"time"
 )
+
+// Version of Crewbase, set at build time with
+// -ldflags "-X github.com/hedeqiang/crewbase/kernel.Version=1.2.3".
+var Version = "0.1.0-dev"
+
+// StartedAt is when this process started.
+var StartedAt = time.Now().UTC()
 
 // State is the lifecycle state of a loaded plugin.
 type State string

@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/hedeqiang/crewbase/capabilities/approval"
+	"github.com/hedeqiang/crewbase/capabilities/notify"
 	"github.com/hedeqiang/crewbase/core/agent"
 	"github.com/hedeqiang/crewbase/core/agentloop"
 	"github.com/hedeqiang/crewbase/core/llm"
@@ -80,6 +81,10 @@ func lastLine(ss *session.Session) *LastLine {
 type Settings struct {
 	DefaultMode   string   `json:"defaultMode"`
 	DefaultModels []string `json:"defaultModels"`
+	// DisplayName is how the person is shown (default "你").
+	DisplayName string `json:"displayName,omitempty"`
+	// DndUntil (RFC 3339) suppresses non-urgent notifications; "" = off.
+	DndUntil string `json:"dndUntil,omitempty"`
 }
 
 // resolveIn returns an absolute path inside root, refusing escapes
@@ -154,6 +159,13 @@ var Plugin = kernel.Register(kernel.Spec{
 			return st
 		}
 		apply := func(st Settings) {
+			if n, ok := kernel.Lookup[*notify.Service](c, notify.ServiceKey); ok {
+				var until time.Time
+				if st.DndUntil != "" {
+					until, _ = time.Parse(time.RFC3339, st.DndUntil)
+				}
+				n.SetDoNotDisturb(until)
+			}
 			var refs []llm.ModelRef
 			for _, s := range st.DefaultModels {
 				if ref, err := llm.ParseRef(s); err == nil {
@@ -184,6 +196,14 @@ var Plugin = kernel.Register(kernel.Spec{
 						return gateway.BadRequest("%v", err)
 					}
 				}
+				if b.DndUntil != "" {
+					if _, err := time.Parse(time.RFC3339, b.DndUntil); err != nil {
+						return gateway.BadRequest("dndUntil must be RFC 3339")
+					}
+				}
+				if len([]rune(b.DisplayName)) > 40 {
+					return gateway.BadRequest("displayName is too long")
+				}
 				return nil
 			},
 			Handle: func(_ context.Context, r *gateway.Request) (any, error) {
@@ -195,6 +215,14 @@ var Plugin = kernel.Register(kernel.Spec{
 				}
 				if b.DefaultModels != nil {
 					cur.DefaultModels = b.DefaultModels
+				}
+				var raw map[string]json.RawMessage
+				_ = json.Unmarshal(r.Body, &raw)
+				if _, ok := raw["displayName"]; ok {
+					cur.DisplayName = strings.TrimSpace(b.DisplayName)
+				}
+				if _, ok := raw["dndUntil"]; ok {
+					cur.DndUntil = b.DndUntil
 				}
 				if settingsPath != "" {
 					data, _ := json.MarshalIndent(cur, "", "  ")
@@ -534,6 +562,16 @@ var Plugin = kernel.Register(kernel.Spec{
 				_ = r.Decode(&b)
 				rt.SetRoutes(b.Routes)
 				return map[string]any{"routes": rt.Routes()}, nil
+			}})
+
+		// ---- system info (profile menu, about)
+		g.Handle(c, gateway.Route{Method: "GET", Path: "/api/system", Devices: mobile,
+			Handle: func(context.Context, *gateway.Request) (any, error) {
+				name, _ := os.Hostname()
+				return map[string]any{
+					"version": kernel.Version, "startedAt": kernel.StartedAt, "hostname": name,
+					"os": runtime.GOOS, "arch": runtime.GOARCH, "dataDir": agents.Root(),
+				}, nil
 			}})
 
 		// ---- hosts (remote hosts arrive with Phase 3)

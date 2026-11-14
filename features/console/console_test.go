@@ -148,3 +148,22 @@ func TestConsoleEndpoints(t *testing.T) {
 		t.Fatal(out)
 	}
 }
+
+func TestSystemAndProfileSettings(t *testing.T) {
+	base, _, _ := start(t)
+	code, out := do(t, base, "GET", "/api/system", nil)
+	if code != 200 || out["version"] == "" || out["hostname"] == nil || out["startedAt"] == nil {
+		t.Fatal(code, out)
+	}
+	until := time.Now().Add(time.Hour).UTC().Format(time.RFC3339)
+	if code, out := do(t, base, "PATCH", "/api/settings", map[string]any{"displayName": "林夏", "dndUntil": until}); code != 200 || out["displayName"] != "林夏" || out["dndUntil"] != until {
+		t.Fatal(code, out)
+	}
+	if code, _ := do(t, base, "PATCH", "/api/settings", map[string]any{"dndUntil": "tomorrow"}); code != 400 {
+		t.Fatal("bad dndUntil accepted")
+	}
+	// turning it off with "" keeps the name
+	if _, out := do(t, base, "PATCH", "/api/settings", map[string]any{"dndUntil": ""}); out["displayName"] != "林夏" || out["dndUntil"] != nil {
+		t.Fatal(out)
+	}
+}
