@@ -1,8 +1,8 @@
 import { useMemo, useRef, useState } from "react";
-import { Check, ChevronDown, Folder, Shield } from "lucide-react";
+import { Check, ChevronDown, Folder, Shield, RefreshCw } from "lucide-react";
 import { API, refString, type ModelRef } from "../api";
 import { t, type Key } from "../i18n";
-import { allModels, effortLabel, kfmt, modeLabel, modelLabel, sameRef } from "../format";
+import { allModels, effortLabel, kfmt, modeLabel, sameRef, shortModel } from "../format";
 import { openSession, refreshAgents, refreshSessions, setState, toast, useStore } from "../store";
 import { AvatarRaw, COLORS, SHAPES } from "./Avatar";
 import { Popover, useMenu } from "./Popover";
@@ -24,23 +24,74 @@ export function emptyDraft(): Draft {
   return { name: "", role: "", desc: "", color: COLORS[0], shape: "sq", mode: "sandbox", folder: "", model: null, effort: "medium" };
 }
 
-export const TEMPLATES: { key: "review" | "watch" | "weekly"; color: string; shape: string; mode: Draft["mode"] }[] = [
+export type TemplateKey =
+  | "review" | "watch" | "weekly" | "frontend" | "tester" | "oncall"
+  | "writer" | "translator" | "researcher" | "data" | "support" | "release";
+
+/** The template library; the welcome page and the form show three at a
+ *  time and can shuffle to the next three. */
+export const TEMPLATES: { key: TemplateKey; color: string; shape: string; mode: Draft["mode"] }[] = [
   { key: "review", color: "#24b07e", shape: "circle", mode: "sandbox" },
   { key: "watch", color: "#8b7cf6", shape: "blob", mode: "read-only" },
   { key: "weekly", color: "#f2b33d", shape: "hex", mode: "sandbox" },
+  { key: "frontend", color: "#3987e5", shape: "sq", mode: "sandbox" },
+  { key: "tester", color: "#ef8a45", shape: "diamond", mode: "sandbox" },
+  { key: "oncall", color: "#e5484d", shape: "tri", mode: "read-only" },
+  { key: "writer", color: "#d651c8", shape: "pill", mode: "sandbox" },
+  { key: "translator", color: "#1fb5a8", shape: "circle", mode: "read-only" },
+  { key: "researcher", color: "#6c6cf0", shape: "blob", mode: "read-only" },
+  { key: "data", color: "#2db7f5", shape: "hex", mode: "sandbox" },
+  { key: "support", color: "#f07aa8", shape: "pill", mode: "read-only" },
+  { key: "release", color: "#3a4aa8", shape: "sq", mode: "sandbox" },
 ];
+
+/** Three templates starting at page*3, wrapping around. */
+export function templatePage(page: number) {
+  const n = TEMPLATES.length;
+  const start = ((page * 3) % n + n) % n;
+  return [0, 1, 2].map((i) => TEMPLATES[(start + i) % n]);
+}
+
+/** "Shuffle" control: 换一批 with a page counter. */
+export function ShuffleButton({ page, onNext }: { page: number; onNext: () => void }) {
+  const pages = Math.ceil(TEMPLATES.length / 3);
+  return (
+    <button className="btn ghost sm shuffle" type="button" onClick={onNext} title={t("na.shuffle")}>
+      <RefreshCw size={13} />
+      {t("na.shuffle")}
+      <span className="muted">
+        {(((page % pages) + pages) % pages) + 1}/{pages}
+      </span>
+    </button>
+  );
+}
 
 export function NewAgent({ draft: f, setDraft }: { draft: Draft; setDraft: (d: Draft) => void }) {
   const models = useStore((s) => s.models);
   const agents = useStore((s) => s.agents);
   const [err, setErr] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [tplPage, setTplPage] = useState(0);
   const nameRef = useRef<HTMLInputElement>(null);
   const modelM = useMenu();
   const modeM = useMenu();
   const all = useMemo(() => allModels(models), [models]);
   const folders = useMemo(() => [...new Set(Object.values(agents).map((a) => a.folder).filter(Boolean) as string[])].sort(), [agents]);
-  const primary = f.model ?? all[0]?.ref ?? null;
+  // Default: the same preference the daemon uses for new agents (a strong
+  // model from what is available), not simply the first listed.
+  const settingsDefault = useStore((s) => s.profile.defaultModels?.[0]);
+  const preferred = useMemo(() => {
+    if (settingsDefault) {
+      const hit = all.find((m) => refString(m.ref) === settingsDefault || refString({ ...m.ref, effort: undefined }) === settingsDefault.split("@")[0]);
+      if (hit) return hit.ref;
+    }
+    for (const want of ["claude-opus-5-5", "claude-sonnet-5-5", "gpt-6.1", "gpt-6", "deepseek-v4-pro", "deepseek-flash"]) {
+      const hit = all.find((m) => m.ref.model.includes(want));
+      if (hit) return hit.ref;
+    }
+    return all[0]?.ref ?? null;
+  }, [all, settingsDefault]);
+  const primary = f.model ?? preferred;
   const backup = all.find((m) => primary && !sameRef(m.ref, primary))?.ref ?? null;
   const set = (p: Partial<Draft>) => setDraft({ ...f, ...p });
 
@@ -135,7 +186,7 @@ export function NewAgent({ draft: f, setDraft }: { draft: Draft; setDraft: (d: D
                 {primary ? (
                   <>
                     <ProviderMark provider={primary.provider} model={primary.model} />
-                    {modelLabel(models, primary)}
+                    {shortModel(models, primary)}
                     <i>· {effortLabel(f.effort) || t("effort.default")}</i>
                   </>
                 ) : (
@@ -148,7 +199,7 @@ export function NewAgent({ draft: f, setDraft }: { draft: Draft; setDraft: (d: D
               {backup ? (
                 <>
                   <ProviderMark provider={backup.provider} model={backup.model} size={12} />
-                  <span className="ml">{t("na.backup", { model: modelLabel(models, backup) })}</span>
+                  <span className="ml">{t("na.backup", { model: shortModel(models, backup) })}</span>
                 </>
               ) : (
                 t("na.noBackup")
@@ -176,7 +227,7 @@ export function NewAgent({ draft: f, setDraft }: { draft: Draft; setDraft: (d: D
             </label>
           </div>
           <div className="na-acts">
-            <button className="btn ghost" type="button" onClick={() => setState({ view: "chat" })}>
+            <button className="btn big" type="button" onClick={() => setState({ view: "chat" })}>
               {t("common.cancel")}
             </button>
             <button className="btn pri big" type="button" disabled={busy} onClick={create}>
@@ -186,9 +237,12 @@ export function NewAgent({ draft: f, setDraft }: { draft: Draft; setDraft: (d: D
         </div>
 
         <div className="na-sug">
-          <div className="vsec">{t("na.templates")}</div>
+          <div className="na-sugh">
+            <div className="vsec">{t("na.templates")}</div>
+            <ShuffleButton page={tplPage} onNext={() => setTplPage((p) => p + 1)} />
+          </div>
           <div className="sugs">
-            {TEMPLATES.map((x) => (
+            {templatePage(tplPage).map((x) => (
               <button
                 key={x.key}
                 type="button"
@@ -205,13 +259,13 @@ export function NewAgent({ draft: f, setDraft }: { draft: Draft; setDraft: (d: D
                   });
                 }}
               >
-                <AvatarRaw color={x.color} shape={x.shape} size={44} />
+                <AvatarRaw color={x.color} shape={x.shape} size={40} name={t(`tpl.${x.key}.name` as Key)} />
                 <span>
                   <b>{t(`tpl.${x.key}.name` as Key)}</b>
                   <span>{t(`tpl.${x.key}.desc` as Key)}</span>
                   <span className="meta">
                     {primary && <ProviderMark provider={primary.provider} model={primary.model} size={12} />}
-                    {primary ? modelLabel(models, primary) : ""} · {modeLabel(x.mode)}
+                    {primary ? shortModel(models, primary) : ""} · {modeLabel(x.mode)}
                   </span>
                 </span>
               </button>

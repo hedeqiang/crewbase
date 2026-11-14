@@ -584,6 +584,10 @@ export const API = {
   patchChannel: (id: string, b: { handoverConfirm: boolean }) => api<ChannelView>("PATCH", `/api/channels/${enc(id)}`, b),
   postChannel: (id: string, text: string) =>
     api<{ agent: string; input: string; position: number }>("POST", `/api/channels/${enc(id)}/messages`, { text }),
+  updateChannel: (id: string, b: { title?: string; folder?: string; handoverConfirm?: boolean }) => api<ChannelView>("PATCH", `/api/channels/${enc(id)}`, b),
+  deleteChannel: (id: string) => api("DELETE", `/api/channels/${enc(id)}`),
+  renameFolder: (name: string, to: string) => api<{ moved: number }>("PATCH", `/api/folders/${enc(name)}`, { name: to }),
+  dissolveFolder: (name: string) => api<{ moved: number }>("DELETE", `/api/folders/${enc(name)}`),
   channelAction: (id: string, a: "stop" | "resume" | "archive") => api<ChannelView>("POST", `/api/channels/${enc(id)}/${a}`),
   reassign: (id: string, to: string, note?: string) => api<ChannelView>("POST", `/api/channels/${enc(id)}/reassign`, { to, note }),
   addMember: (id: string, agent: string) => api<ChannelView>("POST", `/api/channels/${enc(id)}/members`, { agent }),

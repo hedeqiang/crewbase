@@ -25,6 +25,7 @@ import {
 import { Avatar, MeAvatar } from "./Avatar";
 import { ListToggle } from "./Header";
 import { Logo } from "./Logo";
+import { RowMenuButton, RowMenuHost, openRowMenu } from "./RowMenu";
 import { Popover, useMenu } from "./Popover";
 
 const ISSUES_URL = "https://github.com/hedeqiang/crewbase/issues";
@@ -95,7 +96,7 @@ export function SessionList() {
     const topic = summaries[a.session]?.topic;
     const waiting = (pendingBy[a.id] ?? 0) > 0 || !!takeoverReason(a);
     return (
-      <button key={a.id} className="ci" type="button" aria-current={sel(a.session)} onClick={() => openSession(a.session)}>
+      <button key={a.id} className="ci" type="button" aria-current={sel(a.session)} onClick={() => openSession(a.session)} onContextMenu={(e) => openRowMenu(e, { kind: "agent", agent: a })}>
         <Avatar agent={a} size={32} status />
         <span className="ct">
           <span className="l1">
@@ -105,6 +106,7 @@ export function SessionList() {
           </span>
           <span className="l2">{topic || snip?.text || a.role || " "}</span>
         </span>
+        <RowMenuButton target={{ kind: "agent", agent: a }} />
       </button>
     );
   };
@@ -116,7 +118,7 @@ export function SessionList() {
     const who = snip?.agent ? agents[snip.agent]?.name : undefined;
     const topic = summaries[m.id]?.topic;
     return (
-      <button key={m.id} className={"ci" + (ch?.state === "archived" ? " arch" : "")} type="button" aria-current={sel(m.id)} onClick={() => openSession(m.id)}>
+      <button key={m.id} className={"ci" + (ch?.state === "archived" ? " arch" : "")} type="button" aria-current={sel(m.id)} onClick={() => openSession(m.id)} onContextMenu={(e) => openRowMenu(e, { kind: "channel", meta: m })}>
         <span className="chav">
           <Hash size={16} />
           {owner && (
@@ -143,12 +145,14 @@ export function SessionList() {
             )}
           </span>
         </span>
+        <RowMenuButton target={{ kind: "channel", meta: m }} />
       </button>
     );
   };
 
   return (
     <aside className="list">
+      <RowMenuHost />
       <div className="lbar">
         {!desktop() && (
           <span className="brand">
@@ -216,10 +220,17 @@ export function SessionList() {
           return (
             <div key={folder || "_"} className="lgrp">
               {folder && (
-                <button className="lsec grp" type="button" aria-expanded={!folded[folder]} onClick={() => setFolded((f) => ({ ...f, [folder]: !f[folder] }))}>
+                <button
+                  className="lsec grp"
+                  type="button"
+                  aria-expanded={!folded[folder]}
+                  onClick={() => setFolded((f) => ({ ...f, [folder]: !f[folder] }))}
+                  onContextMenu={(e) => openRowMenu(e, { kind: "folder", name: folder })}
+                >
                   <ChevronRight size={12} className="fold" />
                   <span>{folder}</span>
                   <span className="cnt">{g.agents.length + g.channels.length}</span>
+                  <RowMenuButton target={{ kind: "folder", name: folder }} />
                 </button>
               )}
               {both && (

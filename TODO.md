@@ -161,6 +161,9 @@
 - [x] 左下角菜单：去掉外观；姓名（可改）、版本与运行时长、今日用量、免打扰、快捷键、帮助与反馈、设置、退出 / 断开
 - [x] 首次使用欢迎页（已连接的模型来源、三个模板一键开始）；浏览器顶部品牌位；收起侧栏后不再空
 - [x] Markdown 表格渲染；模型名规整（DeepSeek Flash、Claude Opus 5.5）
+- [x] 管理遗漏补齐：右键 / ⋯ 菜单重命名、移到文件夹、删除 Agent（工作区进回收区）、删除频道（日志保留审计）、归档；文件夹重命名与解散（成员移到顶层，不删任何东西）
+- [x] 新建 Agent：取消改为描边按钮、按钮右对齐；模板库 12 个，「换一批」（欢迎页同步）；模板头像带首字；默认模型与守护进程一致（强模型优先）
+- [x] 真实镜像（140MB）在加固 compose 下 healthy；发现命名卷 0755 → 启动时收紧为 0700
 
 ## Phase 3 — 远程、IM、团队
 - [x] `server` Profile、install-server.sh（systemd）、加固 docker-compose（no-new-privileges、seccomp、只读根、shm 1g、不映射端口、可选 Tailscale）、Dockerfile、阿里云 ECS / AWS EC2 + Fargate 模板、docs/deploy.md（D-2）
@@ -204,7 +207,7 @@
   - Linux 只有 Docker 沙箱提供方，容器 / 服务器无 Docker 时无法执行命令 → 新增 `sandbox-namespace`（bubblewrap），Linux 默认，安装脚本自动安装并自检
   - systemd 的 ProtectKernelTunables / ProtectKernelLogs / ProtectHostname 组合使 bubblewrap 无法挂载 /proc → 仅在 Docker 沙箱时启用（逐项二分定位）
   - `crew doctor` 与 crewd 读取的补丁不一致 → CREWBASE_PATCH 环境变量统一（compose 与 systemd 均已切换）
-- [ ] 完整镜像构建（本机网络拉取 golang / node 基础镜像极慢，构建进行中）
+- [x] 完整镜像构建（经 docker.m.daocloud.io 镜像源，`REGISTRY` / `DISTROLESS` 构建参数）
 - [-] IM 网关、阿里云 / AWS 云主机：无账号，无法真实验证
 
 ## 真实联调（本机 magpie，`go test -tags live ./test/live`）
@@ -220,6 +223,7 @@
 ## 迭代日志
 | 日期 | 迭代 | 结果 |
 |---|---|---|
+| 2026-11-14 | 10c | 删除 / 重命名 / 移动 / 文件夹管理（前后端 + 真实界面操作验证）；模板换一批；表单按钮；真实镜像 compose 验证 |
 | 2026-11-14 | 10b | MyGo 桌面客户端交付并实机验证；UI 重设计（子 agent）+ 首次使用欢迎页、表格、模型名、深链；Dockerfile 支持镜像源前缀 |
 | 2026-11-14 | 10a | 真实环境验证一轮：ACP 订阅 CLI、MCP、插件、浏览器、Linux systemd、bubblewrap 沙箱、加固 compose；修复 5 个真实环境问题；55 包 race 通过 |
 | 2026-11-14 | 9f | 高强度代码评审 10 项全部修复；54 包 race、Windows 编译、真实模型回归通过 |

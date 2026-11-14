@@ -1,10 +1,10 @@
 import { ArrowRight, Plus } from "lucide-react";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { t, type Key } from "../i18n";
 import { openNewAgent, openSettings, useStore } from "../store";
 import { AvatarRaw } from "./Avatar";
 import { Logo } from "./Logo";
-import { TEMPLATES, type Draft } from "./NewAgent";
+import { ShuffleButton, TEMPLATES, templatePage, type Draft } from "./NewAgent";
 import { ProviderMark } from "./ProviderMark";
 
 /** Shown in the main area when there is no conversation open. With no
@@ -15,6 +15,7 @@ export function Welcome({ onTemplate }: { onTemplate: (d: Partial<Draft>) => voi
   const models = useStore((s) => s.models);
   const name = useStore((s) => s.profile.displayName);
   const first = Object.keys(agents).length === 0;
+  const [page, setPage] = useState(0);
 
   const sources = useMemo(() => {
     const ps = models?.providers ?? [];
@@ -72,8 +73,12 @@ export function Welcome({ onTemplate }: { onTemplate: (d: Partial<Draft>) => voi
         )}
       </div>
 
+      <div className="wtplh">
+        <span>{t("na.templates")}</span>
+        <ShuffleButton page={page} onNext={() => setPage((p) => p + 1)} />
+      </div>
       <div className="wtpl">
-        {TEMPLATES.map((x) => (
+        {templatePage(page).map((x) => (
           <button key={x.key} type="button" className="wcard" onClick={() => start(x.key)}>
             <AvatarRaw color={x.color} shape={x.shape} size={36} name={t(`tpl.${x.key}.name` as Key)} />
             <b>{t(`tpl.${x.key}.name` as Key)}</b>

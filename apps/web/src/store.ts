@@ -48,6 +48,8 @@ export interface Toast {
 
 export interface Profile {
   displayName: string;
+  /** default model order for new agents (GET /api/settings) */
+  defaultModels?: string[];
   dndUntil: string;
   system: SystemInfo | null;
 }
@@ -384,6 +386,7 @@ export async function refreshProfile() {
     profile: {
       displayName: st.status === "fulfilled" ? st.value.displayName ?? "" : s.profile.displayName,
       dndUntil: st.status === "fulfilled" ? st.value.dndUntil ?? "" : s.profile.dndUntil,
+      defaultModels: st.status === "fulfilled" ? (st.value as { defaultModels?: string[] }).defaultModels : s.profile.defaultModels,
       system: sys.status === "fulfilled" ? sys.value : s.profile.system,
     },
   }));
