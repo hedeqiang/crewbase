@@ -26,6 +26,7 @@ import (
 	"github.com/hedeqiang/crewbase/core/llm"
 	"github.com/hedeqiang/crewbase/core/session"
 	"github.com/hedeqiang/crewbase/features/channel"
+	"github.com/hedeqiang/crewbase/features/workflows"
 	"github.com/hedeqiang/crewbase/kernel"
 	"github.com/hedeqiang/crewbase/providers/llm/magpie"
 )
@@ -289,4 +290,69 @@ func TestChannelHandoverWithRealModels(t *testing.T) {
 	b, _ := json.MarshalIndent(ss.Events(), "", " ")
 	t.Fatalf("no handover to Kai: %s", b[:min(len(b), 4000)])
 	_ = context.Background
+}
+
+func TestWorkflowWithApprovalGateAndParallelSteps(t *testing.T) {
+	e := start(t)
+	writer := e.newAgent(t, "Writer", "writes short copy", toolModel)
+	critic := e.newAgent(t, "Critic", "reviews copy", "magpie/deepseek/deepseek-flash")
+	editor := e.newAgent(t, "Editor", "finalises copy", "magpie/openai/gpt-6-luna")
+	wfs := kernel.Use[*workflows.Service](e.h.Root(), workflows.ServiceKey)
+	v, err := wfs.Create(workflows.Workflow{Name: "slogan", Trigger: "manual", Steps: []workflows.Step{
+		{ID: "draft", Kind: "agent", Agent: writer.ID(), Prompt: "Write one short slogan (max 8 words) for: {{input}}. Output only the slogan."},
+		{ID: "gate", Kind: "approval", Approval: &workflows.ApprovalGate{Summary: "Publish-check slogan: {{prev}}"}},
+		{ID: "reviews", Kind: "parallel", Parallel: []workflows.Step{
+			{ID: "r1", Kind: "agent", Agent: critic.ID(), Prompt: "In one sentence, critique this slogan: {{steps.draft}}"},
+			{ID: "r2", Kind: "agent", Agent: editor.ID(), Prompt: "Rate this slogan 1-10, reply with just the number: {{steps.draft}}"},
+		}},
+		{ID: "final", Kind: "agent", Agent: writer.ID(), Prompt: "Given these reviews:\n{{prev}}\nRewrite the slogan '{{steps.draft}}' once. Output only the final slogan."},
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	run, err := wfs.Start(v.ID, "a local-first AI team workbench")
+	if err != nil {
+		t.Fatal(err)
+	}
+	deadline := time.Now().Add(3 * time.Minute)
+	for len(e.inbox.Pending()) == 0 && time.Now().Before(deadline) {
+		time.Sleep(100 * time.Millisecond)
+	}
+	p := e.inbox.Pending()
+	if len(p) != 1 {
+		t.Fatal("workflow gate did not ask for approval")
+	}
+	t.Logf("gate: %s", p[0].Summary)
+	e.inbox.Decide(p[0].CallID, approval.Decision{Outcome: approval.OutcomeAllowedOnce})
+	ctx, cancel := context.WithTimeout(context.Background(), 4*time.Minute)
+	defer cancel()
+	done, err := wfs.Wait(ctx, run.ID)
+	if err != nil || done.Status != "completed" {
+		t.Fatalf("%v %+v", err, done)
+	}
+	for _, s := range done.Steps {
+		t.Logf("step %-7s %-9s %s", s.ID, s.Status, strings.ReplaceAll(s.Output, "\n", " "))
+	}
+	if strings.TrimSpace(done.Output) == "" {
+		t.Fatal("empty final output")
+	}
+}
+
+func TestDelegateToSubagent(t *testing.T) {
+	e := start(t)
+	lead := e.newAgent(t, "Lead", "team lead", toolModel)
+	text, _ := ask(t, lead, "Use the delegate tool to have a subagent compute 17*23 and reply with just the number. Then tell me the number it returned.", 3*time.Minute)
+	ss, _ := lead.Session()
+	if count(ss, "subagent/spawned") == 0 {
+		t.Fatal("no subagent was spawned")
+	}
+	if !strings.Contains(text, "391") {
+		t.Fatalf("reply %q", text)
+	}
+	for _, a := range e.agents.List() {
+		if strings.Contains(a.ID(), "-sub-") {
+			t.Fatalf("ephemeral subagent %s not cleaned up", a.ID())
+		}
+	}
+	t.Logf("lead: %s", text)
 }

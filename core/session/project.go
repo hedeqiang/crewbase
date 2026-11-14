@@ -45,6 +45,9 @@ type ModelSwitchData struct {
 	Detail string       `json:"detail,omitempty"`
 }
 
+// IsolatedKinds are session kinds whose agents do not share history.
+var IsolatedKinds = map[string]bool{"workflow": true}
+
 // InterruptedResult is the content synthesised for a tool call that has no
 // recorded result (e.g. the process crashed mid-execution).
 const InterruptedResult = "interrupted: the tool call did not complete (process stopped). Re-run it if still needed."
@@ -63,6 +66,16 @@ func DeriveMessages(events []Event, agent string, names map[string]string) []llm
 				comp = &c
 			}
 			break
+		}
+	}
+	// Isolated sessions (workflow runs, subagent tasks): each agent sees
+	// only what was addressed to it and its own turns; data flows between
+	// steps explicitly (templates), not through shared history.
+	isolated := false
+	if len(events) > 0 && events[0].Type == TypeCreated {
+		var m Meta
+		if events[0].Decode(&m) == nil {
+			isolated = IsolatedKinds[m.Kind]
 		}
 	}
 	var msgs []llm.Message
@@ -95,6 +108,9 @@ func DeriveMessages(events []Event, agent string, names map[string]string) []llm
 			if e.Decode(&m) != nil {
 				continue
 			}
+			if isolated && m.To != "" && m.To != agent {
+				continue
+			}
 			if m.From != "" {
 				appendUser("[" + m.From + "]: " + m.Text)
 			} else {
@@ -114,6 +130,9 @@ func DeriveMessages(events []Event, agent string, names map[string]string) []llm
 				continue
 			}
 			if e.Agent != agent {
+				if isolated {
+					continue
+				}
 				if t := m.Message.Text(); t != "" {
 					name := names[e.Agent]
 					if name == "" {

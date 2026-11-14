@@ -73,11 +73,11 @@
 
 ## Phase 2 — 多 Agent 协同、自动化、生态（第 7–12 周）
 - [x] `channel-local`：共享频道、单一负责人、交接工具与 Waterfall、停止 / 恢复 / 改派 / 归档（A-3 A-4 A-5）
-- [ ] `subagent`：local / fork / acp，最大深度、诊断 ≤4KB（A-6）
+- [x] `subagent`：local / fork（acp 提供方待接），最大深度、并发上限、取消传播、临时 Agent 清理、诊断 ≤4KB；`delegate` 工具（A-6）
 - [x] 运行模式 A 只读调研（S-1 P1）
 - [x] `schedule` / `webhook`：Cron / every / daily / weekly / at、最小间隔 60s、幂等键先落盘后投递、Webhook 独立密钥（R-1）
 - [x] Routines + 晨报（R-1 R-2）：默认只读、NO_ISSUES 静默、需关注才通知；晨报只列待处理项，正常项折叠计数
-- [ ] Workflows：触发器 → 串并行步骤 → 审批卡点 → 发布，从失败步重跑（R-3 R-5）
+- [x] Workflows：手动 / 定时 / Webhook 触发 → 串并行步骤 → 审批卡点，模板 {{input}}/{{prev}}/{{steps.x}}，从失败步重跑、取消、运行可从日志重建（R-3 R-5）
 - [ ] MCP 客户端与管理（C-3，P0）
 - [x] `history_search` / `history_read`、`memory_add` / `memory_search`（C-2）
 - [x] 技能按需加载（C-4）：目录只进提示词，`skill_load` 取全文；工作区 > 共享目录按名称覆盖
@@ -112,6 +112,8 @@
 - [ ] llm 词汇表缺口：签名等不透明 part 元数据、ModelInfo 大小字段、缓存 token、多窗口额度（5h / 周）
 - [ ] ACP：CLI 权限请求接入 approval；Request 携带 session / workspace；CLI 自行改文件的事件；重新检测 CLI
 - [ ] magpie：读取 /v1/magpie/quotas 显示额度
+- [ ] subagent-acp 提供方（把一个轮次交给 Claude Code / Codex）
+- [ ] 临时 Agent 不落盘（Registry.Create 增加 ephemeral 选项），Agent.StopInput(id)
 - [ ] 中文 FTS：trigram 分词替代子串回退
 - [ ] 记忆索引改为异步写入
 
@@ -132,11 +134,13 @@
 - [x] 请求时故障切换（magpie 404 → 下一个模型）
 - [x] memory_add 写入 MEMORY.md
 - [x] 频道 @指派 + 真实模型调用 handover → 接收方完成
-- 发现并修复：模型 id 含 `@`（cursor/grok-4.7@500k）被误解析为推理强度；404「模型不存在」不触发切换；频道专用工具在一对一会话里暴露导致模型误用
+- [x] 工作流：草稿 → 审批卡点 → 两厂商并行评审 → 定稿；子 Agent 委派计算并清理
+- 发现并修复：模型 id 含 `@`（cursor/grok-4.7@500k）被误解析为推理强度；404「模型不存在」不触发切换；频道专用工具在一对一会话里暴露导致模型误用；工作流并行步骤共享历史导致提示词串扰（workflow 会话改为隔离投影）
 
 ## 迭代日志
 | 日期 | 迭代 | 结果 |
 |---|---|---|
+| 2026-11-14 | 7c | 工作流 + 子 Agent（子 agent 交付）接入；core：agent-loop drivers 竞态、PreStep 拒绝补 turn-end、workflow 会话隔离投影；真实联调新增工作流与委派 |
 | 2026-11-14 | 7b | 本机 magpie 真实联调 6 个模型 + 6 个场景全部通过；修复 3 个真实环境才暴露的问题（见上） |
 | 2026-11-14 | 7a | 模型层完成：官方原生 SDK（OpenAI / Anthropic / Gemini）、本地发现、ACP 订阅桥接、magpie 网关（用户新增需求）；默认 Profile：订阅 CLI 优先，mock 默认关闭；usage 新增 gateway 类别；真实环境发现 4 个订阅 CLI + magpie |
 | 2026-11-14 | 6e | 技能按需加载；Windows 交叉编译检查（生产代码通过，修一处测试构建标签）；并行中：原生 SDK 适配器、ACP、UI、工作流 + 子 Agent |

@@ -9,6 +9,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/hedeqiang/crewbase/core/agent"
@@ -153,8 +154,11 @@ var Plugin = kernel.Register(kernel.Spec{
 			toolsReg: kernel.Use[*tools.Registry](c, tools.ServiceKey),
 			prompts:  kernel.Use[*prompt.Assembler](c, prompt.ServiceKey),
 		}
+		var dmu sync.Mutex
 		drivers := map[string]*kernel.Context{}
 		start := func(a *agent.Agent) {
+			dmu.Lock()
+			defer dmu.Unlock()
 			if _, ok := drivers[a.ID()]; ok {
 				return
 			}
@@ -167,9 +171,12 @@ var Plugin = kernel.Register(kernel.Spec{
 			return struct{}{}, nil
 		})
 		agent.Deleted.Listen(c, func(id string) {
-			if dc, ok := drivers[id]; ok {
+			dmu.Lock()
+			dc, ok := drivers[id]
+			delete(drivers, id)
+			dmu.Unlock()
+			if ok {
 				dc.Dispose()
-				delete(drivers, id)
 			}
 		})
 		for _, a := range l.agents.List() {
@@ -218,6 +225,8 @@ func (l *loop) turn(parent context.Context, a *agent.Agent, in agent.Input) {
 	if err != nil || inp == nil {
 		_, _ = ss.Append(session.TypeNotice, a.ID(), map[string]string{"text": fmt.Sprintf("input rejected: %v", err)})
 		a.SetStatus(agent.StatusIdle, "")
+		// Waiters (workflows, subagents) track inputs by turn end.
+		TurnEnded.Emit(d, TurnEndEvent{Agent: a.ID(), Session: ss.ID(), Input: in, TurnEnd: TurnEnd{Status: "rejected", Error: fmt.Sprint(err)}})
 		return
 	}
 	in = *inp

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/hedeqiang/crewbase/core/llm"
@@ -90,5 +91,23 @@ func TestFork(t *testing.T) {
 	msgs := DeriveMessages(f.Events(), "kai", nil)
 	if len(msgs) != 1 || msgs[0].Text() != "one" || f.Meta().Parent != ss.ID() {
 		t.Fatalf("%+v", msgs)
+	}
+}
+
+func TestIsolatedSessionKinds(t *testing.T) {
+	st, _ := NewStore(nil, "")
+	ss, _ := st.Create(Meta{Kind: "workflow", Agents: []string{"a", "b"}})
+	ss.Append(TypeUserMessage, "", UserMessage{Text: "task for a", To: "a"})
+	ss.Append(TypeAssistantMessage, "a", AssistantMessage{Message: llm.TextMessage(llm.RoleAssistant, "a's answer")})
+	ss.Append(TypeUserMessage, "", UserMessage{Text: "task for b", To: "b"})
+	msgs := DeriveMessages(ss.Events(), "b", nil)
+	if len(msgs) != 1 || msgs[0].Text() != "task for b" {
+		t.Fatalf("%+v", msgs)
+	}
+	ch, _ := st.Create(Meta{Kind: "channel", Agents: []string{"a", "b"}})
+	ch.Append(TypeUserMessage, "", UserMessage{Text: "task for a", To: "a"})
+	ch.Append(TypeAssistantMessage, "a", AssistantMessage{Message: llm.TextMessage(llm.RoleAssistant, "a's answer")})
+	if msgs := DeriveMessages(ch.Events(), "b", map[string]string{"a": "A"}); len(msgs) != 1 || !strings.Contains(msgs[0].Text(), "[A]: a's answer") {
+		t.Fatalf("channels share context: %+v", msgs)
 	}
 }

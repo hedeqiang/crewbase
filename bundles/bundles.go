@@ -11,6 +11,7 @@ import (
 	_ "github.com/hedeqiang/crewbase/capabilities/approval"
 	_ "github.com/hedeqiang/crewbase/capabilities/credentials"
 	_ "github.com/hedeqiang/crewbase/capabilities/notify"
+	_ "github.com/hedeqiang/crewbase/capabilities/subagent"
 	_ "github.com/hedeqiang/crewbase/core/agent"
 	_ "github.com/hedeqiang/crewbase/core/agentloop"
 	_ "github.com/hedeqiang/crewbase/core/llm"
@@ -30,8 +31,10 @@ import (
 	_ "github.com/hedeqiang/crewbase/features/runmode"
 	_ "github.com/hedeqiang/crewbase/features/schedule"
 	_ "github.com/hedeqiang/crewbase/features/skills"
+	_ "github.com/hedeqiang/crewbase/features/subagent"
 	_ "github.com/hedeqiang/crewbase/features/toolsbasic"
 	_ "github.com/hedeqiang/crewbase/features/usage"
+	_ "github.com/hedeqiang/crewbase/features/workflows"
 	_ "github.com/hedeqiang/crewbase/providers/fs/local"
 	_ "github.com/hedeqiang/crewbase/providers/llm/acp"
 	_ "github.com/hedeqiang/crewbase/providers/llm/anthropic"
@@ -81,6 +84,12 @@ var Base = kernel.Bundle{Name: "base", Entries: []kernel.Entry{
 	{ID: "schedule", Name: "@crewbase/schedule", Config: map[string]any{"dir": "${root}"}},
 	{ID: "routines", Name: "@crewbase/routines", Config: map[string]any{"dir": "${root}"}},
 	{ID: "alerts", Name: "@crewbase/alerts"},
+	{ID: "subagent", Name: "@crewbase/subagent", Config: map[string]any{"maxDepth": 2, "maxConcurrent": 3}},
+	{ID: "subagent-runner", Name: "@crewbase/subagent-runner"},
+	{ID: "subagent-local", Name: "@crewbase/subagent-local"},
+	{ID: "subagent-fork", Name: "@crewbase/subagent-fork"},
+	{ID: "delegate", Name: "@crewbase/delegate"},
+	{ID: "workflows", Name: "@crewbase/workflows", Config: map[string]any{"dir": "${root}"}},
 	{ID: "skills", Name: "@crewbase/skills", Config: map[string]any{"dirs": []string{"${root}/skills"}}},
 	{ID: "compaction", Name: "@crewbase/compaction-summary"},
 	{ID: "memory", Name: "@crewbase/memory-markdown-sqlite", Config: map[string]any{"root": "${root}"}},
@@ -95,6 +104,7 @@ var Desktop = kernel.Bundle{Name: "desktop", Entries: []kernel.Entry{
 	{ID: "webhook", Name: "@crewbase/webhook"},
 	{ID: "routines-api", Name: "@crewbase/routines-api"},
 	{ID: "usage", Name: "@crewbase/usage"},
+	{ID: "workflows-api", Name: "@crewbase/workflows-api"},
 }}
 
 // Server is headless: same API bound to localhost (remote access goes
