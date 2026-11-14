@@ -129,6 +129,7 @@ func (h *Host) Load(spec Spec, opts LoadOptions) (*Plugin, error) {
 	h.plugins = append(h.plugins, p)
 	h.dirty = true
 	h.mu.Unlock()
+	p.notify("")
 	h.reconcile()
 	return p, nil
 }
@@ -238,6 +239,10 @@ func (p *Plugin) missingLocked() []string {
 }
 
 func (p *Plugin) activate() {
+	p.host.mu.Lock()
+	from := p.state
+	p.host.mu.Unlock()
+	defer p.notify(from)
 	ctx := newContext(p.host, p.host.root, p, "")
 	p.host.mu.Lock()
 	p.ctx = ctx
@@ -266,6 +271,7 @@ func (p *Plugin) activate() {
 
 func (p *Plugin) deactivate(to State) {
 	p.host.mu.Lock()
+	from := p.state
 	ctx := p.ctx
 	p.ctx = nil
 	p.state = to
@@ -273,6 +279,7 @@ func (p *Plugin) deactivate(to State) {
 	if ctx != nil {
 		ctx.Dispose()
 	}
+	p.notify(from)
 }
 
 func safeCall(fn func() error) (err error) {
@@ -304,11 +311,36 @@ func (c *Context) Fail(err error) {
 		return
 	}
 	go func() {
-		p.deactivate(StateFailed)
 		p.host.mu.Lock()
 		p.err = err
 		p.host.mu.Unlock()
+		p.deactivate(StateFailed)
 	}()
+}
+
+// PluginEvent reports a plugin lifecycle change.
+type PluginEvent struct {
+	ID    string `json:"id"`
+	Name  string `json:"name"`
+	From  State  `json:"from,omitempty"` // "" when loaded
+	To    State  `json:"to"`             // DISPOSED when unloaded
+	Error string `json:"error,omitempty"`
+}
+
+// PluginChanged is emitted on every plugin state transition (load,
+// activate, pending, failed, unload). Listeners must not block.
+var PluginChanged = NewEmit[PluginEvent]("kernel/plugin-changed")
+
+func (p *Plugin) notify(from State) {
+	p.host.mu.Lock()
+	ev := PluginEvent{ID: p.opts.ID, Name: p.spec.Name, From: from, To: p.state}
+	if p.err != nil {
+		ev.Error = p.err.Error()
+	}
+	p.host.mu.Unlock()
+	if ev.From != ev.To {
+		PluginChanged.Emit(p.host, ev)
+	}
 }
 
 // Plugins lists loaded plugins in load order.

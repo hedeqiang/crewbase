@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -59,7 +58,8 @@ func (s *Service) Verify() (VerifyResult, error) { return Verify(s.root) }
 // Config of the plugin.
 type Config struct {
 	Dir string `json:"dir"`
-	// PluginPollSeconds is how often the plugin tree is diffed for
+	// Deprecated: plugin lifecycle now comes from kernel events; kept so
+	// existing configs still decode. Was: how often the tree is diffed for
 	// lifecycle changes (the kernel has no global plugin event). Default 5;
 	// negative disables.
 	PluginPollSeconds int `json:"pluginPollSeconds"`
@@ -192,33 +192,22 @@ var Plugin = kernel.Register(kernel.Spec{
 			rec(Entry{Type: TypeAgentDeleted, Actor: "user", Agent: id})
 		})
 
-		// Plugin lifecycle by polling the tree.
-		if cfg.PluginPollSeconds >= 0 {
-			every := time.Duration(cfg.PluginPollSeconds) * time.Second
-			if every == 0 {
-				every = 5 * time.Second
+		// Plugin lifecycle from the kernel's own events (no polling).
+		self := c.PluginID()
+		rec(Entry{Type: TypePluginState, Actor: "system", Data: map[string]any{"snapshot": snapshotPlugins(c.Host(), self)}})
+		kernel.PluginChanged.Listen(c, func(ev kernel.PluginEvent) {
+			if ev.ID == self {
+				return
 			}
-			h := c.Host()
-			self := c.PluginID()
-			c.Go(func(ctx context.Context) {
-				prev := snapshotPlugins(h, self)
-				rec(Entry{Type: TypePluginState, Actor: "system", Data: map[string]any{"snapshot": prev}})
-				t := time.NewTicker(every)
-				defer t.Stop()
-				for {
-					select {
-					case <-ctx.Done():
-						return
-					case <-t.C:
-					}
-					cur := snapshotPlugins(h, self)
-					for _, e := range diffPlugins(prev, cur) {
-						rec(e)
-					}
-					prev = cur
-				}
-			})
-		}
+			switch {
+			case ev.From == "":
+				rec(Entry{Type: TypePluginLoaded, Actor: "system", Data: map[string]any{"id": ev.ID, "name": ev.Name, "state": string(ev.To)}})
+			case ev.To == kernel.StateDisposed:
+				rec(Entry{Type: TypePluginUnloaded, Actor: "system", Data: map[string]any{"id": ev.ID, "name": ev.Name}})
+			default:
+				rec(Entry{Type: TypePluginState, Actor: "system", Data: map[string]any{"id": ev.ID, "name": ev.Name, "from": string(ev.From), "to": string(ev.To), "error": ev.Error}})
+			}
+		})
 		return c.Provide(ServiceKey, s)
 	},
 })
@@ -236,35 +225,6 @@ func snapshotPlugins(h *kernel.Host, self string) map[string]pluginState {
 			continue
 		}
 		out[p.ID] = pluginState{Name: p.Name, State: string(p.State), Error: p.Error}
-	}
-	return out
-}
-
-func diffPlugins(prev, cur map[string]pluginState) []Entry {
-	ids := map[string]bool{}
-	for id := range prev {
-		ids[id] = true
-	}
-	for id := range cur {
-		ids[id] = true
-	}
-	sorted := make([]string, 0, len(ids))
-	for id := range ids {
-		sorted = append(sorted, id)
-	}
-	sort.Strings(sorted)
-	var out []Entry
-	for _, id := range sorted {
-		p, had := prev[id]
-		c, has := cur[id]
-		switch {
-		case !had && has:
-			out = append(out, Entry{Type: TypePluginLoaded, Actor: "system", Data: map[string]any{"id": id, "name": c.Name, "state": c.State, "error": c.Error}})
-		case had && !has:
-			out = append(out, Entry{Type: TypePluginUnloaded, Actor: "system", Data: map[string]any{"id": id, "name": p.Name}})
-		case p != c:
-			out = append(out, Entry{Type: TypePluginState, Actor: "system", Data: map[string]any{"id": id, "name": c.Name, "from": p.State, "to": c.State, "error": c.Error}})
-		}
 	}
 	return out
 }

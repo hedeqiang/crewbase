@@ -307,3 +307,23 @@ func TestApplyEntriesLeavesDirectLoadsAndFail(t *testing.T) {
 	}
 	t.Fatal("Fail did not mark the plugin FAILED")
 }
+
+func TestPluginChangedEvents(t *testing.T) {
+	h := NewHost(nil)
+	defer h.Close()
+	var got []string
+	PluginChanged.Listen(h.Root(), func(e PluginEvent) { got = append(got, e.ID+":"+string(e.From)+">"+string(e.To)) })
+	h.Load(Spec{Name: "needs", Inject: []string{"svc"}}, LoadOptions{})
+	h.Load(Spec{Name: "prov", Apply: func(c *Context) error { return c.Provide("svc", 1) }}, LoadOptions{})
+	h.Load(Spec{Name: "bad", Apply: func(c *Context) error { return errors.New("x") }}, LoadOptions{})
+	h.Unload("prov")
+	want := []string{
+		"needs:>PENDING",
+		"prov:>PENDING", "prov:PENDING>ACTIVE", "needs:PENDING>ACTIVE",
+		"bad:>PENDING", "bad:PENDING>FAILED",
+		"needs:ACTIVE>PENDING", "prov:ACTIVE>DISPOSED",
+	}
+	if strings.Join(got, ",") != strings.Join(want, ",") {
+		t.Fatalf("got  %v\nwant %v", got, want)
+	}
+}

@@ -98,7 +98,7 @@
 - [x] 产品 logo「Relay」、Agent「队员徽章」头像全部原创，不仿制他人 logo / 吉祥物（docs/brand）
 - [x] 模型厂商图标用 LobeHub Icons（MIT，静态 SVG 按需引入；经 magpie 的模型按 id 识别厂商）
 - [x] 前端依赖全部最新（React 19.3、Vite 8、TS 7、lucide-react 1.x）
-- [ ] 后端 Go 依赖统一 `go get -u ./... && go mod tidy`（等 MCP / 插件 / 浏览器 agent 交付后执行，避免并发改 go.mod）
+- [x] 后端 Go 依赖统一升级到最新（`go get -u ./... && go mod tidy`，直接依赖逐一核对均为最新）
 
 ## 命名约定（用户反馈后确立）
 - 目录按「能力 / 提供方」两层：`providers/llm/{anthropic,openai,gemini,local,acp,mock}`、`providers/sandbox/{none,docker,seatbelt}`、`providers/shell/local`、`providers/fs/local`
@@ -147,7 +147,8 @@
 - [ ] IM：真实机器人账号联调；线程映射持久化；飞书显示名；长回复分段；附件；设置页 UI
 - [ ] 移动端伴侣（D-3）
 - [x] 审计日志哈希链（S-7）：规则判定 Ask/Deny、审批、规则变更、运行模式、插件启停、Agent 增删；跨月续链、校验 API；不进入模型上下文
-- [ ] 审计：网关鉴权失败、凭证引用变更、设备配对；内核插件生命周期事件（目前轮询）
+- [x] kernel `kernel/plugin-changed` 生命周期事件；审计改为监听（不再轮询）
+- [ ] 审计：网关鉴权失败、凭证引用变更、设备配对
 - [ ] 团队任务板 DAG（A-7）、成员与角色
 - [x] 持久目标续跑（R-4）：轮次上限、阻塞原因码、重启 / fork 后需重新授权、goal_complete / goal_blocked 工具
 - [x] OpenTelemetry 导出（默认关闭，默认不含内容）；`crew doctor` 部署自检
@@ -177,6 +178,7 @@
 ## 迭代日志
 | 日期 | 迭代 | 结果 |
 |---|---|---|
+| 2026-11-14 | 9c | Go 依赖全量升级 + tidy；kernel 插件生命周期事件替代审计轮询（修复偶发失败）；54 包 race 通过，Windows / Linux 交叉编译通过 |
 | 2026-11-14 | 9b | Phase 3 平台（子 agent）：部署、审计、目标续跑、OTel、crew doctor 接入；修 IM 审批卡跨端决定竞态；全量 53 包 race 测试通过 |
 | 2026-11-14 | 9a | IM 网关（子 agent）接入，默认关闭 |
 | 2026-11-14 | 8g | DeepSeek 原生联网搜索 / 阅读链接 / 安全检查端到端打通（真实调用） |

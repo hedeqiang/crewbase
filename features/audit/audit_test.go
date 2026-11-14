@@ -121,7 +121,13 @@ func TestPluginRecordsSecurityEvents(t *testing.T) {
 	load(t, h, kernel.Spec{Name: "@test/extra"}, nil)
 	waitFor(t, func() bool {
 		recs, _ := svc.Log().Query(time.Time{}, time.Time{}, audit.TypePluginLoaded, 0)
-		return len(recs) == 1
+		n := 0
+		for _, r := range recs {
+			if b, _ := json.Marshal(r.Data); strings.Contains(string(b), `"@test/extra"`) {
+				n++
+			}
+		}
+		return n == 1
 	})
 	h.Unload("@test/extra")
 	waitFor(t, func() bool {
