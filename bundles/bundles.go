@@ -16,7 +16,9 @@ import (
 	_ "github.com/hedeqiang/crewbase/core/tools"
 	_ "github.com/hedeqiang/crewbase/features/api"
 	_ "github.com/hedeqiang/crewbase/features/channel"
+	_ "github.com/hedeqiang/crewbase/features/compaction"
 	_ "github.com/hedeqiang/crewbase/features/gateway"
+	_ "github.com/hedeqiang/crewbase/features/memory"
 	_ "github.com/hedeqiang/crewbase/features/redact"
 	_ "github.com/hedeqiang/crewbase/features/router"
 	_ "github.com/hedeqiang/crewbase/features/rules"
@@ -39,6 +41,8 @@ var Base = kernel.Bundle{Name: "base", Entries: []kernel.Entry{
 	{ID: "agents", Name: "@crewbase/agents", Config: map[string]any{"root": "${root}", "defaultModels": []string{"mock/default"}}},
 	{ID: "agent-loop", Name: "@crewbase/agent-loop"},
 	{ID: "channel", Name: "@crewbase/channel-local"},
+	{ID: "compaction", Name: "@crewbase/compaction-summary"},
+	{ID: "memory", Name: "@crewbase/memory-markdown-sqlite", Config: map[string]any{"root": "${root}"}},
 }}
 
 // Desktop adds the local gateway, API and desktop approval cards.

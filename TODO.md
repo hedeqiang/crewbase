@@ -36,7 +36,7 @@
 - [x] `llm-mock`（测试与离线演示）
 - [ ] `llm-acp`：ACP 子进程桥接 Claude Code / Codex / Gemini CLI，额度耗尽信号识别（M-1）
 - [x] `router-default`：每 Agent 模型顺序、`router/quota-exhausted`、`model/switched` 事件、无损切换（M-4）
-- [ ] `compaction-summary`：上下文占用追踪、80% 自动压缩（C-1）
+- [x] `compaction-summary`：上下文占用追踪、80% 自动压缩、立即压缩、新对话（C-1）
 
 ## 迭代 4 — 执行与安全（S-1 ~ S-5）（第 3–5 周）
 - [ ] `shell` / `fs` 能力定义 + 本地提供方；`tool-bash`、`tool-fs`（先读后改）
@@ -49,7 +49,7 @@
 
 ## 迭代 5 — 守护进程与 Agent 持久化（第 5–6 周）
 - [x] `apps/crewd`：加载 Profile、HTTP + WebSocket API（远程方法白名单：鉴权 → 校验 → 激活）
-- [ ] 工作区 `workspaces/<agent-id>/`、INSTRUCTIONS.md、MEMORY.md + SQLite FTS（A-1）
+- [x] 工作区 `workspaces/<agent-id>/`、INSTRUCTIONS.md、MEMORY.md + SQLite FTS（A-1）
 - [ ] 每 Agent 工具 / 提示词 / 模型（A-2）
 - [x] `apps/cli`：`crew plugins [--state pending]`、`crew --dump-config`、`crew agent`、`crew chat`
 - [ ] 进程组管理：退出清理子进程树
@@ -73,7 +73,7 @@
 - [ ] Routines + 晨报（R-1 R-2）
 - [ ] Workflows：触发器 → 串并行步骤 → 审批卡点 → 发布，从失败步重跑（R-3 R-5）
 - [ ] MCP 客户端与管理（C-3，P0）
-- [ ] `history_search` / `history_read`（C-2）
+- [x] `history_search` / `history_read`、`memory_add` / `memory_search`（C-2）
 - [ ] 技能按需加载（C-4）
 - [ ] 进程外插件桥接：stdio JSON-RPC 2.0、清单权限、Waterfall 2s 超时、退出即撤销（S-6）
 - [ ] 插件 SDK：TypeScript / Python / Go
@@ -92,6 +92,10 @@
 - [x] 规则插件缺失时流水线 fail-open → 改为 `requirePolicy` 关闭式失败
 - [x] post-execute 出错时回落原始结果 → 改为扣留结果
 
+- [ ] 工具结果裁剪事件 `tool/pruned`（DeriveMessages 识别），让剪枝真正缩小上下文
+- [ ] 中文 FTS：trigram 分词替代子串回退
+- [ ] 记忆索引改为异步写入
+
 ## Phase 3 — 远程、IM、团队
 - [ ] `server` Profile、install-server.sh、加固 docker-compose.yml、阿里云 / AWS 模板（D-2）
 - [ ] 零入站配对（WebSocket Relay）、设备分级权限
@@ -105,6 +109,7 @@
 ## 迭代日志
 | 日期 | 迭代 | 结果 |
 |---|---|---|
+| 2026-11-14 | 6b | 压缩（回合边界切点不拆工具对、模型摘要 + 抽取式回退、用量分段）、记忆（MEMORY.md + SQLite FTS5、history_search/read、memory_add/search）；core：Input 级运行模式（只能收紧）、Agent.SetSession、turn-end 携带最终文本 |
 | 2026-11-14 | 6a | 频道（单一负责人、@指派、交接工具 + Waterfall、停止/恢复/改派/归档、API）；三 Agent 两次交接 e2e；规则引擎、凭证保险箱（Keychain/libsecret/env/mem）、脱敏（子 agent 交付）；工具结果 StopTurn；两处 fail-open 改关闭式失败；用户要求：官方提供方改用原生 SDK（适配器 agent 重做中） |
 | 2026-11-14 | 5a | gateway（远程方法白名单：鉴权→校验→激活、设备分级、SSE 事件流）、core API、bundles / profiles（${root} 替换、补丁层）、crewd 与 crew CLI；本机冒烟通过。并行中：API 模型适配器、执行与沙箱、规则与凭证、ACP 桥接、压缩与记忆 |
 | 2026-11-14 | 2b | prompt / agents（工作区、INSTRUCTIONS/MEMORY、作用域、FIFO 队列可从日志恢复）/ agent-loop / router-default / llm-mock；Phase 1 出口用 mock 模型跑通（切换、请求可从日志重建、push 审批断点续跑、重启恢复） |

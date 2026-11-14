@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -68,7 +69,12 @@ type Input struct {
 	From    string        `json:"from,omitempty"`
 	Model   *llm.ModelRef `json:"model,omitempty"` // composer override for this input
 	Front   bool          `json:"front,omitempty"`
-	Queued  time.Time     `json:"queued"`
+	// Mode tightens the run mode for this input only (e.g. routines run
+	// read-only). It can never widen the agent's mode.
+	Mode string `json:"mode,omitempty"`
+	// Tag lets the producer recognise its own turns (e.g. "routine:<id>").
+	Tag    string    `json:"tag,omitempty"`
+	Queued time.Time `json:"queued"`
 }
 
 // Agent is a live agent.
@@ -170,6 +176,36 @@ func (a *Agent) Update(fn func(*Spec)) error {
 		s.ModeUntil = time.Time{}
 	}
 	a.spec = s
+	a.mu.Unlock()
+	if err := a.reg.persist(s); err != nil {
+		return err
+	}
+	Updated.Emit(a.ctx, s)
+	return nil
+}
+
+// Stricter returns the more restrictive of two run modes ("" = no limit).
+func Stricter(a, b string) string {
+	rank := map[string]int{ModeReadOnly: 0, ModeSandbox: 1, ModeHost: 2, "": 3}
+	if rank[b] < rank[a] {
+		return b
+	}
+	return a
+}
+
+// SetSession makes sessionID the agent's current direct conversation
+// ("new conversation": same agent, workspace, memory and queue).
+func (a *Agent) SetSession(sessionID string) error {
+	ss, err := a.reg.sessions.Get(sessionID)
+	if err != nil {
+		return err
+	}
+	if !slices.Contains(ss.Meta().Agents, a.spec.ID) {
+		return fmt.Errorf("session %s does not belong to agent %s", sessionID, a.spec.ID)
+	}
+	a.mu.Lock()
+	a.spec.Session = sessionID
+	s := a.spec
 	a.mu.Unlock()
 	if err := a.reg.persist(s); err != nil {
 		return err

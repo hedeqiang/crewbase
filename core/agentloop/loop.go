@@ -91,6 +91,9 @@ var (
 type TurnEndEvent struct {
 	Agent   string
 	Session string
+	Input   agent.Input
+	// Text is the final assistant text of the turn.
+	Text string
 	TurnEnd
 }
 
@@ -210,7 +213,7 @@ func (l *loop) turn(parent context.Context, a *agent.Agent, in agent.Input) {
 
 	ref, ok := l.selectModel(a, in)
 	if !ok {
-		l.endTurn(a, ss, TurnEnd{Status: "failed", Error: "no model configured"})
+		l.endTurn(a, ss, in, TurnEnd{Status: "failed", Error: "no model configured"})
 		return
 	}
 	_, _ = ss.Append(session.TypeTurnStart, a.ID(), TurnStart{Input: in.ID, Model: ref})
@@ -218,7 +221,7 @@ func (l *loop) turn(parent context.Context, a *agent.Agent, in agent.Input) {
 	steps := 0
 	for steps < l.cfg.MaxSteps {
 		if ctx.Err() != nil {
-			l.endTurn(a, ss, TurnEnd{Status: "cancelled", Steps: steps})
+			l.endTurn(a, ss, in, TurnEnd{Status: "cancelled", Steps: steps})
 			return
 		}
 		steps++
@@ -226,10 +229,10 @@ func (l *loop) turn(parent context.Context, a *agent.Agent, in agent.Input) {
 		ref, resp, err = l.step(ctx, a, ss, ref, steps)
 		if err != nil {
 			if ctx.Err() != nil {
-				l.endTurn(a, ss, TurnEnd{Status: "cancelled", Steps: steps})
+				l.endTurn(a, ss, in, TurnEnd{Status: "cancelled", Steps: steps})
 				return
 			}
-			l.endTurn(a, ss, TurnEnd{Status: "failed", Error: err.Error(), Steps: steps})
+			l.endTurn(a, ss, in, TurnEnd{Status: "failed", Error: err.Error(), Steps: steps})
 			return
 		}
 		calls := resp.Message.ToolCalls()
@@ -240,7 +243,7 @@ func (l *loop) turn(parent context.Context, a *agent.Agent, in agent.Input) {
 			}
 			exe := l.toolsReg.Run(ctx, l.c, tools.Call{
 				ID: tc.ID, Name: tc.Name, Args: tc.Args, Agent: a.ID(), Session: ss,
-				Mode: a.Mode(), Workspace: a.Workspace(),
+				Mode: agent.Stricter(a.Mode(), in.Mode), Workspace: a.Workspace(),
 			})
 			stop = stop || exe.Result.StopTurn
 		}
@@ -265,17 +268,24 @@ func (l *loop) turn(parent context.Context, a *agent.Agent, in agent.Input) {
 	if steps >= l.cfg.MaxSteps {
 		errMsg = fmt.Sprintf("stopped after %d steps", steps)
 	}
-	l.endTurn(a, ss, TurnEnd{Status: status, Error: errMsg, Steps: steps})
+	l.endTurn(a, ss, in, TurnEnd{Status: status, Error: errMsg, Steps: steps})
 }
 
-func (l *loop) endTurn(a *agent.Agent, ss *session.Session, te TurnEnd) {
+func (l *loop) endTurn(a *agent.Agent, ss *session.Session, in agent.Input, te TurnEnd) {
 	_, _ = ss.Append(session.TypeTurnEnd, a.ID(), te)
 	if te.Status == "failed" {
 		a.SetStatus(agent.StatusFailed, te.Error)
 	} else {
 		a.SetStatus(agent.StatusIdle, "")
 	}
-	TurnEnded.Emit(kernel.For(l.c, a.ID()), TurnEndEvent{Agent: a.ID(), Session: ss.ID(), TurnEnd: te})
+	text := ""
+	if e, ok := ss.Last(session.TypeAssistantMessage); ok && e.Agent == a.ID() {
+		var m session.AssistantMessage
+		if e.Decode(&m) == nil {
+			text = m.Message.Text()
+		}
+	}
+	TurnEnded.Emit(kernel.For(l.c, a.ID()), TurnEndEvent{Agent: a.ID(), Session: ss.ID(), Input: in, Text: text, TurnEnd: te})
 }
 
 func (l *loop) router() (Router, bool) {
