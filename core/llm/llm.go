@@ -104,6 +104,9 @@ type Request struct {
 	Tools     []ToolSchema `json:"tools,omitempty"`
 	Effort    string       `json:"effort,omitempty"` // low | medium | high
 	MaxTokens int          `json:"maxTokens,omitempty"`
+	// NativeTools asks for provider-hosted tools (NativeWebSearch,
+	// NativeReadURL). Adapters that cannot serve them ignore them.
+	NativeTools []string `json:"nativeTools,omitempty"`
 	// Context about who is asking; never sent to the model. Adapters that
 	// keep their own sessions (ACP) or need a working directory use it.
 	Agent     string `json:"-"`
@@ -111,12 +114,31 @@ type Request struct {
 	Workspace string `json:"-"`
 }
 
+// Provider-hosted tools an agent may enable. They run on the provider's
+// side (no local side effects), so they do not pass the tool pipeline.
+const (
+	NativeWebSearch = "web_search"
+	NativeReadURL   = "read_url"
+)
+
+// Extra part types produced by providers with hosted tools. They are for
+// people (sources, what was searched) and are not sent back to models.
+const (
+	PartCitation   = "citation"    // Text = title, Meta["url"]
+	PartServerTool = "server_tool" // Text = human summary, Meta["kind"]
+)
+
+// StopRefusal is the stop reason when a provider's safety check declined.
+const StopRefusal = "refusal"
+
 // Usage counts tokens.
 type Usage struct {
 	InputTokens  int `json:"input"` // all input tokens, cache reads/writes included
 	OutputTokens int `json:"output"`
 	CacheRead    int `json:"cacheRead,omitempty"`
 	CacheWrite   int `json:"cacheWrite,omitempty"`
+	// ServerTools counts provider-hosted tool calls (billed per call).
+	ServerTools map[string]int `json:"serverTools,omitempty"`
 }
 
 // Chunk is one streaming piece.

@@ -186,13 +186,14 @@ var Plugin = kernel.Register(kernel.Spec{
 					return nil, err
 				}
 				var b struct {
-					Name   *string   `json:"name"`
-					Role   *string   `json:"role"`
-					Mode   *string   `json:"mode"`
-					Color  *string   `json:"color"`
-					Shape  *string   `json:"shape"`
-					Folder *string   `json:"folder"`
-					Models *[]string `json:"modelRefs"`
+					Name        *string   `json:"name"`
+					Role        *string   `json:"role"`
+					Mode        *string   `json:"mode"`
+					Color       *string   `json:"color"`
+					Shape       *string   `json:"shape"`
+					Folder      *string   `json:"folder"`
+					Models      *[]string `json:"modelRefs"`
+					NativeTools *[]string `json:"nativeTools"`
 				}
 				_ = r.Decode(&b)
 				prevMode := a.Mode()
@@ -210,6 +211,14 @@ var Plugin = kernel.Register(kernel.Spec{
 					if b.Mode != nil {
 						s.Mode = *b.Mode
 						s.ModeUntil = time.Time{}
+					}
+					if b.NativeTools != nil {
+						s.NativeTools = nil
+						for _, t := range *b.NativeTools {
+							if t == llm.NativeWebSearch || t == llm.NativeReadURL {
+								s.NativeTools = append(s.NativeTools, t)
+							}
+						}
 					}
 					if b.Models != nil {
 						s.Models = nil

@@ -13,6 +13,7 @@ const (
 	TaskSummarize = "summarize" // web page summaries, log cleanup
 	TaskCode      = "code"
 	TaskLongDoc   = "long-doc"
+	TaskTitle     = "title" // short session topics (cheap model)
 	TaskDefault   = ""
 )
 
@@ -67,6 +68,22 @@ func (r *Router) SelectFor(a *agent.Agent, in agent.Input) (llm.ModelRef, bool) 
 		}
 	}
 	return r.Select(a)
+}
+
+// RouteFor returns the first usable model routed for task.
+func (r *Router) RouteFor(task string) (llm.ModelRef, bool) {
+	r.mu.Lock()
+	routes := append([]Route(nil), r.routes...)
+	r.mu.Unlock()
+	for _, rt := range routes {
+		if rt.Task != task {
+			continue
+		}
+		if ref, err := llm.ParseRef(rt.Model); err == nil && r.usable(ref) {
+			return ref, true
+		}
+	}
+	return llm.ModelRef{}, false
 }
 
 // SetRoutes replaces the task routes.

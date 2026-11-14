@@ -37,6 +37,7 @@ import (
 	_ "github.com/hedeqiang/crewbase/features/skills"
 	_ "github.com/hedeqiang/crewbase/features/subagent"
 	_ "github.com/hedeqiang/crewbase/features/toolsbasic"
+	_ "github.com/hedeqiang/crewbase/features/topics"
 	_ "github.com/hedeqiang/crewbase/features/usage"
 	_ "github.com/hedeqiang/crewbase/features/workflows"
 	_ "github.com/hedeqiang/crewbase/providers/browser/chrome"
@@ -76,7 +77,9 @@ var Base = kernel.Bundle{Name: "base", Entries: []kernel.Entry{
 	//   - id: llm-mock
 	//     disabled: false
 	{ID: "llm-mock", Name: "@crewbase/llm-mock", Config: map[string]any{"ids": []string{"mock"}}, Disabled: true},
-	{ID: "router", Name: "@crewbase/router-default"},
+	// Cheap chores go to DeepSeek Flash when it is reachable (directly or
+	// through magpie); otherwise the agent's own model order applies.
+	{ID: "router", Name: "@crewbase/router-default", Config: map[string]any{"routes": cheapRoutes()}},
 	{ID: "agents", Name: "@crewbase/agents", Config: map[string]any{"root": "${root}", "defaultModels": []string{"acp-claude-code/default", "acp-codex/default", "acp-gemini-cli/default"}}},
 	{ID: "agent-loop", Name: "@crewbase/agent-loop"},
 	{ID: "channel", Name: "@crewbase/channel-local"},
@@ -89,6 +92,7 @@ var Base = kernel.Bundle{Name: "base", Entries: []kernel.Entry{
 	{ID: "schedule", Name: "@crewbase/schedule", Config: map[string]any{"dir": "${root}"}},
 	{ID: "routines", Name: "@crewbase/routines", Config: map[string]any{"dir": "${root}"}},
 	{ID: "alerts", Name: "@crewbase/alerts"},
+	{ID: "topics", Name: "@crewbase/topics"},
 	{ID: "subagent", Name: "@crewbase/subagent", Config: map[string]any{"maxDepth": 2, "maxConcurrent": 3}},
 	{ID: "subagent-runner", Name: "@crewbase/subagent-runner"},
 	{ID: "subagent-local", Name: "@crewbase/subagent-local"},
@@ -128,6 +132,16 @@ var Server = kernel.Bundle{Name: "server", Entries: []kernel.Entry{
 	{ID: "api", Name: "@crewbase/api"},
 	{ID: "channel-api", Name: "@crewbase/channel-api"},
 }}
+
+func cheapRoutes() []map[string]string {
+	var out []map[string]string
+	for _, task := range []string{"title", "summarize"} {
+		for _, m := range []string{"deepseek/deepseek-flash", "magpie/deepseek/deepseek-flash"} {
+			out = append(out, map[string]string{"task": task, "model": m})
+		}
+	}
+	return out
+}
 
 // defaultSandbox picks the sandbox provider for this platform: Seatbelt on
 // macOS, Docker elsewhere. Switch with a patch:

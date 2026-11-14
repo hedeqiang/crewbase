@@ -147,6 +147,17 @@
 - [ ] 持久目标续跑（R-4）
 - [ ] OpenTelemetry 导出（默认关闭）
 
+## DeepSeek 全家桶（2026-11-13 发布）利用
+- [x] 调研：deepseek-flash（V4.1-Flash-1017）三协议；原生 `deepseek_web_search` / `deepseek_read_url`；`safety_check`；`title`；独立 Search / Fetch / OCR / ASR / TTS
+- [x] 真实调用（经 magpie 原生透传与标准 chat 接口）：返回 `annotations`（url_citation）、`server_tool_calls`、`usage.server_tool_use`
+- [x] core：Request.NativeTools、Agent.Spec.NativeTools（按 Agent 开启，API 可改）、citation / server_tool 片段、StopRefusal、Usage.ServerTools
+- [x] 杂活默认走 DeepSeek Flash：title / summarize 路由（直连优先，其次 magpie，不可用回落 Agent 顺序）；会话主题自动生成（features/topics）
+- [ ] openai 适配器 deepseek 风格：thinking 开关、NativeTools → deepseek_* 工具、解析 annotations / server_tool_calls / server_tool_use、safety_check 配置与 refusal；magpie 对 deepseek/* 模型透传
+- [ ] 压缩摘要优先用 summarize 路由模型
+- [ ] 与模型无关的 `web` 能力：DeepSeek Search / Fetch 独立 API 作为 web_search / web_fetch 工具提供方（待官方文档）
+- [ ] 文件输入（PDF / Office / 图片）、ASR / TTS（移动端语音）
+- [ ] UI：Agent 设置「联网搜索」开关、回复下方来源列表
+
 ## 真实联调（本机 magpie，`go test -tags live ./test/live`）
 - [x] 跨厂商对话：Claude Haiku / Sonnet、DeepSeek、OpenAI GPT、Codex 订阅、Cursor Composer
 - [x] 沙箱内真实工具调用（bash 写文件、读回）
@@ -160,6 +171,7 @@
 ## 迭代日志
 | 日期 | 迭代 | 结果 |
 |---|---|---|
+| 2026-11-14 | 8e | DeepSeek：core 词汇 + 默认廉价路由 + 会话主题；适配器部分待技术债 agent 交付后做（同文件） |
 | 2026-11-14 | 8d | 浏览器能力 + 接管（子 agent，真实 Chrome 157 验证）接入；DeepSeek 全家桶调研 + 经 magpie 真实调用原生联网 |
 | 2026-11-14 | 8c | 进程外插件 + SDK + 市场 + 热重载（子 agent）接入 crewd，Phase 2 出口全部满足；kernel 三项改进 |
 | 2026-11-14 | 8b | 技术债第二批（core 接口）：agent/response、PathArgs、llm 词汇表扩展、tool/pruned、临时 Agent、交接确认；提供方 / 功能侧采用交给子 agent |

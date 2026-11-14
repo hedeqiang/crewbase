@@ -48,6 +48,9 @@ type Spec struct {
 	Created   time.Time `json:"created"`
 	// Session is the agent's direct-conversation session.
 	Session string `json:"session"`
+	// NativeTools enables provider-hosted tools (llm.NativeWebSearch,
+	// llm.NativeReadURL) when the agent's model supports them.
+	NativeTools []string `json:"nativeTools,omitempty"`
 	// Ephemeral agents (subagents) are never persisted; their workspace is
 	// removed on delete and leftovers are swept at startup.
 	Ephemeral bool `json:"ephemeral,omitempty"`

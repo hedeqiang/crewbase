@@ -351,14 +351,15 @@ func (l *loop) window(ctx context.Context, ad llm.Adapter, ref llm.ModelRef) int
 
 func (l *loop) build(a *agent.Agent, ss *session.Session, ref llm.ModelRef) llm.Request {
 	return llm.Request{
-		Model:     ref.Model,
-		Effort:    ref.Effort,
-		System:    l.prompts.Assemble(a.ID()),
-		Messages:  session.DeriveMessages(ss.Events(), a.ID(), l.agents.Names()),
-		Tools:     l.toolsReg.SchemasFor(a.ID(), ss.Meta().Kind),
-		Agent:     a.ID(),
-		Session:   ss.ID(),
-		Workspace: a.Workspace(),
+		Model:       ref.Model,
+		Effort:      ref.Effort,
+		System:      l.prompts.Assemble(a.ID()),
+		Messages:    session.DeriveMessages(ss.Events(), a.ID(), l.agents.Names()),
+		Tools:       l.toolsReg.SchemasFor(a.ID(), ss.Meta().Kind),
+		NativeTools: a.Spec().NativeTools,
+		Agent:       a.ID(),
+		Session:     ss.ID(),
+		Workspace:   a.Workspace(),
 	}
 }
 

@@ -111,3 +111,23 @@ func TestIsolatedSessionKinds(t *testing.T) {
 		t.Fatalf("channels share context: %+v", msgs)
 	}
 }
+
+func TestDeriveMessagesThinkingMeta(t *testing.T) {
+	st, _ := NewStore(nil, "")
+	ss, _ := st.Create(Meta{Kind: "agent"})
+	ss.Append(TypeUserMessage, "", UserMessage{Text: "q"})
+	ss.Append(TypeAssistantMessage, "kai", AssistantMessage{Message: llm.Message{Role: llm.RoleAssistant, Parts: []llm.Part{
+		{Type: "thinking", Text: "plain"},
+		{Type: "thinking", Text: "signed", Meta: map[string]string{"anthropic:signature": "S"}},
+		{Type: "text", Text: "a"},
+	}}})
+	ss.Append(TypeAssistantMessage, "kai", AssistantMessage{Message: llm.Message{Role: llm.RoleAssistant, Parts: []llm.Part{{Type: "thinking", Text: "only plain"}}}})
+	msgs := DeriveMessages(ss.Events(), "kai", nil)
+	if len(msgs) != 2 {
+		t.Fatalf("thinking-only message without meta should vanish: %+v", msgs)
+	}
+	p := msgs[1].Parts
+	if len(p) != 2 || p[0].Text != "signed" || p[0].Meta["anthropic:signature"] != "S" || p[1].Text != "a" {
+		t.Fatalf("parts = %+v", p)
+	}
+}

@@ -163,7 +163,10 @@ func DeriveMessages(events []Event, agent string, names map[string]string) []llm
 			}
 			msg := llm.Message{Role: llm.RoleAssistant}
 			for _, p := range m.Message.Parts {
-				if p.Type == "thinking" {
+				// Plain thinking text is not sent back; thinking that carries
+				// provider data (signatures) must round-trip to that provider,
+				// which skips parts it does not recognise.
+				if p.Type == "thinking" && len(p.Meta) == 0 {
 					continue
 				}
 				msg.Parts = append(msg.Parts, p)
