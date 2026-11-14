@@ -42,9 +42,9 @@
 - [ ] `shell` / `fs` 能力定义 + 本地提供方；`tool-bash`、`tool-fs`（先读后改）
 - [ ] `sandbox` 能力：`sandbox-none`、`sandbox-docker`、`sandbox-seatbelt`；`enforcement: full|partial`；`SANDBOX_UNAVAILABLE` 关闭式失败
 - [ ] 运行模式预设 A / B / C（C 限时 24h）（S-1）
-- [ ] 规则引擎：动作类别 Allow / Ask / Block 默认表、Agent 只能收紧、记住的选择（S-2）
+- [x] 规则引擎：动作类别 Allow / Ask / Block 默认表、Agent 只能收紧、记住的选择（S-2）
 - [x] `approval` 能力：闭合结果集、无应答方 = unavailable、never 策略、审计写入失败即失败（S-3）
-- [ ] `credentials`：引用 + macOS Keychain / libsecret / 内存（测试）、post-execute 脱敏（S-4）
+- [x] `credentials`：引用 + macOS Keychain / libsecret / 内存（测试）、post-execute 脱敏（S-4）
 - [ ] `browser` 能力：CDP 本地池、每 Agent 独立 Profile、接管暂停（S-5）
 
 ## 迭代 5 — 守护进程与 Agent 持久化（第 5–6 周）
@@ -66,7 +66,7 @@
 - [-] 原生桌面壳（托盘、自动更新）D-1 —— 需验证 Wails；先以 crewd 内嵌静态资源 + 浏览器打开交付
 
 ## Phase 2 — 多 Agent 协同、自动化、生态（第 7–12 周）
-- [ ] `channel-local`：共享频道、单一负责人、交接工具与 Waterfall、停止 / 恢复 / 改派 / 归档（A-3 A-4 A-5）
+- [x] `channel-local`：共享频道、单一负责人、交接工具与 Waterfall、停止 / 恢复 / 改派 / 归档（A-3 A-4 A-5）
 - [ ] `subagent`：local / fork / acp，最大深度、诊断 ≤4KB（A-6）
 - [ ] 运行模式 A 只读调研（S-1 P1）
 - [ ] `schedule` / `webhook`：Cron、最小间隔 60s、幂等投递（R-1）
@@ -81,7 +81,16 @@
 - [ ] 按任务分流 `router-cost` + 节省 token 展示（M-5）
 - [ ] WASM 插件档（wazero）
 - [ ] UI：频道与任务卡、交接 / 改派、审批中心、自动化页、插件与技能页
-- [ ] Phase 2 出口 e2e：三 Agent 两次交接；TS 插件安装授权热重载
+- [~] Phase 2 出口 e2e：三 Agent 两次交接（mock 已通过）；TS 插件安装授权热重载（待做）
+
+## 技术债 / 待跟进
+- [ ] 交接是否需接收方确认（待决问题 #1）：频道设置「交接需人确认」走 approval
+- [ ] `tools.Remembered` / `approval.Decision` 缺少二次确认标记；目前规则引擎通过配对 asked/decided 推断
+- [ ] 流式脱敏：跨 chunk 的密钥可能漏网（需 llm/stream 缓冲钩子）
+- [ ] `tool/call` 参数在脱敏前落日志
+- [ ] Agent 作用域的规则监听器（目前 per-agent 规则在引擎内部维护）
+- [x] 规则插件缺失时流水线 fail-open → 改为 `requirePolicy` 关闭式失败
+- [x] post-execute 出错时回落原始结果 → 改为扣留结果
 
 ## Phase 3 — 远程、IM、团队
 - [ ] `server` Profile、install-server.sh、加固 docker-compose.yml、阿里云 / AWS 模板（D-2）
@@ -96,6 +105,7 @@
 ## 迭代日志
 | 日期 | 迭代 | 结果 |
 |---|---|---|
+| 2026-11-14 | 6a | 频道（单一负责人、@指派、交接工具 + Waterfall、停止/恢复/改派/归档、API）；三 Agent 两次交接 e2e；规则引擎、凭证保险箱（Keychain/libsecret/env/mem）、脱敏（子 agent 交付）；工具结果 StopTurn；两处 fail-open 改关闭式失败；用户要求：官方提供方改用原生 SDK（适配器 agent 重做中） |
 | 2026-11-14 | 5a | gateway（远程方法白名单：鉴权→校验→激活、设备分级、SSE 事件流）、core API、bundles / profiles（${root} 替换、补丁层）、crewd 与 crew CLI；本机冒烟通过。并行中：API 模型适配器、执行与沙箱、规则与凭证、ACP 桥接、压缩与记忆 |
 | 2026-11-14 | 2b | prompt / agents（工作区、INSTRUCTIONS/MEMORY、作用域、FIFO 队列可从日志恢复）/ agent-loop / router-default / llm-mock；Phase 1 出口用 mock 模型跑通（切换、请求可从日志重建、push 审批断点续跑、重启恢复） |
 | 2026-11-14 | 2a | session 日志（JSONL、残行容错、投影、fork）、tools 流水线（先记录、pre-execute、守卫、审批、post-execute 脱敏）、approval（never / 无应答方 / 审计失败均关闭式失败）、作用域覆盖与限制；greet-tool + tool-logger 通过 |

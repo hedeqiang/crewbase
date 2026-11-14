@@ -7,6 +7,7 @@ import (
 	"github.com/hedeqiang/crewbase/kernel"
 
 	_ "github.com/hedeqiang/crewbase/capabilities/approval"
+	_ "github.com/hedeqiang/crewbase/capabilities/credentials"
 	_ "github.com/hedeqiang/crewbase/core/agent"
 	_ "github.com/hedeqiang/crewbase/core/agentloop"
 	_ "github.com/hedeqiang/crewbase/core/llm"
@@ -14,8 +15,11 @@ import (
 	_ "github.com/hedeqiang/crewbase/core/session"
 	_ "github.com/hedeqiang/crewbase/core/tools"
 	_ "github.com/hedeqiang/crewbase/features/api"
+	_ "github.com/hedeqiang/crewbase/features/channel"
 	_ "github.com/hedeqiang/crewbase/features/gateway"
+	_ "github.com/hedeqiang/crewbase/features/redact"
 	_ "github.com/hedeqiang/crewbase/features/router"
+	_ "github.com/hedeqiang/crewbase/features/rules"
 	_ "github.com/hedeqiang/crewbase/providers/llmmock"
 )
 
@@ -24,13 +28,17 @@ import (
 var Base = kernel.Bundle{Name: "base", Entries: []kernel.Entry{
 	{ID: "session", Name: "@crewbase/session", Config: map[string]any{"dir": "${root}/sessions"}},
 	{ID: "prompt", Name: "@crewbase/prompt"},
-	{ID: "tools", Name: "@crewbase/tools"},
+	{ID: "tools", Name: "@crewbase/tools", Config: map[string]any{"requirePolicy": "rules"}},
 	{ID: "approval", Name: "@crewbase/approval"},
+	{ID: "rules", Name: "@crewbase/rules", Config: map[string]any{"dir": "${root}"}},
+	{ID: "credentials", Name: "@crewbase/credentials"},
+	{ID: "redact", Name: "@crewbase/redact"},
 	{ID: "llm", Name: "@crewbase/llm"},
 	{ID: "llm-mock", Name: "@crewbase/llm-mock", Config: map[string]any{"ids": []string{"mock"}}},
 	{ID: "router", Name: "@crewbase/router-default"},
 	{ID: "agents", Name: "@crewbase/agents", Config: map[string]any{"root": "${root}", "defaultModels": []string{"mock/default"}}},
 	{ID: "agent-loop", Name: "@crewbase/agent-loop"},
+	{ID: "channel", Name: "@crewbase/channel-local"},
 }}
 
 // Desktop adds the local gateway, API and desktop approval cards.
@@ -38,6 +46,7 @@ var Desktop = kernel.Bundle{Name: "desktop", Entries: []kernel.Entry{
 	{ID: "approval-desktop", Name: "@crewbase/approval-desktop"},
 	{ID: "gateway", Name: "@crewbase/gateway", Config: map[string]any{"addr": "127.0.0.1:7788", "tokenFile": "${root}/token"}},
 	{ID: "api", Name: "@crewbase/api"},
+	{ID: "channel-api", Name: "@crewbase/channel-api"},
 }}
 
 // Server is headless: same API bound to localhost (remote access goes
@@ -46,6 +55,7 @@ var Server = kernel.Bundle{Name: "server", Entries: []kernel.Entry{
 	{ID: "approval-desktop", Name: "@crewbase/approval-desktop"},
 	{ID: "gateway", Name: "@crewbase/gateway", Config: map[string]any{"addr": "127.0.0.1:7788", "tokenFile": "${root}/token"}},
 	{ID: "api", Name: "@crewbase/api"},
+	{ID: "channel-api", Name: "@crewbase/channel-api"},
 }}
 
 // extra bundles are appended to profiles by later packages (AddToProfiles).

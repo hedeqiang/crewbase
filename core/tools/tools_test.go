@@ -240,3 +240,32 @@ func waitPending(t *testing.T, in *approval.Inbox, n int) {
 	}
 	t.Fatalf("pending=%d want %d", len(in.Pending()), n)
 }
+
+func TestFailClosedWithoutPolicyAndOnPostExecuteError(t *testing.T) {
+	h := kernel.NewHost(nil)
+	t.Cleanup(h.Close)
+	h.Load(session.Plugin, kernel.LoadOptions{})
+	h.Load(tools.Plugin, kernel.LoadOptions{Config: map[string]any{"requirePolicy": "rules"}})
+	reg := kernel.Use[*tools.Registry](h.Root(), tools.ServiceKey)
+	ss, _ := kernel.Use[*session.Store](h.Root(), session.ServiceKey).Create(session.Meta{})
+	reg.Register(h.Root(), &tools.Tool{Name: "rm", Category: tools.CategoryDelete,
+		Execute: func(context.Context, tools.Call) (tools.Result, error) { return tools.Text("deleted"), nil }})
+	reg.Register(h.Root(), &tools.Tool{Name: "cat", Category: tools.CategoryRead,
+		Execute: func(context.Context, tools.Call) (tools.Result, error) { return tools.Text("secret-ish"), nil }})
+	if exe := reg.Run(context.Background(), h.Root(), call(ss, "", "rm", nil)); !exe.Denied {
+		t.Fatal("must deny when policy engine is missing", exe.Result)
+	}
+	if exe := reg.Run(context.Background(), h.Root(), call(ss, "", "cat", nil)); exe.Denied {
+		t.Fatal("read tools still run", exe.Result)
+	}
+	h.Load(kernel.Spec{Name: "broken-post", Apply: func(c *kernel.Context) error {
+		tools.PostExecute.Use(c, func(context.Context, tools.Execution, kernel.Next[tools.Execution, tools.Result]) (tools.Result, error) {
+			return tools.Result{}, errors.New("boom")
+		})
+		return nil
+	}}, kernel.LoadOptions{})
+	exe := reg.Run(context.Background(), h.Root(), call(ss, "", "cat", nil))
+	if strings.Contains(exe.Result.Content, "secret-ish") {
+		t.Fatal("raw result leaked after post-execute failure")
+	}
+}

@@ -121,13 +121,10 @@ func (a *Adapter) respond(req llm.Request) llm.Response {
 		r := last.Parts[0].ToolResult
 		return text(fmt.Sprintf("Tool %s returned: %s", r.Name, r.Content))
 	}
-	t := strings.TrimSpace(last.Text())
-	// in a merged user message, act on the last paragraph
-	if i := strings.LastIndex(t, "\n\n"); i >= 0 {
-		t = strings.TrimSpace(t[i+2:])
-	}
+	t := lastInstruction(last.Text())
 	if rest, ok := strings.CutPrefix(t, "/tool "); ok {
-		name, args, _ := strings.Cut(strings.TrimSpace(rest), " ")
+		line, _, _ := strings.Cut(strings.TrimSpace(rest), "\n")
+		name, args, _ := strings.Cut(line, " ")
 		args = strings.TrimSpace(args)
 		if args == "" || !json.Valid([]byte(args)) {
 			args = "{}"
@@ -171,3 +168,27 @@ var Plugin = kernel.Register(kernel.Spec{
 		return nil
 	},
 })
+
+// lastInstruction picks the paragraph to act on from a (possibly merged)
+// user message: the last paragraph that is not another agent's reply
+// produced by this mock ("[Name]: Tool … returned" / "[Name]: <model>: …").
+// An attribution prefix "[Name]: " is stripped.
+func lastInstruction(text string) string {
+	paras := strings.Split(strings.TrimSpace(text), "\n\n")
+	for i := len(paras) - 1; i >= 0; i-- {
+		p := strings.TrimSpace(paras[i])
+		body := p
+		if strings.HasPrefix(p, "[") {
+			if j := strings.Index(p, "]: "); j > 0 {
+				body = p[j+3:]
+				if strings.HasPrefix(body, "Tool ") || strings.HasPrefix(body, "default: ") {
+					continue
+				}
+			}
+		}
+		if body != "" {
+			return strings.TrimSpace(body)
+		}
+	}
+	return strings.TrimSpace(text)
+}

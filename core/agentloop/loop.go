@@ -233,16 +233,21 @@ func (l *loop) turn(parent context.Context, a *agent.Agent, in agent.Input) {
 			return
 		}
 		calls := resp.Message.ToolCalls()
+		stop := false
 		for _, tc := range calls {
 			if ctx.Err() != nil {
 				break
 			}
-			l.toolsReg.Run(ctx, l.c, tools.Call{
+			exe := l.toolsReg.Run(ctx, l.c, tools.Call{
 				ID: tc.ID, Name: tc.Name, Args: tc.Args, Agent: a.ID(), Session: ss,
 				Mode: a.Mode(), Workspace: a.Workspace(),
 			})
+			stop = stop || exe.Result.StopTurn
 		}
 		_, _ = ss.Append(session.TypeStepEnd, a.ID(), map[string]int{"step": steps})
+		if stop {
+			break
+		}
 		if len(calls) > 0 {
 			continue
 		}

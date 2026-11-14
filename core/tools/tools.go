@@ -72,6 +72,9 @@ type Result struct {
 	Content string `json:"content"`
 	IsError bool   `json:"isError,omitempty"`
 	Data    any    `json:"data,omitempty"` // structured, for UI cards
+	// StopTurn ends the agent's turn after this step without another
+	// model call (e.g. after handing the task over).
+	StopTurn bool `json:"stopTurn,omitempty"`
 }
 
 // Text is a success result.
@@ -173,6 +176,9 @@ var (
 type Registry struct {
 	host *kernel.Host
 	reg  *scope.Registry[*Tool]
+	// policy is the service key of the required policy plugin (rules
+	// engine). While it is missing, only read/none categories run.
+	policy string
 }
 
 func NewRegistry(h *kernel.Host) *Registry {
@@ -254,6 +260,11 @@ func (r *Registry) Run(ctx context.Context, c *kernel.Context, call Call) Execut
 		return r.finish(ctx, d, Execution{Call: call, Result: Errorf("denied: pre-execute failed: %v", err), Denied: true})
 	}
 	exe := Execution{Call: call, Category: dec.Category}
+	if r.policy != "" && dec.Verdict == Allow && dec.Category != CategoryRead && dec.Category != CategoryNone {
+		if _, ok := kernel.Lookup[any](c, r.policy); !ok {
+			dec.DenyWith("policy engine unavailable (" + r.policy + "); only read-only tools may run")
+		}
+	}
 	if dec.Verdict == Deny {
 		exe.Result, exe.Denied = Errorf("denied: %s", dec.Reason), true
 		return r.finish(ctx, d, exe)
@@ -308,6 +319,10 @@ func (r *Registry) finish(ctx context.Context, d kernel.Dispatcher, exe Executio
 	res, err := PostExecute.Run(d, ctx, exe, func(_ context.Context, e Execution) (Result, error) { return e.Result, nil })
 	if err == nil {
 		exe.Result = res
+	} else {
+		// Fail closed: the raw result may hold data a post-execute
+		// listener (e.g. redaction) was supposed to remove.
+		exe.Result = Errorf("tool result withheld: post-processing failed")
 	}
 	// finalized: immutable from here
 	OnResult.Emit(d, exe)
@@ -356,11 +371,20 @@ func truncate(s string, n int) string {
 	return s[:n] + "…"
 }
 
-// Plugin provides the `tools` service.
+// Plugin provides the `tools` service. Config: {"requirePolicy": "rules"}
+// makes the pipeline fail closed while that service is missing.
 var Plugin = kernel.Register(kernel.Spec{
 	Name:        "@crewbase/tools",
 	Description: "Tool registry and execution pipeline (tools service).",
 	Apply: func(c *kernel.Context) error {
-		return c.Provide(ServiceKey, NewRegistry(c.Host()))
+		cfg, err := kernel.Decode[struct {
+			RequirePolicy string `json:"requirePolicy"`
+		}](c)
+		if err != nil {
+			return err
+		}
+		r := NewRegistry(c.Host())
+		r.policy = cfg.RequirePolicy
+		return c.Provide(ServiceKey, r)
 	},
 })
