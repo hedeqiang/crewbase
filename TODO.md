@@ -19,23 +19,23 @@
 - [x] Profile / Bundle / Patch 加载（按 id 替换、插入、禁用），`--dump-config`
 - [x] 示例插件 `greet-tool` + `tool-logger` 跑通（Phase 0 出口）
 
-## 迭代 2 — 核心插件 core（第 1–2 周）  ← 当前
+## 迭代 2 — 核心插件 core（第 1–2 周）
 - [x] `core/session`：仅追加 JSONL 会话日志（版本号 v1）、投影（deriveMessages）、崩溃补记「中断」
 - [x] `core/llm`：消息 / 流式块词汇表、适配器约定、错误分类（限流 / 额度耗尽 / 故障）
 - [x] `core/tools`：注册表 + 执行流水线（tool/call 先记录 → pre-execute → 守卫 → approval → execute → post-execute → 定稿 → tools/result → tool/result）
 - [x] `core/scope`：覆盖（shadowing）与限制（restriction，取交集）
-- [ ] `core/prompt`：提示词片段 + 工具 schema 组装
-- [ ] `core/agent`：Agent 注册表、组装窗口、`agent.Inject()`、FIFO 队列（暂停 / 恢复 / 插队 / 取消）（A-1 部分）
-- [ ] `core/agentloop`：默认 Agent 循环（turn / step 事件流）
+- [x] `core/prompt`：提示词片段 + 工具 schema 组装
+- [x] `core/agent`：Agent 注册表、组装窗口、`agent.Inject()`、FIFO 队列（暂停 / 恢复 / 插队 / 取消）（A-1 部分）
+- [x] `core/agentloop`：默认 Agent 循环（turn / step 事件流）
 
-## 迭代 3 — 模型（M-1 ~ M-4, M-6）（第 2–5 周）
+## 迭代 3 — 模型（M-1 ~ M-4, M-6）（第 2–5 周）  ← 当前
 - [ ] `llm-openai`（OpenAI-compatible：OpenAI / DeepSeek / Moonshot / Qwen / xAI）（M-2）
 - [ ] `llm-anthropic`（M-2）
 - [ ] `llm-gemini`（M-2）
 - [ ] `llm-ollama` + 本地服务自动发现（Ollama / LM Studio / vLLM）（M-3）
-- [ ] `llm-mock`（测试与离线演示）
+- [x] `llm-mock`（测试与离线演示）
 - [ ] `llm-acp`：ACP 子进程桥接 Claude Code / Codex / Gemini CLI，额度耗尽信号识别（M-1）
-- [ ] `router-default`：每 Agent 模型顺序、`router/quota-exhausted`、`model/switched` 事件、无损切换（M-4）
+- [x] `router-default`：每 Agent 模型顺序、`router/quota-exhausted`、`model/switched` 事件、无损切换（M-4）
 - [ ] `compaction-summary`：上下文占用追踪、80% 自动压缩（C-1）
 
 ## 迭代 4 — 执行与安全（S-1 ~ S-5）（第 3–5 周）
@@ -96,5 +96,6 @@
 ## 迭代日志
 | 日期 | 迭代 | 结果 |
 |---|---|---|
+| 2026-11-14 | 2b | prompt / agents（工作区、INSTRUCTIONS/MEMORY、作用域、FIFO 队列可从日志恢复）/ agent-loop / router-default / llm-mock；Phase 1 出口用 mock 模型跑通（切换、请求可从日志重建、push 审批断点续跑、重启恢复） |
 | 2026-11-14 | 2a | session 日志（JSONL、残行容错、投影、fork）、tools 流水线（先记录、pre-execute、守卫、审批、post-execute 脱敏）、approval（never / 无应答方 / 审计失败均关闭式失败）、作用域覆盖与限制；greet-tool + tool-logger 通过 |
 | 2026-11-14 | 0 + 1 | 骨架、kernel（服务 / PENDING / 五种分发 / Effect / 作用域分发 / 隔离组 / Profile 补丁），race 测试通过；greet-tool 示例待 core/tools 完成后补 |
