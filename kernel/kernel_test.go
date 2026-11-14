@@ -280,3 +280,30 @@ func TestDecode(t *testing.T) {
 	}
 	_ = errors.New
 }
+
+func TestApplyEntriesLeavesDirectLoadsAndFail(t *testing.T) {
+	Register(Spec{Name: "@test/managed"})
+	h := NewHost(nil)
+	defer h.Close()
+	if err := h.ApplyEntries([]Entry{{ID: "m", Name: "@test/managed"}}); err != nil {
+		t.Fatal(err)
+	}
+	var ctx *Context
+	h.Load(Spec{Name: "direct", Apply: func(c *Context) error { ctx = c; return nil }}, LoadOptions{})
+	h.ApplyEntries(nil) // removes managed entries only
+	if _, ok := h.Plugin("m"); ok {
+		t.Fatal("managed entry should be unloaded")
+	}
+	if info, ok := h.Plugin("direct"); !ok || info.State != StateActive {
+		t.Fatal("directly loaded plugin must be left alone")
+	}
+	ctx.Fail(errors.New("crash loop"))
+	deadline := time.Now().Add(time.Second)
+	for time.Now().Before(deadline) {
+		if info, _ := h.Plugin("direct"); info.State == StateFailed && info.Error == "crash loop" {
+			return
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	t.Fatal("Fail did not mark the plugin FAILED")
+}

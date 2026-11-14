@@ -1,0 +1,17 @@
+# Example third-party Python plugin (stdlib only).
+name = "hello-py"
+version = "0.1.0"
+description = "Says hello from Python."
+author = "Crewbase"
+runtime = "process"
+entry = ["python3", "main.py"]
+
+[inject]
+services = ["tools"]
+
+[permissions]
+events = []
+network = []
+credentials = []
+files = []
+subprocess = false

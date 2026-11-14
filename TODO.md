@@ -84,13 +84,14 @@
 - [x] MCP 客户端与管理（C-3，P0）：官方 go-sdk v1.8；stdio（沙箱内、进程组）/ Streamable HTTP；`<server>__<tool>` 命名空间；注解→类别；list_changed 刷新失败保留旧列表；崩溃退避重连；凭证引用；Agent 作用域服务器；API 含探测
 - [x] `history_search` / `history_read`、`memory_add` / `memory_search`（C-2）
 - [x] 技能按需加载（C-4）：目录只进提示词，`skill_load` 取全文；工作区 > 共享目录按名称覆盖
-- [ ] 进程外插件桥接：stdio JSON-RPC 2.0、清单权限、Waterfall 2s 超时、退出即撤销（S-6）
-- [ ] 插件 SDK：TypeScript / Python / Go
-- [ ] 插件与技能市场页、角色模板导入（C-5）
+- [x] 进程外插件桥接：stdio JSON-RPC 2.0、清单权限（交集授权）、Waterfall 2s 超时、只能拒绝不能放行、退出即撤销、崩溃退避后 FAILED、可选沙箱（S-6）
+- [x] 插件 SDK：TypeScript / Python / Go（宿主注入，无需 npm install）；示例 word-count / hello-py / hello-go
+- [x] 插件市场后端：索引（URL / 内置）、本地 / tarball / npm 安装、授权、启停、热重载、新版本重新授权、trustFutureVersions；CLI `crew plugin …` / `crew dev`
+- [ ] 市场与授权 UI；角色模板导入（C-5）
 - [x] 按任务分流（M-5）：routine / 摘要·日志清洗 / 编码 / 超长文档 → 配置的模型，不可用时回落到 Agent 顺序；节省见 `/api/usage`
 - [ ] WASM 插件档（wazero）
 - [ ] UI：频道与任务卡、交接 / 改派、审批中心、自动化页、插件与技能页
-- [~] Phase 2 出口 e2e：三 Agent 两次交接（mock 已通过）；TS 插件安装授权热重载（待做）
+- [x] Phase 2 出口 e2e：三 Agent 两次交接（mock + 真实模型）；TS 插件从市场安装 → 授权 → 使用 → 改源码 → 重载生效（自动化测试）
 
 ## 品牌与依赖（用户反馈后确立）
 - [x] 产品 logo「Relay」、Agent「队员徽章」头像全部原创，不仿制他人 logo / 吉祥物（docs/brand）
@@ -128,6 +129,8 @@
 - [ ] 记忆索引改为异步写入
 
 - [x] scope 注册表：同名注册乱序撤销会复活已撤销条目 → 改为栈
+- [ ] 插件：tarball / npm 包签名校验；Windows Job Object 进程树；发布者身份；默认不开沙箱时网络 / 文件限制仅声明
+- [x] kernel：ApplyEntries 只管理条目加载的插件；LoadEntry；Context.Fail
 - [ ] MCP：服务器自报注解决定类别可被滥用 → 每服务器「信任注解」开关 / 类别覆盖；Agent 只读时 MCP 沙箱随之只读；暴露 resources / prompts；HTTP OAuth
 - 有意保留：先读后改记录仅内存（重启需重读更安全）；Agent 级规则维护在引擎内部（设计选择）
 - 推迟到 Phase 3：单次提权调用、Docker 白名单出站代理
@@ -155,6 +158,7 @@
 ## 迭代日志
 | 日期 | 迭代 | 结果 |
 |---|---|---|
+| 2026-11-14 | 8c | 进程外插件 + SDK + 市场 + 热重载（子 agent）接入 crewd，Phase 2 出口全部满足；kernel 三项改进 |
 | 2026-11-14 | 8b | 技术债第二批（core 接口）：agent/response、PathArgs、llm 词汇表扩展、tool/pruned、临时 Agent、交接确认；提供方 / 功能侧采用交给子 agent |
 | 2026-11-14 | 8a | MCP（子 agent）接入；技术债第一批：二次确认强制、StopInput、scope 乱序撤销复活修复；技术债分类（修 / 保留 / 推迟） |
 | 2026-11-14 | 7d | 桌面 Web UI（子 agent 交付，headless Chrome 浅/深色 4 个宽度截图验证）提交；`make build` 内嵌 UI |

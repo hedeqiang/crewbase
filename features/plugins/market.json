@@ -1,0 +1,20 @@
+[
+  {
+    "name": "word-count",
+    "description": "Counts words, lines and characters; logs every finished tool call. Example TypeScript plugin.",
+    "version": "0.1.0",
+    "source": "./examples/plugins/word-count",
+    "author": "Crewbase",
+    "repo": "https://github.com/hedeqiang/crewbase/tree/main/examples/plugins/word-count",
+    "permissions": { "services": ["tools"], "events": ["tools/result"] }
+  },
+  {
+    "name": "hello-py",
+    "description": "Says hello from Python. Example Python plugin.",
+    "version": "0.1.0",
+    "source": "./examples/plugins/hello-py",
+    "author": "Crewbase",
+    "repo": "https://github.com/hedeqiang/crewbase/tree/main/examples/plugins/hello-py",
+    "permissions": { "services": ["tools"] }
+  }
+]

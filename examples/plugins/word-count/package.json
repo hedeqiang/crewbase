@@ -1,0 +1,10 @@
+{
+  "name": "crewbase-plugin-word-count",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Example Crewbase plugin: a word_count tool and a tools/result listener.",
+  "type": "module",
+  "main": "index.js",
+  "keywords": ["crewbase-plugin"],
+  "devDependencies": { "@crewbase/plugin-sdk": "^0.1.0" }
+}

@@ -95,14 +95,15 @@ type LoadOptions struct {
 
 // Plugin is a loaded plugin entry.
 type Plugin struct {
-	host     *Host
-	spec     Spec
-	opts     LoadOptions
-	state    State
-	err      error
-	ctx      *Context
-	provides []string
-	origin   Entry
+	host      *Host
+	spec      Spec
+	opts      LoadOptions
+	state     State
+	err       error
+	ctx       *Context
+	provides  []string
+	origin    Entry
+	fromEntry bool
 }
 
 // ID returns the stable entry id.
@@ -291,6 +292,23 @@ type PluginInfo struct {
 	Missing  []string `json:"missing,omitempty"`
 	Provides []string `json:"provides,omitempty"`
 	Error    string   `json:"error,omitempty"`
+}
+
+// Fail marks the plugin owning c as FAILED with err and disposes it
+// asynchronously (it is not reactivated until reloaded). Use it from a
+// running plugin, e.g. a supervisor giving up after repeated crashes; in
+// Apply, return the error instead.
+func (c *Context) Fail(err error) {
+	p := c.ownerPlugin()
+	if p == nil {
+		return
+	}
+	go func() {
+		p.deactivate(StateFailed)
+		p.host.mu.Lock()
+		p.err = err
+		p.host.mu.Unlock()
+	}()
 }
 
 // Plugins lists loaded plugins in load order.

@@ -207,16 +207,16 @@ func (h *Host) ApplyEntries(entries []Entry) error {
 	}
 	h.mu.Lock()
 	current := map[string]Entry{}
+	var ids []string // only plugins that came from entries are managed here
 	for _, p := range h.plugins {
-		current[p.opts.ID] = p.entry()
+		if p.fromEntry {
+			current[p.opts.ID] = p.entry()
+			ids = append(ids, p.opts.ID)
+		}
 	}
 	h.mu.Unlock()
 
 	// unload in reverse order
-	ids := make([]string, 0)
-	for _, info := range h.Plugins() {
-		ids = append(ids, info.ID)
-	}
 	for i := len(ids) - 1; i >= 0; i-- {
 		id := ids[i]
 		if w, ok := want[id]; !ok || !reflect.DeepEqual(normalize(w), normalize(current[id])) {
@@ -234,22 +234,38 @@ func (h *Host) ApplyEntries(entries []Entry) error {
 		if _, ok := h.Plugin(e.ID); ok {
 			continue
 		}
-		spec, err := specFor(e)
-		if err != nil {
-			spec = Spec{Name: e.Name, Apply: func(*Context) error { return err }}
-			errs = append(errs, fmt.Errorf("%s: %w", e.ID, err))
+		if _, err := h.LoadEntry(e); err != nil {
+			errs = append(errs, err)
 		}
-		p, lerr := h.Load(spec, LoadOptions{ID: e.ID, Config: e.Config, Isolate: e.Isolate, Group: e.Group})
-		if lerr != nil {
-			errs = append(errs, lerr)
-			continue
-		}
-		p.origin = e
 	}
 	if len(errs) > 0 {
 		return fmt.Errorf("kernel: %d entries failed: %v", len(errs), errs)
 	}
 	return nil
+}
+
+// LoadEntry resolves an entry (builtin catalog or a registered runtime such
+// as "process") and loads it. Entries loaded this way are managed by
+// ApplyEntries; plugins loaded directly with Load are left alone by it.
+func (h *Host) LoadEntry(e Entry) (*Plugin, error) {
+	if e.ID == "" {
+		e.ID = e.Name
+	}
+	spec, serr := specFor(e)
+	if serr != nil {
+		spec = Spec{Name: e.Name, Apply: func(*Context) error { return serr }}
+	}
+	p, err := h.Load(spec, LoadOptions{ID: e.ID, Config: e.Config, Isolate: e.Isolate, Group: e.Group})
+	if err != nil {
+		return nil, err
+	}
+	h.mu.Lock()
+	p.origin, p.fromEntry = e, true
+	h.mu.Unlock()
+	if serr != nil {
+		return p, fmt.Errorf("%s: %w", e.ID, serr)
+	}
+	return p, nil
 }
 
 func (p *Plugin) entry() Entry {

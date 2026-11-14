@@ -1,0 +1,18 @@
+# Example third-party TypeScript plugin (plain ESM + JSDoc types, no build step).
+name = "word-count"
+version = "0.1.0"
+description = "Counts words, lines and characters; logs every finished tool call."
+author = "Crewbase"
+repo = "https://github.com/hedeqiang/crewbase/tree/main/examples/plugins/word-count"
+runtime = "process"
+entry = ["node", "index.js"]
+
+[inject]
+services = ["tools"]
+
+[permissions]
+events = ["tools/result"]
+network = []
+credentials = []
+files = []
+subprocess = false

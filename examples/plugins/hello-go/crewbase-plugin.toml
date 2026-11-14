@@ -1,0 +1,10 @@
+# Example Go plugin. Build first: go build -o plugin ./examples/plugins/hello-go
+name = "hello-go"
+version = "0.1.0"
+description = "Says hello from Go."
+author = "Crewbase"
+runtime = "process"
+entry = ["./plugin"]
+
+[inject]
+services = ["tools"]

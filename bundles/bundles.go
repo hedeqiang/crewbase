@@ -26,6 +26,7 @@ import (
 	_ "github.com/hedeqiang/crewbase/features/gateway"
 	_ "github.com/hedeqiang/crewbase/features/mcp"
 	_ "github.com/hedeqiang/crewbase/features/memory"
+	_ "github.com/hedeqiang/crewbase/features/plugins"
 	_ "github.com/hedeqiang/crewbase/features/redact"
 	_ "github.com/hedeqiang/crewbase/features/router"
 	_ "github.com/hedeqiang/crewbase/features/routines"
@@ -109,6 +110,8 @@ var Desktop = kernel.Bundle{Name: "desktop", Entries: []kernel.Entry{
 	{ID: "usage", Name: "@crewbase/usage"},
 	{ID: "workflows-api", Name: "@crewbase/workflows-api"},
 	{ID: "mcp-api", Name: "@crewbase/mcp-api"},
+	{ID: "plugin-manager", Name: "@crewbase/plugin-manager", Config: map[string]any{"dir": "${root}/plugins"}},
+	{ID: "plugin-manager-api", Name: "@crewbase/plugin-manager-api"},
 	{ID: "console", Name: "@crewbase/console", Config: map[string]any{"dir": "${root}"}},
 }}
 

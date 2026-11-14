@@ -8,6 +8,12 @@
 //	crew approve <callId> | crew reject <callId> [reason]
 //	crew dump-config [--profile desktop]
 //	crew daemon [crewd flags]            run the daemon in-process
+//	crew plugin new <name> --lang ts|py|go [--dir d]   scaffold a process plugin
+//	crew plugin install <path|tarball|url|npm-name> [--no-enable]
+//	crew plugin approve <name> [--trust-future] [--yes]
+//	crew plugin list|market
+//	crew plugin enable|disable|reload|remove <name>
+//	crew dev <dir> [--approve] [--interval 500ms]   install, watch, hot reload
 package main
 
 import (
@@ -28,7 +34,11 @@ import (
 	"time"
 
 	"github.com/hedeqiang/crewbase/apps/launch"
+	// Process plugin runtime + plugin manager, so `crew daemon` can enable
+	// them with a patch entry until bundles include them.
+	_ "github.com/hedeqiang/crewbase/features/plugins"
 	"github.com/hedeqiang/crewbase/kernel"
+	"github.com/hedeqiang/crewbase/sdk"
 )
 
 var (
@@ -73,6 +83,10 @@ func main() {
 		err = dumpConfig(args)
 	case "daemon":
 		err = daemon(args)
+	case "plugin":
+		err = pluginCmd(args)
+	case "dev":
+		err = devCmd(args)
 	default:
 		usage()
 	}
@@ -83,7 +97,7 @@ func main() {
 }
 
 func usage() {
-	fmt.Fprintln(os.Stderr, "usage: crew plugins|agents|agent new|chat|approvals|approve|reject|dump-config|daemon")
+	fmt.Fprintln(os.Stderr, "usage: crew plugins|plugin|dev|agents|agent new|chat|approvals|approve|reject|dump-config|daemon")
 	os.Exit(2)
 }
 
@@ -357,4 +371,331 @@ func daemon(args []string) error {
 	<-sig
 	h.Close()
 	return nil
+}
+
+// ---------------------------------------------------------------- process plugins
+
+type installedPlugin struct {
+	Name          string   `json:"name"`
+	Version       string   `json:"version"`
+	Description   string   `json:"description"`
+	Source        string   `json:"source"`
+	State         string   `json:"state"`
+	Error         string   `json:"error"`
+	Enabled       bool     `json:"enabled"`
+	Approved      bool     `json:"approved"`
+	NeedsApproval []string `json:"needsApproval"`
+	Requested     struct {
+		Services, Events, Network, Credentials, Files []string
+		Subprocess                                    bool
+	} `json:"requested"`
+	Process *struct {
+		PID         int      `json:"pid"`
+		Restarts    int      `json:"restarts"`
+		Tools       []string `json:"tools"`
+		Events      []string `json:"events"`
+		Enforcement string   `json:"enforcement"`
+	} `json:"process"`
+}
+
+// splitFlags parses flags that may follow positional arguments.
+func splitFlags(fs *flag.FlagSet, args []string) []string {
+	var pos []string
+	for len(args) > 0 {
+		if strings.HasPrefix(args[0], "-") {
+			fs.Parse(args)
+			args = fs.Args()
+			continue
+		}
+		pos = append(pos, args[0])
+		args = args[1:]
+	}
+	return pos
+}
+
+func printPlugin(p installedPlugin) {
+	fmt.Printf("%s %s  %s\n", p.Name, p.Version, p.State)
+	if p.Error != "" {
+		fmt.Printf("  error: %s\n", p.Error)
+	}
+	if len(p.NeedsApproval) > 0 {
+		fmt.Printf("  needs approval: %s\n  crew plugin approve %s\n", strings.Join(p.NeedsApproval, ", "), p.Name)
+	}
+	if p.Process != nil {
+		fmt.Printf("  pid %d, restarts %d, tools [%s], events [%s], enforcement %s\n", p.Process.PID, p.Process.Restarts,
+			strings.Join(p.Process.Tools, " "), strings.Join(p.Process.Events, " "), p.Process.Enforcement)
+	}
+}
+
+func printRequested(p installedPlugin) {
+	r := p.Requested
+	fmt.Printf("%s %s requests (it can do everything it declares; it is not \"safe\" code):\n", p.Name, p.Version)
+	line := func(k string, v []string) {
+		if len(v) > 0 {
+			fmt.Printf("  %-12s %s\n", k, strings.Join(v, ", "))
+		}
+	}
+	line("services", r.Services)
+	line("events", r.Events)
+	line("network", r.Network)
+	line("credentials", r.Credentials)
+	line("files", r.Files)
+	if r.Subprocess {
+		fmt.Printf("  %-12s yes\n", "subprocess")
+	}
+}
+
+func confirm(q string) bool {
+	fmt.Print(q + " [y/N] ")
+	line, _ := bufio.NewReader(os.Stdin).ReadString('\n')
+	line = strings.ToLower(strings.TrimSpace(line))
+	return line == "y" || line == "yes"
+}
+
+func pluginCmd(args []string) error {
+	if len(args) == 0 {
+		return errors.New("usage: crew plugin new|install|approve|list|market|enable|disable|reload|remove ...")
+	}
+	sub, args := args[0], args[1:]
+	switch sub {
+	case "new":
+		fs := flag.NewFlagSet("plugin new", flag.ExitOnError)
+		lang := fs.String("lang", "ts", "ts | py | go")
+		fs.String("runtime", "process", "plugin runtime (only process)")
+		dir := fs.String("dir", "", "target directory (default ./<name>)")
+		pos := splitFlags(fs, args)
+		if len(pos) != 1 {
+			return errors.New("usage: crew plugin new <name> --lang ts|py|go [--dir d]")
+		}
+		d := *dir
+		if d == "" {
+			d = pos[0]
+		}
+		files, err := sdk.Scaffold(pos[0], *lang, d)
+		if err != nil {
+			return err
+		}
+		for _, f := range files {
+			fmt.Println("created", f)
+		}
+		fmt.Printf("next: crew dev %s\n", d)
+		return nil
+	case "install":
+		fs := flag.NewFlagSet("plugin install", flag.ExitOnError)
+		noEnable := fs.Bool("no-enable", false, "install without enabling")
+		pos := splitFlags(fs, args)
+		if len(pos) != 1 {
+			return errors.New("usage: crew plugin install <path|tarball|url|npm-name>")
+		}
+		src := pos[0]
+		if st, err := os.Stat(src); err == nil && st != nil {
+			src, _ = filepath.Abs(src)
+		}
+		enable := !*noEnable
+		var p installedPlugin
+		if err := call("POST", "/api/plugins/install", map[string]any{"source": src, "enable": enable}, &p); err != nil {
+			return err
+		}
+		if !p.Approved {
+			printRequested(p)
+		}
+		printPlugin(p)
+		return nil
+	case "approve":
+		fs := flag.NewFlagSet("plugin approve", flag.ExitOnError)
+		trust := fs.Bool("trust-future", false, "trust future versions that ask for no new permissions")
+		yes := fs.Bool("yes", false, "do not ask for confirmation")
+		pos := splitFlags(fs, args)
+		if len(pos) != 1 {
+			return errors.New("usage: crew plugin approve <name> [--trust-future] [--yes]")
+		}
+		p, err := findPlugin(pos[0])
+		if err != nil {
+			return err
+		}
+		printRequested(p)
+		if !*yes && !confirm("Approve these permissions?") {
+			return errors.New("not approved")
+		}
+		url := "/api/plugins/" + p.Name + "/approve"
+		p = installedPlugin{}
+		if err := call("POST", url, map[string]any{"trustFutureVersions": *trust}, &p); err != nil {
+			return err
+		}
+		printPlugin(p)
+		return nil
+	case "list":
+		var out struct {
+			Plugins []installedPlugin `json:"plugins"`
+		}
+		if err := call("GET", "/api/plugins/installed", nil, &out); err != nil {
+			return err
+		}
+		tw := tabwriter.NewWriter(os.Stdout, 0, 2, 2, ' ', 0)
+		fmt.Fprintln(tw, "NAME\tVERSION\tSTATE\tTOOLS\tNEEDS / ERROR")
+		for _, p := range out.Plugins {
+			var tools []string
+			if p.Process != nil {
+				tools = p.Process.Tools
+			}
+			extra := strings.Join(p.NeedsApproval, ",")
+			if p.Error != "" {
+				extra = p.Error
+			}
+			fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\n", p.Name, p.Version, p.State, strings.Join(tools, ","), extra)
+		}
+		return tw.Flush()
+	case "market":
+		var out struct {
+			Plugins []struct {
+				Name, Description, Version, Source, Installed string
+			} `json:"plugins"`
+		}
+		if err := call("GET", "/api/market", nil, &out); err != nil {
+			return err
+		}
+		tw := tabwriter.NewWriter(os.Stdout, 0, 2, 2, ' ', 0)
+		fmt.Fprintln(tw, "NAME\tVERSION\tINSTALLED\tDESCRIPTION")
+		for _, p := range out.Plugins {
+			fmt.Fprintf(tw, "%s\t%s\t%s\t%s\n", p.Name, p.Version, p.Installed, p.Description)
+		}
+		return tw.Flush()
+	case "enable", "disable", "reload":
+		if len(args) != 1 {
+			return fmt.Errorf("usage: crew plugin %s <name>", sub)
+		}
+		var p installedPlugin
+		if err := call("POST", "/api/plugins/"+args[0]+"/"+sub, nil, &p); err != nil {
+			return err
+		}
+		printPlugin(p)
+		return nil
+	case "remove", "uninstall":
+		if len(args) != 1 {
+			return errors.New("usage: crew plugin remove <name>")
+		}
+		return call("DELETE", "/api/plugins/"+args[0], nil, nil)
+	}
+	return fmt.Errorf("unknown plugin command %q", sub)
+}
+
+func findPlugin(name string) (installedPlugin, error) {
+	var out struct {
+		Plugins []installedPlugin `json:"plugins"`
+	}
+	if err := call("GET", "/api/plugins/installed", nil, &out); err != nil {
+		return installedPlugin{}, err
+	}
+	for _, p := range out.Plugins {
+		if p.Name == name {
+			return p, nil
+		}
+	}
+	return installedPlugin{}, fmt.Errorf("plugin %q is not installed", name)
+}
+
+// snapshotTree records size+mtime of every source file (no new deps: polling).
+func snapshotTree(dir string) map[string]string {
+	out := map[string]string{}
+	filepath.Walk(dir, func(p string, info os.FileInfo, err error) error {
+		if err != nil {
+			return nil
+		}
+		if info.IsDir() {
+			n := info.Name()
+			if p != dir && (strings.HasPrefix(n, ".") || n == "node_modules" || n == "__pycache__") {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		out[p] = fmt.Sprintf("%d/%d", info.Size(), info.ModTime().UnixNano())
+		return nil
+	})
+	return out
+}
+
+func sameTree(a, b map[string]string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for k, v := range a {
+		if b[k] != v {
+			return false
+		}
+	}
+	return true
+}
+
+// devCmd installs a plugin from a working directory, then watches it and
+// hot reloads (dispose + start) on every change.
+func devCmd(args []string) error {
+	fs := flag.NewFlagSet("dev", flag.ExitOnError)
+	approve := fs.Bool("approve", false, "approve the manifest permissions without asking")
+	interval := fs.Duration("interval", 500*time.Millisecond, "poll interval")
+	pos := splitFlags(fs, args)
+	if len(pos) > 1 {
+		return errors.New("usage: crew dev [dir] [--approve] [--interval 500ms]")
+	}
+	dir := "."
+	if len(pos) == 1 {
+		dir = pos[0]
+	}
+	dir, err := filepath.Abs(dir)
+	if err != nil {
+		return err
+	}
+	var p installedPlugin
+	if err := call("POST", "/api/plugins/install", map[string]any{"source": dir, "enable": true}, &p); err != nil {
+		return err
+	}
+	if !p.Approved {
+		printRequested(p)
+		if !*approve && !confirm("Approve these permissions?") {
+			return errors.New("not approved")
+		}
+		url := "/api/plugins/" + p.Name + "/approve"
+		p = installedPlugin{}
+		if err := call("POST", url, map[string]any{}, &p); err != nil {
+			return err
+		}
+	}
+	printPlugin(p)
+	fmt.Printf("watching %s (ctrl-c to stop)\n", dir)
+	sig := make(chan os.Signal, 1)
+	signal.Notify(sig, os.Interrupt, syscall.SIGTERM)
+	last := snapshotTree(dir)
+	tick := time.NewTicker(*interval)
+	defer tick.Stop()
+	for {
+		select {
+		case <-sig:
+			return nil
+		case <-tick.C:
+		}
+		cur := snapshotTree(dir)
+		if sameTree(cur, last) {
+			continue
+		}
+		// wait for the editor to finish writing
+		time.Sleep(*interval / 2)
+		cur = snapshotTree(dir)
+		last = cur
+		fmt.Printf("%s change detected, reloading %s\n", time.Now().Format("15:04:05"), p.Name)
+		var np installedPlugin
+		if err := call("POST", "/api/plugins/"+p.Name+"/reload", nil, &np); err != nil {
+			fmt.Fprintln(os.Stderr, "reload failed:", err)
+			continue
+		}
+		if !np.Approved {
+			printRequested(np)
+			if *approve || confirm("The plugin asks for new permissions. Approve?") {
+				url := "/api/plugins/" + np.Name + "/approve"
+				np = installedPlugin{}
+				if err := call("POST", url, map[string]any{}, &np); err != nil {
+					fmt.Fprintln(os.Stderr, "approve failed:", err)
+				}
+			}
+		}
+		printPlugin(np)
+	}
 }
