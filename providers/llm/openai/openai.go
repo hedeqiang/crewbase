@@ -331,7 +331,8 @@ func (a *Adapter) toolID(id string) string {
 // mapMessages converts provider-neutral messages: tool results become role
 // "tool" messages with tool_call_id; assistant tool calls become tool_calls.
 // Thinking parts are not sent back (DeepSeek rejects reasoning_content).
-func (a *Adapter) mapMessages(system string, msgs []llm.Message) []sdk.ChatCompletionMessageParamUnion {
+// files maps attachment hashes to provider file ids (DeepSeek uploads).
+func (a *Adapter) mapMessages(system string, msgs []llm.Message, files map[string]string) []sdk.ChatCompletionMessageParamUnion {
 	var out []sdk.ChatCompletionMessageParamUnion
 	if system != "" {
 		out = append(out, sdk.SystemMessage(system))
@@ -375,6 +376,10 @@ func (a *Adapter) mapMessages(system string, msgs []llm.Message) []sdk.ChatCompl
 			continue
 		}
 		out = append(out, results...)
+		if m.Role == llm.RoleUser && hasAttachment(m.Parts) {
+			out = append(out, sdk.UserMessage(a.userParts(m.Parts, files)))
+			continue
+		}
 		if t := text.String(); t != "" || (len(results) == 0 && m.Role == llm.RoleUser) {
 			out = append(out, sdk.UserMessage(t))
 		}
@@ -407,9 +412,13 @@ var qwenBudgets = map[string]int{"low": 2048, "medium": 8192, "high": 32768}
 // params builds the request params plus extra JSON fields for
 // provider-specific knobs the SDK does not model.
 func (a *Adapter) params(req llm.Request) (sdk.ChatCompletionNewParams, map[string]any) {
+	return a.paramsWith(req, nil)
+}
+
+func (a *Adapter) paramsWith(req llm.Request, files map[string]string) (sdk.ChatCompletionNewParams, map[string]any) {
 	p := sdk.ChatCompletionNewParams{
 		Model:    shared.ChatModel(req.Model),
-		Messages: a.mapMessages(req.System, req.Messages),
+		Messages: a.mapMessages(req.System, req.Messages, files),
 	}
 	extra := map[string]any{}
 	if a.streamUsage {
@@ -482,7 +491,7 @@ func (a *Adapter) Stream(ctx context.Context, req llm.Request, onChunk func(llm.
 	if err != nil {
 		return llm.Response{}, err
 	}
-	p, extra := a.params(req)
+	p, extra := a.paramsWith(req, a.uploadDocuments(ctx, req, key))
 	svc := sdk.NewChatCompletionService(opts...)
 	for k, v := range extra {
 		opts = append(opts, option.WithJSONSet(k, v))

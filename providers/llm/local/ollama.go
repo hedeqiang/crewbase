@@ -223,6 +223,7 @@ type ollamaMessage struct {
 	Thinking  string           `json:"thinking,omitempty"`
 	ToolCalls []ollamaToolCall `json:"tool_calls,omitempty"`
 	ToolName  string           `json:"tool_name,omitempty"`
+	Images    [][]byte         `json:"images,omitempty"` // base64 in JSON
 }
 
 func mapOllama(system string, msgs []llm.Message) []ollamaMessage {
@@ -235,8 +236,19 @@ func mapOllama(system string, msgs []llm.Message) []ollamaMessage {
 		var text strings.Builder
 		var calls []ollamaToolCall
 		var results []ollamaMessage
+		var images [][]byte
 		for _, p := range m.Parts {
 			switch p.Type {
+			case llm.PartAttachment:
+				if at := p.Attachment; at != nil && m.Role == llm.RoleUser {
+					if text.Len() > 0 {
+						text.WriteString("\n\n")
+					}
+					text.WriteString(at.Fallback())
+					if len(at.Data) > 0 && at.IsImage() {
+						images = append(images, at.Data)
+					}
+				}
 			case "text":
 				text.WriteString(p.Text)
 			case "tool_call":
@@ -271,10 +283,21 @@ func mapOllama(system string, msgs []llm.Message) []ollamaMessage {
 		}
 		out = append(out, results...)
 		if t := text.String(); t != "" || (len(results) == 0 && m.Role == llm.RoleUser) {
-			out = append(out, ollamaMessage{Role: "user", Content: t})
+			out = append(out, ollamaMessage{Role: "user", Content: t, Images: images})
 		}
 	}
 	return out
+}
+
+// AcceptsFile: images for models Ollama reports as vision-capable.
+func (o *Ollama) AcceptsFile(model, mime string) bool {
+	switch mime {
+	case "image/png", "image/jpeg", "image/webp":
+		ms, _ := o.Models(context.Background())
+		has, _ := llm.ModelCap(ms, model, "vision")
+		return has
+	}
+	return false
 }
 
 type chatLine struct {

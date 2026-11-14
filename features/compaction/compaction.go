@@ -407,7 +407,9 @@ func EventTokens(e session.Event, agentID string) int {
 	case session.TypeUserMessage:
 		var m session.UserMessage
 		if e.Decode(&m) == nil {
-			return llm.EstimateTokens(m.From+m.Text) + 4
+			// attachments: about an image's worth each (their real cost
+			// depends on the model and is measured per request)
+			return llm.EstimateTokens(m.From+m.Text) + 4 + 1600*len(m.Attachments)
 		}
 	case session.TypeInject:
 		var m session.InjectData

@@ -14,6 +14,7 @@ import (
 	"github.com/hedeqiang/crewbase/core/llm"
 	"github.com/hedeqiang/crewbase/core/session"
 	"github.com/hedeqiang/crewbase/core/tools"
+	"github.com/hedeqiang/crewbase/features/attachments"
 	"github.com/hedeqiang/crewbase/features/gateway"
 	"github.com/hedeqiang/crewbase/features/router"
 	"github.com/hedeqiang/crewbase/kernel"
@@ -56,6 +57,11 @@ type sendBody struct {
 	Session string `json:"session,omitempty"`
 	From    string `json:"from,omitempty"`
 	Front   bool   `json:"front,omitempty"`
+	// Attachments returned by POST /api/agents/{id}/uploads.
+	Attachments []struct {
+		Path string `json:"path"`
+		Name string `json:"name"`
+	} `json:"attachments,omitempty"`
 }
 
 type createBody struct {
@@ -254,8 +260,11 @@ var Plugin = kernel.Register(kernel.Spec{
 				if err := r.Decode(&b); err != nil {
 					return err
 				}
-				if strings.TrimSpace(b.Text) == "" {
+				if strings.TrimSpace(b.Text) == "" && len(b.Attachments) == 0 {
 					return gateway.BadRequest("text is required")
+				}
+				if len(b.Attachments) > attachments.MaxPerInput {
+					return gateway.BadRequest("at most %d attachments per message", attachments.MaxPerInput)
 				}
 				if b.Model != "" {
 					if _, err := llm.ParseRef(b.Model); err != nil {
@@ -272,6 +281,13 @@ var Plugin = kernel.Register(kernel.Spec{
 				var b sendBody
 				_ = r.Decode(&b)
 				in := agent.Input{Text: b.Text, From: b.From, Session: b.Session, Front: b.Front}
+				for _, x := range b.Attachments {
+					at, err := attachments.Resolve(a.Workspace(), x.Path, x.Name)
+					if err != nil {
+						return nil, gateway.BadRequest("%v", err)
+					}
+					in.Attachments = append(in.Attachments, at)
+				}
 				if b.Model != "" {
 					ref, _ := llm.ParseRef(b.Model)
 					in.Model = &ref

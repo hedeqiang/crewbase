@@ -10,6 +10,15 @@ export interface ModelRef {
   effort?: string;
 }
 
+/** A file saved in an agent workspace (POST /api/agents/{id}/uploads). */
+export interface Attachment {
+  path: string;
+  name: string;
+  mime: string;
+  size: number;
+  sha256?: string;
+}
+
 export interface Input {
   id: string;
   session: string;
@@ -615,6 +624,26 @@ export async function api<T = any>(method: string, path: string, body?: unknown)
   return data as T;
 }
 
+/** Uploads one file (raw body) into the agent workspace. */
+export async function uploadFile(agent: string, file: Blob, name: string): Promise<Attachment> {
+  const headers: Record<string, string> = { "Content-Type": file.type || "application/octet-stream" };
+  const tok = getToken();
+  if (tok) headers.Authorization = `Bearer ${tok}`;
+  const res = await fetch(`/api/agents/${enc(agent)}/uploads?name=${encodeURIComponent(name)}`, { method: "POST", headers, body: file });
+  const data = await res.json().catch(() => null);
+  if (!res.ok) {
+    if (res.status === 401) onUnauthorized();
+    const e = data?.error ?? {};
+    throw new ApiError(res.status, e.code ?? "http_" + res.status, e.message ?? res.statusText);
+  }
+  return data as Attachment;
+}
+
+/** URL of a workspace file (images inline, other files download). */
+export function rawURL(agent: string, path: string): string {
+  return `/api/agents/${enc(agent)}/raw?path=${encodeURIComponent(path)}&token=${encodeURIComponent(getToken() ?? "")}`;
+}
+
 export const API = {
   health: () => api<{ ok: boolean }>("GET", "/api/health"),
   agents: () => api<{ agents: AgentView[] }>("GET", "/api/agents"),
@@ -628,7 +657,7 @@ export const API = {
     api<{ agent: string; session: string; name: string; skills: number }>("POST", "/api/agents/import", { ...src, options }),
   patchAgent: (id: string, b: Record<string, unknown>) => api<AgentView>("PATCH", `/api/agents/${enc(id)}`, b),
   deleteAgent: (id: string) => api("DELETE", `/api/agents/${enc(id)}`),
-  send: (id: string, b: { text: string; model?: string; session?: string; front?: boolean }) =>
+  send: (id: string, b: { text: string; model?: string; session?: string; front?: boolean; attachments?: { path: string; name: string }[] }) =>
     api<Input>("POST", `/api/agents/${enc(id)}/messages`, b),
   action: (id: string, a: "stop" | "pause" | "resume") => api<AgentView>("POST", `/api/agents/${enc(id)}/${a}`),
   cancelInput: (id: string, input: string) => api<AgentView>("DELETE", `/api/agents/${enc(id)}/queue/${enc(input)}`),

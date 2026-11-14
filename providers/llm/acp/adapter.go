@@ -477,7 +477,7 @@ func fingerprint(m llm.Message) string {
 	h.Write([]byte(m.Role))
 	for _, p := range m.Parts {
 		switch p.Type {
-		case "text", "tool_call", "tool_result":
+		case "text", "tool_call", "tool_result", llm.PartAttachment:
 		default:
 			continue
 		}
@@ -485,6 +485,9 @@ func fingerprint(m llm.Message) string {
 		h.Write([]byte(p.Type))
 		h.Write([]byte{0})
 		h.Write([]byte(p.Text))
+		if p.Attachment != nil {
+			fmt.Fprintf(h, "\x00%s", p.Attachment.Path)
+		}
 		if p.ToolCall != nil {
 			fmt.Fprintf(h, "\x00%s\x00%s\x00%s", p.ToolCall.ID, p.ToolCall.Name, p.ToolCall.Args)
 		}
@@ -510,6 +513,12 @@ func renderMessage(m llm.Message) string {
 		switch p.Type {
 		case "text":
 			b.WriteString(p.Text)
+		case llm.PartAttachment:
+			// The CLI agent works in the workspace and reads files with its
+			// own tools; it gets the path, not the contents.
+			if at := p.Attachment; at != nil {
+				fmt.Fprintf(&b, "\n[attached file %q (%s) is in the working directory at %s]\n", at.Name, at.Mime, at.Path)
+			}
 		case "tool_call":
 			if p.ToolCall != nil {
 				fmt.Fprintf(&b, "\n[called tool %s with %s]\n", p.ToolCall.Name, p.ToolCall.Args)

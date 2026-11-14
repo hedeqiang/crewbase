@@ -150,6 +150,14 @@ func (a *Adapter) Stream(ctx context.Context, req llm.Request, onChunk func(llm.
 	return resp, err
 }
 
+// AcceptsFile follows the model's input modalities in magpie's catalog.
+func (a *Adapter) AcceptsFile(model, mime string) bool {
+	a.mu.RLock()
+	inner := a.inner
+	a.mu.RUnlock()
+	return inner != nil && inner.AcceptsFile(model, mime)
+}
+
 // hello checks that root is a magpie gateway and returns its version.
 func hello(ctx context.Context, client *http.Client, root string) (string, error) {
 	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, root+"/api/hello", nil)
@@ -237,6 +245,9 @@ func (a *Adapter) refresh(ctx context.Context) (bool, error) {
 		if strings.Contains(string(m.Modalities), "image") {
 			caps = append(caps, "vision")
 		}
+		// "pdf" input is listed for some models, but magpie's Chat
+		// Completions bridge drops `file` parts (checked 2026-11-15:
+		// 26 prompt tokens for a PDF request), so PDFs go as extracted text.
 		if w >= 500000 {
 			caps = append(caps, "long-context")
 		}

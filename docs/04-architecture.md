@@ -131,6 +131,17 @@ crewbase/
 - 所有提供方共用准入、容量、取消和释放机制；结果统一为 `output`、`structured`、`diagnostic`、`stopReason`。
 - 有最大委派深度；子 Agent 的父子关系以数据记录，不影响可见性。
 
+### 6.5 附件与多模态
+
+- 上传：`POST /api/agents/{id}/uploads?name=` 收原始字节，存进 Agent 工作区 `uploads/<日期>/`（同名不同内容自动编号，相同内容复用），单个文件 30 MB 以内。
+- 记录：`message/user` 只写附件引用（路径、名称、类型、大小、sha256），不写文件内容，所以日志里不会出现文件正文。
+- 装载：每次请求前，`attachments` 服务（agentloop.Hydrator）读回文件，再问适配器 `llm.FileAccepter.AcceptsFile(model, mime)` 能否原生接收：
+  - 能：附带原始字节。例如图片给视觉模型；PDF 给 Anthropic、Gemini 和 OpenAI；DeepSeek 直连时，PDF / Word / PowerPoint 先上传到它的 Files API，再用 file_id 引用。file_id 缓存在 `uploads/.remote/`，每个文件只解析、计费一次。
+  - 不能：用本地提取的文字（PDF、docx、pptx、xlsx、文本文件），附上工作区路径。超过 12 万字时截断，并提示模型用工具读取全文。看不了图片的模型只拿到一条说明。
+  - 原生通道失败（例如上传出错）时，退回同样的文字。
+- ACP（CLI 订阅）：只给工作区路径，由 CLI 自己的读文件工具读取。
+- 下载：`GET /api/agents/{id}/raw?path=` 提供工作区文件。只有 png / jpeg / gif / webp 内联显示，其他类型一律作为附件下载（nosniff，CSP sandbox），所以上传的 HTML / SVG 不会在应用的源里执行。
+
 ## 7. 部署形态
 
 | 形态 | Profile | 说明 |

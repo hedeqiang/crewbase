@@ -8,6 +8,7 @@ import { useMemo, useSyncExternalStore } from "react";
 import {
   API,
   type AgentView,
+  type Attachment,
   type ApprovalRequest,
   type BrowserState,
   type ChannelView,
@@ -41,6 +42,19 @@ export type SettingsSection =
 export interface StreamBuf {
   text: string;
   thinking: string;
+}
+
+/** A file picked in the composer, uploading or ready to send. */
+export interface PendingFile {
+  id: number;
+  name: string;
+  size: number;
+  mime: string;
+  state: "up" | "ok" | "err";
+  att?: Attachment;
+  error?: string;
+  /** object URL for an image preview (revoked when removed) */
+  preview?: string;
 }
 
 export interface Toast {
@@ -95,6 +109,7 @@ export interface State {
   palette: boolean;
   overrides: Record<string, string | null>; // agentId → model ref for next messages
   drafts: Record<string, string>; // session → unsent text
+  attach: Record<string, PendingFile[]>; // session → files picked for the next message
   hostConfirm: string | null; // agent id awaiting host-mode confirm
   toasts: Toast[];
 }
@@ -158,6 +173,7 @@ let state: State = {
   palette: false,
   overrides: {},
   drafts: {},
+  attach: {},
   hostConfirm: null,
   toasts: [],
 };

@@ -265,6 +265,19 @@ func resultResponse(r *llm.ToolResult) map[string]any {
 	return map[string]any{"output": r.Content}
 }
 
+// AcceptsFile: Gemini reads images and PDFs inline (multimodal models).
+func (a *Adapter) AcceptsFile(model, mime string) bool {
+	switch mime {
+	case "image/png", "image/jpeg", "image/gif", "image/webp", "application/pdf":
+		ms, _ := a.Models(context.Background())
+		if has, known := llm.ModelCap(ms, model, "vision"); known {
+			return has
+		}
+		return strings.HasPrefix(model, "gemini")
+	}
+	return false
+}
+
 func (a *Adapter) mapContents(model string, msgs []llm.Message) []*genai.Content {
 	names := toolNames(msgs)
 	needSig := strings.Contains(model, "gemini-3")
@@ -318,6 +331,13 @@ func (a *Adapter) mapContents(model string, msgs []llm.Message) []*genai.Content
 						fr.ID = r.CallID
 					}
 					parts = append(parts, &genai.Part{FunctionResponse: fr})
+				}
+			case llm.PartAttachment:
+				if at := p.Attachment; at != nil && role == genai.RoleUser {
+					parts = append(parts, &genai.Part{Text: at.Fallback()})
+					if len(at.Data) > 0 && (at.IsImage() || at.IsPDF()) {
+						parts = append(parts, &genai.Part{InlineData: &genai.Blob{MIMEType: at.Mime, Data: at.Data}})
+					}
 				}
 			}
 		}

@@ -1,6 +1,6 @@
 // Projects a session's event log into conversation feed items.
 
-import type { ApprovalRequest, ModelRef, Part, SessionEvent, ToolCall, ToolResult } from "./api";
+import type { ApprovalRequest, Attachment, ModelRef, Part, SessionEvent, ToolCall, ToolResult } from "./api";
 
 export interface Step {
   call: ToolCall;
@@ -19,7 +19,7 @@ export interface Decision {
 
 export type FeedItem =
   | { k: "time"; id: string; time: string }
-  | { k: "user"; id: string; text: string; from?: string; time: string }
+  | { k: "user"; id: string; text: string; from?: string; time: string; to?: string; attachments?: Attachment[] }
   | {
       k: "agent";
       id: string;
@@ -98,7 +98,7 @@ export function project(events: SessionEvent[], cards?: ReadonlySet<string>): Pr
       case "message/user":
         if (INJECTED.test(d.text ?? "")) break;
         group = null;
-        push({ k: "user", id, text: d.text ?? "", from: d.from, time: e.time }, e.time);
+        push({ k: "user", id, text: d.text ?? "", from: d.from, time: e.time, to: d.to, attachments: d.attachments }, e.time);
         break;
       case "message/assistant": {
         const parts: Part[] = d.message?.parts ?? [];

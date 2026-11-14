@@ -57,6 +57,13 @@ func lastLine(ss *session.Session) *LastLine {
 			var m session.UserMessage
 			_ = e.Decode(&m)
 			text = m.Text
+			if strings.TrimSpace(text) == "" && len(m.Attachments) > 0 {
+				names := make([]string, len(m.Attachments))
+				for i, at := range m.Attachments {
+					names[i] = at.Name
+				}
+				text = "📎 " + strings.Join(names, "、")
+			}
 		case session.TypeAssistantMessage:
 			var m session.AssistantMessage
 			_ = e.Decode(&m)
@@ -422,7 +429,7 @@ var Plugin = kernel.Register(kernel.Spec{
 				}
 				out := []entry{}
 				for _, d := range des {
-					if d.Name() == "agent.json" || d.Name() == "browser" {
+					if d.Name() == "agent.json" || d.Name() == "browser" || d.Name() == ".remote" {
 						continue // internal
 					}
 					info, err := d.Info()

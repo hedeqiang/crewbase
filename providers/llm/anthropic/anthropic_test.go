@@ -367,3 +367,23 @@ func TestPluginDefaultInstanceUsesKeychainRef(t *testing.T) {
 		t.Fatalf("key = %q", apiKeyOf(cap.hdr))
 	}
 }
+
+func TestAttachmentBlocks(t *testing.T) {
+	a := &Adapter{id: "anthropic"}
+	img := llm.Attachment{Name: "p.png", Mime: "image/png", Data: []byte{1, 2}, Text: "[图片 p.png]"}
+	pdf := llm.Attachment{Name: "a.pdf", Mime: "application/pdf", Data: []byte("%PDF"), Text: "[附件 a.pdf]"}
+	txt := llm.Attachment{Name: "n.txt", Mime: "text/plain", Text: "[附件 n.txt]\nhello"}
+	msgs := []llm.Message{{Role: llm.RoleUser, Parts: []llm.Part{{Type: "text", Text: "看"},
+		{Type: llm.PartAttachment, Attachment: &img}, {Type: llm.PartAttachment, Attachment: &pdf}, {Type: llm.PartAttachment, Attachment: &txt}}}}
+	out := a.mapMessages(msgs)
+	b, _ := json.Marshal(out)
+	s := string(b)
+	for _, want := range []string{`"type":"image"`, `"media_type":"image/png"`, `"type":"document"`, `"media_type":"application/pdf"`, `"title":"a.pdf"`, `[附件 n.txt]\nhello`} {
+		if !strings.Contains(s, want) {
+			t.Fatalf("missing %s in %s", want, s)
+		}
+	}
+	if !a.AcceptsFile("claude-sonnet-5-5", "application/pdf") || a.AcceptsFile("kimi-k2", "application/pdf") || a.AcceptsFile("claude-x", "text/plain") {
+		t.Fatal("AcceptsFile")
+	}
+}

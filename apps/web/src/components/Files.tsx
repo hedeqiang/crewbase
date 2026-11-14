@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
-import { ChevronRight, FileText, Folder, FolderOpen, Pencil, RefreshCw, Save, X } from "lucide-react";
-import { API, type AgentView, type FileContent, type FileEntry } from "../api";
+import { ChevronRight, Download, FileText, Folder, FolderOpen, Pencil, RefreshCw, Save, X } from "lucide-react";
+import { API, rawURL, type AgentView, type FileContent, type FileEntry } from "../api";
 import { t } from "../i18n";
 import { ago } from "../format";
 import { setState, toast, useStore } from "../store";
@@ -94,7 +94,10 @@ function Preview({ agentId, path, onClose }: { agentId: string; path: string; on
       .catch((e) => setErr(e?.status === 404 ? t("files.missing") : e?.message ?? String(e)));
   }, [agentId, path]);
 
-  const text = !!f && !f.binary && !f.tooLarge;
+  const image = /\.(png|jpe?g|gif|webp)$/i.test(path);
+  // documents may look like text (an ASCII PDF) but must never be edited as text
+  const doc = /\.(pdf|docx?|xlsx?|pptx?|zip|gz|tar|heic|bmp|tiff?|svg)$/i.test(path);
+  const text = !!f && !f.binary && !f.tooLarge && !doc && !image;
   const dirty = edit !== null && edit !== (f?.content ?? "");
   const save = async () => {
     if (edit === null) return;
@@ -138,6 +141,11 @@ function Preview({ agentId, path, onClose }: { agentId: string; path: string; on
             </button>
           </>
         )}
+        {edit === null && f && (
+          <a className="ix" href={rawURL(agentId, path)} download={path.split("/").pop()} aria-label={t("files.download")} title={t("files.download")}>
+            <Download size={13} />
+          </a>
+        )}
         {edit === null && (
           <button className="ix" type="button" aria-label={t("common.close")} onClick={onClose}>
             <X size={13} />
@@ -166,13 +174,21 @@ function Preview({ agentId, path, onClose }: { agentId: string; path: string; on
         <div className="small" style={{ padding: 10 }}>
           {t("common.loading")}
         </div>
+      ) : image ? (
+        <div className="fbody fimg">
+          <img src={rawURL(agentId, path)} alt={path} />
+        </div>
       ) : f.tooLarge ? (
         <div className="small" style={{ padding: 10 }}>
           {t("files.tooLarge")}
         </div>
-      ) : f.binary ? (
-        <div className="small" style={{ padding: 10 }}>
-          {t("files.binary")}
+      ) : f.binary || doc ? (
+        <div className="fbin">
+          <span className="small">{t("files.binary")}</span>
+          <a className="btn sm" href={rawURL(agentId, path)} download={path.split("/").pop()}>
+            <Download size={12} />
+            {t("files.download")}
+          </a>
         </div>
       ) : /\.md$/i.test(path) && (f.content ?? "").trim() ? (
         <div className="fbody mt">

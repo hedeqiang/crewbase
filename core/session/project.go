@@ -11,6 +11,8 @@ type UserMessage struct {
 	From string `json:"from,omitempty"` // human member name
 	// To addresses a specific agent in a channel (@mention); "" = owner.
 	To string `json:"to,omitempty"`
+	// Attachments are files in the receiving agent's workspace.
+	Attachments []llm.Attachment `json:"attachments,omitempty"`
 }
 
 type InjectData struct {
@@ -134,6 +136,15 @@ func DeriveMessages(events []Event, agent string, names map[string]string) []llm
 				appendUser("[" + m.From + "]: " + m.Text)
 			} else {
 				appendUser(m.Text)
+			}
+			// Attachments follow the text of the same user message; only
+			// the addressed agent gets them (they live in its workspace).
+			if len(m.Attachments) > 0 && (m.To == "" || m.To == agent) {
+				last := &msgs[len(msgs)-1]
+				for _, at := range m.Attachments {
+					at := at
+					last.Parts = append(last.Parts, llm.Part{Type: llm.PartAttachment, Attachment: &at})
+				}
 			}
 		case TypeInject:
 			if e.Agent != "" && e.Agent != agent {

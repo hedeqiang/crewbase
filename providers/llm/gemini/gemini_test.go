@@ -289,3 +289,15 @@ func TestPlugin(t *testing.T) {
 		t.Fatalf("plugins = %+v", h.Plugins())
 	}
 }
+
+func TestAttachmentInlineData(t *testing.T) {
+	a := &Adapter{id: "gemini"}
+	img := llm.Attachment{Name: "p.png", Mime: "image/png", Data: []byte{1, 2}, Text: "[图片 p.png]"}
+	txt := llm.Attachment{Name: "n.txt", Mime: "text/plain", Text: "hello"}
+	out := a.mapContents("gemini-3-pro", []llm.Message{{Role: llm.RoleUser, Parts: []llm.Part{{Type: "text", Text: "看"},
+		{Type: llm.PartAttachment, Attachment: &img}, {Type: llm.PartAttachment, Attachment: &txt}}}})
+	ps := out[0].Parts
+	if len(ps) != 4 || ps[2].InlineData == nil || ps[2].InlineData.MIMEType != "image/png" || ps[3].Text != "hello" {
+		t.Fatalf("parts %+v", ps)
+	}
+}

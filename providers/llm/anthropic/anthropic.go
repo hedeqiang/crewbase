@@ -19,6 +19,7 @@ package anthropic
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -283,6 +284,10 @@ func (a *Adapter) mapMessages(msgs []llm.Message) []sdk.MessageParam {
 				if r := p.ToolResult; r != nil {
 					results = append(results, sdk.NewToolResultBlock(r.CallID, r.Content, r.IsError))
 				}
+			case llm.PartAttachment:
+				if at := p.Attachment; at != nil && !asst {
+					blocks = append(blocks, attachmentBlocks(at)...)
+				}
 			}
 		}
 		if len(results)+len(blocks) == 0 {
@@ -315,6 +320,42 @@ func (a *Adapter) mapMessages(msgs []llm.Message) []sdk.MessageParam {
 		}
 	}
 	return out
+}
+
+// attachmentBlocks sends images and PDFs natively (when hydrated with
+// Data), with a short text label naming the workspace path; anything else
+// as its text form.
+func attachmentBlocks(at *llm.Attachment) []sdk.ContentBlockParamUnion {
+	label := sdk.NewTextBlock(at.Fallback())
+	switch {
+	case len(at.Data) > 0 && at.IsImage():
+		return []sdk.ContentBlockParamUnion{label, sdk.NewImageBlockBase64(at.Mime, base64.StdEncoding.EncodeToString(at.Data))}
+	case len(at.Data) > 0 && at.IsPDF():
+		doc := sdk.NewDocumentBlock(sdk.Base64PDFSourceParam{Data: base64.StdEncoding.EncodeToString(at.Data)})
+		doc.OfDocument.Title = param.NewOpt(at.Name)
+		return []sdk.ContentBlockParamUnion{label, doc}
+	}
+	return []sdk.ContentBlockParamUnion{label}
+}
+
+// AcceptsFile: images for vision models, PDFs for Claude models (third-
+// party Anthropic-compatible endpoints get the extracted text).
+func (a *Adapter) AcceptsFile(model, mime string) bool {
+	if model == "" {
+		model = DefaultModel
+	}
+	claude := strings.HasPrefix(model, "claude")
+	switch mime {
+	case "image/png", "image/jpeg", "image/gif", "image/webp":
+		ms, _ := a.Models(context.Background())
+		if has, known := llm.ModelCap(ms, model, "vision"); known {
+			return has
+		}
+		return claude
+	case "application/pdf":
+		return claude
+	}
+	return false
 }
 
 var efforts = map[string]sdk.OutputConfigEffort{

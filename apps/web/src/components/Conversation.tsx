@@ -30,6 +30,7 @@ import { t, type Key } from "../i18n";
 import { argsFull, argsPreview, project, type FeedItem, type Step } from "../projection";
 import { loadSession, openSession, refreshAgents, refreshSessions, setState, toast, useStore, sessionAgent } from "../store";
 import { TakeoverCard, takeoverReason } from "./Browser";
+import { addFiles, clearFiles, filesFrom, MsgAttachments, PendingChips } from "./Attachments";
 import {
   activeModel,
   ago,
@@ -254,10 +255,13 @@ function FeedRow({ it, agents, showModel }: { it: FeedItem; agents: Record<strin
     case "user":
       return (
         <div className="m-user">
-          <div className="bubble">
-            {it.from && <span className="from">{it.from}</span>}
-            {it.text}
-          </div>
+          {it.attachments?.length ? <MsgAttachments agent={it.to} items={it.attachments} /> : null}
+          {(it.text || !it.attachments?.length) && (
+            <div className="bubble">
+              {it.from && <span className="from">{it.from}</span>}
+              {it.text}
+            </div>
+          )}
         </div>
       );
     case "agent":
@@ -573,6 +577,8 @@ function mentionAt(text: string, caret: number): Mention | null {
   return { start: caret - m[2].length - 1, q: m[2].toLowerCase() };
 }
 
+const NO_FILES: never[] = [];
+
 function Composer({
   sessionId,
   agent,
@@ -595,6 +601,9 @@ function Composer({
   const models = useStore((s) => s.models);
   const composerActions = useSlot("composer.action");
   const [sending, setSending] = useState(false);
+  const pending = useStore((s) => s.attach[sessionId]) ?? NO_FILES;
+  const [dragging, setDragging] = useState(false);
+  const fileIn = useRef<HTMLInputElement>(null);
   const ta = useRef<HTMLTextAreaElement>(null);
   const hostM = useMenu();
   const permM = useMenu();
@@ -644,9 +653,25 @@ function Composer({
 
   const archived = channel?.state === "archived";
 
+  const canSend = (!!draft.trim() || pending.some((f) => f.state === "ok")) && !pending.some((f) => f.state === "up");
+
+  const attach = (files: File[]) => {
+    if (!files.length) return;
+    if (channel) {
+      toast(t("att.channel"));
+      return;
+    }
+    addFiles(sessionId, agent.id, files);
+  };
+
   const send = async () => {
     const text = draft.trim();
-    if (!text || sending || archived) return;
+    const ready = pending.filter((f) => f.state === "ok" && f.att);
+    if ((!text && !ready.length) || sending || archived) return;
+    if (pending.some((f) => f.state === "up")) {
+      toast(t("att.waitUpload"));
+      return;
+    }
     setSending(true);
     if (channel) {
       try {
@@ -665,8 +690,14 @@ function Composer({
     }
     try {
       const wasBusy = agent.status === "running" || agent.queue.length > 0;
-      await API.send(agent.id, { text, model: override ?? undefined, session: sessionId === agent.session ? undefined : sessionId });
+      await API.send(agent.id, {
+        text,
+        model: override ?? undefined,
+        session: sessionId === agent.session ? undefined : sessionId,
+        attachments: ready.length ? ready.map((f) => ({ path: f.att!.path, name: f.att!.name })) : undefined,
+      });
       setDraft("");
+      clearFiles(sessionId);
       if (wasBusy) toast(t("chat.queued", { n: agent.queue.length + 1 }));
     } catch (e: any) {
       toast(t("chat.sendFailed", { error: e?.message ?? String(e) }));
@@ -722,12 +753,28 @@ function Composer({
         </div>
       )}
       <form
-        className="composer"
+        className={"composer" + (dragging ? " drop" : "")}
         onSubmit={(e) => {
           e.preventDefault();
           void send();
         }}
+        onDragOver={(e) => {
+          if (archived || !Array.from(e.dataTransfer.types).includes("Files")) return;
+          e.preventDefault();
+          setDragging(true);
+        }}
+        onDragLeave={(e) => {
+          if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragging(false);
+        }}
+        onDrop={(e) => {
+          if (!Array.from(e.dataTransfer.types).includes("Files")) return;
+          e.preventDefault();
+          setDragging(false);
+          attach(filesFrom(e.dataTransfer));
+        }}
       >
+        {dragging && <div className="dropmask">{t("att.drop")}</div>}
+        <PendingChips session={sessionId} files={pending} />
         {candidates.length > 0 && (
           <div className="mention" role="listbox" aria-label={t("ch.mention")}>
             <div className="mlbl">{t("ch.mention")}</div>
@@ -772,6 +819,13 @@ function Composer({
             }
           }}
           onBlur={() => setMention(null)}
+          onPaste={(e) => {
+            const files = filesFrom(e.clipboardData);
+            if (files.length) {
+              e.preventDefault();
+              attach(files);
+            }
+          }}
           onKeyDown={(e) => {
             if (candidates.length > 0) {
               if (e.key === "ArrowDown" || e.key === "ArrowUp") {
@@ -798,9 +852,27 @@ function Composer({
           }}
         />
         <div className="crow">
-          <button className="cbtn round" type="button" aria-label={t("chat.attach")} title={t("chat.attach")} onClick={() => toast(t("chat.attach"))}>
+          <button
+            className="cbtn round"
+            type="button"
+            aria-label={t("chat.attach")}
+            title={channel ? t("att.channel") : t("chat.attach")}
+            disabled={archived}
+            onClick={() => (channel ? toast(t("att.channel")) : fileIn.current?.click())}
+          >
             <Plus size={16} />
           </button>
+          <input
+            ref={fileIn}
+            type="file"
+            hidden
+            multiple
+            accept="image/*,.pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.csv,.txt,.md,.json,.yaml,.yml,.xml,.html,.log,.go,.py,.js,.ts,.tsx,.java,.rs,.c,.cpp,.rb,.php,.sh,.sql"
+            onChange={(e) => {
+              attach(Array.from(e.target.files ?? []));
+              e.target.value = "";
+            }}
+          />
           <button className="cbtn" type="button" ref={hostM.ref} onClick={hostM.toggle} title={t("comp.host", { name: agent.name })} aria-haspopup="menu">
             <Monitor size={15} />
             <span className="lbl">{t("comp.hostLocal")}</span>
@@ -840,7 +912,7 @@ function Composer({
           <button className="cbtn round ghost" type="button" aria-label={t("chat.voice")} title={t("chat.voice")} onClick={() => toast(t("chat.voice"))}>
             <Mic size={15} />
           </button>
-          <button className={"send" + (draft.trim() ? " on" : "")} type="submit" disabled={!draft.trim() || sending} aria-label={t("chat.send")} title={t("chat.send")}>
+          <button className={"send" + (canSend ? " on" : "")} type="submit" disabled={!canSend || sending} aria-label={t("chat.send")} title={t("chat.send")}>
             <ArrowUp size={16} />
           </button>
         </div>

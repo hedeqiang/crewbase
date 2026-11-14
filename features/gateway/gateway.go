@@ -84,6 +84,34 @@ type Route struct {
 	// MaxBody caps the request body (default DefaultMaxBody); larger
 	// bodies are refused with 413 rather than truncated.
 	MaxBody int64
+	// RawBody accepts a non-JSON body (file uploads); Decode is then unusable.
+	RawBody bool
+}
+
+// Blob is a non-JSON response (file downloads). Only raster images are
+// served inline; anything else downloads as an attachment, so uploaded
+// HTML or SVG can never run in the app's origin.
+type Blob struct {
+	Name string
+	Mime string
+	Data []byte
+}
+
+func writeBlob(w http.ResponseWriter, b *Blob) {
+	h := w.Header()
+	h.Set("X-Content-Type-Options", "nosniff")
+	h.Set("Content-Security-Policy", "default-src 'none'; sandbox")
+	h.Set("Cache-Control", "private, max-age=300")
+	switch b.Mime {
+	case "image/png", "image/jpeg", "image/gif", "image/webp":
+		h.Set("Content-Type", b.Mime)
+		h.Set("Content-Disposition", "inline; filename*=UTF-8''"+url.PathEscape(b.Name))
+	default:
+		h.Set("Content-Type", "application/octet-stream")
+		h.Set("Content-Disposition", "attachment; filename*=UTF-8''"+url.PathEscape(b.Name))
+	}
+	w.WriteHeader(200)
+	_, _ = w.Write(b.Data)
 }
 
 // DefaultMaxBody is the request body cap for routes that set none.
@@ -262,7 +290,7 @@ func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	req := &Request{HTTP: r, Params: params, Body: body, Device: dev}
-	if len(body) > 0 && !json.Valid(body) {
+	if len(body) > 0 && !route.RawBody && !json.Valid(body) {
 		writeErr(w, BadRequest("body must be JSON"))
 		return
 	}
@@ -280,6 +308,10 @@ func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	if out == nil {
 		out = map[string]bool{"ok": true}
+	}
+	if b, ok := out.(*Blob); ok {
+		writeBlob(w, b)
+		return
 	}
 	writeJSON(w, 200, out)
 }

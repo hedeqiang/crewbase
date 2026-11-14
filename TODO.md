@@ -190,7 +190,8 @@
 - [x] 真实端到端：Agent 开启联网搜索 → DeepSeek Flash 搜索全网 → 带出处回答；引用不回流到模型历史
 - [x] 压缩摘要优先用 summarize 路由模型（默认 DeepSeek Flash；仅本地 Agent 只走本地路由；路由失败回退 Agent 自身模型，再失败用抽取式摘要；compaction/end 记录实际摘要模型）
 - [ ] 与模型无关的 `web` 能力：DeepSeek Search / Fetch 独立 API 作为 web_search / web_fetch 工具提供方（待官方文档）
-- [ ] 文件输入（PDF / Office / 图片）、ASR / TTS（移动端语音）
+- [x] 文件输入：图片内联（deepseek-flash 视觉，经 magpie 真实验证）；PDF / Word / PowerPoint 直连上传 Files API（purpose 在 file 之前、30 天过期、file_id 按工作区缓存）；经 magpie 无 /files 时用本地提取文字
+- [ ] ASR / TTS（移动端语音）
 - [x] UI：Agent 设置「联网搜索 / 阅读链接」开关、回复下方来源列表与搜索步骤（当前构建真实验证：thinking → server_tool → text → citation）
 
 ## 真实环境验证（2026-11-14，本机 + OrbStack Linux）
@@ -225,7 +226,7 @@
 ## 接下来的迭代计划（2026-11-14 制定）
 - **迭代 11 · 模型与通知配置可用** ✅：「添加提供方」全流程（API Key → 钥匙串 → 补丁 → 热应用，无需重启）；设置 › 通知（事件 × 渠道勾选表、免打扰时段持久化，接入 IM 网关）；压缩摘要走 summarize 路由
 - **迭代 12 · 插件与界面扩展** ✅：界面插槽机制（插件可注册对话卡片 / 右侧标签 / 设置卡片）；角色模板导入（C-5，只迁移指令与流程）；新建文件夹
-- **迭代 13 · 文件与多模态**：对话附件（PDF / Office / 图片）→ 工作区 + 模型多模态输入；DeepSeek 文件输入
+- **迭代 13 · 文件与多模态** ✅：对话附件（PDF / Office / 图片 / 文本，选取、粘贴、拖放）→ 工作区 uploads/；日志只记引用，请求前按模型能力装载（图片给视觉模型、PDF 给 Anthropic / Gemini / OpenAI 原生读取、其余提取文字 + 路径）；DeepSeek 直连走 Files API（text_recognition，file_id 按工作区缓存，失败回退文字）
 - **迭代 14 · 远程与多端**：零入站配对（WebSocket Relay）、设备分级、移动端伴侣（PWA：通知、审批、对话）
 - **迭代 15 · 团队**：成员与角色、团队任务板 DAG（A-7）
 - **持续**：WASM 插件档、MCP resources / prompts、插件包签名、浏览器多标签、桌面自动更新（需密钥）
@@ -233,6 +234,7 @@
 ## 迭代日志
 | 日期 | 迭代 | 结果 |
 |---|---|---|
+| 2026-11-15 | 13 | 迭代 13 完成：对话附件（features/attachments：上传到工作区、按模型能力装载、PDF / docx / pptx / xlsx / 文本提取、超长截断并提示用工具读全文）；llm.Part attachment + FileAccepter；Anthropic / Gemini / OpenAI 兼容 / Ollama / ACP（给路径）适配；DeepSeek Files API；网关 RawBody 与 Blob（只有位图内联，其他一律下载）；输入框选取 / 粘贴 / 拖放、上传中禁止发送、消息内缩略图与文件卡片、文件面板图片预览与下载。真实验证：deepseek-flash 与 Claude Haiku 看图、GPT 读 PDF、DeepSeek 读 docx、三文件同一条消息；发现 magpie 的 Chat Completions 会丢弃 PDF file 段，改为提取文字 |
 | 2026-11-14 | 12 | 迭代 12 完成：新建文件夹（空文件夹保留）；角色模板导入（Hermes / md / json / 粘贴，记忆与对话不迁移，真实界面导入验证）；界面插槽（capabilities/ui：对话卡片、右侧标签、设置卡片、⌘K 命令、输入框按钮；声明式渲染，进程内 / 进程外插件与 Go / TS / Python SDK 均支持；审计日志改用插槽；deploy-status 示例插件经真实守护进程验证全部五个插槽）；网关请求体超限返回 413 |
 | 2026-11-14 | 11 | 迭代 11 完成：界面添加模型提供方（钥匙串 + 热挂载，经 magpie 真实添加 → 对话 → 移除验证）；压缩摘要走 summarize 路由（失败回退）；设置 › 通知（勾选表、定时 / 临时免打扰、发送测试，浅 / 深色 / 手机宽度截图验证）；修复弹窗类名冲突 |
 | 2026-11-14 | 10c | 删除 / 重命名 / 移动 / 文件夹管理（前后端 + 真实界面操作验证）；模板换一批；表单按钮；真实镜像 compose 验证 |

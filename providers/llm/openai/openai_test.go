@@ -443,7 +443,7 @@ func TestForeignThinkingSkipped(t *testing.T) {
 		llm.TextMessage(llm.RoleUser, "q"),
 		{Role: llm.RoleAssistant, Parts: []llm.Part{{Type: "thinking", Text: "secret", Meta: map[string]string{"anthropic:signature": "S"}}}},
 		{Role: llm.RoleAssistant, Parts: []llm.Part{{Type: "thinking", Text: "t2", Meta: map[string]string{"gemini:thoughtSignature": "x"}}, {Type: "text", Text: "a"}}},
-	})
+	}, nil)
 	b, _ := json.Marshal(msgs)
 	if len(msgs) != 2 || strings.Contains(string(b), "secret") || strings.Contains(string(b), "t2") {
 		t.Fatalf("messages = %s", b)

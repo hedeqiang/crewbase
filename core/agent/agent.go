@@ -82,7 +82,9 @@ type Input struct {
 	Text    string        `json:"text"`
 	From    string        `json:"from,omitempty"`
 	Model   *llm.ModelRef `json:"model,omitempty"` // composer override for this input
-	Front   bool          `json:"front,omitempty"`
+	// Attachments are files already saved in the agent workspace.
+	Attachments []llm.Attachment `json:"attachments,omitempty"`
+	Front       bool             `json:"front,omitempty"`
 	// Mode tightens the run mode for this input only (e.g. routines run
 	// read-only). It can never widen the agent's mode.
 	Mode string `json:"mode,omitempty"`

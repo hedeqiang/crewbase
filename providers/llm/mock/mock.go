@@ -137,6 +137,15 @@ func (a *Adapter) respond(req llm.Request) llm.Response {
 			{Type: "tool_call", ToolCall: &llm.ToolCall{ID: id, Name: name, Args: json.RawMessage(args)}},
 		}}}
 	}
+	var files []string
+	for _, p := range last.Parts {
+		if at := p.Attachment; p.Type == llm.PartAttachment && at != nil {
+			files = append(files, fmt.Sprintf("%s (%s, %d chars)", at.Name, at.Mime, len([]rune(at.Fallback()))))
+		}
+	}
+	if len(files) > 0 {
+		return text(fmt.Sprintf("%s: %s\nattachments: %s", req.Model, t, strings.Join(files, "; ")))
+	}
 	return text(fmt.Sprintf("%s: %s", req.Model, t))
 }
 

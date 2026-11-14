@@ -41,9 +41,18 @@ type Compactor interface {
 	Compact(ctx context.Context, a *agent.Agent, ss *session.Session, model llm.ModelRef, reason string) error
 }
 
+// Hydrator loads attachment parts right before a request (the
+// `attachments` service): the bytes for files the adapter takes natively
+// (llm.FileAccepter), extracted text for the rest. Without it, models see
+// a note with the workspace path.
+type Hydrator interface {
+	Hydrate(ctx context.Context, workspace string, ad llm.Adapter, model string, req *llm.Request)
+}
+
 const (
-	RouterKey     = "router"
-	CompactionKey = "compaction"
+	RouterKey      = "router"
+	CompactionKey  = "compaction"
+	AttachmentsKey = "attachments"
 )
 
 // Turn/step payloads (also session events).
@@ -234,7 +243,7 @@ func (l *loop) turn(parent context.Context, a *agent.Agent, in agent.Input) {
 		return
 	}
 	in = *inp
-	if _, err := ss.Append(session.TypeUserMessage, "", session.UserMessage{Text: in.Text, From: in.From, To: a.ID()}); err != nil {
+	if _, err := ss.Append(session.TypeUserMessage, "", session.UserMessage{Text: in.Text, From: in.From, To: a.ID(), Attachments: in.Attachments}); err != nil {
 		a.SetStatus(agent.StatusFailed, err.Error())
 		TurnEnded.Emit(d, TurnEndEvent{Agent: a.ID(), Session: ss.ID(), Input: in, TurnEnd: TurnEnd{Status: "failed", Error: "could not record input: " + err.Error()}})
 		return
@@ -383,6 +392,9 @@ func (l *loop) step(ctx context.Context, a *agent.Agent, ss *session.Session, re
 			continue
 		}
 		req := l.build(a, ss, ref)
+		if h, ok := kernel.Lookup[Hydrator](l.c, AttachmentsKey); ok {
+			h.Hydrate(ctx, a.Workspace(), ad, ref.Model, &req)
+		}
 		win := l.window(ctx, ad, ref)
 		est := llm.EstimateRequest(req)
 		if !compacted && float64(est) > l.cfg.CompactThreshold*float64(win) {

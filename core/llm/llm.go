@@ -45,15 +45,66 @@ type ToolResult struct {
 
 // Part is one piece of a message.
 type Part struct {
-	Type       string      `json:"type"` // text | thinking | tool_call | tool_result
+	Type       string      `json:"type"` // text | thinking | tool_call | tool_result | attachment
 	Text       string      `json:"text,omitempty"`
 	ToolCall   *ToolCall   `json:"toolCall,omitempty"`
 	ToolResult *ToolResult `json:"toolResult,omitempty"`
+	// Attachment is a file the person attached (PartAttachment). The log
+	// records only the reference; the bytes stay in the agent workspace
+	// and are loaded right before the request (see Attachment.Data).
+	Attachment *Attachment `json:"attachment,omitempty"`
 	// Meta carries opaque provider data that must round-trip with the
 	// part (e.g. thinking signatures). It is recorded in the session log,
 	// never shown to people, and only read back by the provider that wrote
 	// it (keys are namespaced "<provider>:<name>").
 	Meta map[string]string `json:"meta,omitempty"`
+}
+
+// PartAttachment is a user-attached file (image, PDF, Office, text).
+const PartAttachment = "attachment"
+
+// Attachment references a file in the agent workspace.
+type Attachment struct {
+	Path   string `json:"path"` // workspace-relative, e.g. uploads/2026-11-15/report.pdf
+	Name   string `json:"name"` // original file name
+	Mime   string `json:"mime"`
+	Size   int64  `json:"size"`
+	SHA256 string `json:"sha256,omitempty"`
+
+	// Filled in right before a request (never logged):
+	//   Data — the bytes, when the model can take this file natively
+	//          (images for vision models, PDFs for providers that read them);
+	//   Text — what a model that cannot read the file natively sees: a
+	//          header with the workspace path plus the extracted text.
+	// Adapters send Data in their native form when they support the type,
+	// otherwise Text.
+	Data []byte `json:"-"`
+	Text string `json:"-"`
+	// Alt is the full text form of a document sent natively (Data set,
+	// Text then only a label), for adapters whose native path failed
+	// (e.g. a provider file upload).
+	Alt string `json:"-"`
+}
+
+// IsImage reports whether the attachment is a raster image models can view.
+func (a *Attachment) IsImage() bool {
+	switch a.Mime {
+	case "image/png", "image/jpeg", "image/gif", "image/webp":
+		return true
+	}
+	return false
+}
+
+// IsPDF reports whether the attachment is a PDF.
+func (a *Attachment) IsPDF() bool { return a.Mime == "application/pdf" }
+
+// Fallback is the text form of the attachment for models (or adapters)
+// that cannot take its bytes.
+func (a *Attachment) Fallback() string {
+	if a.Text != "" {
+		return a.Text
+	}
+	return fmt.Sprintf("[附件 %s（%s，%d 字节）已保存在工作区 %s]", a.Name, a.Mime, a.Size, a.Path)
 }
 
 // Message is a provider-neutral chat message.
@@ -192,6 +243,25 @@ type Adapter interface {
 	// Stream performs the request, calling onChunk for every streamed piece,
 	// and returns the full response. Errors should be *Error when classifiable.
 	Stream(ctx context.Context, req Request, onChunk func(Chunk) error) (Response, error)
+}
+
+// FileAccepter is optionally implemented by adapters that take some
+// attachments natively (images for vision models, PDFs, documents through
+// a provider file API). Attachments it does not accept are sent as text
+// (Attachment.Text): extracted content plus the workspace path.
+type FileAccepter interface {
+	AcceptsFile(model, mime string) bool
+}
+
+// ModelCap reports whether model lists capability c in ms; known=false
+// when the model is not listed or lists no capabilities at all.
+func ModelCap(ms []ModelInfo, model, c string) (has, known bool) {
+	for _, m := range ms {
+		if m.ID == model && len(m.Capabilities) > 0 {
+			return slices.Contains(m.Capabilities, c), true
+		}
+	}
+	return false, false
 }
 
 // QuotaReporter is optionally implemented by adapters that know their quota.
@@ -367,6 +437,16 @@ func EstimateRequest(req Request) int {
 			}
 			if p.ToolResult != nil {
 				n += EstimateTokens(p.ToolResult.Content) + 8
+			}
+			if at := p.Attachment; at != nil {
+				switch {
+				case len(at.Data) > 0 && at.IsImage():
+					n += 1600 // a large image is about 1.6k tokens on most providers
+				case len(at.Data) > 0:
+					n += len(at.Data)/40 + 1600 // PDFs: text plus page images, roughly
+				default:
+					n += EstimateTokens(at.Fallback())
+				}
 			}
 		}
 	}
