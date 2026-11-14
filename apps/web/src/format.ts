@@ -110,8 +110,20 @@ const PROVIDER_NAMES: Record<string, string> = {
   mock: "Mock",
 };
 
+// Providers added from the UI: their chosen name and icon (GET /api/providers).
+const USER_PROV: Record<string, { icon?: string; name?: string }> = {};
+
+export function setUserProviders(list: { id: string; icon?: string; name?: string }[]) {
+  for (const k of Object.keys(USER_PROV)) delete USER_PROV[k];
+  for (const p of list) USER_PROV[p.id] = { icon: p.icon, name: p.name };
+}
+
+export function userProvider(id: string): { icon?: string; name?: string } | undefined {
+  return USER_PROV[id];
+}
+
 export function providerName(id: string): string {
-  return PROVIDER_NAMES[id] ?? id.replace(/^acp-/, "").replace(/(^|-)(\w)/g, (_, a, b) => (a ? " " : "") + b.toUpperCase());
+  return USER_PROV[id]?.name || PROVIDER_NAMES[id] || id.replace(/^acp-/, "").replace(/(^|-)(\w)/g, (_, a, b) => (a ? " " : "") + b.toUpperCase());
 }
 
 export function modelLabel(models: ModelsResponse | null, r: ModelRef): string {

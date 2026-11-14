@@ -137,3 +137,65 @@ func TestValidation(t *testing.T) {
 		t.Fatal("presets")
 	}
 }
+
+// An endpoint that cannot list models (Volcengine Ark style) still lets
+// the person type model ids; a refused key does not.
+func TestManualModelsAndIcon(t *testing.T) {
+	noList := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Authorization") != "Bearer "+secret {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(401)
+			fmt.Fprint(w, `{"error":{"message":"bad key"}}`)
+			return
+		}
+		if strings.HasSuffix(r.URL.Path, "/models") {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(404)
+			fmt.Fprint(w, `{"error":{"message":"not found"}}`)
+			return
+		}
+		w.Header().Set("Content-Type", "text/event-stream")
+		fmt.Fprint(w, "data: {\"id\":\"x\",\"object\":\"chat.completion.chunk\",\"created\":1,\"model\":\"m\",\"choices\":[{\"index\":0,\"delta\":{\"content\":\"pong\"},\"finish_reason\":\"stop\"}]}\n\ndata: [DONE]\n\n")
+	}))
+	defer noList.Close()
+	_, s, reg, dir := setup(t)
+	ctx := context.Background()
+	in := providers.Input{ID: "ark", Name: "方舟", BaseURL: noList.URL, APIKey: secret}
+	if r := s.Test(ctx, in); r.OK || !r.ManualModels {
+		t.Fatalf("listing unsupported: %+v", r)
+	}
+	bad := in
+	bad.APIKey = "wrong-key-0123456789"
+	if r := s.Test(ctx, bad); r.ManualModels {
+		t.Fatalf("a refused key must not offer manual models: %+v", r)
+	}
+	in.Models, in.Icon = []string{"ep-20261115-abc", "doubao-seed-1-6"}, "volcengine"
+	if _, err := s.Add(in); err != nil {
+		t.Fatal(err)
+	}
+	a, ok := reg.Get("ark")
+	if !ok {
+		t.Fatal("not registered")
+	}
+	ms, _ := a.Models(ctx)
+	if len(ms) != 2 || ms[0].ID != "ep-20261115-abc" {
+		t.Fatalf("manual models %+v", ms)
+	}
+	b, _ := os.ReadFile(filepath.Join(dir, "providers.json"))
+	if !strings.Contains(string(b), `"icon": "volcengine"`) {
+		t.Fatalf("icon not saved: %s", b)
+	}
+	for _, x := range []providers.Input{
+		{ID: "x1", BaseURL: noList.URL, Icon: "<svg>"},
+		{ID: "x2", BaseURL: noList.URL, Models: []string{"bad model id"}},
+	} {
+		if _, err := s.Add(x); err == nil {
+			t.Fatalf("accepted %+v", x)
+		}
+	}
+	// presets carry their vendor icon
+	p, _ := s.Add(providers.Input{ID: "ds", Preset: "deepseek", BaseURL: noList.URL, APIKey: secret, Models: []string{"deepseek-flash"}})
+	if p.Icon != "deepseek" {
+		t.Fatalf("preset icon %q", p.Icon)
+	}
+}

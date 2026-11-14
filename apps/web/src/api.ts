@@ -781,6 +781,10 @@ export interface ProviderPreset {
   api: string;
   baseURL: string;
   keyURL?: string;
+  icon?: string;
+  /** "" = model vendor, "platform" = aggregator / inference platform */
+  group?: string;
+  modelHint?: string;
 }
 
 /** A provider added from the UI (GET /api/providers). */
@@ -792,6 +796,7 @@ export interface UserProvider {
   baseURL?: string;
   keyRef?: string;
   models?: string[];
+  icon?: string;
   masked?: string;
   active: boolean;
   error?: string;
@@ -804,6 +809,8 @@ export interface ProviderInput {
   api: string;
   baseURL: string;
   apiKey?: string;
+  /** vendor icon key, "mono" for a letter tile */
+  icon?: string;
 }
 
 export interface ProviderTestResult {
@@ -811,4 +818,6 @@ export interface ProviderTestResult {
   latencyMs: number;
   models: ModelInfo[];
   error?: string;
+  /** the key was accepted but models cannot be listed: type ids */
+  manualModels?: boolean;
 }

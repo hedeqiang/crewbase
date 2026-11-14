@@ -22,6 +22,7 @@ import {
   getToken,
 } from "./api";
 import { getLang, setLang as setLangRaw, t, type Lang } from "./i18n";
+import { setUserProviders } from "./format";
 
 export type View = "chat" | "newAgent" | "settings";
 /** Built-in tabs, or `ui:<key>` for a plugin's sidebar-right.tab. */
@@ -362,6 +363,9 @@ export async function refreshApprovals() {
 
 export async function refreshModels() {
   try {
+    // names and icons of providers added from the UI (older daemons lack the route)
+    const up = await API.providers().catch(() => null);
+    if (up) setUserProviders(up.providers ?? []);
     const r = await API.models();
     setState({ models: r });
   } catch {

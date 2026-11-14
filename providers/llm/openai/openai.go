@@ -74,6 +74,8 @@ var Presets = map[string]Preset{
 	"siliconflow": {BaseURL: "https://api.siliconflow.cn/v1", APIKeyEnv: "SILICONFLOW_API_KEY", EffortStyle: "none"},
 	"groq":        {BaseURL: "https://api.groq.com/openai/v1", APIKeyEnv: "GROQ_API_KEY", EffortStyle: "openai", EffortModels: regexp.MustCompile(`gpt-oss`)},
 	"mistral":     {BaseURL: "https://api.mistral.ai/v1", APIKeyEnv: "MISTRAL_API_KEY", EffortStyle: "none", NoStreamUsage: true, ShortToolIDs: true},
+	"minimax":     {BaseURL: "https://api.minimaxi.com/v1", APIKeyEnv: "MINIMAX_API_KEY", EffortStyle: "none"},
+	"volcengine":  {BaseURL: "https://ark.cn-beijing.volces.com/api/v3", APIKeyEnv: "ARK_API_KEY", EffortStyle: "none"},
 	"zhipu":       {BaseURL: "https://open.bigmodel.cn/api/paas/v4", APIKeyEnv: "ZHIPU_API_KEY", EffortStyle: "zhipu", EffortModels: regexp.MustCompile(`^glm-(4\.[5-9]|[5-9])`)},
 }
 

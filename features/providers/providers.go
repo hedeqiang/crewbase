@@ -41,13 +41,15 @@ const (
 
 // Provider is one user-added provider.
 type Provider struct {
-	ID      string    `json:"id"`
-	Name    string    `json:"name,omitempty"`
-	API     string    `json:"api"`
-	Preset  string    `json:"preset,omitempty"` // openai presets: deepseek, qwen, …
-	BaseURL string    `json:"baseURL,omitempty"`
-	KeyRef  string    `json:"keyRef,omitempty"`
-	Models  []string  `json:"models,omitempty"` // enabled models; empty = all listed
+	ID      string   `json:"id"`
+	Name    string   `json:"name,omitempty"`
+	API     string   `json:"api"`
+	Preset  string   `json:"preset,omitempty"` // openai presets: deepseek, qwen, …
+	BaseURL string   `json:"baseURL,omitempty"`
+	KeyRef  string   `json:"keyRef,omitempty"`
+	Models  []string `json:"models,omitempty"` // enabled models; empty = all listed
+	// Icon is a vendor icon key, "mono" for a letter tile, "" = auto.
+	Icon    string    `json:"icon,omitempty"`
 	Created time.Time `json:"created"`
 }
 
@@ -58,22 +60,34 @@ type Preset struct {
 	API     string `json:"api"`
 	BaseURL string `json:"baseURL"`
 	KeyURL  string `json:"keyURL,omitempty"` // where to get a key
+	Icon    string `json:"icon,omitempty"`   // vendor icon key (LobeHub icons in the UI)
+	// Group is "" for model vendors, "platform" for aggregators and
+	// inference platforms (shown in a second section).
+	Group string `json:"group,omitempty"`
+	// ModelHint is shown when the provider cannot list its models and the
+	// person types model ids.
+	ModelHint string `json:"modelHint,omitempty"`
 }
 
 // Presets are offered in the UI; anything else is "自定义（OpenAI 兼容）".
 var Presets = []Preset{
-	{ID: "deepseek", Name: "DeepSeek", API: APIOpenAI, BaseURL: "https://api.deepseek.com", KeyURL: "https://platform.deepseek.com/api_keys"},
-	{ID: "anthropic", Name: "Anthropic", API: APIAnthropic, BaseURL: "https://api.anthropic.com", KeyURL: "https://console.anthropic.com/settings/keys"},
-	{ID: "openai", Name: "OpenAI", API: APIOpenAI, BaseURL: "https://api.openai.com/v1", KeyURL: "https://platform.openai.com/api-keys"},
-	{ID: "gemini", Name: "Google Gemini", API: APIGemini, BaseURL: "https://generativelanguage.googleapis.com", KeyURL: "https://aistudio.google.com/apikey"},
-	{ID: "qwen", Name: "阿里云百炼（通义千问）", API: APIOpenAI, BaseURL: "https://dashscope.aliyuncs.com/compatible-mode/v1", KeyURL: "https://bailian.console.aliyun.com/"},
-	{ID: "moonshot", Name: "Moonshot（Kimi）", API: APIOpenAI, BaseURL: "https://api.moonshot.cn/v1", KeyURL: "https://platform.moonshot.cn/console/api-keys"},
-	{ID: "zhipu", Name: "智谱 GLM", API: APIOpenAI, BaseURL: "https://open.bigmodel.cn/api/paas/v4", KeyURL: "https://open.bigmodel.cn/usercenter/apikeys"},
-	{ID: "xai", Name: "xAI", API: APIOpenAI, BaseURL: "https://api.x.ai/v1", KeyURL: "https://console.x.ai/"},
-	{ID: "openrouter", Name: "OpenRouter", API: APIOpenAI, BaseURL: "https://openrouter.ai/api/v1", KeyURL: "https://openrouter.ai/keys"},
-	{ID: "siliconflow", Name: "SiliconFlow", API: APIOpenAI, BaseURL: "https://api.siliconflow.cn/v1", KeyURL: "https://cloud.siliconflow.cn/account/ak"},
-	{ID: "groq", Name: "Groq", API: APIOpenAI, BaseURL: "https://api.groq.com/openai/v1", KeyURL: "https://console.groq.com/keys"},
-	{ID: "mistral", Name: "Mistral", API: APIOpenAI, BaseURL: "https://api.mistral.ai/v1", KeyURL: "https://console.mistral.ai/api-keys"},
+	// official model vendors
+	{ID: "anthropic", Name: "Anthropic", API: APIAnthropic, BaseURL: "https://api.anthropic.com", KeyURL: "https://console.anthropic.com/settings/keys", Icon: "anthropic"},
+	{ID: "openai", Name: "OpenAI", API: APIOpenAI, BaseURL: "https://api.openai.com/v1", KeyURL: "https://platform.openai.com/api-keys", Icon: "openai"},
+	{ID: "gemini", Name: "Google Gemini", API: APIGemini, BaseURL: "https://generativelanguage.googleapis.com", KeyURL: "https://aistudio.google.com/apikey", Icon: "gemini"},
+	{ID: "deepseek", Name: "DeepSeek", API: APIOpenAI, BaseURL: "https://api.deepseek.com", KeyURL: "https://platform.deepseek.com/api_keys", Icon: "deepseek"},
+	{ID: "xai", Name: "xAI", API: APIOpenAI, BaseURL: "https://api.x.ai/v1", KeyURL: "https://console.x.ai/", Icon: "xai"},
+	{ID: "moonshot", Name: "Kimi（月之暗面）", API: APIOpenAI, BaseURL: "https://api.moonshot.cn/v1", KeyURL: "https://platform.moonshot.cn/console/api-keys", Icon: "kimi"},
+	{ID: "zhipu", Name: "智谱 GLM", API: APIOpenAI, BaseURL: "https://open.bigmodel.cn/api/paas/v4", KeyURL: "https://open.bigmodel.cn/usercenter/apikeys", Icon: "zhipu"},
+	{ID: "minimax", Name: "MiniMax", API: APIOpenAI, BaseURL: "https://api.minimaxi.com/v1", KeyURL: "https://platform.minimaxi.com/user-center/basic-information/interface-key", Icon: "minimax"},
+	{ID: "qwen", Name: "通义千问（阿里云百炼）", API: APIOpenAI, BaseURL: "https://dashscope.aliyuncs.com/compatible-mode/v1", KeyURL: "https://bailian.console.aliyun.com/", Icon: "qwen"},
+	{ID: "volcengine", Name: "火山引擎（豆包）", API: APIOpenAI, BaseURL: "https://ark.cn-beijing.volces.com/api/v3", KeyURL: "https://console.volcengine.com/ark/region:ark+cn-beijing/apiKey", Icon: "volcengine",
+		ModelHint: "模型 ID（如 doubao-seed-…）或推理接入点 ID（ep-…）"},
+	// aggregators and inference platforms
+	{ID: "openrouter", Name: "OpenRouter", API: APIOpenAI, BaseURL: "https://openrouter.ai/api/v1", KeyURL: "https://openrouter.ai/keys", Icon: "openrouter", Group: "platform"},
+	{ID: "siliconflow", Name: "SiliconFlow（硅基流动）", API: APIOpenAI, BaseURL: "https://api.siliconflow.cn/v1", KeyURL: "https://cloud.siliconflow.cn/account/ak", Icon: "siliconcloud", Group: "platform"},
+	{ID: "groq", Name: "Groq", API: APIOpenAI, BaseURL: "https://api.groq.com/openai/v1", KeyURL: "https://console.groq.com/keys", Icon: "groq", Group: "platform"},
+	{ID: "mistral", Name: "Mistral", API: APIOpenAI, BaseURL: "https://api.mistral.ai/v1", KeyURL: "https://console.mistral.ai/api-keys", Icon: "mistral"},
 }
 
 func presetByID(id string) (Preset, bool) {
@@ -85,7 +99,11 @@ func presetByID(id string) (Preset, bool) {
 	return Preset{}, false
 }
 
-var idRe = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{0,31}$`)
+var (
+	idRe    = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{0,31}$`)
+	iconRe  = regexp.MustCompile(`^([a-z0-9-]{1,40})?$`)
+	modelRe = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._:/@+-]{0,159}$`)
+)
 
 // Service is the `providers` service.
 type Service struct {
@@ -189,6 +207,7 @@ type Input struct {
 	BaseURL string   `json:"baseURL"`
 	APIKey  string   `json:"apiKey"` // write-only; never echoed or stored in config
 	Models  []string `json:"models"`
+	Icon    string   `json:"icon"`
 }
 
 func (in *Input) normalize() error {
@@ -204,6 +223,21 @@ func (in *Input) normalize() error {
 		}
 		if in.Name == "" {
 			in.Name = pr.Name
+		}
+		if in.Icon == "" {
+			in.Icon = pr.Icon
+		}
+	}
+	if !iconRe.MatchString(in.Icon) {
+		return errors.New("icon must be an icon key")
+	}
+	if len(in.Models) > 200 {
+		return errors.New("too many models")
+	}
+	for i, m := range in.Models {
+		in.Models[i] = strings.TrimSpace(m)
+		if !modelRe.MatchString(in.Models[i]) {
+			return fmt.Errorf("invalid model id %q", m)
 		}
 	}
 	if in.API == "" {
@@ -231,13 +265,16 @@ type TestResult struct {
 	LatencyMs int64           `json:"latencyMs"`
 	Models    []llm.ModelInfo `json:"models"`
 	Error     string          `json:"error,omitempty"`
+	// ManualModels: the key was not refused but the model list is not
+	// available; model ids may be entered by hand.
+	ManualModels bool `json:"manualModels,omitempty"`
 }
 
 // Test builds a temporary adapter with the given key and lists models.
 // Nothing is stored; the key is held in a throwaway in-memory credential.
 func (s *Service) Test(ctx context.Context, in Input) TestResult {
 	if err := in.normalize(); err != nil {
-		return TestResult{Error: err.Error()}
+		return TestResult{Error: err.Error(), Models: []llm.ModelInfo{}}
 	}
 	tctx := s.c.Fork("")
 	defer tctx.Dispose()
@@ -246,11 +283,11 @@ func (s *Service) Test(ctx context.Context, in Input) TestResult {
 	if in.APIKey != "" {
 		cs, err := s.creds()
 		if err != nil {
-			return TestResult{Error: err.Error()}
+			return TestResult{Error: err.Error(), Models: []llm.ModelInfo{}}
 		}
 		temp = fmt.Sprintf("mem:provider-test-%s-%d", in.ID, time.Now().UnixNano())
 		if err := cs.Set(temp, in.APIKey); err != nil {
-			return TestResult{Error: err.Error()}
+			return TestResult{Error: err.Error(), Models: []llm.ModelInfo{}}
 		}
 		defer cs.Delete(temp)
 		p.KeyRef = temp
@@ -259,15 +296,18 @@ func (s *Service) Test(ctx context.Context, in Input) TestResult {
 	}
 	a, err := s.adapter(tctx, p)
 	if err != nil {
-		return TestResult{Error: err.Error()}
+		return TestResult{Error: err.Error(), Models: []llm.ModelInfo{}}
 	}
 	t0 := time.Now()
 	cctx, cancel := context.WithTimeout(ctx, 15*time.Second)
 	defer cancel()
 	ms, err := a.Models(cctx)
-	res := TestResult{LatencyMs: time.Since(t0).Milliseconds()}
+	res := TestResult{LatencyMs: time.Since(t0).Milliseconds(), Models: []llm.ModelInfo{}}
 	if err != nil {
 		res.Error = scrub(err.Error(), in.APIKey)
+		// Some endpoints (Volcengine Ark, many gateways) cannot list
+		// models; anything but a refused key lets the person type ids.
+		res.ManualModels = llm.KindOf(err) != llm.ErrAuth && ctx.Err() == nil
 		return res
 	}
 	sort.Slice(ms, func(i, j int) bool { return ms[i].ID < ms[j].ID })
@@ -289,7 +329,7 @@ func (s *Service) Add(in Input) (Provider, error) {
 		return Provider{}, err
 	}
 	prev, exists := s.Get(in.ID)
-	p := Provider{ID: in.ID, Name: in.Name, API: in.API, Preset: in.Preset, BaseURL: in.BaseURL, Models: in.Models, Created: time.Now().UTC()}
+	p := Provider{ID: in.ID, Name: in.Name, API: in.API, Preset: in.Preset, BaseURL: in.BaseURL, Models: in.Models, Icon: in.Icon, Created: time.Now().UTC()}
 	if exists {
 		p.Created, p.KeyRef = prev.Created, prev.KeyRef
 	}

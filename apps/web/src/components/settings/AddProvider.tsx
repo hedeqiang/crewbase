@@ -1,17 +1,23 @@
-import { Check, ExternalLink, KeyRound, Loader2, Search, X } from "lucide-react";
+import { AlertTriangle, Check, ChevronDown, ExternalLink, KeyRound, Loader2, Search, Sparkles, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { API, desktop, type ProviderPreset, type ProviderTestResult } from "../../api";
 import { t } from "../../i18n";
 import { resync, toast } from "../../store";
-import { ProviderMark } from "../ProviderMark";
+import { autoIcon, IconMark, PICKABLE, ProviderMark } from "../ProviderMark";
 
 type Step = "pick" | "key";
+
+/** Model ids typed by hand: one per line or separated by commas / spaces. */
+function parseIds(s: string): string[] {
+  return [...new Set(s.split(/[\s,，]+/).map((x) => x.trim()).filter(Boolean))];
+}
 
 /** Settings › 模型与订阅 › 添加提供方: pick a provider, paste the key, test,
  *  choose models, add. The key goes to the system keychain; the provider is
  *  live immediately, no restart. */
 export function AddProviderDialog({ onClose, existing }: { onClose: () => void; existing: string[] }) {
-  const [presets, setPresets] = useState<ProviderPreset[]>([]);
+  const [presets, setPresets] = useState<ProviderPreset[] | null>(null);
+  const [loadErr, setLoadErr] = useState("");
   const [step, setStep] = useState<Step>("pick");
   const [q, setQ] = useState("");
   const [pre, setPre] = useState<ProviderPreset | null>(null);
@@ -21,15 +27,23 @@ export function AddProviderDialog({ onClose, existing }: { onClose: () => void; 
   const [baseURL, setBaseURL] = useState("");
   const [api, setApi] = useState("openai");
   const [key, setKey] = useState("");
+  /** "" = automatic (detected from the endpoint, name and models) */
+  const [icon, setIcon] = useState("");
+  const [iconOpen, setIconOpen] = useState(false);
   const [test, setTest] = useState<ProviderTestResult | null>(null);
+  const [manual, setManual] = useState("");
   const [busy, setBusy] = useState<"" | "test" | "add">("");
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const keyRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     API.providers()
-      .then((r) => setPresets(r.presets))
-      .catch(() => {});
+      .then((r) => setPresets(r.presets ?? []))
+      .catch((e: any) => {
+        setPresets([]);
+        // an older daemon without the providers API answers 404
+        setLoadErr(e?.status === 404 ? t("ap.oldDaemon") : t("ap.loadFailed", { error: e?.message ?? String(e) }));
+      });
   }, []);
   useEffect(() => {
     if (step === "key") keyRef.current?.focus();
@@ -37,8 +51,11 @@ export function AddProviderDialog({ onClose, existing }: { onClose: () => void; 
 
   const list = useMemo(() => {
     const ql = q.trim().toLowerCase();
-    return presets.filter((p) => !ql || p.name.toLowerCase().includes(ql) || p.id.includes(ql));
+    return (presets ?? []).filter((p) => !ql || p.name.toLowerCase().includes(ql) || p.id.includes(ql));
   }, [presets, q]);
+  const vendors = list.filter((p) => !p.group);
+  const platforms = list.filter((p) => p.group === "platform");
+  const showCustom = !q.trim() || t("ap.custom").toLowerCase().includes(q.trim().toLowerCase()) || !list.length;
 
   const choose = (p: ProviderPreset | null) => {
     setPre(p);
@@ -47,17 +64,25 @@ export function AddProviderDialog({ onClose, existing }: { onClose: () => void; 
     setName(p?.name ?? "");
     setBaseURL(p?.baseURL ?? "");
     setApi(p?.api ?? "openai");
+    setIcon(p?.icon ?? "");
     setTest(null);
+    setManual("");
     setStep("key");
   };
 
-  const input = () => ({ id: id.trim(), name: name.trim(), preset: pre?.id ?? "", api, baseURL: baseURL.trim(), apiKey: key });
+  const detected = useMemo(() => autoIcon(baseURL, name, test?.models?.map((m) => m.id) ?? []), [baseURL, name, test]);
+  const effIcon = icon || detected;
+  const manualIds = parseIds(manual);
+  const manualMode = !!test && !test.ok && !!test.manualModels;
+
+  const input = () => ({ id: id.trim(), name: name.trim(), preset: pre?.id ?? "", api, baseURL: baseURL.trim(), apiKey: key, icon: custom ? effIcon : pre?.icon ?? "" });
 
   const runTest = async () => {
     setBusy("test");
     setTest(null);
     try {
       const r = await API.testProvider(input());
+      r.models = r.models ?? [];
       setTest(r);
       if (r.ok) setPicked(new Set(r.models.slice(0, 2).map((m) => m.id)));
     } catch (e: any) {
@@ -70,7 +95,7 @@ export function AddProviderDialog({ onClose, existing }: { onClose: () => void; 
   const add = async () => {
     setBusy("add");
     try {
-      await API.addProvider({ ...input(), models: [...picked] });
+      await API.addProvider({ ...input(), models: manualMode ? manualIds : [...picked] });
       toast(t("ap.added", { name: name || id }));
       await resync();
       onClose();
@@ -98,6 +123,17 @@ export function AddProviderDialog({ onClose, existing }: { onClose: () => void; 
 
   const idTaken = !!id && existing.includes(id) && !test?.ok;
 
+  const card = (p: ProviderPreset) => {
+    const added = existing.includes(p.id);
+    return (
+      <button key={p.id} type="button" className="ap-card" disabled={added} onClick={() => choose(p)} title={added ? t("ap.already") : p.baseURL}>
+        {p.icon ? <IconMark icon={p.icon} id={p.id} label={p.name} size={22} /> : <ProviderMark provider={p.id} size={22} />}
+        <span>{p.name}</span>
+        {added && <Check size={14} className="ap-done" />}
+      </button>
+    );
+  };
+
   return (
     <>
       <div className="ovscrim show" onMouseDown={onClose} />
@@ -115,36 +151,119 @@ export function AddProviderDialog({ onClose, existing }: { onClose: () => void; 
                 <Search size={14} />
                 <input autoFocus value={q} placeholder={t("ap.search")} onChange={(e) => setQ(e.target.value)} />
               </label>
+              {loadErr && (
+                <div className="ap-warn">
+                  <AlertTriangle size={15} />
+                  <span>{loadErr}</span>
+                </div>
+              )}
+              {presets === null && !loadErr && (
+                <div className="small ap-loading">
+                  <Loader2 size={14} className="spin" /> {t("common.loading")}
+                </div>
+              )}
+              {vendors.length > 0 && (
+                <>
+                  <div className="ap-sec">{t("ap.vendors")}</div>
+                  <div className="ap-grid">{vendors.map(card)}</div>
+                </>
+              )}
+              {(platforms.length > 0 || showCustom) && <div className="ap-sec">{t("ap.platforms")}</div>}
               <div className="ap-grid">
-                {list.map((p) => {
-                  const added = existing.includes(p.id);
-                  return (
-                    <button key={p.id} type="button" className="ap-card" disabled={added} onClick={() => choose(p)} title={added ? t("ap.already") : p.baseURL}>
-                      <ProviderMark provider={p.id} size={22} />
-                      <span>{p.name}</span>
-                      {added && <Check size={14} className="ap-done" />}
-                    </button>
-                  );
-                })}
-                <button type="button" className="ap-card" onClick={() => choose(null)}>
-                  <span className="ap-plus">+</span>
-                  <span>{t("ap.custom")}</span>
-                </button>
+                {platforms.map(card)}
+                {showCustom && (
+                  <button type="button" className="ap-card" disabled={!!loadErr} onClick={() => choose(null)}>
+                    <span className="ap-plus">+</span>
+                    <span>{t("ap.custom")}</span>
+                  </button>
+                )}
               </div>
               <p className="small ap-note">{t("ap.subNote")}</p>
             </>
           ) : (
             <>
               {custom && (
-                <div className="ap-row2">
-                  <label className="fl">
-                    <span>{t("ap.id")}</span>
-                    <input className="fi sm" value={id} placeholder="my-provider" onChange={(e) => setId(e.target.value.toLowerCase())} />
-                  </label>
-                  <label className="fl">
-                    <span>{t("ap.name")}</span>
-                    <input className="fi sm" value={name} placeholder={t("ap.namePh")} onChange={(e) => setName(e.target.value)} />
-                  </label>
+                <div className="ap-ident">
+                  <div className="ap-iconpick">
+                    <button
+                      type="button"
+                      className={"ap-iconbtn" + (iconOpen ? " on" : "")}
+                      aria-haspopup="listbox"
+                      aria-expanded={iconOpen}
+                      title={t("ap.icon")}
+                      onClick={() => setIconOpen((v) => !v)}
+                    >
+                      <IconMark icon={effIcon} id={id || "custom"} label={name || id || "?"} size={28} />
+                      <ChevronDown size={12} />
+                    </button>
+                    <span className="ap-iconhint">
+                      {icon ? (
+                        <button type="button" className="linkbtn" onClick={() => setIcon("")}>
+                          <Sparkles size={11} /> {t("ap.iconAutoBack")}
+                        </button>
+                      ) : (
+                        <>
+                          <Sparkles size={11} /> {t("ap.iconAuto")}
+                        </>
+                      )}
+                    </span>
+                  </div>
+                  <div className="ap-row2 grow">
+                    <label className="fl">
+                      <span>{t("ap.id")}</span>
+                      <input className="fi sm" value={id} placeholder="my-provider" onChange={(e) => setId(e.target.value.toLowerCase())} />
+                    </label>
+                    <label className="fl">
+                      <span>{t("ap.name")}</span>
+                      <input className="fi sm" value={name} placeholder={t("ap.namePh")} onChange={(e) => setName(e.target.value)} />
+                    </label>
+                  </div>
+                </div>
+              )}
+              {custom && iconOpen && (
+                <div className="ap-icons" role="listbox" aria-label={t("ap.icon")}>
+                  <button
+                    type="button"
+                    role="option"
+                    aria-selected={!icon}
+                    className={"ap-ic auto" + (!icon ? " sel" : "")}
+                    title={t("ap.iconAuto")}
+                    onClick={() => {
+                      setIcon("");
+                      setIconOpen(false);
+                    }}
+                  >
+                    <Sparkles size={16} />
+                  </button>
+                  <button
+                    type="button"
+                    role="option"
+                    aria-selected={icon === "mono"}
+                    className={"ap-ic" + (icon === "mono" ? " sel" : "")}
+                    title={t("ap.iconMono")}
+                    onClick={() => {
+                      setIcon("mono");
+                      setIconOpen(false);
+                    }}
+                  >
+                    <IconMark icon="mono" id={id || "custom"} label={name || id || "?"} size={20} />
+                  </button>
+                  {PICKABLE.map((p) => (
+                    <button
+                      key={p.key}
+                      type="button"
+                      role="option"
+                      aria-selected={icon === p.key}
+                      className={"ap-ic" + (icon === p.key ? " sel" : "")}
+                      title={p.name}
+                      onClick={() => {
+                        setIcon(p.key);
+                        setIconOpen(false);
+                      }}
+                    >
+                      <IconMark icon={p.key} id={p.key} label={p.name} size={20} />
+                    </button>
+                  ))}
                 </div>
               )}
               <label className="fl">
@@ -189,7 +308,28 @@ export function AddProviderDialog({ onClose, existing }: { onClose: () => void; 
                 </label>
               )}
 
-              {test && !test.ok && <div className="confirmbar errbar">{test.error || t("ap.testFailed")}</div>}
+              {test && !test.ok && !manualMode && <div className="confirmbar errbar">{test.error || t("ap.testFailed")}</div>}
+              {manualMode && (
+                <div className="ap-models">
+                  <div className="ap-mh">
+                    <span className="amt">
+                      <AlertTriangle size={14} /> {t("ap.noList")}
+                    </span>
+                  </div>
+                  <textarea
+                    className="fi sm mono ap-manual"
+                    rows={3}
+                    autoFocus
+                    value={manual}
+                    placeholder={pre?.modelHint || t("ap.manualPh")}
+                    onChange={(e) => setManual(e.target.value)}
+                  />
+                  <p className="small">
+                    {t("ap.manualNote")}
+                    {test?.error ? <span className="mono ap-err"> {test.error}</span> : null}
+                  </p>
+                </div>
+              )}
               {test?.ok && (
                 <div className="ap-models">
                   <div className="ap-mh">
@@ -217,10 +357,15 @@ export function AddProviderDialog({ onClose, existing }: { onClose: () => void; 
                 <button className="btn" type="button" onClick={() => setStep("pick")}>
                   {t("ap.back")}
                 </button>
-                {test?.ok ? (
-                  <button className="btn pri" type="button" disabled={busy !== "" || picked.size === 0} onClick={() => void add()}>
+                {test?.ok || manualMode ? (
+                  <button
+                    className="btn pri"
+                    type="button"
+                    disabled={busy !== "" || (manualMode ? manualIds.length === 0 : picked.size === 0)}
+                    onClick={() => void add()}
+                  >
                     {busy === "add" ? <Loader2 size={14} className="spin" /> : null}
-                    {t("ap.add", { n: picked.size })}
+                    {t("ap.add", { n: manualMode ? manualIds.length : picked.size })}
                   </button>
                 ) : (
                   <button className="btn pri" type="button" disabled={busy !== "" || !key || !id || !baseURL} onClick={() => void runTest()}>

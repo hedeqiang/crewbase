@@ -1,10 +1,10 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { Lock } from "lucide-react";
+import { Lock, Pencil } from "lucide-react";
 import { API, parseRef, type UsageStats } from "../../api";
 import { t, type Key } from "../../i18n";
 import { kfmt, modelLabel, providerName } from "../../format";
-import { myName, openSession, useStore } from "../../store";
-import { Avatar, MeAvatar } from "../Avatar";
+import { myName, openSession, patchProfile, useStore } from "../../store";
+import { Avatar, AvatarRaw, colorFor, MeAvatar } from "../Avatar";
 import { ProviderMark } from "../ProviderMark";
 import { Head } from "../Settings";
 
@@ -14,7 +14,7 @@ function ymd(d: Date) {
   return d.toISOString().slice(0, 10);
 }
 
-/** 个人资料与用量 (docs/03 §5.4), computed by the daemon from local logs. */
+/** 个人资料 (docs/03 §5.4): name, and usage computed by the daemon from local logs. */
 export function Profile() {
   const [u, setU] = useState<UsageStats | null>(null);
   const [err, setErr] = useState<string | null>(null);
@@ -33,7 +33,7 @@ export function Profile() {
         <div className="profhead">
           <MeAvatar size={44} label={Array.from(myName(profile))[0]} />
           <div>
-            <b>{myName(profile)}</b>
+            <NameEdit current={profile.displayName} shown={myName(profile)} />
             <span className="small">
               <i className={"hdot" + (connected ? " on" : "")} />
               {t("prof.local")}
@@ -52,12 +52,12 @@ export function Profile() {
               <Stat label={t("prof.tokens")} value={kfmt(u.tokens)} sub={t("prof.inOut", { i: kfmt(u.inputTokens), o: kfmt(u.outputTokens) })} />
               <Stat label={t("prof.peak")} value={u.peakDay ? u.peakDay.slice(5).replace("-", "/") : "—"} sub={u.peakDay ? t("prof.peakSub", { n: kfmt(u.peakTokens) }) : ""} />
               <Stat label={t("prof.messages")} value={String(u.messages)} />
-              <Stat label={t("prof.switches")} value={String(u.switches)} sub={t("prof.interventions", { n: u.interventions })} hl />
+              <Stat label={t("prof.switches")} value={String(u.switches)} sub={t("prof.interventions", { n: u.interventions })} />
               <Stat
                 label={t("prof.saved")}
                 value={"$" + u.savedUsd.toFixed(u.savedUsd < 10 ? 2 : 0)}
                 sub={t("prof.savedSub", { spent: "$" + u.spentUsd.toFixed(2) })}
-                hl
+                tone={u.savedUsd > 0 ? "ok" : undefined}
               />
             </div>
             <div className="vsec">{t("prof.activity")}</div>
@@ -74,11 +74,12 @@ export function Profile() {
                   const r = parseRef(x.model);
                   return (
                     <button key={x.agent} className="hrow" type="button" disabled={!a} onClick={() => a && openSession(a.session)}>
-                      <Avatar agent={a} size={28} />
+                      {a ? <Avatar agent={a} size={28} /> : <AvatarRaw color={colorFor(x.agent)} name={x.name || x.agent} size={28} />}
                       <span className="g">
                         <b>
                           {x.name || a?.name || x.agent}
                           {a?.role && <span className="tag" style={{ marginLeft: 6 }}>{a.role}</span>}
+                          {!a && <span className="tag" style={{ marginLeft: 6 }}>{t("prof.deleted")}</span>}
                         </b>
                         <span>
                           {r && <ProviderMark provider={r.provider} model={r.model} size={11} />} {r ? modelLabel(models, r) : x.model}
@@ -100,9 +101,41 @@ export function Profile() {
   );
 }
 
-function Stat({ label, value, sub, hl }: { label: string; value: string; sub?: string; hl?: boolean }) {
+/** The person's display name, edited in place. */
+function NameEdit({ current, shown }: { current: string; shown: string }) {
+  const [edit, setEdit] = useState<string | null>(null);
+  const save = () => {
+    if (edit !== null && edit.trim() !== current.trim()) void patchProfile({ displayName: edit.trim() });
+    setEdit(null);
+  };
+  if (edit !== null)
+    return (
+      <input
+        className="fi sm profname"
+        autoFocus
+        maxLength={40}
+        value={edit}
+        placeholder={t("common.you")}
+        aria-label={t("me.rename")}
+        onChange={(e) => setEdit(e.target.value)}
+        onBlur={save}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") save();
+          if (e.key === "Escape") setEdit(null);
+        }}
+      />
+    );
   return (
-    <div className={"stat" + (hl ? " hl" : "")}>
+    <button type="button" className="profname-btn" title={t("me.rename")} onClick={() => setEdit(current)}>
+      <b>{shown}</b>
+      <Pencil size={12} />
+    </button>
+  );
+}
+
+function Stat({ label, value, sub, tone }: { label: string; value: string; sub?: string; tone?: "ok" }) {
+  return (
+    <div className={"stat" + (tone ? " " + tone : "")}>
       <span className="sl">{label}</span>
       <b>{value}</b>
       {sub && <span className="small">{sub}</span>}
@@ -111,7 +144,7 @@ function Stat({ label, value, sub, hl }: { label: string; value: string; sub?: s
 }
 
 function Heatmap({ days }: { days: Record<string, number> }) {
-  const { weeks, levels, total, months } = useMemo(() => {
+  const summary = useMemo(() => {
     // 53 columns of weeks (Sun..Sat), ending with the current week.
     const today = new Date();
     today.setUTCHours(0, 0, 0, 0);
@@ -139,9 +172,32 @@ function Heatmap({ days }: { days: Record<string, number> }) {
       }
       weeks.push(col);
     }
-    return { weeks, levels: cuts, total: vals.length, months };
+    // streaks and the busiest weekday, over the same window
+    let cur = 0;
+    let best = 0;
+    let run = 0;
+    const wd = [0, 0, 0, 0, 0, 0, 0];
+    for (let dt = new Date(start); dt <= today; dt = new Date(dt.getTime() + DAY)) {
+      const n = days[ymd(dt)] ?? 0;
+      if (n > 0) {
+        run++;
+        best = Math.max(best, run);
+        wd[dt.getUTCDay()] += n;
+      } else run = 0;
+    }
+    // the current streak may end yesterday (today has not happened yet)
+    for (let dt = new Date(today); ; dt = new Date(dt.getTime() - DAY)) {
+      const n = days[ymd(dt)] ?? 0;
+      if (n > 0) cur++;
+      else if (dt.getTime() !== today.getTime()) break;
+      if (dt <= start) break;
+    }
+    const topWd = wd.some((n) => n > 0) ? wd.indexOf(Math.max(...wd)) : -1;
+    return { weeks, levels: cuts, total: vals.length, months, cur, best, topWd };
   }, [days]);
+  const { cur, best, topWd } = summary;
 
+  const { weeks, levels, total, months } = summary;
   // Narrow screens: start scrolled to the most recent weeks.
   const scroller = useRef<HTMLDivElement>(null);
   useLayoutEffect(() => {
@@ -150,26 +206,45 @@ function Heatmap({ days }: { days: Record<string, number> }) {
   }, [weeks]);
   return (
     <div className="box heat">
-      <div className="hmscroll" ref={scroller}>
-        <div className="hmonths">
-          {months.map((m) => (
-            <span key={m.col} style={{ gridColumn: m.col + 1 }}>
-              {m.label}
-            </span>
-          ))}
+      <div className="hmain">
+        <div className="hmscroll" ref={scroller}>
+          <div className="hmonths">
+            {months.map((m) => (
+              <span key={m.col} style={{ gridColumn: m.col + 1 }}>
+                {m.label}
+              </span>
+            ))}
+          </div>
+          <div className="hgrid" role="img" aria-label={t("prof.activityAria", { n: total })}>
+            {weeks.map((col, w) => (
+              <div className="hcol" key={w}>
+                {col.map((c) => (
+                  <i key={c.d} className={"hc l" + c.lv + (c.future ? " fut" : "")} title={c.future ? undefined : `${c.d} · ${kfmt(c.n)} tokens`} />
+                ))}
+              </div>
+            ))}
+          </div>
         </div>
-        <div className="hgrid" role="img" aria-label={t("prof.activityAria", { n: total })}>
-          {weeks.map((col, w) => (
-            <div className="hcol" key={w}>
-              {col.map((c) => (
-                <i key={c.d} className={"hc l" + c.lv + (c.future ? " fut" : "")} title={c.future ? undefined : `${c.d} · ${kfmt(c.n)} tokens`} />
-              ))}
-            </div>
-          ))}
-        </div>
+        <dl className="hsum">
+          <div>
+            <dt>{t("prof.activeDaysL")}</dt>
+            <dd>{total}</dd>
+          </div>
+          <div>
+            <dt>{t("prof.curStreak")}</dt>
+            <dd>{t("prof.daysN", { n: cur })}</dd>
+          </div>
+          <div>
+            <dt>{t("prof.bestStreak")}</dt>
+            <dd>{t("prof.daysN", { n: best })}</dd>
+          </div>
+          <div>
+            <dt>{t("prof.topWeekday")}</dt>
+            <dd>{topWd < 0 ? "—" : t(`prof.wd${topWd}` as Key)}</dd>
+          </div>
+        </dl>
       </div>
       <div className="hlegend small">
-        <span>{t("prof.activeDays", { n: total })}</span>
         <span className="sp" />
         {t("prof.less")}
         {[0, 1, 2, 3, 4].map((l) => (
@@ -209,13 +284,6 @@ function Share({ u }: { u: UsageStats }) {
           </div>
         ))}
       </div>
-      {Object.keys(u.kinds).length > 0 && (
-        <p className="small" style={{ margin: "10px 0 0" }}>
-          {Object.entries(u.kinds)
-            .map(([k, n]) => `${t(`kind.${k}` as Key) === `kind.${k}` ? k : t(`kind.${k}` as Key)} ${kfmt(n)}`)
-            .join(" · ")}
-        </p>
-      )}
     </div>
   );
 }
