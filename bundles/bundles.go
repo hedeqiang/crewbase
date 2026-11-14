@@ -22,6 +22,7 @@ import (
 	_ "github.com/hedeqiang/crewbase/features/api"
 	_ "github.com/hedeqiang/crewbase/features/channel"
 	_ "github.com/hedeqiang/crewbase/features/compaction"
+	_ "github.com/hedeqiang/crewbase/features/console"
 	_ "github.com/hedeqiang/crewbase/features/gateway"
 	_ "github.com/hedeqiang/crewbase/features/memory"
 	_ "github.com/hedeqiang/crewbase/features/redact"
@@ -105,6 +106,7 @@ var Desktop = kernel.Bundle{Name: "desktop", Entries: []kernel.Entry{
 	{ID: "routines-api", Name: "@crewbase/routines-api"},
 	{ID: "usage", Name: "@crewbase/usage"},
 	{ID: "workflows-api", Name: "@crewbase/workflows-api"},
+	{ID: "console", Name: "@crewbase/console", Config: map[string]any{"dir": "${root}"}},
 }}
 
 // Server is headless: same API bound to localhost (remote access goes
