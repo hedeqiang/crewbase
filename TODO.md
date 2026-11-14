@@ -139,7 +139,8 @@
 - [x] kernel：ApplyEntries 只管理条目加载的插件；LoadEntry；Context.Fail
 - [x] 浏览器：网关原始二进制响应——接管画面改为 `?raw=1` 直接取 PNG（比 base64 JSON 小三分之一，尺寸和网址在响应头里，不缓存，经中继也能用）
 - [x] 浏览器：运行模式网络白名单（browser-tools allowHosts：只读 / 沙箱模式下只能打开名单内主机，点击 / 回退 / 跳转离开名单立即清空页面并告知原因；主机模式不限）
-- [ ] 浏览器：有头窗口接管需重启浏览器；跨源 iframe / 新标签页；白名单尚未拦截页面子资源（只管顶层导航）
+- [x] 浏览器：白名单拦截页面全部请求（Fetch 域：文档、iframe、脚本、图片、XHR / fetch），名单外一律 BlockedByClient；data: / blob: / about: 放行；人接管时解除、Agent 下次操作恢复；主机模式不限
+- [ ] 浏览器：有头窗口接管需重启浏览器；跨源 iframe / 新标签页的快照与操作
 - [x] MCP：信任注解默认关闭 + 每工具类别覆盖；只读 Agent 的 MCP 沙箱随之只读
 - [x] MCP：host 信任服务器在只读模式下只能用读取类工具（tools.Tool.Unconfined）；resources / prompts 以 `<server>__resources` / `<server>__prompt` 读取类工具提供（服务端声明了才注册；prompt 作为参考返回，不冒充用户消息）；HTTP OAuth（MCP 授权规范：受保护资源元数据 → 授权服务器元数据 → 动态注册或预注册客户端 → PKCE 授权码；登录链接在服务状态里，浏览器授权后回调网关；令牌与刷新所需信息存系统钥匙串，刷新后写回，移除服务或退出登录即删除）
 - 有意保留：先读后改记录仅内存（重启需重读更安全）；Agent 级规则维护在引擎内部（设计选择）

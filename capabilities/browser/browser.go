@@ -84,6 +84,14 @@ const (
 )
 
 // Browser is the `browser` service.
+// HostFilter is implemented by browsers that can restrict every request a
+// page makes (not only top-level navigation) to allowed hosts.
+type HostFilter interface {
+	// SetHostFilter restricts the agent's browser to hosts allow accepts;
+	// nil lifts the restriction.
+	SetHostFilter(agentID string, allow func(host string) bool)
+}
+
 type Browser interface {
 	// Session returns the agent's browser session, starting the browser on
 	// demand. It fails with ErrTakenOver while a person controls it.

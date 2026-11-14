@@ -89,6 +89,11 @@ func (t *bt) leftAllowlist(ctx context.Context, call tools.Call, s *browser.Sess
 	if err != nil {
 		return nil
 	}
+	if strings.HasPrefix(cur, "chrome-error:") {
+		// the request filter refused the page itself
+		_ = s.Navigate(ctx, "about:blank")
+		return fmt.Errorf("that page is outside this agent's allowed hosts (%s) and was blocked; ask the user to add it or to switch to host mode", strings.Join(t.allow, ", "))
+	}
 	if err := t.allowedURL(call, cur); err != nil {
 		_ = s.Navigate(ctx, "about:blank")
 		return err
@@ -137,6 +142,15 @@ func (t *bt) session(ctx context.Context, call tools.Call) (*browser.Session, co
 		return nil, nil, nil, errors.New("no agent for this call")
 	}
 	ctx, cancel := context.WithTimeout(ctx, t.action)
+	// every request of the page follows this call's run mode
+	if hf, ok := t.b.(browser.HostFilter); ok {
+		if t.confined(call) {
+			allow := t.allow
+			hf.SetHostFilter(call.Agent, func(h string) bool { return HostAllowed(allow, h) })
+		} else {
+			hf.SetHostFilter(call.Agent, nil)
+		}
+	}
 	s, err := t.b.Session(ctx, call.Agent)
 	if err != nil {
 		cancel()

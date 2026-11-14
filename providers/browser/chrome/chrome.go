@@ -95,6 +95,8 @@ type Chrome struct {
 	slots  map[string]*slot
 	closed bool
 	owner  string // attached mode: agent that owns the browser
+	fmu    sync.Once
+	fs     *filterState
 }
 
 type slot struct {
@@ -379,6 +381,7 @@ func (c *Chrome) launch(ctx context.Context, agentID string) (*instance, error) 
 		return fail(fmt.Errorf("browser-chrome: attach tab: %w", err))
 	}
 	in.page = &cdpPage{tab: in.tabCtx}
+	c.applyFilter(in)
 	return in, nil
 }
 
@@ -430,6 +433,7 @@ func (c *Chrome) connect(ctx context.Context, agentID string, s *slot) (*instanc
 		s.target = t.TargetID
 	}
 	in.page = &cdpPage{tab: in.tabCtx}
+	c.applyFilter(in)
 	return in, nil
 }
 
@@ -519,6 +523,7 @@ func (c *Chrome) stopLocked(s *slot, in *instance) {
 		return
 	}
 	s.inst.CompareAndSwap(in, nil)
+	c.forgetFilter(in)
 	if in.attached {
 		// Attached: only disconnect; the browser and the agent's tab stay.
 		in.tabCancel()
@@ -596,6 +601,9 @@ func (c *Chrome) Takeover(agentID, by string) error {
 		return err
 	}
 	if started {
+		// the person may need hosts the agent may not (an SSO page); the
+		// agent's next action sets its filter again
+		c.SetHostFilter(agentID, nil)
 		c.changed(c.State(agentID))
 	}
 	return nil

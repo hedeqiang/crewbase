@@ -13,6 +13,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -426,10 +427,43 @@ func TestBrowserAllowlist(t *testing.T) {
 	// follow the link out: blocked after the fact, page cleared
 	e.run(t, browsertools.ToolOpen, map[string]any{"url": insideURL})
 	r = e.run(t, browsertools.ToolClick, map[string]any{"ref": 1})
-	if !r.IsError || !strings.Contains(r.Content, "127.0.0.1") {
+	if !r.IsError || !strings.Contains(r.Content, "allowed hosts") {
 		t.Fatalf("click out: %+v", r)
 	}
 	if snap := e.run(t, browsertools.ToolSnapshot, map[string]any{}); strings.Contains(snap.Content, "secret page") {
 		t.Fatalf("page outside the allowlist still shown: %s", snap.Content)
+	}
+}
+
+// Subresources are filtered too: an allowed page cannot pull data from a
+// host outside the list (here: a script fetch to the outside server).
+func TestBrowserAllowlistSubresources(t *testing.T) {
+	var hits atomic.Int32
+	outside := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		hits.Add(1)
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		fmt.Fprint(w, "leaked")
+	}))
+	defer outside.Close()
+	inside := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprintf(w, `<html><title>Inside</title><body><img src="%s/pixel.png">
+<script>fetch(%q).then(r=>r.text()).then(t=>document.title="got "+t).catch(()=>document.title="blocked")</script></body></html>`, outside.URL, outside.URL+"/data")
+	}))
+	defer inside.Close()
+	insideURL := strings.Replace(inside.URL, "127.0.0.1", "localhost", 1)
+	e := setup(t, map[string]any{"allowHosts": []string{"localhost"}})
+	e.run(t, browsertools.ToolOpen, map[string]any{"url": insideURL})
+	time.Sleep(700 * time.Millisecond)
+	snap := e.run(t, browsertools.ToolSnapshot, map[string]any{})
+	if !strings.Contains(snap.Content, "blocked") || strings.Contains(snap.Content, "got leaked") || hits.Load() != 0 {
+		t.Fatalf("subresource reached the outside host (%d hits): %s", hits.Load(), snap.Content)
+	}
+	// a host-mode call lifts the filter
+	b, _ := json.Marshal(map[string]any{"url": insideURL})
+	e.reg.Run(context.Background(), e.h.Root(), tools.Call{ID: session.NewID("call"), Name: browsertools.ToolOpen, Args: b,
+		Agent: e.a.ID(), Session: e.ss, Workspace: e.a.Workspace(), Mode: "host"})
+	time.Sleep(700 * time.Millisecond)
+	if hits.Load() == 0 {
+		t.Fatal("host mode still filtered")
 	}
 }
