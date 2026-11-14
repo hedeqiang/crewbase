@@ -67,6 +67,17 @@ type Config struct {
 	MarketBase string `json:"marketBase,omitempty"`
 	// Process is merged into every process entry config (timeouts, backoff).
 	Process map[string]any `json:"process,omitempty"`
+	// Publishers are the trusted signing keys.
+	Publishers []Publisher `json:"publishers,omitempty"`
+	// RequireSigned refuses packages without a trusted signature.
+	RequireSigned bool `json:"requireSigned,omitempty"`
+}
+
+// verifyOpts is what the marketplace says about a package.
+type verifyOpts struct {
+	name      string // expected plugin name ("" = any)
+	integrity string
+	signed    *Signed
 }
 
 // Grant is an approval record.
@@ -83,23 +94,32 @@ type record struct {
 	Source      string    `json:"source"`
 	SourceKind  string    `json:"sourceKind"` // local | tarball | npm
 	InstalledAt time.Time `json:"installedAt"`
+	Integrity   string    `json:"integrity,omitempty"`
+	Publisher   string    `json:"publisher,omitempty"` // verified publisher id
+	// the marketplace data, so updates verify the same way
+	Signed *Signed `json:"signed,omitempty"`
+	Pinned string  `json:"pinned,omitempty"`
 }
 
 // Installed is the API view of an installed plugin.
 type Installed struct {
-	Name        string              `json:"name"`
-	Version     string              `json:"version"`
-	Description string              `json:"description,omitempty"`
-	Author      string              `json:"author,omitempty"`
-	Repo        string              `json:"repo,omitempty"`
-	Source      string              `json:"source"`
-	SourceKind  string              `json:"sourceKind"`
-	InstalledAt time.Time           `json:"installedAt"`
-	Dir         string              `json:"dir"`
-	Sandbox     bool                `json:"sandbox"`
-	Requested   process.Permissions `json:"requested"`
-	Grant       *Grant              `json:"grant,omitempty"`
-	Approved    bool                `json:"approved"`
+	Name        string    `json:"name"`
+	Version     string    `json:"version"`
+	Description string    `json:"description,omitempty"`
+	Author      string    `json:"author,omitempty"`
+	Repo        string    `json:"repo,omitempty"`
+	Source      string    `json:"source"`
+	SourceKind  string    `json:"sourceKind"`
+	InstalledAt time.Time `json:"installedAt"`
+	// Integrity is the package's sha256 (packages only).
+	Integrity string `json:"integrity,omitempty"`
+	// Publisher is set only when a trusted signature was verified.
+	Publisher *Publisher          `json:"publisher,omitempty"`
+	Dir       string              `json:"dir"`
+	Sandbox   bool                `json:"sandbox"`
+	Requested process.Permissions `json:"requested"`
+	Grant     *Grant              `json:"grant,omitempty"`
+	Approved  bool                `json:"approved"`
 	// NeedsApproval lists what the user still has to approve.
 	NeedsApproval []string        `json:"needsApproval,omitempty"`
 	Enabled       bool            `json:"enabled"`
@@ -219,9 +239,17 @@ func approval(man process.Manifest, g *Grant) (bool, []string) {
 func (m *Manager) view(in installed, enabled bool) Installed {
 	ok, needs := approval(in.man, in.grant)
 	v := Installed{Name: in.man.Name, Version: in.man.Version, Description: in.man.Description, Author: in.man.Author,
-		Repo: in.man.Repo, Source: in.rec.Source, SourceKind: in.rec.SourceKind, InstalledAt: in.rec.InstalledAt,
+		Repo: in.man.Repo, Source: in.rec.Source, SourceKind: in.rec.SourceKind, InstalledAt: in.rec.InstalledAt, Integrity: in.rec.Integrity,
 		Dir: in.dir, Sandbox: in.man.Sandbox, Requested: in.man.Requested(), Grant: in.grant, Approved: ok,
 		NeedsApproval: needs, Enabled: enabled}
+	if in.rec.Publisher != "" {
+		for _, p := range m.cfg.Publishers {
+			if p.ID == in.rec.Publisher {
+				pp := Publisher{ID: p.ID, Name: p.Name}
+				v.Publisher = &pp // the key is not repeated in the view
+			}
+		}
+	}
 	switch {
 	case !enabled:
 		v.State = StateDisabled
@@ -346,6 +374,7 @@ type InstallRequest struct {
 // keeps the grant; whether it still applies is decided by approval.
 func (m *Manager) Install(ctx context.Context, req InstallRequest) (Installed, error) {
 	src := strings.TrimSpace(req.Source)
+	var vo verifyOpts
 	if req.Market != "" {
 		ents, err := m.Market(ctx)
 		if err != nil {
@@ -354,6 +383,7 @@ func (m *Manager) Install(ctx context.Context, req InstallRequest) (Installed, e
 		for _, e := range ents {
 			if e.Name == req.Market {
 				src = e.Source
+				vo = verifyOpts{name: e.Name, integrity: e.Integrity, signed: e.Signed}
 			}
 		}
 		if src == "" {
@@ -366,10 +396,10 @@ func (m *Manager) Install(ctx context.Context, req InstallRequest) (Installed, e
 	enable := req.Enable == nil || *req.Enable
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	return m.installLocked(ctx, src, enable, false)
+	return m.installLocked(ctx, src, enable, false, vo)
 }
 
-func (m *Manager) installLocked(ctx context.Context, src string, enable, keepEnabled bool) (Installed, error) {
+func (m *Manager) installLocked(ctx context.Context, src string, enable, keepEnabled bool, vo verifyOpts) (Installed, error) {
 	staging := filepath.Join(m.cfg.Dir, ".staging")
 	if err := os.MkdirAll(staging, 0o700); err != nil {
 		return Installed{}, err
@@ -379,13 +409,26 @@ func (m *Manager) installLocked(ctx context.Context, src string, enable, keepEna
 		return Installed{}, err
 	}
 	defer os.RemoveAll(tmp)
-	root, kind, canon, err := fetch(ctx, src, tmp)
+	root, kind, canon, digest, err := fetch(ctx, src, tmp)
 	if err != nil {
 		return Installed{}, err
 	}
 	man, err := process.ReadManifest(root)
 	if err != nil {
 		return Installed{}, fmt.Errorf("%w: %v", ErrBadSource, err)
+	}
+	if vo.name != "" && man.Name != vo.name {
+		return Installed{}, fmt.Errorf("%w: the package is %q, not %q", ErrUntrusted, man.Name, vo.name)
+	}
+	if err := checkIntegrity(vo.integrity, digest); err != nil {
+		return Installed{}, err
+	}
+	pub, err := verify(m.cfg.Publishers, vo.signed, man.Name, man.Version, digest)
+	if err != nil {
+		return Installed{}, err
+	}
+	if m.cfg.RequireSigned && pub == nil {
+		return Installed{}, fmt.Errorf("%w: unsigned packages are not allowed here (requireSigned)", ErrUntrusted)
 	}
 	if strings.HasPrefix(man.Version, ".") {
 		return Installed{}, fmt.Errorf("%w: invalid version %q", ErrBadSource, man.Version)
@@ -403,7 +446,13 @@ func (m *Manager) installLocked(ctx context.Context, src string, enable, keepEna
 	if err := os.Rename(root, dest); err != nil {
 		return Installed{}, err
 	}
-	rec := record{Name: name, Version: man.Version, Source: canon, SourceKind: kind, InstalledAt: time.Now().UTC()}
+	rec := record{Name: name, Version: man.Version, Source: canon, SourceKind: kind, InstalledAt: time.Now().UTC(), Signed: vo.signed, Pinned: vo.integrity}
+	if digest != nil {
+		rec.Integrity = Integrity(digest)
+	}
+	if pub != nil {
+		rec.Publisher = pub.ID
+	}
 	if err := writeJSON(filepath.Join(m.pdir(name), "installed.json"), rec); err != nil {
 		return Installed{}, err
 	}
@@ -502,7 +551,7 @@ func (m *Manager) Reload(ctx context.Context, name string) (Installed, error) {
 	}
 	if in.rec.SourceKind == "local" {
 		if st, err := os.Stat(in.rec.Source); err == nil && st.IsDir() {
-			return m.installLocked(ctx, in.rec.Source, false, true)
+			return m.installLocked(ctx, in.rec.Source, false, true, verifyOpts{})
 		}
 	}
 	serr := m.syncLocked(name, true)

@@ -26,6 +26,7 @@ import (
 	"flag"
 	"fmt"
 	"github.com/hedeqiang/crewbase/capabilities/sandbox"
+	pluginpkg "github.com/hedeqiang/crewbase/features/plugins"
 	"github.com/hedeqiang/crewbase/providers/sandbox/bubblewrap"
 	"io"
 	"net"
@@ -466,10 +467,57 @@ func confirm(q string) bool {
 
 func pluginCmd(args []string) error {
 	if len(args) == 0 {
-		return errors.New("usage: crew plugin new|install|approve|list|market|enable|disable|reload|remove ...")
+		return errors.New("usage: crew plugin new|install|approve|list|market|enable|disable|reload|remove|keygen|sign ...")
 	}
 	sub, args := args[0], args[1:]
 	switch sub {
+	case "keygen":
+		// a publisher key pair: the public key goes into users' trusted
+		// publishers, the private key stays with the publisher
+		pub, priv, err := pluginpkg.Keygen()
+		if err != nil {
+			return err
+		}
+		fmt.Printf("public key (share; add to \"publishers\"):\n  %s\n", pub)
+		fmt.Printf("private key (keep secret; e.g. store it in your keychain):\n  %s\n", priv)
+		return nil
+	case "sign":
+		fs := flag.NewFlagSet("plugin sign", flag.ExitOnError)
+		keyFile := fs.String("key-file", "", "file holding the base64 private key (default: $CREWBASE_PUBLISHER_KEY)")
+		publisher := fs.String("publisher", "", "your publisher id")
+		pos := splitFlags(fs, args)
+		if len(pos) != 1 || *publisher == "" {
+			return errors.New("usage: crew plugin sign <package.tgz> --publisher <id> [--key-file f]")
+		}
+		key := os.Getenv("CREWBASE_PUBLISHER_KEY")
+		if *keyFile != "" {
+			b, err := os.ReadFile(*keyFile)
+			if err != nil {
+				return err
+			}
+			key = string(b)
+		}
+		if strings.TrimSpace(key) == "" {
+			return errors.New("no private key: pass --key-file or set CREWBASE_PUBLISHER_KEY")
+		}
+		dir, err := os.MkdirTemp("", "crew-sign-")
+		if err != nil {
+			return err
+		}
+		defer os.RemoveAll(dir)
+		man, err := pluginpkg.ReadPackageManifest(pos[0], dir)
+		if err != nil {
+			return err
+		}
+		sig, integ, err := pluginpkg.Sign(key, pos[0], man.Name, man.Version)
+		if err != nil {
+			return err
+		}
+		out, _ := json.MarshalIndent(map[string]any{"name": man.Name, "version": man.Version, "integrity": integ,
+			"signed": map[string]string{"publisher": *publisher, "signature": sig}}, "", "  ")
+		fmt.Println(string(out))
+		fmt.Fprintln(os.Stderr, "add these fields to the package's marketplace entry")
+		return nil
 	case "new":
 		fs := flag.NewFlagSet("plugin new", flag.ExitOnError)
 		lang := fs.String("lang", "ts", "ts | py | go")

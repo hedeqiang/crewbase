@@ -23,6 +23,10 @@ type MarketEntry struct {
 	Permissions process.Permissions `json:"permissions"`
 	Author      string              `json:"author,omitempty"`
 	Repo        string              `json:"repo,omitempty"`
+	// Integrity pins the package: "sha256-<base64>".
+	Integrity string `json:"integrity,omitempty"`
+	// Signed is the publisher's signature over the package.
+	Signed *Signed `json:"signed,omitempty"`
 	// Installed is the installed version, if any (filled by the manager).
 	Installed string `json:"installed,omitempty"`
 }

@@ -491,6 +491,9 @@ export interface PluginView {
   state: string;
   error?: string;
   process?: { state: string; pid?: number; restarts: number; tools?: string[]; enforcement: string; limits?: string[] };
+  integrity?: string;
+  /** set only when a trusted publisher signature was verified */
+  publisher?: { id: string; name: string };
 }
 export interface MarketEntry {
   name: string;

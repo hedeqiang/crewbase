@@ -30,45 +30,55 @@ var npmNameRe = regexp.MustCompile(`^(@[a-z0-9][a-z0-9._~-]*/)?[a-z0-9][a-z0-9._
 
 // fetch places the plugin from src into a fresh directory under tmp and
 // returns that directory, the source kind and a canonical source string.
-func fetch(ctx context.Context, src, tmp string) (root, kind, canon string, err error) {
+// digest is the SHA-256 of the package file (nil for a directory).
+func fetch(ctx context.Context, src, tmp string) (root, kind, canon string, digest []byte, err error) {
 	switch {
 	case strings.HasPrefix(src, "http://"), strings.HasPrefix(src, "https://"):
 		tgz := filepath.Join(tmp, "download.tgz")
 		if err := download(ctx, src, tgz); err != nil {
-			return "", "", "", err
+			return "", "", "", nil, err
+		}
+		if digest, err = FileDigest(tgz); err != nil {
+			return "", "", "", nil, err
 		}
 		root, err := unpack(tgz, filepath.Join(tmp, "unpacked"))
-		return root, "tarball", src, err
+		return root, "tarball", src, digest, err
 	case strings.HasPrefix(src, "file://"):
 		src = strings.TrimPrefix(src, "file://")
 	}
 	if st, serr := os.Stat(src); serr == nil {
 		abs, err := filepath.Abs(src)
 		if err != nil {
-			return "", "", "", err
+			return "", "", "", nil, err
 		}
 		if st.IsDir() {
 			if _, err := os.Stat(filepath.Join(abs, process.ManifestFile)); err != nil {
-				return "", "", "", fmt.Errorf("%w: %s has no %s", ErrBadSource, abs, process.ManifestFile)
+				return "", "", "", nil, fmt.Errorf("%w: %s has no %s", ErrBadSource, abs, process.ManifestFile)
 			}
 			dst := filepath.Join(tmp, "copy")
 			if err := copyTree(abs, dst); err != nil {
-				return "", "", "", err
+				return "", "", "", nil, err
 			}
-			return dst, "local", abs, nil
+			return dst, "local", abs, nil, nil
+		}
+		if digest, err = FileDigest(abs); err != nil {
+			return "", "", "", nil, err
 		}
 		root, err := unpack(abs, filepath.Join(tmp, "unpacked"))
-		return root, "tarball", abs, err
+		return root, "tarball", abs, digest, err
 	}
 	if npmNameRe.MatchString(src) {
 		tgz, err := npmPack(ctx, src, filepath.Join(tmp, "npm"))
 		if err != nil {
-			return "", "", "", err
+			return "", "", "", nil, err
+		}
+		if digest, err = FileDigest(tgz); err != nil {
+			return "", "", "", nil, err
 		}
 		root, err := unpack(tgz, filepath.Join(tmp, "unpacked"))
-		return root, "npm", src, err
+		return root, "npm", src, digest, err
 	}
-	return "", "", "", fmt.Errorf("%w: %q is not a directory, tarball, URL or npm package", ErrBadSource, src)
+	return "", "", "", nil, fmt.Errorf("%w: %q is not a directory, tarball, URL or npm package", ErrBadSource, src)
 }
 
 // copyTree copies a plugin directory. Symlinks are skipped (they could point

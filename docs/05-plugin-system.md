@@ -364,3 +364,21 @@ credentials = ["feishu-bot"]
 - `crew plugins` 列出插件树、状态（ACTIVE / PENDING / FAILED）、提供的服务与监听的事件。
 - 每个能力和事件的类型签名由代码生成文档，CI 检查文档与代码一致（借鉴 Harness 的 `verify-type-equiv`）。
 - 为插件仓库添加 `crewbase-plugin` GitHub topic，市场生成器会自动收录。
+
+
+## 附：包完整性与发布者签名
+
+市场条目可以带：
+
+```json
+{
+  "name": "hello-py", "version": "0.1.0", "source": "https://…/hello-py-0.1.0.tgz",
+  "integrity": "sha256-…",
+  "signed": { "publisher": "acme", "signature": "…" }
+}
+```
+
+- `integrity` 固定包文件的 SHA-256；下载到的 tarball 或 `npm pack` 的结果对不上就拒装。
+- `signed` 是发布者对 `crewbase-plugin-v1\n<name>\n<version>\n<sha256>` 的 ed25519 签名，只有公钥在 plugin-manager 配置 `publishers` 里的发布者才会被认作「已验证」；签名不符或发布者不受信时拒装，不会降级为未验证。
+- `requireSigned: true` 时只装已验证发布者的包。
+- 发布者用 `crew plugin keygen` 生成密钥对，用 `crew plugin sign <包.tgz> --publisher <id> --key-file <私钥>` 产出上面的字段。

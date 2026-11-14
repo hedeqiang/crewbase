@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Download, FolderInput, Plug, Plus, RefreshCw, Server, ShieldAlert, Trash, X, LogIn } from "lucide-react";
+import { Download, FolderInput, Plug, Plus, RefreshCw, Server, ShieldAlert, Trash, X, LogIn, BadgeCheck } from "lucide-react";
 import { API, type MarketEntry, type McpServer, type McpTool, type Permissions, type PluginView } from "../../api";
 import { t, type Key } from "../../i18n";
 import { ago } from "../../format";
@@ -194,6 +194,13 @@ function Plugins() {
               {p.description && <p className="rprompt">{p.description}</p>}
               <div className="rmeta small">
                 <span className={"pill " + (p.state === "running" ? "ok" : p.error ? "red" : !p.approved ? "amber" : "")}>{stateLabel(p)}</span>
+                {p.publisher ? (
+                  <span className="pubok" title={p.integrity}>
+                    <BadgeCheck size={12} /> {t("ext.verifiedBy", { name: p.publisher.name })}
+                  </span>
+                ) : (
+                  p.sourceKind !== "local" && <span className="pubno">{t("ext.unverified")}</span>
+                )}
                 <span>{p.sandbox ? t("ext.runSandbox") : t("ext.runProcess")}</span>
                 {p.process && <span>{t("ext.enforcement", { e: p.process.enforcement || "none" })}</span>}
                 {p.process?.tools?.length ? <span>{t("ext.toolsN", { n: p.process.tools.length })}</span> : null}

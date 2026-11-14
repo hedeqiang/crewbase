@@ -134,7 +134,8 @@
 - [x] 记忆索引异步写入（队列 + 溢出补扫，不阻塞会话追加）
 
 - [x] scope 注册表：同名注册乱序撤销会复活已撤销条目 → 改为栈
-- [ ] 插件：tarball / npm 包签名校验；Windows Job Object 进程树；发布者身份；默认不开沙箱时网络 / 文件限制仅声明
+- [x] 插件：包完整性与发布者签名——市场条目可固定 sha256（integrity）并带 ed25519 签名（签名绑定包内容 + 名称 + 版本），受信发布者列表（publishers）验证通过才显示「已验证」，篡改 / 签名不符 / 发布者不受信一律拒装，requireSigned 可拒绝未签名包；`crew plugin keygen` / `crew plugin sign` 生成密钥与签名
+- [ ] 插件：Windows Job Object 进程树；默认不开沙箱时网络 / 文件限制仅声明
 - [x] kernel：ApplyEntries 只管理条目加载的插件；LoadEntry；Context.Fail
 - [x] 浏览器：网关原始二进制响应——接管画面改为 `?raw=1` 直接取 PNG（比 base64 JSON 小三分之一，尺寸和网址在响应头里，不缓存，经中继也能用）
 - [ ] 浏览器：有头窗口接管需重启浏览器；浏览器网络不受运行模式白名单约束；跨源 iframe / 新标签页

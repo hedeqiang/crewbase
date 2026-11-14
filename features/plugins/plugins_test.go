@@ -6,6 +6,7 @@ import (
 	"compress/gzip"
 	"context"
 	"encoding/json"
+	"fmt"
 	"io/fs"
 	"net/http"
 	"os"
@@ -408,5 +409,66 @@ func copyDir(t *testing.T, src, dst string) {
 	})
 	if err != nil {
 		t.Fatal(err)
+	}
+}
+
+// Marketplace packages can be pinned and signed by a trusted publisher.
+func TestSignedPackages(t *testing.T) {
+	needPython(t)
+	tgz := tarball(t, repo(t, "examples/plugins/hello-py"), "package/")
+	pub, priv, err := plugins.Keygen()
+	if err != nil {
+		t.Fatal(err)
+	}
+	sig, integ, err := plugins.Sign(priv, tgz, "hello-py", "0.1.0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	otherPub, otherPriv, _ := plugins.Keygen()
+	badSig, _, _ := plugins.Sign(otherPriv, tgz, "hello-py", "0.1.0")
+	wrongVer, _, _ := plugins.Sign(priv, tgz, "hello-py", "9.9.9")
+	_ = otherPub
+
+	install := func(entry map[string]any, cfg map[string]any) (int, map[string]any) {
+		dir := t.TempDir()
+		idx := filepath.Join(dir, "market.json")
+		entry["name"], entry["source"], entry["version"] = "hello-py", tgz, "0.1.0"
+		b, _ := json.Marshal([]any{entry})
+		os.WriteFile(idx, b, 0o644)
+		c := map[string]any{"marketURL": idx, "publishers": []map[string]any{{"id": "acme", "name": "Acme 工作室", "key": pub}}}
+		for k, v := range cfg {
+			c[k] = v
+		}
+		e := start(t, t.TempDir(), c)
+		return e.do("POST", "/api/plugins/install", map[string]any{"market": "hello-py"})
+	}
+	// pinned + signed by a trusted publisher → verified
+	code, v := install(map[string]any{"integrity": integ, "signed": map[string]any{"publisher": "acme", "signature": sig}}, nil)
+	p, _ := v["publisher"].(map[string]any)
+	if code != 200 || p["name"] != "Acme 工作室" || p["key"] != nil || v["integrity"] != integ {
+		t.Fatalf("verified install: %d %v", code, v)
+	}
+	// integrity mismatch
+	if code, v := install(map[string]any{"integrity": "sha256-" + strings.Repeat("A", 43) + "="}, nil); code == 200 || !strings.Contains(fmt.Sprint(v), "pinned integrity") {
+		t.Fatalf("integrity: %d %v", code, v)
+	}
+	// signature by a key that is not the publisher's
+	if code, v := install(map[string]any{"signed": map[string]any{"publisher": "acme", "signature": badSig}}, nil); code == 200 || !strings.Contains(fmt.Sprint(v), "does not match") {
+		t.Fatalf("bad signature: %d %v", code, v)
+	}
+	// a signature for another version does not carry over
+	if code, _ := install(map[string]any{"signed": map[string]any{"publisher": "acme", "signature": wrongVer}}, nil); code == 200 {
+		t.Fatal("signature for another version accepted")
+	}
+	// unknown publisher
+	if code, v := install(map[string]any{"signed": map[string]any{"publisher": "mallory", "signature": sig}}, nil); code == 200 || !strings.Contains(fmt.Sprint(v), "not trusted") {
+		t.Fatalf("unknown publisher: %d %v", code, v)
+	}
+	// unsigned: fine by default (no publisher), refused with requireSigned
+	if code, v := install(map[string]any{}, nil); code != 200 || v["publisher"] != nil {
+		t.Fatalf("unsigned: %d %v", code, v)
+	}
+	if code, v := install(map[string]any{}, map[string]any{"requireSigned": true}); code == 200 || !strings.Contains(fmt.Sprint(v), "requireSigned") {
+		t.Fatalf("requireSigned: %d %v", code, v)
 	}
 }
