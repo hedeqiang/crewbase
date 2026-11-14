@@ -356,3 +356,35 @@ func TestDelegateToSubagent(t *testing.T) {
 	}
 	t.Logf("lead: %s", text)
 }
+
+func TestDeepSeekNativeWebSearch(t *testing.T) {
+	e := start(t)
+	a := e.newAgent(t, "Scout", "researcher", "magpie/deepseek/deepseek-flash@high")
+	a.Update(func(s *agent.Spec) { s.NativeTools = []string{llm.NativeWebSearch} })
+	text, msg := ask(t, a, "DeepSeek 在 2026 年 11 月 13 日发布了什么？一句话回答。", 3*time.Minute)
+	var cites, searches int
+	for _, p := range msg.Message.Parts {
+		switch p.Type {
+		case llm.PartCitation:
+			cites++
+			if !strings.HasPrefix(p.Meta["url"], "http") {
+				t.Fatalf("citation without url: %+v", p)
+			}
+		case llm.PartServerTool:
+			searches++
+		}
+	}
+	if cites == 0 || searches == 0 || msg.Usage.ServerTools["tool_search"] == 0 {
+		t.Fatalf("cites=%d searches=%d usage=%+v text=%q", cites, searches, msg.Usage, text)
+	}
+	// provider-only parts never go back to a model
+	ss, _ := a.Session()
+	for _, m := range session.DeriveMessages(ss.Events(), a.ID(), nil) {
+		for _, p := range m.Parts {
+			if p.Type == llm.PartCitation || p.Type == llm.PartServerTool {
+				t.Fatal("citation/server_tool part leaked into model history")
+			}
+		}
+	}
+	t.Logf("%s\n(citations=%d, search steps=%d, billed searches=%v)", text, cites, searches, msg.Usage.ServerTools)
+}

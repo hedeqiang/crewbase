@@ -166,6 +166,9 @@ func DeriveMessages(events []Event, agent string, names map[string]string) []llm
 				// Plain thinking text is not sent back; thinking that carries
 				// provider data (signatures) must round-trip to that provider,
 				// which skips parts it does not recognise.
+				if p.Type == llm.PartCitation || p.Type == llm.PartServerTool {
+					continue
+				}
 				if p.Type == "thinking" && len(p.Meta) == 0 {
 					continue
 				}

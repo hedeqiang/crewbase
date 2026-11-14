@@ -66,7 +66,7 @@ type Preset struct {
 // Presets maps preset id → defaults.
 var Presets = map[string]Preset{
 	"openai":      {BaseURL: "https://api.openai.com/v1", APIKeyEnv: "OPENAI_API_KEY", EffortStyle: "openai", MaxTokensField: "max_completion_tokens", EffortModels: regexp.MustCompile(`^(o\d|gpt-5)`)},
-	"deepseek":    {BaseURL: "https://api.deepseek.com/v1", APIKeyEnv: "DEEPSEEK_API_KEY", EffortStyle: "none"},
+	"deepseek":    {BaseURL: "https://api.deepseek.com", APIKeyEnv: "DEEPSEEK_API_KEY", EffortStyle: "deepseek"},
 	"moonshot":    {BaseURL: "https://api.moonshot.cn/v1", APIKeyEnv: "MOONSHOT_API_KEY", EffortStyle: "none"},
 	"qwen":        {BaseURL: "https://dashscope.aliyuncs.com/compatible-mode/v1", APIKeyEnv: "DASHSCOPE_API_KEY", EffortStyle: "qwen", EffortModels: regexp.MustCompile(`qwen3|qwen-plus|qwen-turbo|qwen-flash|qwq`)},
 	"xai":         {BaseURL: "https://api.x.ai/v1", APIKeyEnv: "XAI_API_KEY", EffortStyle: "openai", EffortModels: regexp.MustCompile(`^grok-3-mini`)},
@@ -92,6 +92,9 @@ type ProviderConfig struct {
 	MaxTokensField string            `json:"maxTokensField,omitempty"`
 	StreamUsage    *bool             `json:"streamUsage,omitempty"`
 	ShortToolIDs   *bool             `json:"shortToolIDs,omitempty"`
+	// SafetyCheck enables DeepSeek's moderation ("high"); recommended for
+	// anything public-facing. Flagged replies stop with llm.StopRefusal.
+	SafetyCheck string `json:"safetyCheck,omitempty"`
 	// DefaultContextWindow is reported for fetched models whose window is unknown.
 	DefaultContextWindow int `json:"defaultContextWindow,omitempty"`
 }
@@ -117,6 +120,7 @@ type Adapter struct {
 	httpClient   *http.Client
 
 	mu       sync.Mutex
+	safety   string
 	cached   []llm.ModelInfo
 	cachedAt time.Time
 	cacheTTL time.Duration
@@ -139,7 +143,7 @@ func New(c *kernel.Context, pc ProviderConfig) (*Adapter, error) {
 	a := &Adapter{
 		id: pc.ID, kind: pc.Kind, baseURL: trimSlash(pc.BaseURL), headers: pc.Headers, static: pc.Models,
 		effortStyle: pc.EffortStyle, maxField: pc.MaxTokensField, streamUsage: true, defWindow: pc.DefaultContextWindow,
-		httpClient: &http.Client{}, cacheTTL: 5 * time.Minute,
+		httpClient: &http.Client{}, cacheTTL: 5 * time.Minute, safety: pc.SafetyCheck,
 	}
 	if a.kind == "" {
 		a.kind = "api"
@@ -382,6 +386,9 @@ func (a *Adapter) effortFor(model string) bool {
 	if a.effortStyle == "none" {
 		return false
 	}
+	if a.isDeepSeek(model) {
+		return true
+	}
 	if s, ok := findSpec(a.static, model); ok && len(s.Capabilities) > 0 {
 		return hasCap(s.Capabilities, "reasoning")
 	}
@@ -440,6 +447,25 @@ func (a *Adapter) params(req llm.Request) (sdk.ChatCompletionNewParams, map[stri
 				t = "disabled"
 			}
 			extra["thinking"] = map[string]any{"type": t}
+		case "deepseek", "auto":
+			if a.isDeepSeek(req.Model) {
+				t := "enabled"
+				if off || e == "minimal" {
+					t = "disabled"
+				}
+				extra["thinking"] = map[string]any{"type": t}
+			} else if a.effortStyle == "auto" {
+				p.ReasoningEffort = shared.ReasoningEffort(e)
+			}
+		}
+	}
+	if a.isDeepSeek(req.Model) {
+		if tools := a.deepseekTools(req); tools != nil {
+			p.Tools = nil
+			extra["tools"] = tools
+		}
+		if a.safety != "" {
+			extra["safety_check"] = map[string]any{"level": a.safety}
 		}
 	}
 	return p, extra
@@ -466,6 +492,8 @@ func (a *Adapter) Stream(ctx context.Context, req llm.Request, onChunk func(llm.
 
 	var acc sdk.ChatCompletionAccumulator
 	var thinking strings.Builder
+	ds := newDSCollector()
+	var serverUse map[string]int
 	var usage llm.Usage
 	finish := ""
 	emitted := map[int]bool{}
@@ -491,6 +519,9 @@ func (a *Adapter) Stream(ctx context.Context, req llm.Request, onChunk func(llm.
 			d := ch.Usage.PromptTokensDetails // prompt_tokens already includes cached tokens
 			usage = llm.Usage{InputTokens: int(ch.Usage.PromptTokens), OutputTokens: int(ch.Usage.CompletionTokens),
 				CacheRead: int(d.CachedTokens), CacheWrite: int(d.CacheWriteTokens)}
+			if f, ok := ch.Usage.JSON.ExtraFields["server_tool_use"]; ok {
+				serverUse = serverToolUse(f.Raw())
+			}
 		}
 		for _, c := range ch.Choices {
 			if c.Index != 0 {
@@ -501,6 +532,14 @@ func (a *Adapter) Stream(ctx context.Context, req llm.Request, onChunk func(llm.
 				if err := onChunk(llm.Chunk{Type: "thinking", Text: r}); err != nil {
 					return llm.Response{}, err
 				}
+			}
+			if f, ok := c.Delta.JSON.ExtraFields["server_tool_calls"]; ok {
+				if err := ds.serverTools(f.Raw(), onChunk); err != nil {
+					return llm.Response{}, err
+				}
+			}
+			if f, ok := c.Delta.JSON.ExtraFields["annotations"]; ok {
+				_ = ds.annotations(f.Raw(), onChunk)
 			}
 			if c.Delta.Content != "" {
 				if err := onChunk(llm.Chunk{Type: "text", Text: c.Delta.Content}); err != nil {
@@ -526,9 +565,10 @@ func (a *Adapter) Stream(ctx context.Context, req llm.Request, onChunk func(llm.
 	}
 
 	msg := llm.Message{Role: llm.RoleAssistant}
-	if t := thinking.String(); t != "" {
+	if t := ds.reasoning.String() + thinking.String(); t != "" {
 		msg.Parts = append(msg.Parts, llm.Part{Type: "thinking", Text: t})
 	}
+	msg.Parts = append(msg.Parts, ds.tools...)
 	if len(acc.Choices) > 0 {
 		cm := acc.Choices[0].Message
 		if cm.Content != "" {
@@ -543,14 +583,19 @@ func (a *Adapter) Stream(ctx context.Context, req llm.Request, onChunk func(llm.
 	for _, tc := range calls {
 		msg.Parts = append(msg.Parts, llm.Part{Type: "tool_call", ToolCall: tc})
 	}
+	msg.Parts = append(msg.Parts, ds.citations...)
 	stop := "end"
 	switch {
+	case finish == "refusal" || finish == "content_filter":
+		stop = llm.StopRefusal
 	case len(calls) > 0 || finish == "tool_calls" || finish == "function_call":
 		stop = "tool_use"
 	case finish == "length":
 		stop = "max_tokens"
 	}
-	return llm.Response{Message: msg, Usage: estimateUsage(usage, req, msg), StopReason: stop}, nil
+	u := estimateUsage(usage, req, msg)
+	u.ServerTools = serverUse
+	return llm.Response{Message: msg, Usage: u, StopReason: stop}, nil
 }
 
 func extraString(fields map[string]respjson.Field, key string) string {

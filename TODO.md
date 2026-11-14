@@ -154,7 +154,8 @@
 - [x] 真实调用（经 magpie 原生透传与标准 chat 接口）：返回 `annotations`（url_citation）、`server_tool_calls`、`usage.server_tool_use`
 - [x] core：Request.NativeTools、Agent.Spec.NativeTools（按 Agent 开启，API 可改）、citation / server_tool 片段、StopRefusal、Usage.ServerTools
 - [x] 杂活默认走 DeepSeek Flash：title / summarize 路由（直连优先，其次 magpie，不可用回落 Agent 顺序）；会话主题自动生成（features/topics）
-- [ ] openai 适配器 deepseek 风格：thinking 开关、NativeTools → deepseek_* 工具、解析 annotations / server_tool_calls / server_tool_use、safety_check 配置与 refusal；magpie 对 deepseek/* 模型透传
+- [x] openai 适配器 deepseek 方言：thinking 开关、NativeTools → deepseek_web_search / deepseek_read_url、解析 annotations（引用）/ server_tool_calls（搜索与阅读步骤，实时流式）/ server_tool_use（按次计费）、safetyCheck 与 refusal；预设 base URL 更新；magpie 对 deepseek/* 模型自动切方言
+- [x] 真实端到端：Agent 开启联网搜索 → DeepSeek Flash 搜索全网 → 带出处回答；引用不回流到模型历史
 - [ ] 压缩摘要优先用 summarize 路由模型
 - [ ] 与模型无关的 `web` 能力：DeepSeek Search / Fetch 独立 API 作为 web_search / web_fetch 工具提供方（待官方文档）
 - [ ] 文件输入（PDF / Office / 图片）、ASR / TTS（移动端语音）
@@ -173,6 +174,7 @@
 ## 迭代日志
 | 日期 | 迭代 | 结果 |
 |---|---|---|
+| 2026-11-14 | 8g | DeepSeek 原生联网搜索 / 阅读链接 / 安全检查端到端打通（真实调用） |
 | 2026-11-14 | 8f | 技术债第三批（子 agent，10 项）接入；ACP 委派共享父工作区（SharedWorkspace），subagent-acp 接入 |
 | 2026-11-14 | 8e | DeepSeek：core 词汇 + 默认廉价路由 + 会话主题；适配器部分待技术债 agent 交付后做（同文件） |
 | 2026-11-14 | 8d | 浏览器能力 + 接管（子 agent，真实 Chrome 157 验证）接入；DeepSeek 全家桶调研 + 经 magpie 真实调用原生联网 |

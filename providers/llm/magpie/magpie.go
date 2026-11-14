@@ -252,7 +252,7 @@ func (a *Adapter) refresh(ctx context.Context) (bool, error) {
 	}
 	inner, err := openai.New(a.c, openai.ProviderConfig{
 		ID: ProviderID, BaseURL: a.root + "/v1", APIKey: AppKey, Kind: Kind,
-		Models: specs, EffortStyle: "openai",
+		Models: specs, EffortStyle: "auto",
 		Headers: map[string]string{"User-Agent": "Crewbase"},
 	})
 	if err != nil {
