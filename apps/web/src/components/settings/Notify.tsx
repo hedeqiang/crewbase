@@ -1,10 +1,11 @@
-import { ArrowRight, Moon } from "lucide-react";
+import { Moon } from "lucide-react";
 import { useEffect, useState } from "react";
 import { API, type NotifyPrefs, type NotifyState, type QuietHours } from "../../api";
 import { hhmm, nextMorning } from "../../format";
 import { t, type Key } from "../../i18n";
-import { dndActive, openSettings, patchProfile, toast, useStore } from "../../store";
+import { dndActive, patchProfile, toast, useStore } from "../../store";
 import { Head, Row } from "../Settings";
+import { ImSetup } from "./ImSetup";
 
 const DEFAULT_QUIET: QuietHours = { on: false, start: "22:00", end: "08:00" };
 
@@ -66,7 +67,6 @@ export function Notify() {
   };
 
   const channels = st?.channels ?? [];
-  const onlyDesktop = channels.length <= 1;
 
   return (
     <>
@@ -132,15 +132,7 @@ export function Notify() {
             ))}
           </div>
         )}
-        {st && onlyDesktop && (
-          <button type="button" className="ntmore" onClick={() => openSettings("market")}>
-            <span className="g">
-              <b>{t("nt.moreTitle")}</b>
-              <span>{t("nt.moreDesc")}</span>
-            </span>
-            <ArrowRight size={15} />
-          </button>
-        )}
+        <ImSetup onChanged={() => void API.notify().then(setSt, () => {})} />
 
         <div className="vsec">{t("nt.when")}</div>
         <div className="sbox">

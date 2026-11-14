@@ -23,10 +23,14 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
+	"os"
+	"path/filepath"
 	"slices"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -224,6 +228,9 @@ type Config struct {
 	NotifyKinds []string `json:"notifyKinds,omitempty"`
 	// RatePerMinute caps outgoing messages (default 20, burst 5).
 	RatePerMinute int `json:"ratePerMinute,omitempty"`
+	// StateDir keeps thread → conversation bindings across restarts
+	// (im-<name>-threads.json); "" = memory only.
+	StateDir string `json:"stateDir,omitempty"`
 }
 
 func (c Config) approvals() bool { return c.Approvals == nil || *c.Approvals }
@@ -307,6 +314,7 @@ type Gateway struct {
 	bindings  map[string]*binding             // chat\x00msgID → binding
 	byID      map[string]*binding
 	order     []string // binding ids, oldest first (bounded)
+	saveTimer *time.Timer
 	refused   map[string]time.Time
 	cardWait  *sync.Cond
 }
@@ -333,7 +341,97 @@ func New(c *kernel.Context, provider string, cfg Config) *Gateway {
 		refused:  map[string]time.Time{},
 	}
 	g.cardWait = sync.NewCond(&g.mu)
+	g.loadBindings()
 	return g
+}
+
+// ---- binding persistence
+
+type savedBinding struct {
+	ID      string   `json:"id"`
+	Agent   string   `json:"agent"`
+	Session string   `json:"session"`
+	Chat    string   `json:"chat"`
+	Anchor  string   `json:"anchor,omitempty"`
+	Msgs    []string `json:"msgs"`
+}
+
+func (g *Gateway) statePath() string {
+	if g.cfg.StateDir == "" {
+		return ""
+	}
+	return filepath.Join(g.cfg.StateDir, "im-"+safeFile(g.name)+"-threads.json")
+}
+
+func safeFile(s string) string {
+	return strings.Map(func(r rune) rune {
+		if r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || r >= '0' && r <= '9' || r == '-' || r == '_' {
+			return r
+		}
+		return '_'
+	}, s)
+}
+
+func (g *Gateway) loadBindings() {
+	p := g.statePath()
+	if p == "" {
+		return
+	}
+	b, err := os.ReadFile(p)
+	if err != nil {
+		return
+	}
+	var list []savedBinding
+	if json.Unmarshal(b, &list) != nil {
+		return
+	}
+	for _, x := range list {
+		bd := &binding{id: x.ID, agent: x.Agent, session: x.Session, chat: x.Chat, anchor: x.Anchor}
+		g.byID[bd.id] = bd
+		g.order = append(g.order, bd.id)
+		for _, m := range x.Msgs {
+			g.bindings[bkey(x.Chat, m)] = bd
+		}
+	}
+}
+
+// saveSoon writes the bindings at most every two seconds. Caller holds g.mu.
+func (g *Gateway) saveSoon() {
+	if g.statePath() == "" || g.saveTimer != nil {
+		return
+	}
+	g.saveTimer = time.AfterFunc(2*time.Second, func() {
+		g.mu.Lock()
+		g.saveTimer = nil
+		list := make([]savedBinding, 0, len(g.order))
+		msgs := map[string][]string{}
+		for k, b := range g.bindings {
+			if _, m, ok := strings.Cut(k, "\x00"); ok {
+				msgs[b.id] = append(msgs[b.id], m)
+			}
+		}
+		for _, id := range g.order {
+			b := g.byID[id]
+			if b == nil {
+				continue
+			}
+			sort.Strings(msgs[id])
+			list = append(list, savedBinding{ID: b.id, Agent: b.agent, Session: b.session, Chat: b.chat, Anchor: b.anchor, Msgs: msgs[id]})
+		}
+		g.mu.Unlock()
+		data, err := json.Marshal(list)
+		if err != nil {
+			return
+		}
+		p := g.statePath()
+		if os.MkdirAll(filepath.Dir(p), 0o700) != nil {
+			return
+		}
+		tmp := p + ".tmp"
+		if os.WriteFile(tmp, data, 0o600) == nil {
+			_ = os.Rename(tmp, p)
+		}
+	})
 }
 
 // Name returns the gateway name.
@@ -835,6 +933,7 @@ func (g *Gateway) bind(b *binding, chat string, msgIDs ...string) {
 			g.bindings[bkey(chat, id)] = b
 		}
 	}
+	g.saveSoon()
 }
 
 func (g *Gateway) lookupBinding(chat, msg string) *binding {
@@ -999,8 +1098,68 @@ func (g *Gateway) tag(bindingID, msgID string) string {
 	return "im:" + g.name + ":" + bindingID + ":" + msgID
 }
 
-// MaxRelay caps relayed reply length (runes); transports may split further.
-const MaxRelay = 3500
+// MaxRelay is the length of one relayed message (runes); longer replies
+// are split at paragraph / line / sentence boundaries into at most
+// MaxRelayParts messages.
+const (
+	MaxRelay      = 3500
+	MaxRelayParts = 4
+)
+
+// SplitReply cuts text into messages of at most n runes, preferring
+// paragraph breaks, then line breaks, then sentence ends, then spaces.
+// Code fences that a cut would split are closed and reopened. Beyond max
+// messages the rest is replaced by a pointer to the desktop.
+func SplitReply(text string, n, max int) []string {
+	r := []rune(strings.TrimSpace(text))
+	var out []string
+	for len(r) > 0 {
+		if len(out) == max-1 && len(r) > n {
+			cut := n - 30
+			out = append(out, strings.TrimSpace(string(r[:cut]))+"…（完整回复请在桌面查看）")
+			break
+		}
+		if len(r) <= n {
+			out = append(out, string(r))
+			break
+		}
+		cut := bestCut(r[:n])
+		out = append(out, strings.TrimSpace(string(r[:cut])))
+		r = []rune(strings.TrimLeft(string(r[cut:]), " \n"))
+	}
+	// keep fenced code blocks balanced across parts
+	open := false
+	for i, p := range out {
+		if open {
+			p = "```\n" + p
+		}
+		if strings.Count(p, "```")%2 == 1 {
+			p += "\n```"
+			open = !open
+		}
+		out[i] = p
+	}
+	if len(out) > 1 {
+		for i := range out {
+			out[i] = fmt.Sprintf("%s\n（%d/%d）", out[i], i+1, len(out))
+		}
+	}
+	return out
+}
+
+func bestCut(r []rune) int {
+	s := string(r)
+	min := len(r) / 2
+	for _, sep := range []string{"\n\n", "\n", "。", "！", "？", ". ", "! ", "? ", "；", "; ", " "} {
+		if i := strings.LastIndex(s, sep); i >= 0 {
+			at := utf8.RuneCountInString(s[:i+len(sep)])
+			if at >= min {
+				return at
+			}
+		}
+	}
+	return len(r)
+}
 
 func (g *Gateway) onTurnEnded(e agentloop.TurnEndEvent) {
 	rest, ok := strings.CutPrefix(e.Input.Tag, "im:"+g.name+":")
@@ -1024,18 +1183,19 @@ func (g *Gateway) onTurnEnded(e agentloop.TurnEndEvent) {
 	if text == "" {
 		return
 	}
-	if utf8.RuneCountInString(text) > MaxRelay {
-		text = string([]rune(text)[:MaxRelay]) + "…（完整回复请在桌面查看）"
-	}
-	m := Message{Chat: b.chat, Thread: b.anchor, ReplyTo: msgID, Agent: g.agentName(b.agent), Body: text}
+	parts := SplitReply(text, MaxRelay, MaxRelayParts)
 	g.later(func(ctx context.Context) {
-		ref, err := g.Post(ctx, m)
-		if err != nil {
-			if ctx.Err() == nil {
-				g.log.Warn("im relay reply", "err", err.Error())
+		reply := msgID
+		for _, p := range parts {
+			m := Message{Chat: b.chat, Thread: b.anchor, ReplyTo: reply, Agent: g.agentName(b.agent), Body: p}
+			ref, err := g.Post(ctx, m)
+			if err != nil {
+				if ctx.Err() == nil {
+					g.log.Warn("im relay reply", "err", err.Error())
+				}
+				return
 			}
-			return
+			g.bind(b, b.chat, ref.ID)
 		}
-		g.bind(b, b.chat, ref.ID)
 	})
 }

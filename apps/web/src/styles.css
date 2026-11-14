@@ -1229,3 +1229,9 @@ button.tg:disabled { opacity: .5; cursor: not-allowed; }
 .mcplogin { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 8px 10px; border-radius: 10px; background: var(--amber-soft); margin-top: 6px; }
 .mcplogin .small { color: var(--amber-text); flex: 1; min-width: 160px; }
 .chk { display: flex; align-items: center; gap: 8px; }
+.impick { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 8px; margin-top: 8px; }
+.imform { margin-top: 8px; }
+.imfh { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+.imfh .sp { flex: 1; }
+.imkey { display: flex; align-items: center; gap: 5px; color: var(--ok-text); margin: 8px 0 0; }
+.imrow { grid-template-columns: auto minmax(0, 1fr) auto auto auto; }

@@ -2,10 +2,15 @@ package im_test
 
 import (
 	"context"
+	"github.com/hedeqiang/crewbase/core/session"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	"github.com/hedeqiang/crewbase/capabilities/approval"
 	"github.com/hedeqiang/crewbase/capabilities/notify"
@@ -214,4 +219,71 @@ func TestAPI(t *testing.T) {
 	if code, _ = do("POST", "/api/im/nope/test"); code != 404 {
 		t.Fatal(code)
 	}
+}
+
+func TestSplitReply(t *testing.T) {
+	if p := im.SplitReply("短消息", 100, 4); len(p) != 1 || p[0] != "短消息" {
+		t.Fatalf("%q", p)
+	}
+	long := strings.Repeat("第一段内容。", 30) + "\n\n" + strings.Repeat("第二段内容。", 30)
+	p := im.SplitReply(long, 200, 4)
+	if len(p) < 2 || !strings.HasSuffix(p[0], "（1/"+strconv.Itoa(len(p))+"）") {
+		t.Fatalf("%d parts: %q", len(p), p)
+	}
+	for _, x := range p {
+		if n := utf8.RuneCountInString(x); n > 220 {
+			t.Fatalf("part too long: %d", n)
+		}
+		if !strings.Contains(x, "。") {
+			t.Fatalf("cut mid-sentence: %q", x)
+		}
+	}
+	// code fences stay balanced
+	code := "看代码：\n```go\n" + strings.Repeat("fmt.Println(1)\n", 40) + "```\n完"
+	for _, x := range im.SplitReply(code, 200, 6) {
+		if strings.Count(x, "```")%2 != 0 {
+			t.Fatalf("unbalanced fence: %q", x)
+		}
+	}
+	// too long: last part points to the desktop
+	p = im.SplitReply(strings.Repeat("字", 2000), 200, 3)
+	if len(p) != 3 || !strings.Contains(p[2], "完整回复请在桌面查看") {
+		t.Fatalf("%d %q", len(p), p[len(p)-1])
+	}
+}
+
+// Thread bindings survive a restart: a reply in an old thread still
+// reaches the same agent and conversation.
+func TestBindingsPersist(t *testing.T) {
+	dir := t.TempDir()
+	e := imtest.New(t)
+	a := e.Agent("Kai")
+	_, g := start(t, e, map[string]any{"stateDir": dir, "relayReplies": true})
+	g.Message(context.Background(), im.Inbound{User: im.User{ID: "u-ada"}, Chat: "C1", MessageID: "m1", Text: "@kai 你好", Direct: true})
+	imtest.Eventually(t, func() bool { return len(a.Queue()) > 0 || a.CurrentInput() != "" })
+	imtest.Eventually(t, func() bool {
+		b, err := os.ReadFile(filepath.Join(dir, "im-fake-threads.json"))
+		return err == nil && strings.Contains(string(b), `"m1"`)
+	})
+	// a new gateway on the same state (a restart) loads the binding: a reply
+	// in the old thread goes to the same agent and conversation
+	saved, _ := os.ReadFile(filepath.Join(dir, "im-fake-threads.json"))
+	if !strings.Contains(string(saved), a.Spec().Session) || !strings.Contains(string(saved), `"agent":"`+a.ID()+`"`) {
+		t.Fatalf("saved %s", saved)
+	}
+	if !e.Host.Unload("imtest-fake") {
+		t.Fatal("unload")
+	}
+	_ = g
+	_, g2 := start(t, e, map[string]any{"stateDir": dir, "relayReplies": true})
+	g2.Message(context.Background(), im.Inbound{User: im.User{ID: "u-ada"}, Chat: "C1", MessageID: "m2", Thread: "m1", Text: "接着说"})
+	ss, _ := a.Session()
+	imtest.Eventually(t, func() bool {
+		for _, ev := range ss.Events() {
+			if ev.Type == session.TypeInputQueued && strings.Contains(string(ev.Data), "接着说") {
+				return true
+			}
+		}
+		return false
+	})
 }

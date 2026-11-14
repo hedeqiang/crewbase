@@ -742,7 +742,34 @@ export interface RelayStatus {
   status?: { relay: string; hostId: string; online: boolean; devices: number; error?: string };
 }
 
+export interface ImPlatform {
+  id: string;
+  name: string;
+  app: boolean;
+  appId: boolean;
+  channel: string;
+  tokenDoc: string;
+}
+
+export interface ImGateway {
+  id: string;
+  platform: string;
+  channel: string;
+  allowUsers: string[];
+  appId?: string;
+  relayReplies: boolean;
+  approvals: boolean;
+  enabled: boolean;
+  hasToken: boolean;
+  running: boolean;
+  error?: string;
+}
+
 export const API = {
+  imConfig: () => api<{ platforms: ImPlatform[]; gateways: ImGateway[] }>("GET", "/api/im/config"),
+  saveIm: (id: string, b: Record<string, unknown>) => api<ImGateway>("PUT", `/api/im/config/${enc(id)}`, b),
+  removeIm: (id: string) => api("DELETE", `/api/im/config/${enc(id)}`),
+  testIm: (id: string) => api<{ ok: boolean; error?: string }>("POST", `/api/im/${enc(id)}/test`),
   health: () => api<{ ok: boolean }>("GET", "/api/health"),
   pair: (b: { code: string; name: string; platform: string }) => api<{ token: string; device: DeviceView }>("POST", "/api/pair", b),
   whoami: () => api<{ tier: string; device?: DeviceView }>("GET", "/api/whoami"),
