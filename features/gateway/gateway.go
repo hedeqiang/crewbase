@@ -81,7 +81,13 @@ type Route struct {
 	// Validate runs before Handle and must not touch state.
 	Validate func(r *Request) error
 	Handle   func(ctx context.Context, r *Request) (any, error)
+	// MaxBody caps the request body (default DefaultMaxBody); larger
+	// bodies are refused with 413 rather than truncated.
+	MaxBody int64
 }
+
+// DefaultMaxBody is the request body cap for routes that set none.
+const DefaultMaxBody = 8 << 20
 
 // Gateway is the `gateway` service.
 type Gateway struct {
@@ -242,9 +248,17 @@ func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// 2. validate
-	body, err := io.ReadAll(io.LimitReader(r.Body, 8<<20))
+	limit := route.MaxBody
+	if limit <= 0 {
+		limit = DefaultMaxBody
+	}
+	body, err := io.ReadAll(io.LimitReader(r.Body, limit+1))
 	if err != nil {
 		writeErr(w, BadRequest("read body: %v", err))
+		return
+	}
+	if int64(len(body)) > limit {
+		writeErr(w, &Error{Status: 413, Code: "too_large", Message: fmt.Sprintf("request body is larger than %d MB", limit>>20)})
 		return
 	}
 	req := &Request{HTTP: r, Params: params, Body: body, Device: dev}

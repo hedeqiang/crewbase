@@ -228,6 +228,32 @@ export interface NotifyPrefs {
   quiet: QuietHours;
 }
 
+/** 导入角色模板 (POST /api/agents/import[/preview]). Data is base64. */
+export interface ImportSource {
+  files?: { path: string; data: string }[];
+  zip?: string;
+  text?: string;
+}
+
+export interface RoleTemplate {
+  format: "hermes" | "markdown" | "json" | "text";
+  name: string;
+  role?: string;
+  instructions: string;
+  skills: { name: string; description?: string; files: string[] }[];
+  skipped: { path: string; reason: string }[];
+}
+
+export interface ImportOptions {
+  name?: string;
+  role?: string;
+  folder?: string;
+  mode?: string;
+  color?: string;
+  shape?: string;
+  modelRefs?: string[];
+}
+
 /** GET /api/notify: effective state for every kind × connected channel. */
 export interface NotifyState {
   kinds: string[];
@@ -569,6 +595,9 @@ export const API = {
   agents: () => api<{ agents: AgentView[] }>("GET", "/api/agents"),
   agent: (id: string) => api<AgentView>("GET", `/api/agents/${enc(id)}`),
   createAgent: (b: Partial<AgentView> & { modelRefs?: string[] }) => api<AgentView>("POST", "/api/agents", b),
+  previewImport: (src: ImportSource) => api<RoleTemplate>("POST", "/api/agents/import/preview", src),
+  importAgent: (src: ImportSource, options: ImportOptions) =>
+    api<{ agent: string; session: string; name: string; skills: number }>("POST", "/api/agents/import", { ...src, options }),
   patchAgent: (id: string, b: Record<string, unknown>) => api<AgentView>("PATCH", `/api/agents/${enc(id)}`, b),
   deleteAgent: (id: string) => api("DELETE", `/api/agents/${enc(id)}`),
   send: (id: string, b: { text: string; model?: string; session?: string; front?: boolean }) =>

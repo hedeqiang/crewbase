@@ -1,6 +1,7 @@
 import { useMemo, useRef, useState } from "react";
-import { Check, ChevronDown, Folder, Shield, RefreshCw } from "lucide-react";
+import { Check, ChevronDown, FileUp, Folder, Shield, RefreshCw } from "lucide-react";
 import { API, refString, type ModelRef } from "../api";
+import { ImportRoleDialog } from "./ImportRole";
 import { t, type Key } from "../i18n";
 import { allModels, effortLabel, kfmt, modeLabel, sameRef, shortModel } from "../format";
 import { openSession, refreshAgents, refreshSessions, setState, toast, useFolders, useStore } from "../store";
@@ -93,6 +94,13 @@ export function NewAgent({ draft: f, setDraft }: { draft: Draft; setDraft: (d: D
   const primary = f.model ?? preferred;
   const backup = all.find((m) => primary && !sameRef(m.ref, primary))?.ref ?? null;
   const set = (p: Partial<Draft>) => setDraft({ ...f, ...p });
+  const [importing, setImporting] = useState(false);
+  const modelRefs = () => {
+    const refs: string[] = [];
+    if (primary) refs.push(refString({ ...primary, effort: f.effort || undefined }));
+    if (backup) refs.push(refString(backup));
+    return refs;
+  };
 
   const create = async () => {
     const name = f.name.trim();
@@ -104,9 +112,7 @@ export function NewAgent({ draft: f, setDraft }: { draft: Draft; setDraft: (d: D
     }
     setBusy(true);
     try {
-      const refs: string[] = [];
-      if (primary) refs.push(refString({ ...primary, effort: f.effort || undefined }));
-      if (backup) refs.push(refString(backup));
+      const refs = modelRefs();
       const a = await API.createAgent({
         name,
         role: f.role.trim() || undefined,
@@ -270,8 +276,21 @@ export function NewAgent({ draft: f, setDraft }: { draft: Draft; setDraft: (d: D
               </button>
             ))}
           </div>
+          <button type="button" className="ir-entry" onClick={() => setImporting(true)}>
+            <FileUp size={16} />
+            <span className="g">
+              <b>{t("ir.title")}</b>
+              <span>{t("ir.entryDesc")}</span>
+            </span>
+          </button>
         </div>
       </div>
+      {importing && (
+        <ImportRoleDialog
+          onClose={() => setImporting(false)}
+          options={{ mode: f.mode, color: f.color, shape: f.shape, folder: f.folder.trim() || undefined, modelRefs: modelRefs() }}
+        />
+      )}
 
       <Popover anchor={modelM.anchor} open={modelM.open} onClose={modelM.close} width={340}>
         <div className="mlbl">{t("na.model")}</div>

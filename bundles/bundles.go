@@ -33,6 +33,7 @@ import (
 	_ "github.com/hedeqiang/crewbase/features/plugins"
 	_ "github.com/hedeqiang/crewbase/features/providers"
 	_ "github.com/hedeqiang/crewbase/features/redact"
+	_ "github.com/hedeqiang/crewbase/features/roles"
 	_ "github.com/hedeqiang/crewbase/features/router"
 	_ "github.com/hedeqiang/crewbase/features/routines"
 	_ "github.com/hedeqiang/crewbase/features/rules"
@@ -151,6 +152,7 @@ var Desktop = kernel.Bundle{Name: "desktop", Entries: []kernel.Entry{
 	{ID: "console", Name: "@crewbase/console", Config: map[string]any{"dir": "${root}"}},
 	{ID: "providers-api", Name: "@crewbase/providers-api"},
 	{ID: "usage-api", Name: "@crewbase/usage-api"},
+	{ID: "roles", Name: "@crewbase/roles"},
 }}
 
 // Server is headless: same API bound to localhost (remote access goes
