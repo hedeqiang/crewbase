@@ -74,6 +74,9 @@ type Route struct {
 	// Devices allowed to call it ("" = desktop only). Mobile devices may
 	// view, approve and send messages; not change rules or plugins.
 	Devices []string
+	// Public routes skip token auth; their Validate must authenticate the
+	// caller itself (e.g. a webhook secret). Used only for webhooks.
+	Public bool
 	// Validate runs before Handle and must not touch state.
 	Validate func(r *Request) error
 	Handle   func(ctx context.Context, r *Request) (any, error)
@@ -155,6 +158,19 @@ func (g *Gateway) auth(r *http.Request) (string, bool) {
 	return "", false
 }
 
+func (g *Gateway) isPublic(r *http.Request) bool {
+	g.mu.RLock()
+	defer g.mu.RUnlock()
+	for _, rt := range g.routes {
+		if rt.Public && rt.Method == r.Method {
+			if _, ok := match(rt.Path, r.URL.Path); ok {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 func writeJSON(w http.ResponseWriter, status int, v any) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.WriteHeader(status)
@@ -171,9 +187,9 @@ func writeErr(w http.ResponseWriter, err error) {
 
 // ServeHTTP implements the API.
 func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	// 1. authenticate
+	// 1. authenticate (public webhook routes authenticate in Validate)
 	dev, ok := g.auth(r)
-	if !ok {
+	if !ok && !g.isPublic(r) {
 		writeErr(w, &Error{Status: 401, Code: "unauthorized", Message: "missing or invalid token"})
 		return
 	}
@@ -203,7 +219,11 @@ func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		return
 	}
-	allowed := dev == "desktop"
+	if !ok && !route.Public {
+		writeErr(w, &Error{Status: 401, Code: "unauthorized", Message: "missing or invalid token"})
+		return
+	}
+	allowed := dev == "desktop" || route.Public
 	for _, d := range route.Devices {
 		if d == dev {
 			allowed = true

@@ -84,8 +84,17 @@ var (
 	// listener that does so must have injected new input).
 	TurnStopping = kernel.NewSerial[*agent.Agent, bool]("agent/turn-stopping")
 	Stream       = kernel.NewEmit[StreamEvent]("agent/stream")
-	TurnEnded    = kernel.NewEmit[TurnEndEvent]("agent/turn-end")
+	// TurnStarted fires after an input is claimed, before the first step.
+	TurnStarted = kernel.NewEmit[TurnStartEvent]("agent/turn-start")
+	TurnEnded   = kernel.NewEmit[TurnEndEvent]("agent/turn-end")
 )
+
+// TurnStartEvent reports a starting turn.
+type TurnStartEvent struct {
+	Agent   *agent.Agent
+	Session *session.Session
+	Input   agent.Input
+}
 
 // TurnEndEvent reports a finished turn.
 type TurnEndEvent struct {
@@ -217,6 +226,7 @@ func (l *loop) turn(parent context.Context, a *agent.Agent, in agent.Input) {
 		return
 	}
 	_, _ = ss.Append(session.TypeTurnStart, a.ID(), TurnStart{Input: in.ID, Model: ref})
+	TurnStarted.Emit(d, TurnStartEvent{Agent: a, Session: ss, Input: in})
 
 	steps := 0
 	for steps < l.cfg.MaxSteps {

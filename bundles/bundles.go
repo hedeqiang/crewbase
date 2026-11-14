@@ -4,10 +4,13 @@
 package bundles
 
 import (
+	"runtime"
+
 	"github.com/hedeqiang/crewbase/kernel"
 
 	_ "github.com/hedeqiang/crewbase/capabilities/approval"
 	_ "github.com/hedeqiang/crewbase/capabilities/credentials"
+	_ "github.com/hedeqiang/crewbase/capabilities/notify"
 	_ "github.com/hedeqiang/crewbase/core/agent"
 	_ "github.com/hedeqiang/crewbase/core/agentloop"
 	_ "github.com/hedeqiang/crewbase/core/llm"
@@ -22,7 +25,15 @@ import (
 	_ "github.com/hedeqiang/crewbase/features/redact"
 	_ "github.com/hedeqiang/crewbase/features/router"
 	_ "github.com/hedeqiang/crewbase/features/rules"
+	_ "github.com/hedeqiang/crewbase/features/runmode"
+	_ "github.com/hedeqiang/crewbase/features/schedule"
+	_ "github.com/hedeqiang/crewbase/features/toolsbasic"
+	_ "github.com/hedeqiang/crewbase/providers/fs/local"
 	_ "github.com/hedeqiang/crewbase/providers/llm/mock"
+	_ "github.com/hedeqiang/crewbase/providers/sandbox/docker"
+	_ "github.com/hedeqiang/crewbase/providers/sandbox/none"
+	_ "github.com/hedeqiang/crewbase/providers/sandbox/seatbelt"
+	_ "github.com/hedeqiang/crewbase/providers/shell/local"
 )
 
 // Base is shared by every profile: model adapters, tools, persistence,
@@ -41,6 +52,13 @@ var Base = kernel.Bundle{Name: "base", Entries: []kernel.Entry{
 	{ID: "agents", Name: "@crewbase/agents", Config: map[string]any{"root": "${root}", "defaultModels": []string{"mock/default"}}},
 	{ID: "agent-loop", Name: "@crewbase/agent-loop"},
 	{ID: "channel", Name: "@crewbase/channel-local"},
+	{ID: "sandbox", Name: defaultSandbox()},
+	{ID: "shell", Name: "@crewbase/shell-local"},
+	{ID: "fs", Name: "@crewbase/fs-local"},
+	{ID: "tools-basic", Name: "@crewbase/tools-basic"},
+	{ID: "runmode", Name: "@crewbase/runmode"},
+	{ID: "notify", Name: "@crewbase/notify"},
+	{ID: "schedule", Name: "@crewbase/schedule", Config: map[string]any{"dir": "${root}"}},
 	{ID: "compaction", Name: "@crewbase/compaction-summary"},
 	{ID: "memory", Name: "@crewbase/memory-markdown-sqlite", Config: map[string]any{"root": "${root}"}},
 }}
@@ -51,6 +69,7 @@ var Desktop = kernel.Bundle{Name: "desktop", Entries: []kernel.Entry{
 	{ID: "gateway", Name: "@crewbase/gateway", Config: map[string]any{"addr": "127.0.0.1:7788", "tokenFile": "${root}/token"}},
 	{ID: "api", Name: "@crewbase/api"},
 	{ID: "channel-api", Name: "@crewbase/channel-api"},
+	{ID: "webhook", Name: "@crewbase/webhook"},
 }}
 
 // Server is headless: same API bound to localhost (remote access goes
@@ -61,6 +80,17 @@ var Server = kernel.Bundle{Name: "server", Entries: []kernel.Entry{
 	{ID: "api", Name: "@crewbase/api"},
 	{ID: "channel-api", Name: "@crewbase/channel-api"},
 }}
+
+// defaultSandbox picks the sandbox provider for this platform: Seatbelt on
+// macOS, Docker elsewhere. Switch with a patch:
+//   - id: sandbox
+//     name: '@crewbase/sandbox-docker'
+func defaultSandbox() string {
+	if runtime.GOOS == "darwin" {
+		return "@crewbase/sandbox-seatbelt"
+	}
+	return "@crewbase/sandbox-docker"
+}
 
 // extra bundles are appended to profiles by later packages (AddToProfiles).
 var extraBase []kernel.Entry

@@ -169,6 +169,10 @@ func (a *Agent) Update(fn func(*Spec)) error {
 	s := a.spec
 	fn(&s)
 	s.ID, s.Session, s.Created = a.spec.ID, a.spec.Session, a.spec.Created
+	wasHost := a.spec.Mode == ModeHost && (a.spec.ModeUntil.IsZero() || time.Now().Before(a.spec.ModeUntil))
+	if s.Mode == ModeHost && !wasHost {
+		s.ModeUntil = time.Time{} // entering host mode restarts the 24h clock
+	}
 	if s.Mode == ModeHost && s.ModeUntil.IsZero() {
 		s.ModeUntil = time.Now().Add(24 * time.Hour)
 	}
