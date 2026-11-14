@@ -83,7 +83,7 @@
 - [ ] 进程外插件桥接：stdio JSON-RPC 2.0、清单权限、Waterfall 2s 超时、退出即撤销（S-6）
 - [ ] 插件 SDK：TypeScript / Python / Go
 - [ ] 插件与技能市场页、角色模板导入（C-5）
-- [ ] 按任务分流 `router-cost` + 节省 token 展示（M-5）
+- [x] 按任务分流（M-5）：routine / 摘要·日志清洗 / 编码 / 超长文档 → 配置的模型，不可用时回落到 Agent 顺序；节省见 `/api/usage`
 - [ ] WASM 插件档（wazero）
 - [ ] UI：频道与任务卡、交接 / 改派、审批中心、自动化页、插件与技能页
 - [~] Phase 2 出口 e2e：三 Agent 两次交接（mock 已通过）；TS 插件安装授权热重载（待做）

@@ -29,6 +29,12 @@ type Router interface {
 	Failover(ctx context.Context, a *agent.Agent, ref llm.ModelRef, err error) (llm.ModelRef, bool)
 }
 
+// InputSelector is optionally implemented by routers that route by task
+// type (e.g. summaries and routine checks to a local model).
+type InputSelector interface {
+	SelectFor(a *agent.Agent, in agent.Input) (llm.ModelRef, bool)
+}
+
 // Compactor shrinks a session's model context (the `compaction` service).
 type Compactor interface {
 	Compact(ctx context.Context, a *agent.Agent, ss *session.Session, model llm.ModelRef, reason string) error
@@ -307,6 +313,9 @@ func (l *loop) selectModel(a *agent.Agent, in agent.Input) (llm.ModelRef, bool) 
 		return *in.Model, true
 	}
 	if r, ok := l.router(); ok {
+		if is, ok := r.(InputSelector); ok {
+			return is.SelectFor(a, in)
+		}
 		return r.Select(a)
 	}
 	ms := a.Spec().Models

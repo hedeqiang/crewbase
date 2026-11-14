@@ -44,6 +44,7 @@ type Router struct {
 	mu        sync.Mutex
 	exhausted map[string]ModelState
 	switches  int
+	routes    []Route
 }
 
 func (r *Router) usable(ref llm.ModelRef) bool {
@@ -171,11 +172,25 @@ var Plugin = kernel.Register(kernel.Spec{
 	Inject:      []string{llm.ServiceKey},
 	Description: "Per-agent model order with lossless failover.",
 	Apply: func(c *kernel.Context) error {
+		cfg, err := kernel.Decode[struct {
+			// Routes by task type, e.g. [{"task":"summarize","model":"ollama/qwen3"}].
+			Routes []Route `json:"routes"`
+		}](c)
+		if err != nil {
+			return err
+		}
+		for _, rt := range cfg.Routes {
+			if _, err := llm.ParseRef(rt.Model); err != nil {
+				return err
+			}
+		}
 		r := New(c, kernel.Use[*llm.Registry](c, llm.ServiceKey), nil)
+		r.SetRoutes(cfg.Routes)
 		QuotaExhausted.Listen(c, func(_ context.Context, e Exhausted) (llm.ModelRef, bool) {
 			return r.nextInOrder(e.Agent, e.Failed)
 		})
 		var _ agentloop.Router = r
+		var _ agentloop.InputSelector = r
 		return c.Provide(agentloop.RouterKey, agentloop.Router(r))
 	},
 })
