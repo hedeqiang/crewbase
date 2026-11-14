@@ -171,3 +171,17 @@ func TestApprovalIDWithSlashes(t *testing.T) {
 		t.Fatal(d)
 	}
 }
+
+func TestCreateChat(t *testing.T) {
+	base, _ := start(t)
+	code, out := do(t, base, tok, "POST", "/api/agents", map[string]any{"kind": "chat"})
+	if code != 200 || out["kind"] != "chat" || out["name"] != "新对话" {
+		t.Fatal(code, out)
+	}
+	if code, _ := do(t, base, tok, "POST", "/api/agents", map[string]any{"kind": "robot", "name": "x"}); code != 400 {
+		t.Fatalf("unknown kind: %d", code)
+	}
+	if code, _ := do(t, base, tok, "POST", "/api/agents", map[string]any{}); code != 400 {
+		t.Fatalf("agents still need a name: %d", code)
+	}
+}

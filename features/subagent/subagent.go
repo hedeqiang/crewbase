@@ -278,7 +278,7 @@ func (r *runner) spawn(ctx context.Context, provName string, fork bool, models [
 		defer r.deleteAgent(a.ID())
 	} else {
 		a, ok := r.agents.Get(req.Agent)
-		if !ok {
+		if !ok || a.IsChat() {
 			return subagent.Result{}, fmt.Errorf("unknown agent %q", req.Agent)
 		}
 		if req.Agent == req.Parent {

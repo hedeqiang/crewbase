@@ -133,8 +133,11 @@ var Plugin = kernel.Register(kernel.Spec{
 				if err := r.Decode(&b); err != nil {
 					return err
 				}
-				if strings.TrimSpace(b.Name) == "" {
+				if strings.TrimSpace(b.Name) == "" && b.Kind != agent.KindChat {
 					return gateway.BadRequest("name is required")
+				}
+				if b.Kind != "" && b.Kind != agent.KindChat {
+					return gateway.BadRequest("unknown kind %q", b.Kind)
 				}
 				if b.Mode == agent.ModeHost {
 					return gateway.BadRequest("host mode cannot be enabled at creation")

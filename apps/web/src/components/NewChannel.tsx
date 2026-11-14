@@ -20,7 +20,7 @@ function Dialog() {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const nameRef = useRef<HTMLInputElement>(null);
-  const list = useMemo(() => Object.values(agents).sort((a, b) => a.name.localeCompare(b.name)), [agents]);
+  const list = useMemo(() => Object.values(agents).filter((a) => a.kind !== "chat").sort((a, b) => a.name.localeCompare(b.name)), [agents]);
   const folders = useFolders();
   const close = () => setState({ newChannel: false });
 

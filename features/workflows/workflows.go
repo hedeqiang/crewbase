@@ -238,7 +238,7 @@ func (s *Service) checkAgentStep(st *Step) error {
 	if st.Agent == "" {
 		return fmt.Errorf("step %s: agent is required", st.ID)
 	}
-	if _, ok := s.agents.Get(st.Agent); !ok {
+	if a, ok := s.agents.Get(st.Agent); !ok || a.IsChat() {
 		return fmt.Errorf("step %s: unknown agent %q", st.ID, st.Agent)
 	}
 	if strings.TrimSpace(st.Prompt) == "" {

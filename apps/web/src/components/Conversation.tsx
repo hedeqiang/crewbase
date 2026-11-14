@@ -204,7 +204,7 @@ function Feed({
       {typing && (
         <div className="typing">
           <Avatar agent={agent} size={24} />
-          <span>{detailLabel(agent.detail) || t("chat.thinking", { name: agent.name })}</span>
+          <span>{detailLabel(agent.detail) || t("chat.thinking", { name: speaker(agent) })}</span>
           <span className="dots">
             <i />
             <i />
@@ -350,7 +350,7 @@ function AgentMsg({ it, agent, showModel }: { it: Extract<FeedItem, { k: "agent"
       <Avatar agent={agent} size={28} />
       <div style={{ minWidth: 0 }}>
         <div className="mh">
-          <b>{agent?.name ?? it.agent}</b>
+          <b>{agent ? speaker(agent) : it.agent}</b>
           <span className="t">{hhmm(it.time)}</span>
           {sm && it.model && (
             <span className={"via" + (showModel ? "" : " hov")} title={modelLabel(models, it.model)}>
@@ -578,6 +578,11 @@ function mentionAt(text: string, caret: number): Mention | null {
 }
 
 const NO_FILES: never[] = [];
+
+/** How an agent is named in the conversation (a blank chat speaks as 助手). */
+function speaker(a: AgentView): string {
+  return a.kind === "chat" ? t("chat.assistant") : a.name;
+}
 
 function Composer({
   sessionId,
@@ -808,8 +813,8 @@ function Composer({
           rows={1}
           value={draft}
           disabled={archived}
-          placeholder={archived ? t("ch.archivedPh") : channel ? t("chat.placeholderChannel", { name: channel.title || channel.id }) : t("chat.placeholder", { name: agent.name })}
-          aria-label={channel ? t("chat.placeholderChannel", { name: channel.title || channel.id }) : t("chat.placeholder", { name: agent.name })}
+          placeholder={archived ? t("ch.archivedPh") : channel ? t("chat.placeholderChannel", { name: channel.title || channel.id }) : agent.kind === "chat" ? t("chat.chatPh") : t("chat.placeholder", { name: agent.name })}
+          aria-label={channel ? t("chat.placeholderChannel", { name: channel.title || channel.id }) : agent.kind === "chat" ? t("chat.chatPh") : t("chat.placeholder", { name: agent.name })}
           onChange={(e) => {
             setDraft(e.target.value);
             if (channel) {

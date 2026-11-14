@@ -265,3 +265,60 @@ func TestEphemeralAgentNotPersisted(t *testing.T) {
 		t.Fatal("ephemeral workspace kept after delete")
 	}
 }
+
+// A blank chat works like an agent (tools run) but its system prompt
+// carries no persona, instructions, memory or plugin fragments.
+func TestBlankChat(t *testing.T) {
+	e := newEnv(t, t.TempDir())
+	ran := false
+	tr := kernel.Use[*tools.Registry](e.h.Root(), tools.ServiceKey)
+	tr.Register(e.h.Root(), &tools.Tool{Name: "touch", Description: "x", Execute: func(context.Context, tools.Call) (tools.Result, error) {
+		ran = true
+		return tools.Result{Content: "done"}, nil
+	}})
+	pa := kernel.Use[*prompt.Assembler](e.h.Root(), prompt.ServiceKey)
+	pa.Register(e.h.Root(), prompt.Static("plugin-style", 50, "ALWAYS ANSWER IN PIRATE"))
+	c, err := e.agents.Create(agent.Spec{Kind: agent.KindChat})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.HasPrefix(c.ID(), "chat") || c.Spec().Name != "新对话" || c.Mode() != agent.ModeSandbox {
+		t.Fatalf("chat spec %+v", c.Spec())
+	}
+	if _, err := os.Stat(c.Workspace() + "/INSTRUCTIONS.md"); err == nil {
+		t.Fatal("a chat must not get instructions")
+	}
+	c2, _ := e.agents.Create(agent.Spec{Kind: agent.KindChat})
+	if c2.ID() == c.ID() {
+		t.Fatal("chat ids must be unique")
+	}
+	ad, _ := e.llms.Get("claude-code")
+	m := ad.(*mock.Adapter)
+	send(t, c, "/tool touch {}")
+	agentloop.WaitIdle(c, 2*time.Second)
+	reqs := m.Requests()
+	if len(reqs) == 0 {
+		t.Fatal("no request")
+	}
+	r := reqs[0]
+	if !strings.Contains(r.System, "Crewbase") || !strings.Contains(r.System, c.Workspace()) {
+		t.Fatalf("chat lost the base rules / workspace: %q", r.System)
+	}
+	if strings.Contains(r.System, "PIRATE") || strings.Contains(r.System, "Your name is") {
+		t.Fatalf("chat carried persona or plugin prompt: %q", r.System)
+	}
+	if len(r.Tools) == 0 || !ran {
+		t.Fatal("a chat must still use tools")
+	}
+	if n := c.Spec().Name; n != "/tool touch {}" {
+		t.Fatalf("chat not named after its first message: %q", n)
+	}
+	// an agent gets the full prompt
+	a, _ := e.agents.Create(agent.Spec{Name: "Otto"})
+	if !strings.Contains(agentloop.System(pa, a), "PIRATE") {
+		t.Fatal("agents keep plugin fragments")
+	}
+	if _, err := e.agents.Create(agent.Spec{Name: "x", Kind: "robot"}); err == nil {
+		t.Fatal("unknown kind accepted")
+	}
+}

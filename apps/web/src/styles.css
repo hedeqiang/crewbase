@@ -1146,3 +1146,7 @@ button.tg:disabled { opacity: .5; cursor: not-allowed; }
 :root[data-theme="dark"] .pmark.mono-tile { color: hsl(var(--h) 75% 80%); background: hsl(var(--h) 35% 24%); }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .pmark.mono-tile { color: hsl(var(--h) 75% 80%); background: hsl(var(--h) 35% 24%); } }
 @media (max-width: 560px) { .ap-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .ap-ident { flex-direction: column; align-items: stretch; } .ap-iconpick { flex-direction: row; width: auto; } }
+
+/* blank chats: a neutral speech-bubble tile instead of an agent avatar */
+.chatav { width: 32px; height: 32px; flex: none; border-radius: 10px; display: grid; place-items: center; background: var(--sunken); color: var(--text2); box-shadow: inset 0 0 0 1px var(--border); }
+.wacts { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }

@@ -52,6 +52,8 @@ export interface AgentView {
   workspace: string;
   effectiveMode: Mode;
   nativeTools?: string[] | null;
+  /** "chat" for a blank chat (no persona, instructions or memory) */
+  kind?: string;
 }
 
 export interface SessionMeta {

@@ -59,7 +59,9 @@ function runPill(status: string) {
 
 function AgentSelect({ value, onChange }: { value: string; onChange: (v: string) => void }) {
   const agents = useStore((s) => s.agents);
-  const list = Object.values(agents).sort((a, b) => a.name.localeCompare(b.name));
+  const list = Object.values(agents)
+    .filter((a) => a.kind !== "chat")
+    .sort((a, b) => a.name.localeCompare(b.name));
   return (
     <span className="ssel">
       <select value={value} onChange={(e) => onChange(e.target.value)}>

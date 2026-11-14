@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import { PanelLeft, PanelRight } from "lucide-react";
 import { t } from "../i18n";
 import { ago } from "../format";
-import { openSession, sessionAgent, setState, useStore } from "../store";
+import { isChat, openSession, sessionAgent, setState, useStore } from "../store";
 import { Avatar, AvatarRaw } from "./Avatar";
 import { ApprovalActions } from "./Approval";
 import { takeoverReason } from "./Browser";
@@ -44,6 +44,7 @@ export function ConvHeader({ draftColor, draftShape }: { draftColor: string; dra
   const sessions = useStore((s) => s.sessions);
   const agents = useStore((s) => s.agents);
   const channels = useStore((s) => s.channels);
+  const summaries = useStore((s) => s.summaries);
   const panelOpen = useStore((s) => s.panelOpen);
   const approvals = useStore((s) => s.approvals);
   const { takeovers, n } = useNeedsYou();
@@ -89,8 +90,8 @@ export function ConvHeader({ draftColor, draftShape }: { draftColor: string; dra
         {view === "chat" && !isChannel && agent && (
           <>
             <Avatar agent={agent} size={24} />
-            <b className="nm">{agent.name}</b>
-            {agent.role && <span className="role">{agent.role}</span>}
+            <b className="nm">{isChat(agent) ? summaries[agent.session]?.topic || agent.name : agent.name}</b>
+            {isChat(agent) ? <span className="role">{t("chat.blankTag")}</span> : agent.role && <span className="role">{agent.role}</span>}
             {state && (
               <span className={"hst " + state.cls}>
                 <i />

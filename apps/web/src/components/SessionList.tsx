@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Bot, Check, ChevronRight, Workflow, FolderPlus, Hash, LifeBuoy, LogOut, Moon, Plus, Power, Search, Settings, Keyboard } from "lucide-react";
+import { Bot, Check, ChevronRight, Workflow, FolderPlus, Hash, LifeBuoy, LogOut, Moon, Plus, Power, Search, Settings, Keyboard, MessageSquare } from "lucide-react";
 import type { AgentView, SessionMeta, UsageStats } from "../api";
 import { API, desktop, openExternal, setToken } from "../api";
 import { t } from "../i18n";
@@ -11,6 +11,8 @@ import {
   dndActive,
   myName,
   openNewAgent,
+  isChat,
+  newChat,
   openNewChannel,
   openSession,
   openSettings,
@@ -100,14 +102,14 @@ export function SessionList() {
     const waiting = (pendingBy[a.id] ?? 0) > 0 || !!takeoverReason(a);
     return (
       <button key={a.id} className="ci" type="button" aria-current={sel(a.session)} onClick={() => openSession(a.session)} onContextMenu={(e) => openRowMenu(e, { kind: "agent", agent: a })}>
-        <Avatar agent={a} size={32} status />
+        <Avatar agent={a} size={32} status={!isChat(a)} />
         <span className="ct">
           <span className="l1">
-            <b>{a.name}</b>
+            <b>{isChat(a) ? topic || a.name : a.name}</b>
             {waiting && <span className="wchip">{t("list.wait")}</span>}
             <span className="tm">{snip?.time ? listTime(snip.time) : ""}</span>
           </span>
-          <span className="l2">{topic || snip?.text || a.role || " "}</span>
+          <span className="l2">{(isChat(a) ? snip?.text : topic || snip?.text || a.role) || " "}</span>
         </span>
         <RowMenuButton target={{ kind: "agent", agent: a }} />
       </button>
@@ -297,17 +299,35 @@ export function SessionList() {
           type="button"
           onClick={() => {
             plus.close();
-            openNewAgent();
+            void newChat();
           }}
         >
-          <Bot size={16} />
-          <span className="g">{t("list.newAgent")}</span>
+          <MessageSquare size={16} />
+          <span className="g">
+            {t("list.newChat")}
+            <span>{t("list.newChatDesc")}</span>
+          </span>
           <kbd>⌘N</kbd>
         </button>
         <button
           className="mi"
           type="button"
-          disabled={Object.keys(agents).length === 0}
+          onClick={() => {
+            plus.close();
+            openNewAgent();
+          }}
+        >
+          <Bot size={16} />
+          <span className="g">
+            {t("list.newAgent")}
+            <span>{t("list.newAgentDesc")}</span>
+          </span>
+          <kbd>⇧⌘N</kbd>
+        </button>
+        <button
+          className="mi"
+          type="button"
+          disabled={!Object.values(agents).some((a) => !isChat(a))}
           onClick={() => {
             plus.close();
             openNewChannel();

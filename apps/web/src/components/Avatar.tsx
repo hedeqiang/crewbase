@@ -1,3 +1,4 @@
+import { MessageSquare } from "lucide-react";
 import type { CSSProperties } from "react";
 import type { AgentView } from "../api";
 import { statusTone } from "../format";
@@ -78,7 +79,15 @@ export function AvatarRaw({ color, shape, size = 30, title, name }: { color: str
 export function Avatar({ agent, size = 30, status = false }: { agent?: AgentView; size?: number; status?: boolean }) {
   const pending = useStore((s) => !!agent && s.approvals.some((a) => a.agent === agent.id));
   const color = agent?.color || colorFor(agent?.id ?? "?");
-  const raw = <AvatarRaw color={color} shape={agent?.shape} size={size} name={agent?.name} />;
+  // blank chats have no persona: a neutral speech-bubble tile
+  const raw =
+    agent?.kind === "chat" ? (
+      <span className="chatav" style={{ width: size, height: size, borderRadius: Math.round(size * 0.3) }} aria-hidden>
+        <MessageSquare size={Math.round(size * 0.5)} />
+      </span>
+    ) : (
+      <AvatarRaw color={color} shape={agent?.shape} size={size} name={agent?.name} />
+    );
   if (!status || !agent) return raw;
   // Waiting on an approval is shown as amber even while the turn is "running".
   const tone = pending && agent.status !== "failed" ? "wait" : statusTone(agent.status);

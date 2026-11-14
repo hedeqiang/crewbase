@@ -25,7 +25,7 @@ export function Panel() {
   const tabs: [typeof tab, string][] = [
     ["task", t("panel.task")],
     ["files", t("panel.files")],
-    ["agent", agent.name || t("panel.agent")],
+    ["agent", agent.kind === "chat" ? t("chat.settingsTab") : agent.name || t("panel.agent")],
     ...pluginTabs.map((c): [typeof tab, string] => [`ui:${c.key}`, c.title || c.key]),
   ];
   const pluginTab = tab.startsWith("ui:") ? pluginTabs.find((c) => "ui:" + c.key === tab) : undefined;
@@ -79,7 +79,7 @@ function ChannelTask({ channel }: { channel: ChannelView }) {
       setBusy(false);
     }
   };
-  const others = Object.values(agents).filter((a) => !channel.members.includes(a.id));
+  const others = Object.values(agents).filter((a) => !channel.members.includes(a.id) && a.kind !== "chat");
   const m = owner ? activeModel(models, owner) : null;
   const chQueue = (a: AgentView) => a.queue.filter((q) => q.session === channel.id);
 
@@ -303,7 +303,7 @@ function TaskTab({ agent }: { agent: AgentView }) {
           )}
         </div>
       </div>
-      <div className="psec">{t("panel.queue", { name: agent.name, n: agent.queue.length })}</div>
+      <div className="psec">{agent.kind === "chat" ? t("chat.queue", { n: agent.queue.length }) : t("panel.queue", { name: agent.name, n: agent.queue.length })}</div>
       {agent.queue.length === 0 ? (
         <p className="small" style={{ margin: 0 }}>
           {t("panel.queueEmpty")}
@@ -446,8 +446,12 @@ function AgentTab({ agent, sessionId }: { agent: AgentView; sessionId: string })
           </div>
         </div>
       </div>
-      <div className="psec">{t("panel.role")}</div>
-      <input className="fi sm" value={role} placeholder={t("panel.rolePh")} onChange={(e) => setRole(e.target.value)} onBlur={saveRole} onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()} />
+      {agent.kind === "chat" ? (
+        <p className="small">{t("chat.blankNote")}</p>
+      ) : (
+        <div className="psec">{t("panel.role")}</div>
+      )}
+      <input hidden={agent.kind === "chat"} className="fi sm" value={role} placeholder={t("panel.rolePh")} onChange={(e) => setRole(e.target.value)} onBlur={saveRole} onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()} />
 
       <div className="psec">
         {t("panel.modelOrder")} <span style={{ fontWeight: 400 }}>{t("panel.modelOrderHint")}</span>
@@ -591,8 +595,8 @@ function AgentTab({ agent, sessionId }: { agent: AgentView; sessionId: string })
         </button>
       </div>
 
-      <div className="psec">{t("panel.instrMem")}</div>
-      <div className="tree">
+      {agent.kind !== "chat" && <div className="psec">{t("panel.instrMem")}</div>}
+      <div className="tree" hidden={agent.kind === "chat"}>
         {(["INSTRUCTIONS.md", "MEMORY.md"] as const).map((f) => (
           <button
             key={f}
@@ -609,7 +613,7 @@ function AgentTab({ agent, sessionId }: { agent: AgentView; sessionId: string })
       <div style={{ marginTop: 20 }}>
         <button className="btn dng" type="button" onClick={del}>
           <Trash size={13} />
-          {t("panel.deleteAgent")}
+          {agent.kind === "chat" ? t("chat.delete") : t("panel.deleteAgent")}
         </button>
       </div>
     </>

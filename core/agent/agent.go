@@ -62,7 +62,22 @@ type Spec struct {
 	// Its own directory still holds its bookkeeping and is what gets
 	// removed on delete; the shared workspace is never deleted.
 	SharedWorkspace string `json:"sharedWorkspace,omitempty"`
+	// Kind is "" for an agent, KindChat for a blank chat: it works like an
+	// agent (tools, run modes, approvals, workspace) but its prompt carries
+	// no persona, instructions, memory or plugin fragments — only the base
+	// working rules. Chats are personal: they do not join channels,
+	// workflows or delegation.
+	Kind string `json:"kind,omitempty"`
 }
+
+// KindChat marks a blank chat (Spec.Kind).
+const KindChat = "chat"
+
+// ChatDefaultName is a chat's name until its first message names it.
+const ChatDefaultName = "新对话"
+
+// IsChat reports whether the agent is a blank chat.
+func (a *Agent) IsChat() bool { return a.Spec().Kind == KindChat }
 
 // Status of an agent (docs/03 §7).
 type Status string
@@ -204,7 +219,10 @@ func (a *Agent) Update(fn func(*Spec)) error {
 	a.mu.Lock()
 	s := a.spec
 	fn(&s)
-	s.ID, s.Session, s.Created = a.spec.ID, a.spec.Session, a.spec.Created
+	s.ID, s.Session, s.Created, s.Kind = a.spec.ID, a.spec.Session, a.spec.Created, a.spec.Kind
+	if s.Kind == KindChat {
+		s.Role = "" // a chat stays a chat
+	}
 	wasHost := a.spec.Mode == ModeHost && (a.spec.ModeUntil.IsZero() || time.Now().Before(a.spec.ModeUntil))
 	if s.Mode == ModeHost && !wasHost {
 		s.ModeUntil = time.Time{} // entering host mode restarts the 24h clock
@@ -487,6 +505,20 @@ func Slug(name string) string {
 
 // Create makes, persists and publishes an agent.
 func (r *Registry) Create(spec Spec) (*Agent, error) {
+	switch spec.Kind {
+	case "":
+	case KindChat:
+		// a blank chat: no role, instructions or memory file
+		if strings.TrimSpace(spec.Name) == "" {
+			spec.Name = ChatDefaultName
+		}
+		spec.Role, spec.Instructions = "", ""
+		if spec.ID == "" {
+			spec.ID = "chat"
+		}
+	default:
+		return nil, fmt.Errorf("unknown agent kind %q", spec.Kind)
+	}
 	if strings.TrimSpace(spec.Name) == "" {
 		return nil, errors.New("agent name is required")
 	}
@@ -500,8 +532,11 @@ func (r *Registry) Create(spec Spec) (*Agent, error) {
 		spec.Models = r.availableDefaults()
 	}
 	r.mu.Lock()
-	if spec.ID == "" {
+	if spec.ID == "" || (spec.Kind == KindChat && spec.ID == "chat") {
 		base := Slug(spec.Name)
+		if spec.Kind == KindChat {
+			base = "chat"
+		}
 		spec.ID = base
 		for i := 2; r.agents[spec.ID] != nil; i++ {
 			spec.ID = fmt.Sprintf("%s-%d", base, i)
@@ -526,12 +561,14 @@ func (r *Registry) Create(spec Spec) (*Agent, error) {
 		r.unreserve(spec.ID)
 		return nil, err
 	}
-	instr := spec.Instructions
-	if instr == "" {
-		instr = "# " + spec.Name + "\n\n" + spec.Role + "\n"
+	if spec.Kind != KindChat {
+		instr := spec.Instructions
+		if instr == "" {
+			instr = "# " + spec.Name + "\n\n" + spec.Role + "\n"
+		}
+		writeIfMissing(filepath.Join(ws, "INSTRUCTIONS.md"), instr)
+		writeIfMissing(filepath.Join(ws, "MEMORY.md"), "# Memory\n\n")
 	}
-	writeIfMissing(filepath.Join(ws, "INSTRUCTIONS.md"), instr)
-	writeIfMissing(filepath.Join(ws, "MEMORY.md"), "# Memory\n\n")
 	if err := r.persist(spec); err != nil {
 		r.unreserve(spec.ID)
 		return nil, err
@@ -753,11 +790,14 @@ var Plugin = kernel.Register(kernel.Spec{
 				return ""
 			}
 			s := a.Spec()
+			if s.Kind == KindChat {
+				return "Workspace directory: " + a.Workspace() // no persona, no instructions
+			}
 			return fmt.Sprintf("Your name is %s (agent id %s). Workspace directory: %s\n\n%s", s.Name, s.ID, a.Workspace(), a.Instructions())
 		}})
 		pa.Register(c, &prompt.Fragment{Name: "agent-memory", Order: 20, Render: func(id string) string {
 			a, ok := r.Get(id)
-			if !ok {
+			if !ok || a.IsChat() {
 				return ""
 			}
 			m := strings.TrimSpace(a.Memory())

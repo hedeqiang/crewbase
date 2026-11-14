@@ -1,7 +1,7 @@
-import { ArrowRight, Plus } from "lucide-react";
+import { ArrowRight, Plus, MessageSquare } from "lucide-react";
 import { useMemo, useState } from "react";
 import { t, type Key } from "../i18n";
-import { openNewAgent, openSettings, useStore } from "../store";
+import { newChat, openNewAgent, openSettings, useStore } from "../store";
 import { AvatarRaw } from "./Avatar";
 import { Logo } from "./Logo";
 import { ShuffleButton, TEMPLATES, templatePage, type Draft } from "./NewAgent";
@@ -87,10 +87,16 @@ export function Welcome({ onTemplate }: { onTemplate: (d: Partial<Draft>) => voi
         ))}
       </div>
 
-      <button className="btn pri wnew" type="button" onClick={openNewAgent}>
-        <Plus size={15} />
-        {t("wel.blank")}
-      </button>
+      <div className="wacts">
+        <button className="btn pri wnew" type="button" onClick={openNewAgent}>
+          <Plus size={15} />
+          {t("wel.blank")}
+        </button>
+        <button className="btn wnew" type="button" onClick={() => void newChat()}>
+          <MessageSquare size={15} />
+          {t("wel.chat")}
+        </button>
+      </div>
       <p className="small wfoot">{t("wel.footer")}</p>
     </div>
   );

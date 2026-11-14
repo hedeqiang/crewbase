@@ -84,9 +84,9 @@ func (s *Service) Usage(agentID, sessionID string) (Breakdown, error) {
 	// System prompt: split by section. Sections are joined with "\n\n" in
 	// Assemble; the separators are attributed to the system segment so that
 	// the segments add up to EstimateTokens(system) exactly.
-	system := s.prompts.Assemble(agentID)
+	system := agentloop.System(s.prompts, a)
 	total := llm.EstimateTokens(system)
-	for _, sec := range s.prompts.Sections(agentID) {
+	for _, sec := range agentloop.SystemSections(s.prompts, a) {
 		switch {
 		case sec.Name == MemoryFragment:
 			segs[SegMemory] += llm.EstimateTokens(sec.Text)

@@ -125,8 +125,10 @@ func (s *Service) Create(name string, members []string, folder, by string) (View
 		return View{}, errors.New("a channel needs at least one agent")
 	}
 	for _, m := range members {
-		if _, ok := s.agents.Get(m); !ok {
+		if a, ok := s.agents.Get(m); !ok {
 			return View{}, fmt.Errorf("unknown agent %q", m)
+		} else if a.IsChat() {
+			return View{}, fmt.Errorf("%q is a chat, not an agent; chats cannot join channels", m)
 		}
 	}
 	ss, err := s.sessions.Create(session.Meta{Kind: "channel", Title: name, Agents: members, Folder: folder})
@@ -481,8 +483,10 @@ func (s *Service) AddMember(id, agentID string) error {
 	if err != nil {
 		return err
 	}
-	if _, ok := s.agents.Get(agentID); !ok {
+	if a, ok := s.agents.Get(agentID); !ok {
 		return fmt.Errorf("unknown agent %q", agentID)
+	} else if a.IsChat() {
+		return fmt.Errorf("%q is a chat, not an agent; chats cannot join channels", agentID)
 	}
 	return ss.UpdateMeta(func(m *session.Meta) {
 		for _, x := range m.Agents {

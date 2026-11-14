@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { API, desktop, initToken, openExternal, setUnauthorizedHandler, setToken } from "./api";
 import { t } from "./i18n";
-import { applyTheme, connectEvents, disconnectEvents, getState, goHistory, openNewAgent, openSettings, resync, sessionAgent, setState, useStore, applyHashRoute } from "./store";
+import { applyTheme, connectEvents, disconnectEvents, getState, goHistory, newChat, openNewAgent, openSettings, resync, sessionAgent, setState, useStore, applyHashRoute } from "./store";
 import { ConvHeader, useNeedsYou } from "./components/Header";
 import { SessionList } from "./components/SessionList";
 import { Conversation } from "./components/Conversation";
@@ -104,9 +104,10 @@ function Shell() {
       } else if (mod && e.key === ",") {
         e.preventDefault();
         openSettings("general");
-      } else if (mod && e.key.toLowerCase() === "n" && !e.shiftKey) {
+      } else if (mod && e.key.toLowerCase() === "n" && !e.altKey) {
         e.preventDefault();
-        openNewAgent();
+        if (e.shiftKey) openNewAgent();
+        else void newChat();
       } else if (e.key === "Escape") {
         const s = getState();
         if (s.palette) setState({ palette: false });

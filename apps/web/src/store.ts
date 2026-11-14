@@ -273,6 +273,20 @@ export function applyHashRoute(hash = location.hash): boolean {
   return true;
 }
 
+export const isChat = (a?: AgentView) => a?.kind === "chat";
+
+/** 新对话: a blank chat on the default model, opened right away. */
+export async function newChat() {
+  try {
+    const a = await API.createAgent({ kind: "chat" });
+    setState((s) => ({ agents: { ...s.agents, [a.id]: a }, palette: false }));
+    await refreshSessions();
+    openSession(a.session);
+  } catch (e: any) {
+    toast(t("chat.newFailed", { error: e?.message ?? String(e) }));
+  }
+}
+
 export function openNewAgent() {
   setState({ view: "newAgent", palette: false, listOpen: narrow() ? false : state.listOpen });
 }
