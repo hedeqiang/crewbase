@@ -83,7 +83,7 @@ export function NewAgent({ draft: f, setDraft }: { draft: Draft; setDraft: (d: D
       <div className="na">
         <div className="na-col">
           <div className="na-hero">
-            <AvatarRaw color={f.color} shape={f.shape} size={92} />
+            <AvatarRaw color={f.color} shape={f.shape} size={92} name={f.name} />
             <b className="na-prev">{f.name.trim() || t("na.newAgent")}</b>
           </div>
           <div className="na-colors" role="radiogroup" aria-label={t("na.color")}>
@@ -94,7 +94,7 @@ export function NewAgent({ draft: f, setDraft }: { draft: Draft; setDraft: (d: D
           <div className="na-shapes" role="radiogroup" aria-label={t("na.shape")}>
             {SHAPES.map((s) => (
               <button key={s} type="button" className="shp" aria-pressed={f.shape === s} aria-label={s} onClick={() => set({ shape: s })}>
-                <AvatarRaw color={f.color} shape={s} size={30} />
+                <AvatarRaw color={f.color} shape={s} size={30} name={f.name} />
               </button>
             ))}
           </div>
@@ -134,7 +134,7 @@ export function NewAgent({ draft: f, setDraft }: { draft: Draft; setDraft: (d: D
               <span className="v">
                 {primary ? (
                   <>
-                    <ProviderMark provider={primary.provider} />
+                    <ProviderMark provider={primary.provider} model={primary.model} />
                     {modelLabel(models, primary)}
                     <i>· {effortLabel(f.effort) || t("effort.default")}</i>
                   </>
@@ -147,8 +147,8 @@ export function NewAgent({ draft: f, setDraft }: { draft: Draft; setDraft: (d: D
             <div className="rowhint">
               {backup ? (
                 <>
-                  <ProviderMark provider={backup.provider} size={12} />
-                  {t("na.backup", { model: modelLabel(models, backup) })}
+                  <ProviderMark provider={backup.provider} model={backup.model} size={12} />
+                  <span className="ml">{t("na.backup", { model: modelLabel(models, backup) })}</span>
                 </>
               ) : (
                 t("na.noBackup")
@@ -210,7 +210,7 @@ export function NewAgent({ draft: f, setDraft }: { draft: Draft; setDraft: (d: D
                   <b>{t(`tpl.${x.key}.name` as Key)}</b>
                   <span>{t(`tpl.${x.key}.desc` as Key)}</span>
                   <span className="meta">
-                    {primary && <ProviderMark provider={primary.provider} size={12} />}
+                    {primary && <ProviderMark provider={primary.provider} model={primary.model} size={12} />}
                     {primary ? modelLabel(models, primary) : ""} · {modeLabel(x.mode)}
                   </span>
                 </span>
@@ -233,7 +233,7 @@ export function NewAgent({ draft: f, setDraft }: { draft: Draft; setDraft: (d: D
               modelM.close();
             }}
           >
-            <ProviderMark provider={m.ref.provider} size={16} />
+            <ProviderMark provider={m.ref.provider} model={m.ref.model} size={16} />
             <span className="g">
               {m.info.name || m.info.id}
               <span>

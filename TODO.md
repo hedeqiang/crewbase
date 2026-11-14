@@ -91,6 +91,12 @@
 - [ ] UI：频道与任务卡、交接 / 改派、审批中心、自动化页、插件与技能页
 - [~] Phase 2 出口 e2e：三 Agent 两次交接（mock 已通过）；TS 插件安装授权热重载（待做）
 
+## 品牌与依赖（用户反馈后确立）
+- [x] 产品 logo「Relay」、Agent「队员徽章」头像全部原创，不仿制他人 logo / 吉祥物（docs/brand）
+- [x] 模型厂商图标用 LobeHub Icons（MIT，静态 SVG 按需引入；经 magpie 的模型按 id 识别厂商）
+- [x] 前端依赖全部最新（React 19.3、Vite 8、TS 7、lucide-react 1.x）
+- [ ] 后端 Go 依赖统一 `go get -u ./... && go mod tidy`（等 MCP / 插件 / 浏览器 agent 交付后执行，避免并发改 go.mod）
+
 ## 命名约定（用户反馈后确立）
 - 目录按「能力 / 提供方」两层：`providers/llm/{anthropic,openai,gemini,local,acp,mock}`、`providers/sandbox/{none,docker,seatbelt}`、`providers/shell/local`、`providers/fs/local`
 - 包名即末级目录；与官方 SDK 包名冲突时 SDK 用 `sdk` 别名导入；不再使用 `llmanthropic` 这类拼接名

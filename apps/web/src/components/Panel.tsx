@@ -75,9 +75,11 @@ function TaskTab({ agent }: { agent: AgentView }) {
           <dd>
             {m ? (
               <>
-                <ProviderMark provider={m.provider} />
-                {modelLabel(models, m)}
-                {m.effort ? ` · ${effortLabel(m.effort)}` : ""}
+                <ProviderMark provider={m.provider} model={m.model} />
+                <span className="ml">
+                  {modelLabel(models, m)}
+                  {m.effort ? ` · ${effortLabel(m.effort)}` : ""}
+                </span>
               </>
             ) : (
               "—"
@@ -258,7 +260,7 @@ function AgentTab({ agent }: { agent: AgentView }) {
             >
               <GripVertical size={13} className="grip" />
               <span className="n">{i + 1}</span>
-              <ProviderMark provider={r.provider} />
+              <ProviderMark provider={r.provider} model={r.model} />
               <span className="rtn">
                 {modelLabel(models, r)}
                 {r.effort && <span className="small"> · {effortLabel(r.effort)}</span>}
@@ -302,7 +304,7 @@ function AgentTab({ agent }: { agent: AgentView }) {
               void saveOrder([...order, m.ref]);
             }}
           >
-            <ProviderMark provider={m.ref.provider} size={16} />
+            <ProviderMark provider={m.ref.provider} model={m.ref.model} size={16} />
             <span className="g">
               {m.info.name || m.info.id}
               <span>

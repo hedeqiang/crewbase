@@ -235,9 +235,6 @@ func (a *Adapter) refresh(ctx context.Context) (bool, error) {
 		if name == "" {
 			name = m.ID
 		}
-		if m.OwnedBy != "" && !strings.Contains(name, m.OwnedBy) {
-			name += " · " + m.OwnedBy
-		}
 		infos = append(infos, llm.ModelInfo{ID: m.ID, Provider: ProviderID, Name: name, ContextWindow: w, Capabilities: caps, Enabled: true})
 		specs = append(specs, openai.ModelSpec{ID: m.ID, Name: name, ContextWindow: w, Capabilities: caps})
 	}

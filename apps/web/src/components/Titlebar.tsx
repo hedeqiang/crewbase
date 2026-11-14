@@ -4,6 +4,7 @@ import { t } from "../i18n";
 import { ago } from "../format";
 import { closeTab, openSession, setState, useStore } from "../store";
 import { Avatar, AvatarRaw } from "./Avatar";
+import { Logo } from "./Logo";
 import { ApprovalActions } from "./Approval";
 import { Popover, useMenu } from "./Popover";
 
@@ -33,7 +34,7 @@ export function Titlebar({ draftColor, draftShape }: { draftColor: string; draft
         <PanelLeft size={16} />
       </button>
       <div className="brandmark" aria-hidden>
-        <span className="logo" />
+        <Logo size={20} />
       </div>
       <div className="tabs" role="tablist">
         {tabs.map((id) => {

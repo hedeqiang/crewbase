@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { API, setToken } from "../api";
 import { t } from "../i18n";
+import { Logo } from "./Logo";
 
 export function TokenScreen({ onAuthed }: { onAuthed: () => void }) {
   const [v, setV] = useState("");
@@ -30,7 +31,7 @@ export function TokenScreen({ onAuthed }: { onAuthed: () => void }) {
           void submit();
         }}
       >
-        <span className="logo big" aria-hidden />
+        <Logo size={48} title="Crewbase" />
         <h1>{t("token.title")}</h1>
         <p>{t("token.desc")}</p>
         <code className="cmd">{t("token.hint")}</code>

@@ -30,7 +30,7 @@
 
 - 字体：Inter + 系统中文字体（苹方 / 微软雅黑）；代码用系统等宽字体；数字用等宽数字。
 - 圆角：控件 8，卡片 12–14，窗口 14；按钮与分段控件为胶囊形。
-- Agent 头像：圆角方块 + 两只眼睛，颜色即识别色；右下角圆点表示状态。识别色不与状态色混用。
+- Agent 头像：原创「队员徽章」——形状 + 名字首字，颜色即识别色；右下角圆点表示状态。识别色不与状态色混用。
 
 ## 3. 窗口结构
 
@@ -100,9 +100,10 @@
 |---|---|---|
 | 界面图标 | [Lucide](https://lucide.dev)（`lucide-static`，ISC） | LobeHub UI 本身使用的图标集；线宽 1.75，尺寸 16 |
 | 模型与提供方图标 | [LobeHub Icons](https://github.com/lobehub/lobe-icons)（`@lobehub/icons-static-svg`，MIT） | Claude Code、Codex、Gemini CLI、DeepSeek、Ollama、Grok、Qwen、Kimi 等；彩色版优先，单色版跟随文字颜色 |
-| Agent 头像 | 自绘 | 颜色 18 种 × 形状 7 种（方、圆、云、胶囊、菱形、六边形、三角）+ 两只眼睛；颜色即识别色 |
+| Agent 头像 | 原创「队员徽章」 | 颜色 18 种 × 形状 7 种（圆角方、圆、叶形、胶囊、菱形、六边形、三角）+ 名字首字；颜色即识别色，见 [品牌与图标](brand/README.md) |
+| 产品标识 | 原创「Relay」 | 见 [品牌与图标](brand/README.md) |
 
-原型中这两套图标都已内联，离线可用。正式实现时用 npm 依赖：`lucide-react` 与 `@lobehub/icons`。
+正式实现用 npm 依赖：`lucide-react`（界面图标）与 `@lobehub/icons-static-svg`（厂商图标，按需引入）。
 
 ## 5. 新增交互
 

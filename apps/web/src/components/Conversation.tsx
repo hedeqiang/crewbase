@@ -502,7 +502,7 @@ function Composer({ sessionId, agent, ctx, lastModel }: { sessionId: string; age
           <button className={"cbtn cmodel" + (override ? " ov" : "")} type="button" ref={modelM.ref} onClick={modelM.toggle} title={t("comp.modelTitle")} aria-haspopup="menu">
             {shown ? (
               <>
-                <ProviderMark provider={shown.provider} size={12} />
+                <ProviderMark provider={shown.provider} model={shown.model} size={12} />
                 <span className="lbl">{modelLabel(models, shown)}</span>
                 {shown.effort && <span className="eff">· {effortLabel(shown.effort)}</span>}
               </>
@@ -534,7 +534,7 @@ function Composer({ sessionId, agent, ctx, lastModel }: { sessionId: string; age
         <span className="sp" />
         {shown && quota !== null && (
           <span className={quota <= 10 ? "warnq" : ""}>
-            <ProviderMark provider={shown.provider} size={11} />
+            <ProviderMark provider={shown.provider} model={shown.model} size={11} />
             {t("comp.quota", { model: modelLabel(models, shown), pct: quota })}
           </span>
         )}
@@ -616,7 +616,7 @@ function Composer({ sessionId, agent, ctx, lastModel }: { sessionId: string; age
                 modelM.close();
               }}
             >
-              <ProviderMark provider={r.provider} size={16} />
+              <ProviderMark provider={r.provider} model={r.model} size={16} />
               <span className="g">
                 {modelLabel(models, r)}
                 <span>
@@ -640,7 +640,7 @@ function Composer({ sessionId, agent, ctx, lastModel }: { sessionId: string; age
               modelM.close();
             }}
           >
-            <ProviderMark provider={m.ref.provider} size={16} />
+            <ProviderMark provider={m.ref.provider} model={m.ref.model} size={16} />
             <span className="g">
               {m.info.name || m.info.id}
               <span>
