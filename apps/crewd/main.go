@@ -11,6 +11,8 @@ import (
 	"syscall"
 
 	"github.com/hedeqiang/crewbase/apps/launch"
+	"github.com/hedeqiang/crewbase/apps/web"
+	"github.com/hedeqiang/crewbase/features/gateway"
 	"github.com/hedeqiang/crewbase/kernel"
 )
 
@@ -38,6 +40,9 @@ func main() {
 		}
 		fmt.Print(kernel.DumpConfig(entries))
 		return
+	}
+	if web.Available() {
+		gateway.Static = web.Dist
 	}
 	h, err := launch.Start(o)
 	if err != nil {

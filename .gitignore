@@ -1,7 +1,8 @@
 /bin/
 /dist/
 node_modules/
-apps/web/dist/
+apps/web/dist/*
+!apps/web/dist/.keep
 *.test
 .DS_Store
 coverage.out
