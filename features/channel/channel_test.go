@@ -148,3 +148,28 @@ func TestHandoverConfirmation(t *testing.T) {
 		t.Fatalf("%+v", v)
 	}
 }
+
+func TestRenameMoveDelete(t *testing.T) {
+	s, agents := setup(t)
+	a, _ := agents.Create(agent.Spec{Name: "A"})
+	ch, _ := s.Create("old", []string{a.ID()}, "", "lin")
+	title, folder := "#new-name", "增长"
+	if err := s.Rename(ch.ID, &title, &folder); err != nil {
+		t.Fatal(err)
+	}
+	if v, _ := s.Get(ch.ID); v.Title != "new-name" || v.Folder != "增长" {
+		t.Fatalf("%+v", v)
+	}
+	if err := s.Delete(ch.ID, "lin"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.Get(ch.ID); err == nil {
+		t.Fatal("deleted channel still visible")
+	}
+	if len(s.List()) != 0 {
+		t.Fatal("deleted channel listed")
+	}
+	if _, err := s.Post(ch.ID, "hi", "lin"); err == nil {
+		t.Fatal("deleted channel accepts posts")
+	}
+}

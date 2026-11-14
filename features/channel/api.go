@@ -143,14 +143,35 @@ var APIPlugin = kernel.Register(kernel.Spec{
 				if _, err := get(r); err != nil {
 					return nil, err
 				}
-				var b Settings
+				var b struct {
+					Title           *string `json:"title"`
+					Folder          *string `json:"folder"`
+					HandoverConfirm *bool   `json:"handoverConfirm"`
+				}
 				if err := r.Decode(&b); err != nil {
 					return nil, err
 				}
-				if err := s.SetSettings(r.Params["id"], b); err != nil {
-					return nil, err
+				if b.Title != nil || b.Folder != nil {
+					if err := s.Rename(r.Params["id"], b.Title, b.Folder); err != nil {
+						return nil, err
+					}
+				}
+				if b.HandoverConfirm != nil {
+					if err := s.SetSettings(r.Params["id"], Settings{HandoverConfirm: *b.HandoverConfirm}); err != nil {
+						return nil, err
+					}
 				}
 				return get(r)
+			}})
+		g.Handle(c, gateway.Route{Method: "DELETE", Path: "/api/channels/{id}",
+			Handle: func(_ context.Context, r *gateway.Request) (any, error) {
+				if _, err := get(r); err != nil {
+					return nil, err
+				}
+				if err := s.Delete(r.Params["id"], r.Device); err != nil {
+					return nil, gateway.Conflict("%v", err)
+				}
+				return nil, nil
 			}})
 		g.Handle(c, gateway.Route{Method: "POST", Path: "/api/channels/{id}/members",
 			Handle: func(_ context.Context, r *gateway.Request) (any, error) {

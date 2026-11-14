@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"testing"
@@ -165,5 +166,31 @@ func TestSystemAndProfileSettings(t *testing.T) {
 	// turning it off with "" keeps the name
 	if _, out := do(t, base, "PATCH", "/api/settings", map[string]any{"dndUntil": ""}); out["displayName"] != "林夏" || out["dndUntil"] != nil {
 		t.Fatal(out)
+	}
+}
+
+func TestFolderRenameAndDissolve(t *testing.T) {
+	base, _, h := start(t)
+	agents := kernel.Use[*agent.Registry](h.Root(), agent.ServiceKey)
+	a, _ := agents.Create(agent.Spec{Name: "A", Folder: "定价改版"})
+	b, _ := agents.Create(agent.Spec{Name: "B", Folder: "定价改版"})
+	agents.Create(agent.Spec{Name: "C", Folder: "其他"})
+	if code, out := do(t, base, "PATCH", "/api/folders/"+url.PathEscape("定价改版"), map[string]string{"name": "定价 2.0"}); code != 200 || out["moved"].(float64) != 2 {
+		t.Fatal(code, out)
+	}
+	if a.Spec().Folder != "定价 2.0" || b.Spec().Folder != "定价 2.0" {
+		t.Fatal(a.Spec().Folder, b.Spec().Folder)
+	}
+	if code, _ := do(t, base, "DELETE", "/api/folders/"+url.PathEscape("定价 2.0"), nil); code != 200 {
+		t.Fatal(code)
+	}
+	if a.Spec().Folder != "" {
+		t.Fatal("folder not dissolved")
+	}
+	if _, ok := agents.Get(a.ID()); !ok {
+		t.Fatal("dissolving a folder must not delete its agents")
+	}
+	if code, _ := do(t, base, "DELETE", "/api/folders/nope", nil); code != 404 {
+		t.Fatal(code)
 	}
 }

@@ -243,6 +243,14 @@ var Plugin = kernel.Register(kernel.Spec{
 					if err != nil {
 						continue
 					}
+					if m.Kind == "channel" {
+						if e, ok := ss.Last("channel/state"); ok {
+							var st map[string]string
+							if e.Decode(&st) == nil && st["state"] == "deleted" {
+								continue
+							}
+						}
+					}
 					evs := ss.Events()
 					sum := SessionSummary{Meta: m, Updated: m.Created, Last: lastLine(ss), Events: int64(len(evs))}
 					if n := len(evs); n > 0 {
@@ -562,6 +570,61 @@ var Plugin = kernel.Register(kernel.Spec{
 				_ = r.Decode(&b)
 				rt.SetRoutes(b.Routes)
 				return map[string]any{"routes": rt.Routes()}, nil
+			}})
+
+		// ---- folders: a folder is the `folder` of agents and sessions.
+		// Renaming moves every member; deleting dissolves the folder (its
+		// agents and channels move to the top level, nothing is deleted).
+		moveFolder := func(from, to string) int {
+			n := 0
+			for _, a := range agents.List() {
+				if a.Spec().Folder == from {
+					_ = a.Update(func(s *agent.Spec) { s.Folder = to })
+					n++
+				}
+			}
+			for _, m := range sessions.List() {
+				if m.Folder != from || m.Kind == "agent" {
+					continue
+				}
+				if ss, err := sessions.Get(m.ID); err == nil {
+					_ = ss.UpdateMeta(func(mm *session.Meta) { mm.Folder = to })
+					n++
+				}
+			}
+			return n
+		}
+		g.Handle(c, gateway.Route{Method: "PATCH", Path: "/api/folders/{name}",
+			Validate: func(r *gateway.Request) error {
+				var b struct {
+					Name string `json:"name"`
+				}
+				if err := r.Decode(&b); err != nil {
+					return err
+				}
+				if strings.TrimSpace(b.Name) == "" || len([]rune(b.Name)) > 60 {
+					return gateway.BadRequest("a folder name is required (at most 60 characters)")
+				}
+				return nil
+			},
+			Handle: func(_ context.Context, r *gateway.Request) (any, error) {
+				var b struct {
+					Name string `json:"name"`
+				}
+				_ = r.Decode(&b)
+				n := moveFolder(r.Params["name"], strings.TrimSpace(b.Name))
+				if n == 0 {
+					return nil, gateway.NotFound()
+				}
+				return map[string]any{"moved": n}, nil
+			}})
+		g.Handle(c, gateway.Route{Method: "DELETE", Path: "/api/folders/{name}",
+			Handle: func(_ context.Context, r *gateway.Request) (any, error) {
+				n := moveFolder(r.Params["name"], "")
+				if n == 0 {
+					return nil, gateway.NotFound()
+				}
+				return map[string]any{"moved": n}, nil
 			}})
 
 		// ---- system info (profile menu, about)

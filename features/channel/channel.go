@@ -62,6 +62,9 @@ const (
 	StateActive   = "active"
 	StatePaused   = "paused"
 	StateArchived = "archived"
+	// StateDeleted hides the channel everywhere; its log is kept (the
+	// session log is append-only and remains auditable).
+	StateDeleted = "deleted"
 )
 
 // OwnerData is recorded whenever the owner changes.
@@ -141,10 +144,39 @@ func (s *Service) Create(name string, members []string, folder, by string) (View
 
 func (s *Service) channel(id string) (*session.Session, error) {
 	ss, err := s.sessions.Get(id)
-	if err != nil || ss.Meta().Kind != "channel" {
+	if err != nil || ss.Meta().Kind != "channel" || State(ss) == StateDeleted {
 		return nil, fmt.Errorf("channel %s not found", id)
 	}
 	return ss, nil
+}
+
+// Delete stops the channel's work and hides it. Messages are not erased:
+// the session log stays on disk for audit.
+func (s *Service) Delete(id, by string) error {
+	ss, err := s.channel(id)
+	if err != nil {
+		return err
+	}
+	_ = s.Stop(id, by)
+	return s.setState(ss, StateDeleted, by)
+}
+
+// Rename changes the title and/or folder.
+func (s *Service) Rename(id string, title, folder *string) error {
+	ss, err := s.channel(id)
+	if err != nil {
+		return err
+	}
+	return ss.UpdateMeta(func(m *session.Meta) {
+		if title != nil {
+			if t := strings.TrimSpace(strings.TrimPrefix(*title, "#")); t != "" {
+				m.Title = t
+			}
+		}
+		if folder != nil {
+			m.Folder = strings.TrimSpace(*folder)
+		}
+	})
 }
 
 // Owner returns the current owner of a channel session.
@@ -190,7 +222,7 @@ func (s *Service) List() []View {
 		if m.Kind != "channel" {
 			continue
 		}
-		if ss, err := s.sessions.Get(m.ID); err == nil {
+		if ss, err := s.sessions.Get(m.ID); err == nil && State(ss) != StateDeleted {
 			out = append(out, s.view(ss))
 		}
 	}
