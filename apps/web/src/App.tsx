@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { API, desktop, initToken, openExternal, setUnauthorizedHandler, setToken } from "./api";
 import { t } from "./i18n";
-import { applyTheme, connectEvents, disconnectEvents, getState, goHistory, openNewAgent, openSettings, resync, sessionAgent, setState, useStore } from "./store";
+import { applyTheme, connectEvents, disconnectEvents, getState, goHistory, openNewAgent, openSettings, resync, sessionAgent, setState, useStore, applyHashRoute } from "./store";
 import { ConvHeader, useNeedsYou } from "./components/Header";
 import { SessionList } from "./components/SessionList";
 import { Conversation } from "./components/Conversation";
@@ -43,7 +43,8 @@ export function App() {
 
 function start() {
   setState({ authed: true });
-  void resync();
+  // Follow a deep link the desktop shell put in the URL, once data is in.
+  void resync().then(() => applyHashRoute());
   connectEvents();
 }
 
@@ -61,6 +62,13 @@ function Shell() {
   const showPanel = view === "chat" && panelOpen && hasAgent;
   const showList = listOpen && view !== "settings";
   const { n: needs } = useNeedsYou();
+
+  // Desktop shell deep links (tray items, notifications, ⌘,).
+  useEffect(() => {
+    const on = () => applyHashRoute();
+    window.addEventListener("hashchange", on);
+    return () => window.removeEventListener("hashchange", on);
+  }, []);
 
   // Desktop shell: dock / taskbar badge = things waiting for the person.
   useEffect(() => {
@@ -133,7 +141,11 @@ function Shell() {
             {showList && <div className="ovscrim list-scrim" onClick={() => setState({ listOpen: false })} />}
             <div className="center">
               <ConvHeader draftColor={draft.color} draftShape={draft.shape} />
-              {view === "newAgent" ? <NewAgent draft={draft} setDraft={setDraft} /> : <Conversation />}
+              {view === "newAgent" ? (
+                <NewAgent draft={draft} setDraft={setDraft} />
+              ) : (
+                <Conversation onTemplate={(d) => setDraft({ ...emptyDraft(), ...d })} />
+              )}
             </div>
             {showPanel && <Panel />}
             {showPanel && <div className="ovscrim panel-scrim" onClick={() => setState({ panelOpen: false })} />}

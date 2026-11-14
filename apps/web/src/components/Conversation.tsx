@@ -1,3 +1,5 @@
+import { Welcome } from "./Welcome";
+import type { Draft } from "./NewAgent";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowUp,
@@ -13,7 +15,7 @@ import {
   Plus,
   Shield,
   Wrench,
-  MessageSquarePlus,
+
   ArrowRightLeft,
   Search as SearchIcon,
   Link2,
@@ -51,7 +53,7 @@ import { Markdown } from "./Markdown";
 import { Popover, useMenu } from "./Popover";
 import { ProviderMark } from "./ProviderMark";
 
-export function Conversation() {
+export function Conversation({ onTemplate }: { onTemplate?: (d: Partial<Draft>) => void } = {}) {
   const current = useStore((s) => s.current);
   const sessions = useStore((s) => s.sessions);
   const agents = useStore((s) => s.agents);
@@ -65,13 +67,7 @@ export function Conversation() {
   if (!current || !agent)
     return (
       <section className="main">
-        <div className="emptyv">
-          <div className="chico">
-            <MessageSquarePlus />
-          </div>
-          <b>{t("chat.noAgent")}</b>
-          <span className="small">{t("chat.noAgentDesc")}</span>
-        </div>
+        <Welcome onTemplate={onTemplate ?? (() => {})} />
       </section>
     );
   return <ConversationView key={current} sessionId={current} agent={agent} channel={channel} />;

@@ -233,6 +233,19 @@ export function openSettings(sec: SettingsSection = "general") {
   setState({ view: "settings", settings: sec, palette: false, listOpen: narrow() ? false : state.listOpen });
 }
 
+/** Deep links the desktop shell (tray, notifications, ⌘,) sets as the
+ *  location hash: #/session/<id>, #/settings, #/settings/<section>. */
+export function applyHashRoute(hash = location.hash): boolean {
+  const m = /^#\/(session|settings)(?:\/([^/?#]+))?/.exec(hash);
+  if (!m) return false;
+  if (m[1] === "session" && m[2]) openSession(decodeURIComponent(m[2]));
+  else if (m[1] === "settings") openSettings(((m[2] && decodeURIComponent(m[2])) || "general") as SettingsSection);
+  else return false;
+  // consume it so the same link can be followed again
+  history.replaceState(null, "", location.pathname + location.search);
+  return true;
+}
+
 export function openNewAgent() {
   setState({ view: "newAgent", palette: false, listOpen: narrow() ? false : state.listOpen });
 }

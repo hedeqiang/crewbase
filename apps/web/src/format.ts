@@ -181,7 +181,23 @@ export function sinceLabel(iso: string, now = Date.now()): string {
 export function shortModel(models: ModelsResponse | null, r: ModelRef): string {
   const m = findModel(models, r);
   const name = m?.name || r.model.split("/").pop() || r.model;
-  return name.split(" · ")[0].replace(/\s*\((?:via|through)[^)]*\)\s*$/i, "").trim();
+  return tidyModelName(name.split(" · ")[0].replace(/\s*\((?:via|through)[^)]*\)\s*$/i, "").trim());
+}
+
+/** Friendly model names: "DeepSeek-V4.1-Flash" → "DeepSeek Flash",
+ *  "deepseek-flash" → "DeepSeek Flash", "claude-opus-5-5" → "Claude Opus 5.5". */
+export function tidyModelName(n: string): string {
+  const ds = /^deepseek[-\s]?(?:v[\d.]+[-\s])?(flash|pro|chat|reasoner)(?:[-\s].*)?$/i.exec(n);
+  if (ds) return "DeepSeek " + ds[1][0].toUpperCase() + ds[1].slice(1).toLowerCase();
+  const cl = /^claude-(opus|sonnet|haiku|fable|mythos)-(\d+)(?:-(\d+))?$/i.exec(n);
+  if (cl) return `Claude ${cl[1][0].toUpperCase()}${cl[1].slice(1)} ${cl[2]}${cl[3] ? "." + cl[3] : ""}`;
+  if (/^[a-z0-9]+(?:-[a-z0-9.]+)+$/.test(n) && !/\d{4}/.test(n)) {
+    // plain ids like "gpt-6.1-sol" → "GPT-6.1 Sol"
+    const parts = n.split("-");
+    const head = /^gpt|^o\d/.test(parts[0]) ? parts[0].toUpperCase() + (parts[1] && /^[\d.]+$/.test(parts[1]) ? "-" + parts.splice(1, 1)[0] : "") : parts[0][0].toUpperCase() + parts[0].slice(1);
+    return [head, ...parts.slice(1).map((p) => (/^\d/.test(p) ? p : p[0].toUpperCase() + p.slice(1)))].join(" ");
+  }
+  return n;
 }
 
 /** Short label plus a tiny effort suffix when not the default/medium. */

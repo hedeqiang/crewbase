@@ -1,7 +1,8 @@
 import { Fragment, type ReactNode } from "react";
 
 // Markdown-lite: fenced code, headings, bullet / numbered lists, block
-// quotes, paragraphs, and inline `code`, **bold**, *italic*, [links](url).
+// quotes, GFM tables, paragraphs, and inline `code`, **bold**, *italic*,
+// [links](url).
 // Never uses innerHTML.
 
 function inline(s: string, key = ""): ReactNode[] {
@@ -35,6 +36,25 @@ function inline(s: string, key = ""): ReactNode[] {
   return out;
 }
 
+const isRow = (l: string) => /^\s*\|.*\|\s*$/.test(l);
+const isSep = (l: string) => /^\s*\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)*\|?\s*$/.test(l);
+
+function cells(l: string): string[] {
+  return l
+    .trim()
+    .replace(/^\|/, "")
+    .replace(/\|$/, "")
+    .split("|")
+    .map((c) => c.trim());
+}
+
+function align(sep: string): ("left" | "center" | "right" | undefined)[] {
+  return cells(sep).map((c) => {
+    const l = c.startsWith(":"), r = c.endsWith(":");
+    return l && r ? "center" : r ? "right" : l ? "left" : undefined;
+  });
+}
+
 function withBreaks(lines: string[], key: string): ReactNode[] {
   return lines.flatMap((l, i) => (i ? [<br key={`${key}-br${i}`} />, ...inline(l, `${key}-${i}`)] : inline(l, `${key}-${i}`)));
 }
@@ -62,6 +82,40 @@ export function Markdown({ text }: { text: string }) {
     }
     if (!line.trim()) {
       i++;
+      continue;
+    }
+    if (isRow(line) && i + 1 < lines.length && isSep(lines[i + 1])) {
+      const head = cells(line);
+      const al = align(lines[i + 1]);
+      i += 2;
+      const rows: string[][] = [];
+      while (i < lines.length && isRow(lines[i])) rows.push(cells(lines[i++]));
+      blocks.push(
+        <div key={key} className="mdtable">
+          <table>
+            <thead>
+              <tr>
+                {head.map((c, j) => (
+                  <th key={j} style={{ textAlign: al[j] }}>
+                    {inline(c, `${key}-h${j}`)}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((r, ri) => (
+                <tr key={ri}>
+                  {head.map((_, j) => (
+                    <td key={j} style={{ textAlign: al[j] }}>
+                      {inline(r[j] ?? "", `${key}-${ri}-${j}`)}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>,
+      );
       continue;
     }
     const h = line.match(/^(#{1,4})\s+(.*)$/);

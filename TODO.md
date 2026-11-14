@@ -73,7 +73,8 @@
 - [x] UI 接入上述接口 + 频道（@提及、交接线、改派、归档、交接需确认）/ 文件面板 / 上下文构成 / 联网搜索开关 / 来源引用 / 例行巡检 + 晨报 / 工作流表单编辑器 / 审批（已记住、历史）/ 插件市场与授权 / MCP / 用量与热力图 / 路由与切换 / 新 Agent 默认值（原：Agent 等审批时状态 waiting、会话摘要（updated/last/unread）、上下文构成、立即压缩、新对话、文件树与读写 INSTRUCTIONS/MEMORY、已记住选择列表与撤销、审批历史、模型重置/启用开关/多窗口额度、设置（默认模式与模型顺序）、主机列表、频道 UI）
 - [ ] 设置：通用、模型与订阅（提供方 / 路由与切换 / 添加提供方）、审批（记住的选择）、个人资料与用量
 - [ ] 插槽机制（conversation.node / sidebar-right.tab / settings.card / composer.action …）
-- [-] 原生桌面壳（托盘、自动更新）D-1 —— 需验证 Wails；先以 crewd 内嵌静态资源 + 浏览器打开交付
+- [x] 桌面客户端（MyGo v0.9.0，纯 Go 无 CGO）：内嵌 / 连接已运行的 crewd、隐藏标题栏 + 红绿灯留位、托盘（需你 N、开机启动、关闭窗口后继续运行、退出）、Dock 角标、原生通知、单实例、深链（#/session、#/settings）、`make desktop` 产出 .app + .dmg；真实启动 / 关闭 / 再次启动 / 退出无残留已验证（D-1）
+- [ ] 桌面：自动更新（需生成更新签名密钥）、Developer ID 签名与公证、Windows / Linux 实机运行
 
 ## Phase 2 — 多 Agent 协同、自动化、生态（第 7–12 周）
 - [x] `channel-local`：共享频道、单一负责人、交接工具与 Waterfall、停止 / 恢复 / 改派 / 归档（A-3 A-4 A-5）
@@ -154,6 +155,13 @@
 - [x] 四份 common.go 复制 → providers/llm/internal/common 一份
 - [x] compaction 与 DeriveMessages 对 thinking 判定不一致
 
+## UI 重设计（用户反馈「有点怪」后）
+- [x] 去掉浏览器式标签与标题栏 logo；44px 对话头部（谁、状态、负责人）；需你胶囊仅在有待处理时出现；⌘[ ⌘] 历史
+- [x] 会话列表两行、居中 760px 对话列、模型名仅在变化时显示、简洁系统行、悬浮输入框、短模型名
+- [x] 左下角菜单：去掉外观；姓名（可改）、版本与运行时长、今日用量、免打扰、快捷键、帮助与反馈、设置、退出 / 断开
+- [x] 首次使用欢迎页（已连接的模型来源、三个模板一键开始）；浏览器顶部品牌位；收起侧栏后不再空
+- [x] Markdown 表格渲染；模型名规整（DeepSeek Flash、Claude Opus 5.5）
+
 ## Phase 3 — 远程、IM、团队
 - [x] `server` Profile、install-server.sh（systemd）、加固 docker-compose（no-new-privileges、seccomp、只读根、shm 1g、不映射端口、可选 Tailscale）、Dockerfile、阿里云 ECS / AWS EC2 + Fargate 模板、docs/deploy.md（D-2）
 - [ ] 部署：真实 Docker 构建与云主机实跑；容器内无 Docker 沙箱（改 sandbox-none 拒绝沙箱命令）
@@ -212,6 +220,7 @@
 ## 迭代日志
 | 日期 | 迭代 | 结果 |
 |---|---|---|
+| 2026-11-14 | 10b | MyGo 桌面客户端交付并实机验证；UI 重设计（子 agent）+ 首次使用欢迎页、表格、模型名、深链；Dockerfile 支持镜像源前缀 |
 | 2026-11-14 | 10a | 真实环境验证一轮：ACP 订阅 CLI、MCP、插件、浏览器、Linux systemd、bubblewrap 沙箱、加固 compose；修复 5 个真实环境问题；55 包 race 通过 |
 | 2026-11-14 | 9f | 高强度代码评审 10 项全部修复；54 包 race、Windows 编译、真实模型回归通过 |
 | 2026-11-14 | 9e | UI 反馈的 4 处接口缺口修复；确认当前构建联网引用真实可用（UI agent 测的是旧构建） |

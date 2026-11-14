@@ -30,13 +30,15 @@
 
 | 进程 | 职责 | 生命周期 |
 |---|---|---|
-| `crewd`（守护进程） | 插件宿主 + 所有内置插件；会话、Agent、调度、远程网关 | 系统托盘常驻；服务器上由 systemd 管理 |
-| 桌面壳 | 原生窗口、托盘、自动更新；加载 Web UI，连接本机 `crewd` | 用户打开时运行，关闭窗口不影响 Agent |
+| `crewd`（守护进程） | 插件宿主 + 所有内置插件；会话、Agent、调度、远程网关 | 桌面版：运行在 Crewbase.app 进程内，随菜单栏图标常驻；服务器上由 systemd 管理 |
+| 桌面壳（Crewbase.app，`apps/desktop`） | MyGo 原生窗口、菜单栏 / 托盘、Dock 角标、原生通知；窗口加载 `crewd` 网关提供的 Web UI | 启动时若本机已有 `crewd`（127.0.0.1:7788 且接受 `${CREWBASE_HOME}/token`）则**附着**，否则在**同一进程内**启动宿主（`launch.Start`，profile `desktop`）。关闭窗口只隐藏窗口，Agent 继续工作；只有「退出」才停止，进程内模式下退出时 `Host.Close()` 清理整棵子进程树，附着模式下退出不影响外部 `crewd` |
 | CLI / ACP 子进程 | Claude Code、Codex、Gemini CLI 等，由 `llm-acp` 和 `subagent-acp` 管理 | 按需启动，空闲超时退出 |
 | MCP 服务器 | 外部工具连接 | 由 MCP 管理插件按需启动，在沙箱中运行 |
 | 进程外插件 | 第三方插件 | 随插件启用 / 停用 |
 | 浏览器池 | 每个 Agent 独立的 Chromium Profile，通过 CDP 控制 | 按需启动，空闲回收 |
 | 沙箱容器 | 执行 Agent 的命令 | 每个 Agent 或每个任务一个，复用或用完即弃 |
+
+**单实例**：桌面壳持有单实例锁，再次启动只会唤起已有窗口。更新（[交互设计 §5.1](03-ux-design.md)）只重启桌面壳与进程内的宿主：运行中的 Agent 从检查点恢复，待批准的请求保留在会话日志中。详见 [desktop.md](desktop.md)。
 
 **进程组管理**：`crewd` 为每类子进程建立进程组（Windows 上为 Job Object），退出时清理整棵子进程树，不留孤儿进程。
 
@@ -45,7 +47,7 @@
 | 领域 | 选型 | 理由 |
 |---|---|---|
 | 守护进程与插件宿主 | Go | 单一可执行文件、低内存、并发模型适合管理大量子进程与流 |
-| 桌面壳 | MyGo（纯 Go、无 CGO）；备选 Wails | 与守护进程同语言、共享数据结构；需在 Phase 1 第 1 周验证三平台托盘与自动更新 |
+| 桌面壳 | [MyGo](https://github.com/egoist/mygo) v0.9（纯 Go、无 CGO，系统 WebView）；备选 Wails | 与守护进程同语言、同一进程内运行宿主；`go tool mygo build` 产出 .app + .dmg / Windows 安装包 / Linux 包，`GOOS=windows/linux` 可交叉编译。macOS 上窗口、托盘、通知、单实例、开机启动已实测；自动更新需签名密钥（见 [desktop.md](desktop.md)） |
 | 前端 | TypeScript + React，组件来自插槽注册 | 插件可携带前端模块；与 Web 版、远程访问共用 |
 | 本地存储 | 会话日志：JSONL（带版本号、可选 zstd 压缩）；索引与队列：SQLite（WAL） | 日志是唯一真源，便于迁移与审计；SQLite 负责查询与全文检索 |
 | 进程外插件协议 | stdio 上的 JSON-RPC 2.0，描述符由代码生成 | 与 MCP / LSP / ACP 一致，任何语言都能写 |
@@ -77,7 +79,7 @@ crewbase/
 ├── bundles/                组合包：base、desktop、server、acp、team
 ├── apps/
 │   ├── crewd/              守护进程入口
-│   ├── desktop/            桌面壳
+│   ├── desktop/            桌面壳 Crewbase.app（MyGo）：mygo.json、resources/icon.png、托盘图标由 docs/brand 生成
 │   ├── web/                前端
 │   └── cli/                crew 命令行
 └── docs/

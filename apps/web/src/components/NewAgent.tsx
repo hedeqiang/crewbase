@@ -24,7 +24,7 @@ export function emptyDraft(): Draft {
   return { name: "", role: "", desc: "", color: COLORS[0], shape: "sq", mode: "sandbox", folder: "", model: null, effort: "medium" };
 }
 
-const TEMPLATES: { key: "review" | "watch" | "weekly"; color: string; shape: string; mode: Draft["mode"] }[] = [
+export const TEMPLATES: { key: "review" | "watch" | "weekly"; color: string; shape: string; mode: Draft["mode"] }[] = [
   { key: "review", color: "#24b07e", shape: "circle", mode: "sandbox" },
   { key: "watch", color: "#8b7cf6", shape: "blob", mode: "read-only" },
   { key: "weekly", color: "#f2b33d", shape: "hex", mode: "sandbox" },

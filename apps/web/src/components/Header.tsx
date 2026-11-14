@@ -7,6 +7,8 @@ import { Avatar, AvatarRaw } from "./Avatar";
 import { ApprovalActions } from "./Approval";
 import { takeoverReason } from "./Browser";
 import { Popover, useMenu } from "./Popover";
+import { Logo } from "./Logo";
+import { desktop } from "../api";
 
 /** Toggle for the session list; lives in the sidebar's title-bar area or, when
  *  the sidebar is hidden, at the left of the conversation header. */
@@ -63,8 +65,14 @@ export function ConvHeader({ draftColor, draftShape }: { draftColor: string; dra
   }
 
   return (
-    <header className="chead">
+    <header className={"chead" + (view === "chat" && !agent ? " bare" : "")}>
       <ListToggle className="lt" />
+      {view === "chat" && !agent && !desktop() && (
+        <span className="brand hbrand">
+          <Logo size={20} />
+          <b>Crewbase</b>
+        </span>
+      )}
       <div className="who">
         {view === "chat" && isChannel && (
           <>

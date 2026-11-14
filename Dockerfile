@@ -7,6 +7,8 @@
 #
 # Build args:
 #   RUNTIME          distroless (default) | chromium
+#   REGISTRY         base image registry prefix (default docker.io/), e.g. docker.m.daocloud.io/
+#   DISTROLESS       runtime base image, e.g. m.daocloud.io/gcr.io/distroless/static-debian12:nonroot
 #   GO_VERSION       Go toolchain image tag (go.mod requires 1.27)
 #   NODE_VERSION     Node image tag for the web UI build
 #   GOPROXY          e.g. https://goproxy.cn,direct in mainland China
@@ -15,12 +17,17 @@
 #
 # The image exposes no ports. See docs/deploy.md.
 
+# REGISTRY prefixes base images, e.g. docker.m.daocloud.io/ in mainland
+# China where Docker Hub is unreliable (keep the trailing slash).
+ARG REGISTRY=docker.io/
+# DISTROLESS is the runtime base (gcr.io), mirrorable the same way.
+ARG DISTROLESS=gcr.io/distroless/static-debian12:nonroot
 ARG GO_VERSION=1.27
 ARG NODE_VERSION=22
 ARG RUNTIME=distroless
 
 # ---------------------------------------------------------------- web UI
-FROM node:${NODE_VERSION}-alpine AS web
+FROM ${REGISTRY}library/node:${NODE_VERSION}-alpine AS web
 ARG NPM_REGISTRY=
 WORKDIR /src/apps/web
 RUN corepack enable
@@ -31,7 +38,7 @@ COPY apps/web/ ./
 RUN pnpm build
 
 # ---------------------------------------------------------------- Go binaries
-FROM golang:${GO_VERSION}-alpine AS build
+FROM ${REGISTRY}library/golang:${GO_VERSION}-alpine AS build
 ARG GOPROXY=https://proxy.golang.org,direct
 ENV GOPROXY=${GOPROXY} CGO_ENABLED=0 GOFLAGS=-trimpath
 WORKDIR /src
@@ -47,9 +54,9 @@ RUN --mount=type=cache,target=/root/go/pkg/mod --mount=type=cache,target=/root/.
  && mkdir -p /out/data/home && chown -R 65532:65532 /out/data && chmod 700 /out/data
 
 # ---------------------------------------------------------------- runtimes
-FROM gcr.io/distroless/static-debian12:nonroot AS runtime-distroless
+FROM ${DISTROLESS} AS runtime-distroless
 
-FROM alpine:3.22 AS runtime-chromium
+FROM ${REGISTRY}library/alpine:3.22 AS runtime-chromium
 ARG ALPINE_MIRROR=
 RUN if [ -n "$ALPINE_MIRROR" ]; then sed -i "s#dl-cdn.alpinelinux.org#${ALPINE_MIRROR}#g" /etc/apk/repositories; fi \
  && apk add --no-cache chromium nss freetype harfbuzz ttf-freefont font-noto-cjk ca-certificates tzdata \

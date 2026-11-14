@@ -6,7 +6,7 @@
 
 | 验证项 | 通过标准 |
 |---|---|
-| 桌面壳（MyGo / Wails） | macOS、Windows、Linux 上托盘常驻、自动更新、加载本地 Web UI 均可用 |
+| 桌面壳（MyGo，已选定） | macOS、Windows、Linux 上托盘常驻、自动更新、加载本地 Web UI 均可用。**进展**：`apps/desktop` 已用 MyGo v0.9 实现（`make desktop`），macOS arm64 上已实测窗口、菜单栏图标、关闭窗口后继续运行、单实例、退出时清理子进程树、附着已运行的 `crewd`；Windows / Linux 可交叉编译，待真机验证；自动更新待生成签名密钥后开启（[desktop.md](desktop.md)） |
 | 插件宿主原型 | 实现 Context、`Inject` 与 PENDING、五种分发模式、Effect 撤销；用 `greet-tool` + `tool-logger` 两个插件跑通 Harness 教程第 7 章的等价示例 |
 | 进程外插件桥接 | 一个 TypeScript 插件通过 stdio JSON-RPC 注册工具并监听 `tools/result`；进程被杀后其注册全部撤销 |
 | ACP 桥接 | 通过 ACP 驱动 Claude Code 与 Codex 各完成一个轮次，并检测到额度耗尽信号 |
@@ -54,7 +54,7 @@
 | 3 | 移动端的审批深度 | 代码推送类在手机上只提供「拒绝」与「稍后在桌面处理」 | 产品 / 设计 |
 | 4 | 产品命名 | 暂定 Crewbase，需与 OpenBot、Cindy 等品牌区分并做商标检索 | 产品 |
 | 5 | 远程浏览器接管的帧流方案 | Phase 2 末做带宽与延迟测试，再决定实时流或逐帧截图 | 工程 |
-| 6 | 桌面壳选型 | Phase 0 验证 MyGo；不满足则切 Wails | 工程 |
+| 6 | 桌面壳选型 | 已采用 MyGo（`apps/desktop`）；Windows / Linux 真机验证未通过时再评估 Wails | 工程 |
 | 7 | 是否兼容 Harness 插件 | 不做二进制兼容；提供 `subagent-acp` 互通，以及概念对照文档帮助迁移 | 工程 |
 | 8 | OpenBot 许可证现状 | 发布对比材料前对照其仓库再次核实 | 产品 |
 | 9 | 进程外插件的 Waterfall 超时 | 默认 2 秒；需在 Phase 2 用真实插件测量 | 工程 |

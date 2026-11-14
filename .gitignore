@@ -6,3 +6,14 @@ apps/web/dist/*
 *.test
 .DS_Store
 coverage.out
+apps/desktop/build/
+apps/desktop/.mygo/
+
+# stray go build outputs at the repo root
+/desktop
+/desktop.exe
+/crewd
+/crewd.exe
+/cli
+/cli.exe
+*.exe

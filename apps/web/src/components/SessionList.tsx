@@ -24,6 +24,7 @@ import {
 } from "../store";
 import { Avatar, MeAvatar } from "./Avatar";
 import { ListToggle } from "./Header";
+import { Logo } from "./Logo";
 import { Popover, useMenu } from "./Popover";
 
 const ISSUES_URL = "https://github.com/hedeqiang/crewbase/issues";
@@ -149,6 +150,12 @@ export function SessionList() {
   return (
     <aside className="list">
       <div className="lbar">
+        {!desktop() && (
+          <span className="brand">
+            <Logo size={20} />
+            <b>Crewbase</b>
+          </span>
+        )}
         <ListToggle />
       </div>
       <div className="lhead">
@@ -235,10 +242,6 @@ export function SessionList() {
         {empty && (
           <div className="lempty">
             <p className="small">{t("list.empty")}</p>
-            <button className="btn pri" type="button" onClick={openNewAgent}>
-              <Plus size={14} />
-              {t("list.newAgent")}
-            </button>
           </div>
         )}
         {noMatch && <p className="small lempty">{t("list.noMatch")}</p>}
