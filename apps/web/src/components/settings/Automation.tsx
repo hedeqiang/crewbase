@@ -7,6 +7,7 @@ import { openSession, toast, useStore } from "../../store";
 import { Avatar } from "../Avatar";
 import { Markdown } from "../Markdown";
 import { Head } from "../Settings";
+import { moveNode, nodeAt, removeNode, WorkflowCanvas, type NodeRef } from "./WorkflowCanvas";
 
 type Tab = "routines" | "workflows";
 
@@ -696,36 +697,45 @@ function RunCard({ r, open, toggle, onRerun }: { r: WfRun; open: boolean; toggle
 
 // ---- editor
 
-function nextId(steps: WfStep[], base = "step"): string {
-  const ids = new Set(steps.flatMap((s) => [s.id, ...(s.parallel ?? []).map((p) => p.id)]));
-  for (let i = steps.length + 1; ; i++) if (!ids.has(base + i)) return base + i;
-}
 
 function WorkflowEditor({ init, onCancel, onSaved }: { init: Workflow; onCancel: () => void; onSaved: (w: Workflow) => void }) {
   const [w, setW] = useState<Workflow>(() => JSON.parse(JSON.stringify(init)));
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const isNew = !init.id;
-  const setStep = (i: number, p: Partial<WfStep>) => setW((x) => ({ ...x, steps: x.steps.map((s, j) => (j === i ? { ...s, ...p } : s)) }));
-  const move = (i: number, j: number) =>
+  const [sel, setSel] = useState<NodeRef | null>(null);
+  const selNode = sel ? nodeAt(w.steps, sel) : undefined;
+  const setNode = (p: Partial<WfStep>) =>
+    setW((x) => {
+      if (!sel) return x;
+      return {
+        ...x,
+        steps: x.steps.map((s, i) => {
+          if (i !== sel.stage) return s;
+          if (sel.branch === undefined) return { ...s, ...p };
+          return { ...s, parallel: (s.parallel ?? []).map((b, j) => (j === sel.branch ? { ...b, ...p } : b)) };
+        }),
+      };
+    });
+  // keyboard-friendly reordering: a whole stage, or a branch out to its own stage
+  const moveSel = (d: -1 | 1) => {
+    if (!sel) return;
+    if (sel.branch !== undefined) {
+      const at = d < 0 ? sel.stage : sel.stage + 1;
+      setW((x) => ({ ...x, steps: moveNode(x.steps, sel, { gap: at }) }));
+      setSel({ stage: d < 0 ? sel.stage : sel.stage + 1 });
+      return;
+    }
+    const j = sel.stage + d;
     setW((x) => {
       if (j < 0 || j >= x.steps.length) return x;
       const steps = [...x.steps];
-      const [s] = steps.splice(i, 1);
+      const [s] = steps.splice(sel.stage, 1);
       steps.splice(j, 0, s);
       return { ...x, steps };
     });
-  const add = (kind: WfStep["kind"]) =>
-    setW((x) => {
-      const id = nextId(x.steps, kind === "approval" ? "approve" : "step");
-      const st: WfStep =
-        kind === "approval"
-          ? { id, kind, approval: { summary: "" } }
-          : kind === "parallel"
-            ? { id, kind, parallel: [{ id: id + "a", kind: "agent", agent: "", prompt: "{{prev}}" }, { id: id + "b", kind: "agent", agent: "", prompt: "{{prev}}" }] }
-            : { id, kind: "agent", agent: "", prompt: "{{prev}}" };
-      return { ...x, steps: [...x.steps, st] };
-    });
+    setSel({ stage: j });
+  };
   const save = async () => {
     setBusy(true);
     setErr(null);
@@ -773,84 +783,54 @@ function WorkflowEditor({ init, onCancel, onSaved }: { init: Workflow; onCancel:
       <div className="psec2">
         {t("auto.steps")} <span className="small" style={{ fontWeight: 400 }}>{t("auto.stepsHint")}</span>
       </div>
-      <div className="esteps">
-        {w.steps.map((s, i) => (
-          <div className="estep" key={i}>
+      <div className="wfboard">
+        <WorkflowCanvas
+          steps={w.steps}
+          trigger={scheduleLabel(w.trigger)}
+          selected={sel}
+          onSelect={setSel}
+          onChange={(steps, select) => {
+            setW((x) => ({ ...x, steps }));
+            if (select !== undefined) setSel(select);
+          }}
+        />
+        {sel && selNode && (
+          <div className="wfinsp">
             <div className="esh">
-              <span className="n">{i + 1}</span>
-              <input className="fi sm mono sid" value={s.id} aria-label={t("auto.stepId")} onChange={(e) => setStep(i, { id: e.target.value })} />
-              <span className="pill">{t(`auto.kind.${s.kind}` as Key)}</span>
+              <span className="pill">{t(`auto.kind.${selNode.kind}` as Key)}</span>
+              <input className="fi sm mono sid" value={selNode.id} aria-label={t("auto.stepId")} onChange={(e) => setNode({ id: e.target.value })} />
               <span className="sp" />
-              <button className="ix" type="button" aria-label={t("panel.up")} disabled={i === 0} onClick={() => move(i, i - 1)}>
-                <ArrowUp size={13} />
+              <button
+                className="ix"
+                type="button"
+                aria-label={t("panel.remove")}
+                disabled={w.steps.length === 1 && sel.branch === undefined}
+                onClick={() => {
+                  setW((x) => ({ ...x, steps: removeNode(x.steps, sel) }));
+                  setSel(null);
+                }}
+              >
+                <Trash size={13} />
               </button>
-              <button className="ix" type="button" aria-label={t("panel.down")} disabled={i === w.steps.length - 1} onClick={() => move(i, i + 1)}>
-                <ArrowDown size={13} />
-              </button>
-              <button className="ix" type="button" aria-label={t("panel.remove")} disabled={w.steps.length === 1} onClick={() => setW({ ...w, steps: w.steps.filter((_, j) => j !== i) })}>
+              <button className="ix" type="button" aria-label={t("common.close")} onClick={() => setSel(null)}>
                 <X size={13} />
               </button>
             </div>
-            {s.kind === "agent" && <AgentStepFields s={s} onChange={(p) => setStep(i, p)} />}
-            {s.kind === "approval" && (
-              <input
-                className="fi sm"
-                value={s.approval?.summary ?? ""}
-                placeholder={t("auto.approvalPh")}
-                onChange={(e) => setStep(i, { approval: { summary: e.target.value } })}
-              />
+            {selNode.kind === "approval" ? (
+              <input className="fi sm" value={selNode.approval?.summary ?? ""} placeholder={t("auto.approvalPh")} onChange={(e) => setNode({ approval: { summary: e.target.value } })} />
+            ) : (
+              <AgentStepFields s={selNode} onChange={setNode} />
             )}
-            {s.kind === "parallel" && (
-              <div className="psubs">
-                {(s.parallel ?? []).map((p, j) => (
-                  <div className="psub" key={j}>
-                    <div className="esh">
-                      <input
-                        className="fi sm mono sid"
-                        value={p.id}
-                        aria-label={t("auto.stepId")}
-                        onChange={(e) => setStep(i, { parallel: (s.parallel ?? []).map((x, k) => (k === j ? { ...x, id: e.target.value } : x)) })}
-                      />
-                      <span className="sp" />
-                      <button
-                        className="ix"
-                        type="button"
-                        aria-label={t("panel.remove")}
-                        disabled={(s.parallel ?? []).length <= 1}
-                        onClick={() => setStep(i, { parallel: (s.parallel ?? []).filter((_, k) => k !== j) })}
-                      >
-                        <X size={13} />
-                      </button>
-                    </div>
-                    <AgentStepFields s={p} onChange={(q) => setStep(i, { parallel: (s.parallel ?? []).map((x, k) => (k === j ? { ...x, ...q } : x)) })} />
-                  </div>
-                ))}
-                <button
-                  className="btn ghost sm"
-                  type="button"
-                  onClick={() => setStep(i, { parallel: [...(s.parallel ?? []), { id: s.id + String.fromCharCode(97 + (s.parallel ?? []).length), kind: "agent", agent: "", prompt: "{{prev}}" }] })}
-                >
-                  <Plus size={12} />
-                  {t("auto.addBranch")}
-                </button>
-              </div>
-            )}
+            <div className="acts sm">
+              <button className="btn ghost sm" type="button" disabled={sel.stage === 0} onClick={() => moveSel(-1)}>
+                <ArrowUp size={12} style={{ transform: "rotate(-90deg)" }} /> {t("wfc.earlier")}
+              </button>
+              <button className="btn ghost sm" type="button" disabled={sel.stage >= w.steps.length - 1 && sel.branch === undefined} onClick={() => moveSel(1)}>
+                <ArrowDown size={12} style={{ transform: "rotate(-90deg)" }} /> {t("wfc.later")}
+              </button>
+            </div>
           </div>
-        ))}
-      </div>
-      <div className="acts">
-        <button className="btn" type="button" onClick={() => add("agent")}>
-          <Plus size={13} />
-          {t("auto.addAgentStep")}
-        </button>
-        <button className="btn" type="button" onClick={() => add("parallel")}>
-          <Users size={13} />
-          {t("auto.addParallel")}
-        </button>
-        <button className="btn" type="button" onClick={() => add("approval")}>
-          <Hand size={13} />
-          {t("auto.addApproval")}
-        </button>
+        )}
       </div>
       <p className="small">{t("auto.templateHint")}</p>
       {err && <div className="ferr">{err}</div>}
