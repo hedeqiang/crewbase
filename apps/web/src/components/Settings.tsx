@@ -23,6 +23,7 @@ import { openSession, setLang, setState, toast, useStore, type SettingsSection, 
 import { Automation } from "./settings/Automation";
 import { Extensions } from "./settings/Extensions";
 import { Profile } from "./settings/Profile";
+import { Notify } from "./settings/Notify";
 import { Routing } from "./settings/Routing";
 import { Avatar } from "./Avatar";
 import { ApprovalActions } from "./Approval";
@@ -96,7 +97,8 @@ export function Settings() {
         {sec === "market" && <Extensions />}
         {sec === "profile" && <Profile />}
         {sec === "keys" && <Keys />}
-        {!["general", "models", "approvals", "auto", "market", "profile", "keys"].includes(sec) && <Soon sec={sec} />}
+        {sec === "notify" && <Notify />}
+        {!["general", "models", "approvals", "auto", "market", "profile", "keys", "notify"].includes(sec) && <Soon sec={sec} />}
       </div>
     </div>
   );

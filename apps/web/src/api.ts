@@ -211,6 +211,29 @@ export interface Settings {
   displayName?: string;
   /** Do-not-disturb until this RFC 3339 time; "" = off. */
   dndUntil?: string;
+  /** Settings › 通知: only cells the person changed, plus quiet hours. */
+  notify?: NotifyPrefs | null;
+}
+
+export interface QuietHours {
+  on: boolean;
+  start: string; // "HH:MM"
+  end: string;
+}
+
+export interface NotifyPrefs {
+  matrix?: Record<string, Record<string, boolean>>;
+  quiet: QuietHours;
+}
+
+/** GET /api/notify: effective state for every kind × connected channel. */
+export interface NotifyState {
+  kinds: string[];
+  channels: string[];
+  matrix: Record<string, Record<string, boolean>>;
+  quiet: QuietHours;
+  quietNow: boolean;
+  dndUntil?: string;
 }
 
 /** GET /api/system */
@@ -576,6 +599,8 @@ export const API = {
   setRoutes: (routes: TaskRoute[]) => api<{ routes: TaskRoute[] }>("PUT", "/api/router/routes", { routes }),
   settings: () => api<Settings>("GET", "/api/settings"),
   patchSettings: (b: Partial<Settings>) => api<Settings>("PATCH", "/api/settings", b),
+  notify: () => api<NotifyState>("GET", "/api/notify"),
+  testNotify: (channel: string) => api<{ ok: boolean }>("POST", "/api/notify/test", { channel }),
   hosts: () => api<{ hosts: HostView[] }>("GET", "/api/hosts"),
 
   channels: () => api<{ channels: ChannelView[] }>("GET", "/api/channels"),

@@ -204,3 +204,11 @@ export function tidyModelName(n: string): string {
 export function shortModelEffort(models: ModelsResponse | null, r: ModelRef): { name: string; effort: string } {
   return { name: shortModel(models, r), effort: r.effort && r.effort !== "medium" ? effortLabel(r.effort) : "" };
 }
+
+/** Next 08:00 local time after now. */
+export function nextMorning(): Date {
+  const d = new Date();
+  d.setDate(d.getDate() + (d.getHours() >= 8 ? 1 : 0));
+  d.setHours(8, 0, 0, 0);
+  return d;
+}

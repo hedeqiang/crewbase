@@ -3,7 +3,7 @@ import { Bot, Check, ChevronRight, Workflow, FolderPlus, Hash, LifeBuoy, LogOut,
 import type { AgentView, SessionMeta, UsageStats } from "../api";
 import { API, desktop, openExternal, setToken } from "../api";
 import { t } from "../i18n";
-import { hhmm, kfmt, listTime, sinceLabel } from "../format";
+import { hhmm, kfmt, listTime, nextMorning, sinceLabel } from "../format";
 import { takeoverReason } from "./Browser";
 import { lastSnippet } from "../projection";
 import {
@@ -337,14 +337,6 @@ function todayKey() {
 
 function usd(n: number) {
   return "$" + n.toFixed(n < 10 ? 2 : 0);
-}
-
-/** Next 08:00 local time after now. */
-function nextMorning() {
-  const d = new Date();
-  d.setDate(d.getDate() + (d.getHours() >= 8 ? 1 : 0));
-  d.setHours(8, 0, 0, 0);
-  return d;
 }
 
 function MeMenu({ close, profile }: { close: () => void; profile: Profile }) {

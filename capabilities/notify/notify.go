@@ -6,6 +6,8 @@ package notify
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"sync"
 	"time"
 
@@ -25,6 +27,83 @@ const (
 	KindFailed      = "failed"
 	KindRoutine     = "routine" // routine found something
 )
+
+// Kinds lists every kind, in settings order.
+var Kinds = []string{KindNeedsYou, KindTaskDone, KindFailed, KindHandover, KindRoutine, KindBrief, KindQuotaLow, KindModelSwitch}
+
+// QuietHours is a daily window (local time, may span midnight, e.g.
+// 22:00–08:00) in which only urgent notifications are delivered.
+type QuietHours struct {
+	On    bool   `json:"on"`
+	Start string `json:"start"` // "HH:MM"
+	End   string `json:"end"`   // "HH:MM"
+}
+
+func parseHM(v string) (int, error) {
+	t, err := time.Parse("15:04", v)
+	if err != nil {
+		return 0, fmt.Errorf("time %q must be HH:MM", v)
+	}
+	return t.Hour()*60 + t.Minute(), nil
+}
+
+// Validate checks the times.
+func (q QuietHours) Validate() error {
+	if !q.On && q.Start == "" && q.End == "" {
+		return nil
+	}
+	a, err := parseHM(q.Start)
+	if err != nil {
+		return err
+	}
+	b, err := parseHM(q.End)
+	if err != nil {
+		return err
+	}
+	if a == b {
+		return errors.New("quiet hours start and end must differ")
+	}
+	return nil
+}
+
+// Contains reports whether t (in its own location) falls in the window.
+func (q QuietHours) Contains(t time.Time) bool {
+	if !q.On {
+		return false
+	}
+	a, err1 := parseHM(q.Start)
+	b, err2 := parseHM(q.End)
+	if err1 != nil || err2 != nil || a == b {
+		return false
+	}
+	m := t.Hour()*60 + t.Minute()
+	if a < b {
+		return m >= a && m < b
+	}
+	return m >= a || m < b // spans midnight
+}
+
+// Prefs are the person's notification choices (settings › 通知). They
+// override channel defaults set by plugin config.
+type Prefs struct {
+	// Matrix[kind][channel]; missing entries use the default policy.
+	Matrix map[string]map[string]bool `json:"matrix,omitempty"`
+	Quiet  QuietHours                 `json:"quiet"`
+}
+
+// Validate checks kinds and quiet hours.
+func (p Prefs) Validate() error {
+	for k := range p.Matrix {
+		known := false
+		for _, x := range Kinds {
+			known = known || x == k
+		}
+		if !known {
+			return fmt.Errorf("unknown notification kind %q", k)
+		}
+	}
+	return p.Quiet.Validate()
+}
 
 // Notification is one message to a person.
 type Notification struct {
@@ -49,8 +128,10 @@ type Channel interface {
 type Service struct {
 	mu       sync.Mutex
 	channels []Channel
-	// enabled[kind][channel]; missing = default policy
+	// enabled[kind][channel] set by channel config; missing = default policy
 	enabled map[string]map[string]bool
+	prefs   Prefs // the person's choices, override enabled
+	now     func() time.Time
 	recent  []Notification
 	seq     int
 	// dndUntil suppresses non-urgent notifications to every channel.
@@ -75,7 +156,85 @@ func (s *Service) DoNotDisturb() time.Time {
 	return s.dndUntil
 }
 
-func NewService() *Service { return &Service{enabled: map[string]map[string]bool{}} }
+func NewService() *Service { return &Service{enabled: map[string]map[string]bool{}, now: time.Now} }
+
+// SetPrefs replaces the person's choices.
+func (s *Service) SetPrefs(p Prefs) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.prefs = p
+}
+
+// Prefs returns the person's choices.
+func (s *Service) Prefs() Prefs {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.prefs
+}
+
+// Channels returns the names of registered channels, in order.
+func (s *Service) Channels() []string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	out := make([]string, 0, len(s.channels))
+	for _, ch := range s.channels {
+		out = append(out, ch.Name())
+	}
+	return out
+}
+
+// Enabled reports whether kind is delivered to channel (choices, then
+// channel config, then the default policy).
+func (s *Service) Enabled(kind, channel string) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.enabledLocked(kind, channel)
+}
+
+func (s *Service) enabledLocked(kind, channel string) bool {
+	if on, ok := s.prefs.Matrix[kind][channel]; ok {
+		return on
+	}
+	if on, ok := s.enabled[kind][channel]; ok {
+		return on
+	}
+	return defaultOn(kind)
+}
+
+// Quiet reports whether non-urgent notifications are held right now (do
+// not disturb or quiet hours).
+func (s *Service) Quiet() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.quietLocked()
+}
+
+func (s *Service) quietLocked() bool {
+	now := s.now()
+	return now.Before(s.dndUntil) || s.prefs.Quiet.Contains(now)
+}
+
+// SendTo delivers n to one channel regardless of choices (settings › 通知
+// › 发送测试).
+func (s *Service) SendTo(ctx context.Context, channel string, n Notification) error {
+	s.mu.Lock()
+	var target Channel
+	for _, ch := range s.channels {
+		if ch.Name() == channel {
+			target = ch
+		}
+	}
+	s.mu.Unlock()
+	if target == nil {
+		return fmt.Errorf("notification channel %q is not connected", channel)
+	}
+	if n.Time.IsZero() {
+		n.Time = time.Now().UTC()
+	}
+	cctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+	return target.Send(cctx, n)
+}
 
 // AddChannel registers a channel for ctx's lifetime.
 func (s *Service) AddChannel(c *kernel.Context, ch Channel) {
@@ -94,7 +253,8 @@ func (s *Service) AddChannel(c *kernel.Context, ch Channel) {
 	})
 }
 
-// SetEnabled toggles a kind on a channel.
+// SetEnabled sets a channel's default for kind (from the channel's own
+// config); the person's choices in Prefs still win.
 func (s *Service) SetEnabled(kind, channel string, on bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -118,13 +278,12 @@ func (s *Service) Send(ctx context.Context, n Notification) []error {
 		n.Time = time.Now().UTC()
 	}
 	var targets []Channel
-	quiet := !n.Urgent && time.Now().Before(s.dndUntil)
+	quiet := !n.Urgent && s.quietLocked()
 	for _, ch := range s.channels {
 		if quiet {
 			break
 		}
-		on, set := s.enabled[n.Kind][ch.Name()]
-		if (set && on) || (!set && defaultOn(n.Kind)) {
+		if s.enabledLocked(n.Kind, ch.Name()) {
 			targets = append(targets, ch)
 		}
 	}

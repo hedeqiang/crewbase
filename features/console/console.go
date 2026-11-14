@@ -85,6 +85,8 @@ type Settings struct {
 	DisplayName string `json:"displayName,omitempty"`
 	// DndUntil (RFC 3339) suppresses non-urgent notifications; "" = off.
 	DndUntil string `json:"dndUntil,omitempty"`
+	// Notify holds the event × channel choices and quiet hours.
+	Notify *notify.Prefs `json:"notify,omitempty"`
 }
 
 // resolveIn returns an absolute path inside root, refusing escapes
@@ -165,6 +167,11 @@ var Plugin = kernel.Register(kernel.Spec{
 					until, _ = time.Parse(time.RFC3339, st.DndUntil)
 				}
 				n.SetDoNotDisturb(until)
+				if st.Notify != nil {
+					n.SetPrefs(*st.Notify)
+				} else {
+					n.SetPrefs(notify.Prefs{})
+				}
 			}
 			var refs []llm.ModelRef
 			for _, s := range st.DefaultModels {
@@ -204,6 +211,11 @@ var Plugin = kernel.Register(kernel.Spec{
 				if len([]rune(b.DisplayName)) > 40 {
 					return gateway.BadRequest("displayName is too long")
 				}
+				if b.Notify != nil {
+					if err := b.Notify.Validate(); err != nil {
+						return gateway.BadRequest("%v", err)
+					}
+				}
 				return nil
 			},
 			Handle: func(_ context.Context, r *gateway.Request) (any, error) {
@@ -224,6 +236,9 @@ var Plugin = kernel.Register(kernel.Spec{
 				if _, ok := raw["dndUntil"]; ok {
 					cur.DndUntil = b.DndUntil
 				}
+				if _, ok := raw["notify"]; ok {
+					cur.Notify = b.Notify
+				}
 				if settingsPath != "" {
 					data, _ := json.MarshalIndent(cur, "", "  ")
 					if err := os.WriteFile(settingsPath, data, 0o600); err != nil {
@@ -232,6 +247,48 @@ var Plugin = kernel.Register(kernel.Spec{
 				}
 				apply(cur)
 				return cur, nil
+			}})
+
+		// ---- notifications (settings › 通知)
+		g.Handle(c, gateway.Route{Method: "GET", Path: "/api/notify",
+			Handle: func(context.Context, *gateway.Request) (any, error) {
+				n, ok := kernel.Lookup[*notify.Service](c, notify.ServiceKey)
+				if !ok {
+					return nil, gateway.NotFound()
+				}
+				chans := n.Channels()
+				matrix := map[string]map[string]bool{}
+				for _, k := range notify.Kinds {
+					matrix[k] = map[string]bool{}
+					for _, ch := range chans {
+						matrix[k][ch] = n.Enabled(k, ch)
+					}
+				}
+				var dnd string
+				if t := n.DoNotDisturb(); !t.IsZero() {
+					dnd = t.Format(time.RFC3339)
+				}
+				return map[string]any{
+					"kinds": notify.Kinds, "channels": chans, "matrix": matrix,
+					"quiet": n.Prefs().Quiet, "quietNow": n.Quiet(), "dndUntil": dnd,
+				}, nil
+			}})
+		g.Handle(c, gateway.Route{Method: "POST", Path: "/api/notify/test",
+			Handle: func(ctx context.Context, r *gateway.Request) (any, error) {
+				var b struct {
+					Channel string `json:"channel"`
+				}
+				if err := r.Decode(&b); err != nil {
+					return nil, err
+				}
+				n, ok := kernel.Lookup[*notify.Service](c, notify.ServiceKey)
+				if !ok {
+					return nil, gateway.NotFound()
+				}
+				if err := n.SendTo(ctx, b.Channel, notify.Notification{Kind: notify.KindBrief, Title: "Crewbase 测试通知", Body: "如果你看到这条消息，说明这个渠道可以收到通知。"}); err != nil {
+					return nil, gateway.BadRequest("%v", err)
+				}
+				return map[string]any{"ok": true}, nil
 			}})
 
 		// ---- session summaries

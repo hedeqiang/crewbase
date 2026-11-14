@@ -992,3 +992,31 @@ button.tg:disabled { opacity: .5; cursor: not-allowed; }
 @keyframes spin { to { transform: rotate(360deg); } }
 .upv { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 10px 0; }
 @media (max-width: 560px) { .ap-grid { grid-template-columns: 1fr 1fr; } }
+
+/* settings › 通知 */
+.ntbl { padding: 0; overflow-x: auto; }
+.ntr { display: grid; grid-template-columns: minmax(180px, 1fr) repeat(var(--n, 1), 92px); align-items: center; gap: 8px; padding: 12px 16px; border-top: 1px solid var(--border); }
+.ntr:first-child { border-top: 0; }
+.ntr .g { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.ntr .g b { font-size: 13.5px; font-weight: 500; display: flex; align-items: center; gap: 6px; }
+.ntr .g b .pill { line-height: 17px; font-size: 10.5px; padding: 0 6px; }
+.ntr .g > span { font-size: 12.5px; color: var(--muted); line-height: 1.5; }
+.ntc { display: flex; flex-direction: column; align-items: center; gap: 2px; text-align: center; }
+.nth { padding-top: 10px; padding-bottom: 10px; background: var(--raised); border-radius: 14px 14px 0 0; }
+.nth .ntc b { font-size: 12.5px; font-weight: 600; }
+.nth .linkbtn { font-size: 11.5px; }
+.ntmore { width: 100%; display: flex; align-items: center; gap: 12px; margin-top: 10px; padding: 12px 16px; border: 1px dashed var(--border2); border-radius: 14px; text-align: left; color: var(--muted); }
+.ntmore:hover { border-color: var(--accent); color: var(--text); }
+.ntmore .g { flex: 1; display: flex; flex-direction: column; gap: 2px; }
+.ntmore .g b { font-size: 13px; font-weight: 500; color: var(--text); }
+.ntmore .g span { font-size: 12.5px; }
+.ntq { display: inline-flex; align-items: center; gap: 6px; }
+.ntq.off { opacity: .5; }
+.ntq input[type="time"] { width: 92px; }
+.ntnow { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; padding: 10px 14px; border-radius: 12px; background: var(--active); font-size: 13px; }
+.ntnow .g { flex: 1; }
+.ntfoot { margin: 10px 2px 0; }
+@media (max-width: 640px) {
+  .ntr { grid-template-columns: minmax(140px, 1fr) repeat(var(--n, 1), 64px); padding: 10px 12px; }
+  .srow:has(.ntq) { flex-wrap: wrap; }
+}

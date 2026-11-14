@@ -359,8 +359,7 @@ func Start(c *kernel.Context, provider string, cfg Config, mk func(g *Gateway) (
 	if n, ok := kernel.Lookup[*notify.Service](c, notify.ServiceKey); ok {
 		n.AddChannel(c, channel{g})
 		if len(cfg.NotifyKinds) > 0 {
-			for _, k := range []string{notify.KindNeedsYou, notify.KindTaskDone, notify.KindHandover, notify.KindModelSwitch,
-				notify.KindQuotaLow, notify.KindBrief, notify.KindFailed, notify.KindRoutine} {
+			for _, k := range notify.Kinds {
 				n.SetEnabled(k, g.name, slices.Contains(cfg.NotifyKinds, k))
 			}
 		}

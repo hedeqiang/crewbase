@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -17,6 +18,7 @@ import (
 	"github.com/hedeqiang/crewbase/core/prompt"
 	"github.com/hedeqiang/crewbase/core/session"
 	"github.com/hedeqiang/crewbase/core/tools"
+	"github.com/hedeqiang/crewbase/capabilities/notify"
 	"github.com/hedeqiang/crewbase/features/compaction"
 	"github.com/hedeqiang/crewbase/features/console"
 	"github.com/hedeqiang/crewbase/features/gateway"
@@ -40,7 +42,7 @@ func start(t *testing.T) (string, string, *kernel.Host) {
 		cfg map[string]any
 	}{
 		{session.Plugin, map[string]any{"dir": root + "/sessions"}}, {prompt.Plugin, nil}, {tools.Plugin, nil},
-		{approval.Plugin, nil}, {approval.DesktopPlugin, nil}, {rules.Plugin, nil},
+		{approval.Plugin, nil}, {approval.DesktopPlugin, nil}, {rules.Plugin, nil}, {notify.Plugin, nil},
 		{llm.Plugin, nil}, {mock.Plugin, nil}, {router.Plugin, nil},
 		{agent.Plugin, map[string]any{"root": root, "defaultModels": []string{"mock/default"}}},
 		{agentloop.Plugin, nil}, {compaction.Plugin, nil},
@@ -192,5 +194,49 @@ func TestFolderRenameAndDissolve(t *testing.T) {
 	}
 	if code, _ := do(t, base, "DELETE", "/api/folders/nope", nil); code != 404 {
 		t.Fatal(code)
+	}
+}
+
+func TestNotifySettingsPersistAndApply(t *testing.T) {
+	base, root, h := start(t)
+	code, out := do(t, base, "GET", "/api/notify", nil)
+	m := out["matrix"].(map[string]any)
+	if code != 200 || m["task-done"].(map[string]any)["desktop"] != true || m["model-switch"].(map[string]any)["desktop"] != false {
+		t.Fatal(code, out)
+	}
+	prefs := map[string]any{"matrix": map[string]any{"task-done": map[string]any{"desktop": false}}, "quiet": map[string]any{"on": true, "start": "22:00", "end": "08:00"}}
+	if code, out := do(t, base, "PATCH", "/api/settings", map[string]any{"notify": prefs}); code != 200 || out["notify"] == nil {
+		t.Fatal(code, out)
+	}
+	for _, bad := range []map[string]any{
+		{"quiet": map[string]any{"on": true, "start": "22", "end": "08:00"}},
+		{"matrix": map[string]any{"bogus": map[string]any{"desktop": true}}},
+	} {
+		if code, _ := do(t, base, "PATCH", "/api/settings", map[string]any{"notify": bad}); code != 400 {
+			t.Fatalf("accepted %v", bad)
+		}
+	}
+	_, out = do(t, base, "GET", "/api/notify", nil)
+	if out["matrix"].(map[string]any)["task-done"].(map[string]any)["desktop"] != false || out["quiet"].(map[string]any)["start"] != "22:00" {
+		t.Fatal(out)
+	}
+	n := kernel.Use[*notify.Service](h.Root(), notify.ServiceKey)
+	if n.Enabled(notify.KindTaskDone, "desktop") || !n.Prefs().Quiet.On {
+		t.Fatal("prefs not applied")
+	}
+	b, _ := os.ReadFile(filepath.Join(root, "settings.json"))
+	if !strings.Contains(string(b), `"quiet"`) {
+		t.Fatalf("not persisted: %s", b)
+	}
+	// other settings edits keep the choices
+	do(t, base, "PATCH", "/api/settings", map[string]any{"displayName": "林夏"})
+	if n.Enabled(notify.KindTaskDone, "desktop") {
+		t.Fatal("prefs lost")
+	}
+	if code, _ := do(t, base, "POST", "/api/notify/test", map[string]any{"channel": "desktop"}); code != 200 {
+		t.Fatal(code)
+	}
+	if code, _ := do(t, base, "POST", "/api/notify/test", map[string]any{"channel": "telegram"}); code != 400 {
+		t.Fatal("unconnected channel")
 	}
 }
