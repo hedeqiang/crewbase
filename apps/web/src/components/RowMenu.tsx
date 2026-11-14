@@ -2,7 +2,7 @@ import { Archive, FolderInput, FolderMinus, MoreHorizontal, Pencil, Trash2 } fro
 import { useEffect, useRef, useState, type MouseEvent, type ReactNode } from "react";
 import { API, type AgentView, type SessionMeta } from "../api";
 import { t } from "../i18n";
-import { getState, resync, setState, toast, useStore } from "../store";
+import { getState, resync, setState, toast, useFolders } from "../store";
 
 type Target = { kind: "agent"; agent: AgentView } | { kind: "channel"; meta: SessionMeta } | { kind: "folder"; name: string };
 
@@ -13,6 +13,12 @@ interface Open {
 }
 
 let opener: ((o: Open) => void) | null = null;
+let creator: (() => void) | null = null;
+
+/** Opens the 新建文件夹 dialog (list ＋ menu). */
+export function openNewFolder() {
+  creator?.();
+}
 
 /** Opens the row menu for a target at the pointer (right click) or below an
  *  element (the ⋯ button, keyboard). */
@@ -46,15 +52,16 @@ export function RowMenuButton({ target }: { target: Target }) {
 /** Mounted once (in the session list): the menu and its small dialogs. */
 export function RowMenuHost() {
   const [open, setOpen] = useState<Open | null>(null);
-  const [dialog, setDialog] = useState<{ kind: "rename" | "move" | "delete"; target: Target } | null>(null);
+  const [dialog, setDialog] = useState<{ kind: DialogKind; target: Target } | null>(null);
   const ref = useRef<HTMLDivElement>(null);
-  const agents = useStore((s) => s.agents);
-  const sessions = useStore((s) => s.sessions);
+  const folders = useFolders();
 
   useEffect(() => {
     opener = setOpen;
+    creator = () => setDialog({ kind: "create", target: { kind: "folder", name: "" } });
     return () => {
       opener = null;
+      creator = null;
     };
   }, []);
   useEffect(() => {
@@ -73,8 +80,6 @@ export function RowMenuHost() {
       window.removeEventListener("blur", close);
     };
   }, [open]);
-
-  const folders = [...new Set([...Object.values(agents).map((a) => a.folder), ...Object.values(sessions).map((m) => m.folder)].filter(Boolean) as string[])].sort();
 
   const item = (icon: ReactNode, label: string, run: () => void, danger = false) => (
     <button
@@ -142,10 +147,12 @@ function nameOf(tg: Target) {
   return tg.kind === "agent" ? tg.agent.name : tg.kind === "channel" ? tg.meta.title || tg.meta.id : tg.name;
 }
 
-function RowDialog({ d, folders, onClose }: { d: { kind: "rename" | "move" | "delete"; target: Target }; folders: string[]; onClose: () => void }) {
+type DialogKind = "rename" | "move" | "delete" | "create";
+
+function RowDialog({ d, folders, onClose }: { d: { kind: DialogKind; target: Target }; folders: string[]; onClose: () => void }) {
   const tg = d.target;
   const current = tg.kind === "agent" ? tg.agent.folder ?? "" : tg.kind === "channel" ? tg.meta.folder ?? "" : tg.name;
-  const [val, setVal] = useState(d.kind === "move" ? current : nameOf(tg));
+  const [val, setVal] = useState(d.kind === "move" ? current : d.kind === "create" ? "" : nameOf(tg));
   const [busy, setBusy] = useState(false);
   const input = useRef<HTMLInputElement>(null);
   useEffect(() => {
@@ -156,6 +163,12 @@ function RowDialog({ d, folders, onClose }: { d: { kind: "rename" | "move" | "de
     setBusy(true);
     await act(async () => {
       const v = val.trim();
+      if (d.kind === "create") {
+        if (!v) throw new Error(t("rm.needName"));
+        if (folders.includes(v)) throw new Error(t("rm.folderExists", { name: v }));
+        await API.createFolder(v);
+        return t("rm.folderCreated", { name: v });
+      }
       if (d.kind === "rename") {
         if (!v) throw new Error(t("rm.needName"));
         if (tg.kind === "agent") await API.patchAgent(tg.agent.id, { name: v });
@@ -187,7 +200,9 @@ function RowDialog({ d, folders, onClose }: { d: { kind: "rename" | "move" | "de
   };
 
   const title =
-    d.kind === "rename"
+    d.kind === "create"
+      ? t("list.newFolder")
+      : d.kind === "rename"
       ? tg.kind === "folder"
         ? t("rm.renameFolder")
         : t("rm.rename")
@@ -224,7 +239,7 @@ function RowDialog({ d, folders, onClose }: { d: { kind: "rename" | "move" | "de
               className="fi"
               value={val}
               list={d.kind === "move" ? "rmFolders" : undefined}
-              placeholder={d.kind === "move" ? t("rm.folderPh") : ""}
+              placeholder={d.kind === "move" ? t("rm.folderPh") : d.kind === "create" ? t("rm.newFolderPh") : ""}
               onChange={(e) => setVal(e.target.value)}
               onKeyDown={(e) => {
                 if (e.key === "Enter") void submit();
@@ -245,7 +260,7 @@ function RowDialog({ d, folders, onClose }: { d: { kind: "rename" | "move" | "de
             {t("common.cancel")}
           </button>
           <button className={"btn " + (d.kind === "delete" ? "dngfill" : "pri")} type="button" disabled={busy} onClick={() => void submit()}>
-            {d.kind === "delete" ? (tg.kind === "folder" ? t("rm.dissolveBtn") : t("rm.deleteBtn")) : t("common.save")}
+            {d.kind === "delete" ? (tg.kind === "folder" ? t("rm.dissolveBtn") : t("rm.deleteBtn")) : d.kind === "create" ? t("rm.create") : t("common.save")}
           </button>
         </div>
         </div>

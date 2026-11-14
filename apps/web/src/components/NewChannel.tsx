@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Check, Folder, Hash, X } from "lucide-react";
 import { API } from "../api";
 import { t } from "../i18n";
-import { openSession, refreshChannels, refreshSessions, setState, toast, useStore } from "../store";
+import { openSession, refreshChannels, refreshSessions, setState, toast, useFolders, useStore } from "../store";
 import { Avatar } from "./Avatar";
 
 /** 新建频道: name, members (first selected = owner), folder (docs/03 §5.2). */
@@ -14,7 +14,6 @@ export function NewChannel() {
 
 function Dialog() {
   const agents = useStore((s) => s.agents);
-  const sessions = useStore((s) => s.sessions);
   const [name, setName] = useState("");
   const [members, setMembers] = useState<string[]>([]);
   const [folder, setFolder] = useState("");
@@ -22,11 +21,7 @@ function Dialog() {
   const [err, setErr] = useState<string | null>(null);
   const nameRef = useRef<HTMLInputElement>(null);
   const list = useMemo(() => Object.values(agents).sort((a, b) => a.name.localeCompare(b.name)), [agents]);
-  const folders = useMemo(
-    () =>
-      [...new Set([...Object.values(agents).map((a) => a.folder), ...Object.values(sessions).map((m) => m.folder)].filter(Boolean) as string[])].sort(),
-    [agents, sessions],
-  );
+  const folders = useFolders();
   const close = () => setState({ newChannel: false });
 
   useEffect(() => {

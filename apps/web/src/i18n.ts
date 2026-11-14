@@ -60,6 +60,12 @@ const zh = {
   "list.newAgent": "新建 Agent",
   "list.newChannel": "新建频道",
   "list.newFolder": "新建文件夹",
+  "list.newFolderDesc": "按项目整理 Agent 和频道",
+  "list.emptyFolder": "空文件夹 · 在 Agent 或频道的 ⋯ 菜单里选「移到文件夹…」",
+  "rm.newFolderPh": "例如：定价改版",
+  "rm.create": "创建",
+  "rm.folderCreated": "已创建文件夹「{name}」",
+  "rm.folderExists": "已经有叫「{name}」的文件夹了",
   "list.needsYou": "需要你",
   "list.waitApprove": "等你批准",
   "list.waitTakeover": "等你接管",
@@ -865,6 +871,12 @@ const zh = {
 export type Key = keyof typeof zh;
 
 const en: Partial<Record<Key, string>> = {
+  "list.newFolderDesc": "Group agents and channels by project",
+  "list.emptyFolder": "Empty · use “Move to folder” in an agent or channel’s ⋯ menu",
+  "rm.newFolderPh": "e.g. Pricing revamp",
+  "rm.create": "Create",
+  "rm.folderCreated": "Created folder “{name}”",
+  "rm.folderExists": "A folder named “{name}” already exists",
   "nt.sub": "What to tell you, where, and when to stay quiet",
   "nt.what": "What to notify",
   "nt.when": "Quiet time",

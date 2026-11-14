@@ -25,7 +25,7 @@ import {
 import { Avatar, MeAvatar } from "./Avatar";
 import { ListToggle } from "./Header";
 import { Logo } from "./Logo";
-import { RowMenuButton, RowMenuHost, openRowMenu } from "./RowMenu";
+import { RowMenuButton, RowMenuHost, openNewFolder, openRowMenu } from "./RowMenu";
 import { Popover, useMenu } from "./Popover";
 
 const ISSUES_URL = "https://github.com/hedeqiang/crewbase/issues";
@@ -46,6 +46,7 @@ export function SessionList() {
 
   const summaries = useStore((s) => s.summaries);
   const channels = useStore((s) => s.channels);
+  const savedFolders = useStore((s) => s.savedFolders);
   const groups = useMemo(() => {
     const ql = q.trim().toLowerCase();
     const match = (...xs: (string | undefined)[]) => !ql || xs.some((x) => x?.toLowerCase().includes(ql));
@@ -66,9 +67,11 @@ export function SessionList() {
         return ar - br || upd(b.id, b.created).localeCompare(upd(a.id, a.created));
       });
     for (const m of chs) if (match(m.title, m.folder, summaries[m.id]?.topic)) get(m.folder ?? "").channels.push(m);
+    // empty folders the person created stay visible (not while searching)
+    if (!ql) for (const f of savedFolders) get(f);
     // ungrouped first, then folders alphabetically
     return [...g.entries()].sort(([a], [b]) => (a === "" ? -1 : b === "" ? 1 : a.localeCompare(b)));
-  }, [agents, sessions, summaries, channels, q]);
+  }, [agents, sessions, summaries, channels, savedFolders, q]);
 
   const snippet = (sid: string): { text: string; time: string; agent?: string } | null => {
     const sm = summaries[sid];
@@ -247,6 +250,7 @@ export function SessionList() {
                 </div>
               )}
               {!folded[folder] && g.agents.map(agentRow)}
+              {folder && !folded[folder] && g.agents.length + g.channels.length === 0 && <div className="lfempty">{t("list.emptyFolder")}</div>}
             </div>
           );
         })}
@@ -315,11 +319,18 @@ export function SessionList() {
             <span>{t("list.newChannelDesc")}</span>
           </span>
         </button>
-        <button className="mi" type="button" disabled>
+        <button
+          className="mi"
+          type="button"
+          onClick={() => {
+            plus.close();
+            openNewFolder();
+          }}
+        >
           <FolderPlus size={16} />
           <span className="g">
             {t("list.newFolder")}
-            <span>{t("common.soon")}</span>
+            <span>{t("list.newFolderDesc")}</span>
           </span>
         </button>
       </Popover>

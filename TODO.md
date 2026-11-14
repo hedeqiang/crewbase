@@ -89,7 +89,8 @@
 - [x] 插件 SDK：TypeScript / Python / Go（宿主注入，无需 npm install）；示例 word-count / hello-py / hello-go
 - [x] 插件市场后端：索引（URL / 内置）、本地 / tarball / npm 安装、授权、启停、热重载、新版本重新授权、trustFutureVersions；CLI `crew plugin …` / `crew dev`
 - [x] 市场与授权 UI
-- [ ] 角色模板导入（C-5）；工作流画布编辑器；新建文件夹
+- [x] 新建文件夹：列表 ＋ › 新建文件夹，空文件夹保留（settings.json）并显示提示；重命名 / 解散对空文件夹同样有效；文件夹列表统一为 useFolders()
+- [ ] 角色模板导入（C-5）；工作流画布编辑器
 - [x] 按任务分流（M-5）：routine / 摘要·日志清洗 / 编码 / 超长文档 → 配置的模型，不可用时回落到 Agent 顺序；节省见 `/api/usage`
 - [ ] WASM 插件档（wazero）
 - [x] UI：频道与任务卡、交接 / 改派、审批中心、自动化页、插件与技能页

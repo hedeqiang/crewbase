@@ -213,6 +213,8 @@ export interface Settings {
   dndUntil?: string;
   /** Settings › 通知: only cells the person changed, plus quiet hours. */
   notify?: NotifyPrefs | null;
+  /** Folders created from the list (kept while empty). */
+  folders?: string[];
 }
 
 export interface QuietHours {
@@ -615,6 +617,7 @@ export const API = {
   removeProvider: (id: string) => api("DELETE", `/api/providers/${enc(id)}`),
   updateChannel: (id: string, b: { title?: string; folder?: string; handoverConfirm?: boolean }) => api<ChannelView>("PATCH", `/api/channels/${enc(id)}`, b),
   deleteChannel: (id: string) => api("DELETE", `/api/channels/${enc(id)}`),
+  createFolder: (name: string) => api<{ name: string }>("POST", "/api/folders", { name }),
   renameFolder: (name: string, to: string) => api<{ moved: number }>("PATCH", `/api/folders/${enc(name)}`, { name: to }),
   dissolveFolder: (name: string) => api<{ moved: number }>("DELETE", `/api/folders/${enc(name)}`),
   channelAction: (id: string, a: "stop" | "resume" | "archive") => api<ChannelView>("POST", `/api/channels/${enc(id)}/${a}`),

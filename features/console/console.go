@@ -11,9 +11,11 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/hedeqiang/crewbase/capabilities/approval"
@@ -87,6 +89,9 @@ type Settings struct {
 	DndUntil string `json:"dndUntil,omitempty"`
 	// Notify holds the event × channel choices and quiet hours.
 	Notify *notify.Prefs `json:"notify,omitempty"`
+	// Folders created from the list (＋ › 新建文件夹); a folder also exists
+	// while any agent or channel is in it, so this mainly keeps empty ones.
+	Folders []string `json:"folders,omitempty"`
 }
 
 // resolveIn returns an absolute path inside root, refusing escapes
@@ -160,6 +165,18 @@ var Plugin = kernel.Register(kernel.Spec{
 			}
 			return st
 		}
+		var smu sync.Mutex // serialises read-modify-write of settings.json
+		save := func(st Settings) error {
+			if settingsPath == "" {
+				return nil
+			}
+			data, _ := json.MarshalIndent(st, "", "  ")
+			tmp := settingsPath + ".tmp"
+			if err := os.WriteFile(tmp, data, 0o600); err != nil {
+				return err
+			}
+			return os.Rename(tmp, settingsPath)
+		}
 		apply := func(st Settings) {
 			if n, ok := kernel.Lookup[*notify.Service](c, notify.ServiceKey); ok {
 				var until time.Time
@@ -219,6 +236,8 @@ var Plugin = kernel.Register(kernel.Spec{
 				return nil
 			},
 			Handle: func(_ context.Context, r *gateway.Request) (any, error) {
+				smu.Lock()
+				defer smu.Unlock()
 				cur := load()
 				var b Settings
 				_ = r.Decode(&b)
@@ -239,11 +258,8 @@ var Plugin = kernel.Register(kernel.Spec{
 				if _, ok := raw["notify"]; ok {
 					cur.Notify = b.Notify
 				}
-				if settingsPath != "" {
-					data, _ := json.MarshalIndent(cur, "", "  ")
-					if err := os.WriteFile(settingsPath, data, 0o600); err != nil {
-						return nil, err
-					}
+				if err := save(cur); err != nil {
+					return nil, err
 				}
 				apply(cur)
 				return cur, nil
@@ -651,6 +667,77 @@ var Plugin = kernel.Register(kernel.Spec{
 			}
 			return n
 		}
+		folderName := func(raw string) (string, error) {
+			n := strings.TrimSpace(raw)
+			if n == "" || len([]rune(n)) > 60 || strings.ContainsAny(n, "/\\") {
+				return "", gateway.BadRequest("a folder name is required (at most 60 characters, no slashes)")
+			}
+			return n, nil
+		}
+		// setSaved edits the saved folder list under smu.
+		setSaved := func(f func([]string) []string) error {
+			smu.Lock()
+			defer smu.Unlock()
+			cur := load()
+			cur.Folders = f(cur.Folders)
+			return save(cur)
+		}
+		hasSaved := func(name string) bool { return slices.Contains(load().Folders, name) }
+		g.Handle(c, gateway.Route{Method: "GET", Path: "/api/folders", Devices: mobile,
+			Handle: func(context.Context, *gateway.Request) (any, error) {
+				type folder struct {
+					Name  string `json:"name"`
+					Count int    `json:"count"`
+				}
+				counts := map[string]int{}
+				for _, n := range load().Folders {
+					counts[n] += 0
+				}
+				for _, a := range agents.List() {
+					if f := a.Spec().Folder; f != "" {
+						counts[f]++
+					}
+				}
+				for _, m := range sessions.List() {
+					if m.Folder != "" && m.Kind != "agent" {
+						counts[m.Folder]++
+					}
+				}
+				out := []folder{}
+				for n, k := range counts {
+					out = append(out, folder{n, k})
+				}
+				sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
+				return map[string]any{"folders": out}, nil
+			}})
+		g.Handle(c, gateway.Route{Method: "POST", Path: "/api/folders",
+			Validate: func(r *gateway.Request) error {
+				var b struct {
+					Name string `json:"name"`
+				}
+				if err := r.Decode(&b); err != nil {
+					return err
+				}
+				_, err := folderName(b.Name)
+				return err
+			},
+			Handle: func(_ context.Context, r *gateway.Request) (any, error) {
+				var b struct {
+					Name string `json:"name"`
+				}
+				_ = r.Decode(&b)
+				name, _ := folderName(b.Name)
+				err := setSaved(func(fs []string) []string {
+					if slices.Contains(fs, name) {
+						return fs
+					}
+					return append(fs, name)
+				})
+				if err != nil {
+					return nil, err
+				}
+				return map[string]any{"name": name}, nil
+			}})
 		g.Handle(c, gateway.Route{Method: "PATCH", Path: "/api/folders/{name}",
 			Validate: func(r *gateway.Request) error {
 				var b struct {
@@ -659,27 +746,46 @@ var Plugin = kernel.Register(kernel.Spec{
 				if err := r.Decode(&b); err != nil {
 					return err
 				}
-				if strings.TrimSpace(b.Name) == "" || len([]rune(b.Name)) > 60 {
-					return gateway.BadRequest("a folder name is required (at most 60 characters)")
-				}
-				return nil
+				_, err := folderName(b.Name)
+				return err
 			},
 			Handle: func(_ context.Context, r *gateway.Request) (any, error) {
 				var b struct {
 					Name string `json:"name"`
 				}
 				_ = r.Decode(&b)
-				n := moveFolder(r.Params["name"], strings.TrimSpace(b.Name))
-				if n == 0 {
+				from := r.Params["name"]
+				to, _ := folderName(b.Name)
+				saved := hasSaved(from)
+				n := moveFolder(from, to)
+				if n == 0 && !saved {
 					return nil, gateway.NotFound()
+				}
+				if err := setSaved(func(fs []string) []string {
+					out := slices.DeleteFunc(slices.Clone(fs), func(x string) bool { return x == from || x == to })
+					if saved {
+						out = append(out, to)
+					}
+					return out
+				}); err != nil {
+					return nil, err
 				}
 				return map[string]any{"moved": n}, nil
 			}})
 		g.Handle(c, gateway.Route{Method: "DELETE", Path: "/api/folders/{name}",
 			Handle: func(_ context.Context, r *gateway.Request) (any, error) {
-				n := moveFolder(r.Params["name"], "")
-				if n == 0 {
+				name := r.Params["name"]
+				saved := hasSaved(name)
+				n := moveFolder(name, "")
+				if n == 0 && !saved {
 					return nil, gateway.NotFound()
+				}
+				if saved {
+					if err := setSaved(func(fs []string) []string {
+						return slices.DeleteFunc(slices.Clone(fs), func(x string) bool { return x == name })
+					}); err != nil {
+						return nil, err
+					}
 				}
 				return map[string]any{"moved": n}, nil
 			}})

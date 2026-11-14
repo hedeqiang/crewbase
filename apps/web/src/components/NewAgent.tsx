@@ -3,7 +3,7 @@ import { Check, ChevronDown, Folder, Shield, RefreshCw } from "lucide-react";
 import { API, refString, type ModelRef } from "../api";
 import { t, type Key } from "../i18n";
 import { allModels, effortLabel, kfmt, modeLabel, sameRef, shortModel } from "../format";
-import { openSession, refreshAgents, refreshSessions, setState, toast, useStore } from "../store";
+import { openSession, refreshAgents, refreshSessions, setState, toast, useFolders, useStore } from "../store";
 import { AvatarRaw, COLORS, SHAPES } from "./Avatar";
 import { Popover, useMenu } from "./Popover";
 import { ProviderMark } from "./ProviderMark";
@@ -68,7 +68,6 @@ export function ShuffleButton({ page, onNext }: { page: number; onNext: () => vo
 
 export function NewAgent({ draft: f, setDraft }: { draft: Draft; setDraft: (d: Draft) => void }) {
   const models = useStore((s) => s.models);
-  const agents = useStore((s) => s.agents);
   const [err, setErr] = useState(false);
   const [busy, setBusy] = useState(false);
   const [tplPage, setTplPage] = useState(0);
@@ -76,7 +75,7 @@ export function NewAgent({ draft: f, setDraft }: { draft: Draft; setDraft: (d: D
   const modelM = useMenu();
   const modeM = useMenu();
   const all = useMemo(() => allModels(models), [models]);
-  const folders = useMemo(() => [...new Set(Object.values(agents).map((a) => a.folder).filter(Boolean) as string[])].sort(), [agents]);
+  const folders = useFolders();
   // Default: the same preference the daemon uses for new agents (a strong
   // model from what is available), not simply the first listed.
   const settingsDefault = useStore((s) => s.profile.defaultModels?.[0]);

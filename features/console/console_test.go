@@ -12,13 +12,13 @@ import (
 	"time"
 
 	"github.com/hedeqiang/crewbase/capabilities/approval"
+	"github.com/hedeqiang/crewbase/capabilities/notify"
 	"github.com/hedeqiang/crewbase/core/agent"
 	"github.com/hedeqiang/crewbase/core/agentloop"
 	"github.com/hedeqiang/crewbase/core/llm"
 	"github.com/hedeqiang/crewbase/core/prompt"
 	"github.com/hedeqiang/crewbase/core/session"
 	"github.com/hedeqiang/crewbase/core/tools"
-	"github.com/hedeqiang/crewbase/capabilities/notify"
 	"github.com/hedeqiang/crewbase/features/compaction"
 	"github.com/hedeqiang/crewbase/features/console"
 	"github.com/hedeqiang/crewbase/features/gateway"
@@ -238,5 +238,58 @@ func TestNotifySettingsPersistAndApply(t *testing.T) {
 	}
 	if code, _ := do(t, base, "POST", "/api/notify/test", map[string]any{"channel": "telegram"}); code != 400 {
 		t.Fatal("unconnected channel")
+	}
+}
+
+func TestEmptyFoldersPersist(t *testing.T) {
+	base, root, h := start(t)
+	agents := kernel.Use[*agent.Registry](h.Root(), agent.ServiceKey)
+	agents.Create(agent.Spec{Name: "A", Folder: "已有"})
+	for _, bad := range []string{"", "   ", "a/b", strings.Repeat("长", 61)} {
+		if code, _ := do(t, base, "POST", "/api/folders", map[string]string{"name": bad}); code != 400 {
+			t.Fatalf("accepted %q", bad)
+		}
+	}
+	if code, out := do(t, base, "POST", "/api/folders", map[string]string{"name": " 新项目 "}); code != 200 || out["name"] != "新项目" {
+		t.Fatal(code, out)
+	}
+	do(t, base, "POST", "/api/folders", map[string]string{"name": "新项目"}) // idempotent
+	list := func() map[string]float64 {
+		_, out := do(t, base, "GET", "/api/folders", nil)
+		m := map[string]float64{}
+		for _, f := range out["folders"].([]any) {
+			f := f.(map[string]any)
+			m[f["name"].(string)] = f["count"].(float64)
+		}
+		return m
+	}
+	if got := list(); len(got) != 2 || got["新项目"] != 0 || got["已有"] != 1 {
+		t.Fatal(got)
+	}
+	// renaming an empty folder keeps it
+	if code, _ := do(t, base, "PATCH", "/api/folders/"+url.PathEscape("新项目"), map[string]string{"name": "Q4"}); code != 200 {
+		t.Fatal(code)
+	}
+	if got := list(); got["Q4"] != 0 || len(got) != 2 {
+		t.Fatal(got)
+	}
+	b, _ := os.ReadFile(filepath.Join(root, "settings.json"))
+	if !strings.Contains(string(b), `"Q4"`) || strings.Contains(string(b), "新项目") {
+		t.Fatalf("%s", b)
+	}
+	// other settings edits keep folders
+	do(t, base, "PATCH", "/api/settings", map[string]any{"displayName": "x"})
+	if _, ok := list()["Q4"]; !ok {
+		t.Fatal("folder lost")
+	}
+	// dissolving an empty folder removes it
+	if code, _ := do(t, base, "DELETE", "/api/folders/Q4", nil); code != 200 {
+		t.Fatal(code)
+	}
+	if code, _ := do(t, base, "DELETE", "/api/folders/Q4", nil); code != 404 {
+		t.Fatal(code)
+	}
+	if got := list(); len(got) != 1 {
+		t.Fatal(got)
 	}
 }

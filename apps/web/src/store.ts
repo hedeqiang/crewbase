@@ -4,7 +4,7 @@
 // the REST API or applied from SSE pushes; the conversation is a projection
 // of the session events.
 
-import { useSyncExternalStore } from "react";
+import { useMemo, useSyncExternalStore } from "react";
 import {
   API,
   type AgentView,
@@ -56,6 +56,8 @@ export interface Profile {
 
 export interface State {
   authed: boolean | null; // null = checking
+  /** Folders created from the list; kept even while empty (settings.json). */
+  savedFolders: string[];
   connected: boolean;
   agents: Record<string, AgentView>;
   sessions: Record<string, SessionMeta>;
@@ -138,6 +140,7 @@ let state: State = {
   hist: LS.get("current") ? [LS.get("current")!] : [],
   histPos: LS.get("current") ? 0 : -1,
   profile: { displayName: "", dndUntil: "", system: null },
+  savedFolders: [],
   settings: "general",
   listOpen: !narrow() || !LS.get("current"),
   panelOpen: !midWidth() && LS.get("panel") !== "0",
@@ -389,7 +392,22 @@ export async function refreshProfile() {
       defaultModels: st.status === "fulfilled" ? (st.value as { defaultModels?: string[] }).defaultModels : s.profile.defaultModels,
       system: sys.status === "fulfilled" ? sys.value : s.profile.system,
     },
+    savedFolders: st.status === "fulfilled" ? st.value.folders ?? [] : s.savedFolders,
   }));
+}
+
+/** Every folder name: saved ones (possibly empty) and those in use. */
+export function useFolders(): string[] {
+  const agents = useStore((s) => s.agents);
+  const sessions = useStore((s) => s.sessions);
+  const saved = useStore((s) => s.savedFolders);
+  return useMemo(
+    () =>
+      [...new Set([...saved, ...Object.values(agents).map((a) => a.folder), ...Object.values(sessions).map((m) => (m.kind === "agent" ? "" : m.folder))].filter(Boolean) as string[])].sort(
+        (a, b) => a.localeCompare(b),
+      ),
+    [agents, sessions, saved],
+  );
 }
 
 export async function patchProfile(b: { displayName?: string; dndUntil?: string }) {
