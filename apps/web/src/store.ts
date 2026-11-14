@@ -94,6 +94,8 @@ export interface State {
   pairFor: string | null;
   /** Sub-tab a deep link asks a settings page to open (e.g. market/mcp). */
   settingsTab: string | null;
+  /** Bumped per agent when a CLI changed its workspace files. */
+  filesTick: Record<string, number>;
   /** Folders created from the list; kept even while empty (settings.json). */
   savedFolders: string[];
   /** Interface slot contributions from plugins (GET /api/ui). */
@@ -166,6 +168,7 @@ let state: State = {
   boardTick: {},
   pairFor: null,
   settingsTab: null,
+  filesTick: {},
   connected: false,
   agents: {},
   sessions: {},
@@ -657,6 +660,7 @@ export function connectEvents() {
   on("models.changed", () => void refreshModels());
   on("ui.changed", () => void refreshUI());
   on("members.changed", () => void refreshTier());
+  on("files.changed", (d: { agent: string }) => setState((s) => ({ filesTick: { ...s.filesTick, [d.agent]: (s.filesTick[d.agent] ?? 0) + 1 } })));
   on("board.changed", (d: { root: string }) => setState((s) => ({ boardTick: { ...s.boardTick, [d.root]: (s.boardTick[d.root] ?? 0) + 1 } })));
   if (!src) return;
   const es2 = src;

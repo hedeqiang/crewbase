@@ -262,6 +262,7 @@ func (p *proc) onRequest(ctx context.Context, method string, params json.RawMess
 		}
 		if t := s.current(); t != nil {
 			t.note(fmt.Sprintf("[%s wrote %s]", p.a.cfg.Name, wp.Path))
+			t.fileChanged(wp.Path)
 		}
 		return map[string]any{}, nil
 	}

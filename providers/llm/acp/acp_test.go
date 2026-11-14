@@ -516,3 +516,61 @@ func TestRendering(t *testing.T) {
 		t.Error("thinking changes fingerprint")
 	}
 }
+
+// Files the CLI changes with its own tools (edit kinds, diffs) or through
+// fs/write_text_file are reported once per turn; reads are not.
+func TestFilesChangedReported(t *testing.T) {
+	var got [][]string
+	var who []string
+	a := newFake(t, Options{FilesChanged: func(agent, sess string, paths []string) {
+		got = append(got, paths)
+		who = append(who, agent+"/"+sess)
+	}}, nil)
+	if _, _, err := stream(t, a, llm.Request{Agent: "kai", Session: "s1", Messages: []llm.Message{user("/edit")}}); err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 1 || strings.Join(got[0], ",") != "main.go,docs/readme.md" || who[0] != "kai/s1" {
+		t.Fatalf("changed %v by %v", got, who)
+	}
+	notes := filepath.Join(a.cfg.Cwd, "notes.txt")
+	if _, _, err := stream(t, a, llm.Request{Agent: "kai", Session: "s2", Messages: []llm.Message{user("/write " + notes)}}); err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 2 || strings.Join(got[1], ",") != notes {
+		t.Fatalf("fs write not reported: %v", got)
+	}
+	// a turn that changes nothing reports nothing
+	stream(t, a, llm.Request{Agent: "kai", Session: "s3", Messages: []llm.Message{user("hello")}})
+	if len(got) != 2 {
+		t.Fatalf("read-only turn reported changes: %v", got)
+	}
+}
+
+// A CLI installed after start is registered by the rescan.
+func TestRescanFindsNewCLI(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("PATH", dir)
+	h := kernel.NewHost(nil)
+	defer h.Close()
+	if _, err := h.Load(llm.Plugin, kernel.LoadOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := h.Load(Plugin, kernel.LoadOptions{Config: map[string]any{"idleTimeoutSec": 5}}); err != nil {
+		t.Fatal(err)
+	}
+	reg := kernel.Use[*llm.Registry](h.Root(), llm.ServiceKey)
+	svc := kernel.Use[*Service](h.Root(), ServiceKey)
+	if _, ok := reg.Get("acp-gemini-cli"); ok {
+		t.Fatal("registered before install")
+	}
+	os.WriteFile(filepath.Join(dir, "gemini"), []byte("#!/bin/sh\necho 'gemini 1.0.0'\n"), 0o755)
+	if ids := svc.Rescan(); len(ids) != 1 || ids[0] != "gemini-cli" {
+		t.Fatalf("rescan %v", ids)
+	}
+	if _, ok := reg.Get("acp-gemini-cli"); !ok {
+		t.Fatal("not registered after rescan")
+	}
+	if ids := svc.Rescan(); len(ids) != 0 {
+		t.Fatalf("second rescan added %v", ids)
+	}
+}

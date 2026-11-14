@@ -28,6 +28,7 @@ import (
 	"github.com/hedeqiang/crewbase/features/gateway"
 	"github.com/hedeqiang/crewbase/features/router"
 	"github.com/hedeqiang/crewbase/features/rules"
+	"github.com/hedeqiang/crewbase/providers/llm/acp"
 	"github.com/hedeqiang/crewbase/kernel"
 )
 
@@ -142,6 +143,8 @@ var Plugin = kernel.Register(kernel.Spec{
 			return err
 		}
 		g := kernel.Use[*gateway.Gateway](c, gateway.ServiceKey)
+		// a subscription CLI changed workspace files on its own: views refresh
+		acp.FilesChanged.Listen(c, func(ch acp.FilesChange) { g.Hub().Publish("files.changed", ch) })
 		agents := kernel.Use[*agent.Registry](c, agent.ServiceKey)
 		sessions := kernel.Use[*session.Store](c, session.ServiceKey)
 		mobile := []string{"mobile", "im"}

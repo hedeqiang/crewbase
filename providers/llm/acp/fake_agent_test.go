@@ -122,6 +122,19 @@ func runFakeAgent() {
 				chunk(sid, "write ok")
 			}
 			return map[string]string{"stopReason": "end_turn"}, nil
+		case strings.Contains(text, "/edit"):
+			// the CLI edits files with its own tools (no fs/write_text_file)
+			update(sid, map[string]any{"sessionUpdate": "tool_call", "toolCallId": "e1", "title": "Edit main.go", "kind": "edit", "status": "pending",
+				"locations": []map[string]any{{"path": "main.go", "line": 3}}})
+			update(sid, map[string]any{"sessionUpdate": "tool_call_update", "toolCallId": "e1", "status": "completed"})
+			update(sid, map[string]any{"sessionUpdate": "tool_call", "toolCallId": "e2", "title": "Patch", "kind": "other", "status": "pending"})
+			update(sid, map[string]any{"sessionUpdate": "tool_call_update", "toolCallId": "e2", "status": "completed",
+				"content": []map[string]any{{"type": "diff", "path": "docs/readme.md", "oldText": "a", "newText": "b"}}})
+			update(sid, map[string]any{"sessionUpdate": "tool_call", "toolCallId": "e3", "title": "Read go.mod", "kind": "read", "status": "pending",
+				"locations": []map[string]any{{"path": "go.mod"}}})
+			update(sid, map[string]any{"sessionUpdate": "tool_call_update", "toolCallId": "e3", "status": "completed"})
+			chunk(sid, "edited")
+			return map[string]string{"stopReason": "end_turn"}, nil
 		case strings.Contains(text, "/cwd"):
 			mu.Lock()
 			cwd := cwds[sid]

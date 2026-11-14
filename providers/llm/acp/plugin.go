@@ -50,6 +50,7 @@ package acp
 
 import (
 	"context"
+	"sync"
 	"time"
 
 	"github.com/hedeqiang/crewbase/capabilities/approval"
@@ -79,18 +80,60 @@ func approver(c *kernel.Context) func(context.Context, approval.Request) approva
 	}
 }
 
+// rescanEvery is how often PATH is checked for newly installed CLIs.
+var rescanEvery = time.Minute
+
+// FilesChange reports files a CLI changed in a workspace (its own edit
+// tools or fs/write_text_file), so views of the workspace refresh.
+type FilesChange struct {
+	Agent   string   `json:"agent"`
+	Session string   `json:"session"`
+	Paths   []string `json:"paths"`
+}
+
+// FilesChanged fires after a CLI tool call changed files.
+var FilesChanged = kernel.NewEmit[FilesChange]("acp/files-changed")
+
 // ServiceKey is the key of the detection service (*Service).
 const ServiceKey = "llm-acp"
 
 // Service exposes detection and the registered adapters to the UI.
 type Service struct {
 	cfg      Config
+	mu       sync.Mutex
 	adapters map[string]*Adapter // by agent id
+	// add registers a newly runnable CLI (set by the plugin).
+	add func(r resolved) error
+}
+
+// Rescan registers CLIs installed since the last scan (a CLI installed
+// while Crewbase runs shows up without a restart). It returns the ids added.
+func (s *Service) Rescan() []string {
+	var added []string
+	for _, ac := range agentList(s.cfg) {
+		s.mu.Lock()
+		_, have := s.adapters[ac.ID]
+		s.mu.Unlock()
+		if have {
+			continue
+		}
+		r := resolve(ac)
+		if !r.runnable() || s.add == nil {
+			continue
+		}
+		if err := s.add(r); err == nil {
+			added = append(added, r.ID)
+		}
+	}
+	return added
 }
 
 // Detect lists subscription CLIs (installed or not) for the settings page.
 func (s *Service) Detect(ctx context.Context) []CLIInfo {
 	infos := Detect(ctx, s.cfg)
+	s.Rescan()
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	for i := range infos {
 		if a := s.adapters[infos[i].ID]; a != nil {
 			infos[i].Running = a.Running()
@@ -101,6 +144,8 @@ func (s *Service) Detect(ctx context.Context) []CLIInfo {
 
 // Adapter returns the adapter for an agent id, if registered.
 func (s *Service) Adapter(agentID string) (*Adapter, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	a, ok := s.adapters[agentID]
 	return a, ok
 }
@@ -131,21 +176,47 @@ var Plugin = kernel.Register(kernel.Spec{
 			c.Go(fn)
 			return true
 		}
-		for _, ac := range agentList(cfg) {
-			r := resolve(ac)
-			if !r.runnable() {
-				c.Log().Debug("acp agent not available", "agent", ac.ID, "cli", r.CLI, "installed", r.cliPath != "")
-				continue
-			}
-			a := newAdapter(providerID(r.ID), r, Options{AutoApprove: cfg.AutoApprove, Approve: approver(c), IdleTimeout: idle, ToolNotes: notes, Go: goFn})
+		svc.add = func(r resolved) error {
+			a := newAdapter(providerID(r.ID), r, Options{AutoApprove: cfg.AutoApprove, Approve: approver(c), IdleTimeout: idle, ToolNotes: notes, Go: goFn,
+				FilesChanged: func(agent, sess string, paths []string) {
+					FilesChanged.Emit(c.Host(), FilesChange{Agent: agent, Session: sess, Paths: paths})
+				}})
 			// processes stop when the plugin context's goroutines are
 			// cancelled; Close also drops sessions and the idle timer
 			c.Defer(a.Close)
 			if err := reg.Register(c, a); err != nil {
 				return err
 			}
+			svc.mu.Lock()
 			svc.adapters[r.ID] = a
+			svc.mu.Unlock()
+			return nil
 		}
+		for _, ac := range agentList(cfg) {
+			r := resolve(ac)
+			if !r.runnable() {
+				c.Log().Debug("acp agent not available", "agent", ac.ID, "cli", r.CLI, "installed", r.cliPath != "")
+				continue
+			}
+			if err := svc.add(r); err != nil {
+				return err
+			}
+		}
+		// pick up CLIs installed later
+		c.Go(func(ctx context.Context) {
+			t := time.NewTicker(rescanEvery)
+			defer t.Stop()
+			for {
+				select {
+				case <-ctx.Done():
+					return
+				case <-t.C:
+					if ids := svc.Rescan(); len(ids) > 0 {
+						c.Log().Info("acp: new CLIs found", "agents", ids)
+					}
+				}
+			}
+		})
 		return c.Provide(ServiceKey, svc)
 	},
 })

@@ -125,7 +125,7 @@
 - [x] llm 词汇表：Part.Meta、ModelInfo.SizeBytes、Usage.CacheRead/Write、Quota.Windows、Request.Agent/Session/Workspace
 - [x] 提供方采用：Anthropic / Gemini 签名入 Part.Meta（重启可续）、Ollama SizeBytes、缓存 token；magpie 读取 /v1/magpie/quotas 多窗口额度
 - [x] ACP：CLI 权限请求接入审批；会话按 agent+session、cwd = 工作区
-- [ ] ACP：CLI 自行改文件的事件；重新检测 CLI
+- [x] ACP：CLI 自行改文件的事件（edit / delete / move 工具调用的 locations、diff 内容与 fs/write_text_file 汇总为每轮一次 acp/files-changed，SSE files.changed 让文件面板自动刷新）；重新检测 CLI（每分钟扫描 PATH，打开订阅页时也扫描，新装的 CLI 不用重启即可用）
 - [x] magpie：读取 /v1/magpie/quotas 显示额度
 - [x] subagent-acp 提供方（把一个轮次交给 Claude Code / Codex，共享父 Agent 工作区，改动不丢）
 - [x] Agent.StopInput(id)（只停该输入）

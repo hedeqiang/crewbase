@@ -100,6 +100,11 @@ type sessionUpdate struct {
 		Priority string `json:"priority,omitempty"`
 		Status   string `json:"status,omitempty"`
 	} `json:"entries,omitempty"`
+	// tool_call(_update): files the call works on
+	Locations []struct {
+		Path string `json:"path"`
+		Line int    `json:"line,omitempty"`
+	} `json:"locations,omitempty"`
 	// usage_update
 	Used int `json:"used,omitempty"`
 	Size int `json:"size,omitempty"`

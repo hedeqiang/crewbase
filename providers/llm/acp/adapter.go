@@ -29,6 +29,9 @@ type Options struct {
 	IdleTimeout time.Duration
 	// ToolNotes adds a text line per CLI tool call (default true via Plugin).
 	ToolNotes bool
+	// FilesChanged is told which workspace files a turn's CLI tools changed
+	// (edit / delete / move tool calls and fs/write_text_file).
+	FilesChanged func(agent, session string, paths []string)
 	// CancelGrace is how long a cancelled turn waits for the agent to
 	// acknowledge session/cancel (default 5s).
 	CancelGrace time.Duration
@@ -45,16 +48,17 @@ type Options struct {
 // Adapter is an llm.Adapter backed by one ACP agent process. A Crewbase
 // step becomes one ACP session/prompt turn; the CLI runs its own tools.
 type Adapter struct {
-	id          string
-	cfg         resolved
-	autoApprove bool
-	approve     func(context.Context, approval.Request) approval.Outcome
-	idle        time.Duration
-	toolNotes   bool
-	cancelGrace time.Duration
-	initTimeout time.Duration
-	goFn        func(fn func(ctx context.Context)) bool
-	trace       func(string, []byte)
+	id           string
+	cfg          resolved
+	autoApprove  bool
+	approve      func(context.Context, approval.Request) approval.Outcome
+	idle         time.Duration
+	toolNotes    bool
+	filesChanged func(agent, session string, paths []string)
+	cancelGrace  time.Duration
+	initTimeout  time.Duration
+	goFn         func(fn func(ctx context.Context)) bool
+	trace        func(string, []byte)
 
 	startMu sync.Mutex // serialises process start
 	mu      sync.Mutex
@@ -93,6 +97,7 @@ func newAdapter(id string, r resolved, opts Options) *Adapter {
 	if a.initTimeout <= 0 {
 		a.initTimeout = 90 * time.Second
 	}
+	a.filesChanged = opts.FilesChanged
 	a.goFn = opts.Go
 	if a.goFn == nil {
 		a.goFn = func(fn func(context.Context)) bool { go fn(context.Background()); return true }
@@ -346,6 +351,9 @@ func (a *Adapter) Stream(ctx context.Context, req llm.Request, onChunk func(llm.
 		c.s.setTurn(nil)
 		c.prints = nil // the turn's reply is not recorded by Crewbase
 		return llm.Response{}, ctx.Err()
+	}
+	if ch := t.changedFiles(); len(ch) > 0 && a.filesChanged != nil {
+		a.filesChanged(req.Agent, req.Session, ch)
 	}
 	msg, used, chunkErr := t.result()
 	if chunkErr != nil {
