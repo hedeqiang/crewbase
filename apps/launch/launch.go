@@ -126,6 +126,12 @@ func Start(o Options) (*kernel.Host, error) {
 	if err := os.MkdirAll(o.Root, 0o700); err != nil {
 		return nil, err
 	}
+	// The data dir holds the token and every session: keep it private even
+	// when it already existed with wider permissions (e.g. a Docker named
+	// volume is created 0755 regardless of the image).
+	if fi, err := os.Stat(o.Root); err == nil && fi.Mode().Perm()&0o077 != 0 {
+		_ = os.Chmod(o.Root, 0o700)
+	}
 	entries, err := Resolve(o)
 	if err != nil {
 		return nil, err
