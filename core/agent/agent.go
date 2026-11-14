@@ -416,7 +416,7 @@ func (r *Registry) Create(spec Spec) (*Agent, error) {
 		spec.Mode = ModeSandbox
 	}
 	if len(spec.Models) == 0 {
-		spec.Models = append([]llm.ModelRef(nil), r.defaults...)
+		spec.Models = r.DefaultModels()
 	}
 	r.mu.Lock()
 	if spec.ID == "" {
@@ -678,6 +678,20 @@ var Plugin = kernel.Register(kernel.Spec{
 		return nil
 	},
 })
+
+// DefaultModels returns the model order given to new agents.
+func (r *Registry) DefaultModels() []llm.ModelRef {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return append([]llm.ModelRef(nil), r.defaults...)
+}
+
+// SetDefaultModels changes the model order given to new agents.
+func (r *Registry) SetDefaultModels(ms []llm.ModelRef) {
+	r.mu.Lock()
+	r.defaults = append([]llm.ModelRef(nil), ms...)
+	r.mu.Unlock()
+}
 
 // Root returns the data root.
 func (r *Registry) Root() string { return r.root }
