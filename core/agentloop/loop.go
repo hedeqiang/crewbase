@@ -249,6 +249,8 @@ func (l *loop) turn(parent context.Context, a *agent.Agent, in agent.Input) {
 		TurnEnded.Emit(d, TurnEndEvent{Agent: a.ID(), Session: ss.ID(), Input: in, TurnEnd: TurnEnd{Status: "failed", Error: "could not record input: " + err.Error()}})
 		return
 	}
+	// messages sent in a row join this turn: one reply, not one per message
+	l.join(ctx, a, ss, in)
 
 	nameChat(a, in.Text)
 
@@ -265,6 +267,10 @@ func (l *loop) turn(parent context.Context, a *agent.Agent, in agent.Input) {
 		if ctx.Err() != nil {
 			l.endTurn(a, ss, in, TurnEnd{Status: "cancelled", Steps: steps})
 			return
+		}
+		if steps > 0 {
+			// a message sent while the agent works is seen at the next step
+			l.join(ctx, a, ss, in)
 		}
 		steps++
 		var resp llm.Response
@@ -296,6 +302,11 @@ func (l *loop) turn(parent context.Context, a *agent.Agent, in agent.Input) {
 		if len(calls) > 0 {
 			continue
 		}
+		// a message that arrived during the final reply is answered in
+		// this turn rather than queued behind it
+		if l.join(ctx, a, ss, in) > 0 {
+			continue
+		}
 		more, _ := TurnStopping.Run(d, ctx, a)
 		cont := false
 		for _, m := range more {
@@ -311,6 +322,24 @@ func (l *loop) turn(parent context.Context, a *agent.Agent, in agent.Input) {
 		errMsg = fmt.Sprintf("stopped after %d steps", steps)
 	}
 	l.endTurn(a, ss, in, TurnEnd{Status: status, Error: errMsg, Steps: steps})
+}
+
+// join records the queued messages that can join the turn of in
+// (agent.Absorb) as user messages of this turn; it returns how many.
+func (l *loop) join(ctx context.Context, a *agent.Agent, ss *session.Session, in agent.Input) int {
+	d := kernel.For(l.c, a.ID())
+	n := 0
+	for _, x := range a.Absorb(in) {
+		xp, err := PreStep.Run(d, ctx, &x, func(_ context.Context, y *agent.Input) (*agent.Input, error) { return y, nil })
+		if err != nil || xp == nil {
+			_, _ = ss.Append(session.TypeNotice, a.ID(), map[string]string{"text": fmt.Sprintf("input rejected: %v", err)})
+			continue
+		}
+		if _, err := ss.Append(session.TypeUserMessage, "", session.UserMessage{Text: xp.Text, From: xp.From, To: a.ID(), Attachments: xp.Attachments}); err == nil {
+			n++
+		}
+	}
+	return n
 }
 
 func (l *loop) endTurn(a *agent.Agent, ss *session.Session, in agent.Input, te TurnEnd) {

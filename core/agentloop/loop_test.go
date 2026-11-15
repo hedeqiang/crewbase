@@ -322,3 +322,90 @@ func TestBlankChat(t *testing.T) {
 		t.Fatal("unknown kind accepted")
 	}
 }
+
+func userTexts(ss *session.Session) []string {
+	var out []string
+	for _, ev := range ss.Events() {
+		if ev.Type == session.TypeUserMessage {
+			var m session.UserMessage
+			ev.Decode(&m)
+			out = append(out, m.Text)
+		}
+	}
+	return out
+}
+
+func count(ss *session.Session, typ string) int {
+	n := 0
+	for _, ev := range ss.Events() {
+		if ev.Type == typ {
+			n++
+		}
+	}
+	return n
+}
+
+// Messages sent in a row become one turn with one reply; tagged inputs
+// (IM, workflows, routines, subagents) and other conversations never join.
+func TestMessagesInARowJoinOneTurn(t *testing.T) {
+	e := newEnv(t, t.TempDir())
+	ad, _ := e.llms.Get("claude-code")
+	m := ad.(*mock.Adapter)
+	a, _ := e.agents.Create(agent.Spec{Name: "Ivy"})
+	ss, _ := a.Session()
+	a.Pause()
+	send(t, a, "fix the login bug")
+	send(t, a, "it's in auth.go")
+	send(t, a, "and add a test")
+	tagged, _ := a.Enqueue(agent.Input{Text: "from slack", Tag: "im:x"})
+	a.Resume()
+	agentloop.WaitIdle(a, 3*time.Second)
+	if got := count(ss, session.TypeTurnStart); got != 2 {
+		t.Fatalf("turns = %d, want 2 (three joined + the tagged one)", got)
+	}
+	reqs := m.Requests()
+	first := reqs[0].Messages[len(reqs[0].Messages)-1].Text()
+	for _, want := range []string{"fix the login bug", "it's in auth.go", "and add a test"} {
+		if !strings.Contains(first, want) {
+			t.Fatalf("first request misses %q: %q", want, first)
+		}
+	}
+	if strings.Contains(first, "from slack") {
+		t.Fatal("a tagged input joined")
+	}
+	if got := strings.Join(userTexts(ss), "|"); got != "fix the login bug|it's in auth.go|and add a test|from slack" {
+		t.Fatalf("log order %q", got)
+	}
+	_ = tagged
+}
+
+// A message sent while the agent works is seen at its next step, in the
+// same turn.
+func TestMessageMidTurnIsSeenNextStep(t *testing.T) {
+	e := newEnv(t, t.TempDir())
+	ad, _ := e.llms.Get("claude-code")
+	m := ad.(*mock.Adapter)
+	a, _ := e.agents.Create(agent.Spec{Name: "Max"})
+	ss, _ := a.Session()
+	var calls int
+	m.Script = func(req llm.Request) (llm.Response, error) {
+		calls++
+		last := req.Messages[len(req.Messages)-1].Text()
+		switch calls {
+		case 1: // first step: start work and, meanwhile, the person writes again
+			send(t, a, "actually, use port 8080")
+			return llm.Response{Message: llm.Message{Role: llm.RoleAssistant, Parts: []llm.Part{{Type: "tool_call", ToolCall: &llm.ToolCall{ID: "t1", Name: "noop", Args: json.RawMessage(`{}`)}}}}, StopReason: "tool_use"}, nil
+		default:
+			return llm.Response{Message: llm.TextMessage(llm.RoleAssistant, "ok: "+last), StopReason: "end"}, nil
+		}
+	}
+	send(t, a, "start the server")
+	agentloop.WaitIdle(a, 3*time.Second)
+	if got := count(ss, session.TypeTurnStart); got != 1 {
+		t.Fatalf("turns = %d, want 1", got)
+	}
+	_, text := lastAssistant(t, ss)
+	if !strings.Contains(text, "use port 8080") {
+		t.Fatalf("mid-turn message not seen at the next step: %q", text)
+	}
+}

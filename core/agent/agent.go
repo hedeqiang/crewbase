@@ -386,6 +386,50 @@ func (a *Agent) Claim() (Input, bool) {
 	return in, true
 }
 
+// Joinable reports whether next can join the turn working on cur: both
+// are plain messages from a person (no producer tag, so no one waits for
+// their own turn end), for the same conversation, run mode and model.
+func Joinable(cur, next Input) bool {
+	if cur.Tag != "" || next.Tag != "" || cur.Session != next.Session || cur.Mode != next.Mode || cur.From != next.From {
+		return false
+	}
+	if next.Model != nil && (cur.Model == nil || *cur.Model != *next.Model) {
+		return false
+	}
+	return true
+}
+
+// Absorb claims the inputs at the head of the queue that can join the
+// turn working on cur (Joinable), in order: several messages sent in a row
+// become one turn and one reply, and a message sent mid-turn is seen at
+// the next step instead of waiting for the turn to end. Nothing is taken
+// while the queue is paused. The claims are recorded.
+func (a *Agent) Absorb(cur Input) []Input {
+	a.mu.Lock()
+	if a.paused {
+		a.mu.Unlock()
+		return nil
+	}
+	n := 0
+	for n < len(a.queue) && Joinable(cur, a.queue[n]) {
+		n++
+	}
+	if n == 0 {
+		a.mu.Unlock()
+		return nil
+	}
+	got := append([]Input(nil), a.queue[:n]...)
+	a.queue = a.queue[n:]
+	a.mu.Unlock()
+	if ss, err := a.reg.sessions.Get(cur.Session); err == nil {
+		for _, in := range got {
+			_, _ = ss.Append(session.TypeInputClaimed, a.spec.ID, map[string]string{"id": in.ID, "joined": cur.ID})
+		}
+	}
+	QueueChanged.Emit(a.ctx, a.spec.ID)
+	return got
+}
+
 // Wake returns a channel signalled when inputs arrive or the queue resumes.
 func (a *Agent) Wake() <-chan struct{} { return a.wake }
 
