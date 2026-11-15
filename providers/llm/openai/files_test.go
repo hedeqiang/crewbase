@@ -136,7 +136,7 @@ func TestDeepSeekFileUpload(t *testing.T) {
 	}
 	content := body["messages"].([]any)[0].(map[string]any)["content"].([]any)
 	f := content[1].(map[string]any)
-	if f["type"] != "file" || f["file"].(map[string]any)["file_id"] != "file-api-1" {
+	if f["type"] != "file" || f["file_id"] != "file-api-1" || f["file"] != nil { // flat, as DeepSeek documents
 		t.Fatalf("file ref %v", f)
 	}
 

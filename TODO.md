@@ -205,7 +205,7 @@
 - [x] 文件输入：图片内联（deepseek-flash 视觉，经 magpie 真实验证）；PDF / Word / PowerPoint 直连上传 Files API（purpose 在 file 之前、30 天过期、file_id 按工作区缓存）；经 magpie 无 /files 时用本地提取文字
 - [x] 语音：输入框麦克风听写（浏览器 Web Speech API，中间结果实时显示、最终文本追加到草稿，按语言选中文 / 英文，权限被拒有明确提示）；回复旁「朗读」（系统语音，跳过代码块与 Markdown 记号，再点停止）
 - [x] 语音云端：有 DeepSeek Key 时麦克风录 16 kHz WAV（≤ 2 分钟）→ /api/voice/transcribe → DeepSeek ASR；「朗读」→ DeepSeek TTS（stella，过滤 Markdown），失败回落系统语音；无 Key 仍用浏览器语音。音频只透传不落盘。真实 Chrome + 假麦克风 + 假 DeepSeek 服务端验证：录音转写进输入框、朗读请求与播放
-- [ ] DeepSeek 工具 API 真实调用（需 DeepSeek Key 一次短测）
+- [x] DeepSeek 真实调用（`go test -tags live ./test/live -run DeepSeek`）：Search / Fetch、TTS → ASR 往返原话一致、OCR；直连 Files API 读 PDF。真实调用发现并修复：文件引用须为扁平的 {"type":"file","file_id"}（SDK 默认嵌套在 file 下，DeepSeek 返回 400）
 - [x] UI：Agent 设置「联网搜索 / 阅读链接」开关、回复下方来源列表与搜索步骤（当前构建真实验证：thinking → server_tool → text → citation）
 
 ## 真实环境验证（2026-11-14，本机 + OrbStack Linux）

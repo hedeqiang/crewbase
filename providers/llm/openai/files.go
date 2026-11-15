@@ -117,7 +117,9 @@ func (a *Adapter) userParts(parts []llm.Part, files map[string]string) []sdk.Cha
 			case len(at.Data) > 0 && files[at.SHA256] != "":
 				text.WriteString(at.Fallback())
 				flush()
-				out = append(out, sdk.FileContentPart(sdk.ChatCompletionContentPartFileFileParam{FileID: param.NewOpt(files[at.SHA256])}))
+				// DeepSeek takes the id flat ({"type":"file","file_id":…}),
+				// not nested under "file" as OpenAI's SDK writes it
+				out = append(out, param.Override[sdk.ChatCompletionContentPartUnionParam](map[string]string{"type": "file", "file_id": files[at.SHA256]}))
 			case len(at.Data) > 0 && at.IsPDF() && !a.directDeepSeek():
 				text.WriteString(at.Fallback())
 				flush()
