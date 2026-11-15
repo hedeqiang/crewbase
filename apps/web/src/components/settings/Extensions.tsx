@@ -10,6 +10,7 @@ import { setState, toast, useStore } from "../../store";
 import { Head } from "../Settings";
 import { MonoMark } from "../ProviderMark";
 import { ApproveDialog, errMsg, MCP_TONE, McpForm, McpTools, PluginCards, stateLabel } from "./ExtParts";
+import { builtinNote, connectBuiltin, GoogleAccount, type BuiltinItem } from "./GoogleConnect";
 
 // Brand icons from LobeHub Icons (@lobehub/icons-static-svg, MIT), as in
 // ProviderMark: only marks that exist in the package; everything else gets
@@ -38,7 +39,7 @@ type Text = { zh: string; en: string };
 interface CatInput { id: string; label: Text; help?: Text; placeholder?: string; secret?: boolean; optional?: boolean }
 interface CatItem {
   id: string;
-  kind: "mcp" | "skill";
+  kind: "mcp" | "skill" | "builtin";
   category: string;
   name: string;
   icon?: string;
@@ -52,6 +53,10 @@ interface CatItem {
   installed: boolean;
   server?: string;
   scope?: string;
+  // kind "builtin": a connector compiled into Crewbase (GoogleConnect.tsx)
+  builtin?: BuiltinItem["builtin"];
+  product?: string;
+  connector?: BuiltinItem["connector"];
 }
 interface CatCategory { id: string; title: Text; desc: Text }
 interface Catalog { categories: CatCategory[]; items: CatItem[] }
@@ -201,6 +206,7 @@ function MarketView({ d, q, reload, reloadMarket, onApprove }: ViewProps) {
 
   /** Installs at once when nothing must be asked; else opens the dialog. */
   const add = async (it: CatItem) => {
+    if (it.kind === "builtin") return connectBuiltin(it); // straight to the official sign-in
     const ask = it.auth === "oauth" || it.auth === "setup" || (it.inputs ?? []).some((x) => !x.optional);
     if (ask) return setDialog(it);
     setBusy(it.id);
@@ -239,9 +245,9 @@ function MarketView({ d, q, reload, reloadMarket, onApprove }: ViewProps) {
       .map((it) => ({
         key: it.id,
         name: it.name,
-        desc: tx(it.desc),
+        desc: (it.kind === "builtin" && builtinNote(it)) || tx(it.desc),
         icon: <ItemIcon icon={it.icon} id={it.id} label={it.name} kind={it.kind} />,
-        installed: it.installed,
+        installed: it.installed && !it.connector?.needsLogin,
         busy: busy === it.id,
         onAdd: () => void add(it),
       })),
@@ -587,6 +593,7 @@ function InstalledView({ d, q, reload, reloadMarket, onApprove }: ViewProps) {
 
   return (
     <>
+      <GoogleAccount onChange={reload} />
       <section className="mksec">
         <div className="mksh">
           <h3>{t("mk.instMcp")}</h3>
