@@ -5,7 +5,7 @@
 | 产品 | Crewbase（暂定名） |
 | 版本 | 0.1.0 |
 | 日期 | 2026-11-14 |
-| 定位 | 商业友好型开源（Apache-2.0 / MIT）、Local-First 的多模型 AI Agent 协同平台 |
+| 定位 | 商业友好型开源（MIT）、Local-First 的多模型 AI Agent 协同平台 |
 | 相关文档 | [竞品分析](02-competitive-analysis.md) · [交互设计](03-ux-design.md) · [技术架构](04-architecture.md) · [插件系统](05-plugin-system.md) · [安全模型](06-security-model.md) · [路线图](07-roadmap.md) |
 
 ## 设计要点
@@ -143,8 +143,8 @@
 
 ## 7. 开源协议与商业化
 
-- 核心引擎与客户端采用 **Apache-2.0**（含专利授权）；官方插件与技能模板采用 **MIT**。
-- 借鉴 DeepSeek Harness（MIT）的设计思想不产生许可证义务；如直接复用其代码，需要保留其版权与许可声明，Apache-2.0 项目可以合法包含 MIT 代码。
+- 核心引擎、客户端、官方插件与技能模板统一采用 **MIT**（2026-11-15 由 Apache-2.0 改为 MIT，更简单、更宽松）。
+- 借鉴 DeepSeek Harness（MIT）的设计思想不产生许可证义务；如直接复用其代码，需要保留其版权与许可声明，保留声明即可合法包含。
 - **社区版**免费且功能完整，不做人为阉割。
 - **商业版**：托管云主机（24/7）、SSO、细粒度 RBAC、DLP 策略、定制集成与支持。
 

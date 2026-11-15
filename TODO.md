@@ -6,7 +6,7 @@
 
 ## 迭代 0 — 仓库骨架
 - [x] Go module `github.com/hedeqiang/crewbase`、目录结构（docs/04 §4）
-- [x] LICENSE（Apache-2.0）、Makefile（build / test / check）、.gitignore
+- [x] LICENSE（MIT；2026-11-15 由 Apache-2.0 改为 MIT）、Makefile（build / test / check）、.gitignore
 - [x] git 初始提交
 
 ## 迭代 1 — 插件宿主 kernel（Phase 0 / Phase 1 第 1–2 周）

@@ -4,7 +4,7 @@
   "identifier": "app.crewbase.desktop",
   "version": "0.1.0",
   "copyright": "© 2026 Crewbase",
-  "license": "Apache-2.0",
+  "license": "MIT",
   "icon": "resources/icon.png",
   "out": "build",
   "resourcesExclude": [

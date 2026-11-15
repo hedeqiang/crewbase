@@ -12,7 +12,7 @@
 <p align="center">
   <a href="https://github.com/hedeqiang/crewbase/releases/latest"><img alt="Release" src="https://img.shields.io/github/v/release/hedeqiang/crewbase?include_prereleases&sort=semver"></a>
   <a href="https://github.com/hedeqiang/crewbase/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/hedeqiang/crewbase/actions/workflows/ci.yml/badge.svg"></a>
-  <a href="LICENSE"><img alt="License" src="https://img.shields.io/badge/license-Apache--2.0-blue"></a>
+  <a href="LICENSE"><img alt="License" src="https://img.shields.io/badge/license-MIT-blue"></a>
 </p>
 
 <p align="center"><a href="README.md">English</a> · <b>简体中文</b></p>
@@ -125,4 +125,4 @@ Crewbase 会代你执行代码、调用服务，所以默认设置很保守：Ag
 
 ## 许可证
 
-[Apache License 2.0](LICENSE)。
+[MIT](LICENSE)。
