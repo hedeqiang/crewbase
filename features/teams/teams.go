@@ -153,10 +153,10 @@ func (s *Service) ensureDefault() error {
 func cleanName(n string) (string, error) {
 	n = strings.Join(strings.Fields(n), " ")
 	if n == "" {
-		return "", errors.New("a team needs a name")
+		return "", errors.New("团队需要一个名字")
 	}
 	if utf8.RuneCountInString(n) > 40 {
-		return "", errors.New("the team name is longer than 40 characters")
+		return "", errors.New("团队名字不能超过 40 个字")
 	}
 	return n, nil
 }
@@ -174,7 +174,7 @@ func cleanPeople(ps []Person) ([]Person, error) {
 		case "":
 			p.Role = RoleMember
 		default:
-			return nil, fmt.Errorf("unknown team role %q", p.Role)
+			return nil, fmt.Errorf("未知的团队角色 %q", p.Role)
 		}
 		seen[p.ID] = true
 		out = append(out, p)
@@ -204,7 +204,7 @@ func (s *Service) Create(in Input, by string) (View, error) {
 		vis = Public
 	}
 	if vis != Public && vis != Private {
-		return View{}, fmt.Errorf("visibility must be public or private")
+		return View{}, errors.New("可见范围只能是公开或私密")
 	}
 	if by == "" {
 		by = "owner"
@@ -222,7 +222,7 @@ func (s *Service) Create(in Input, by string) (View, error) {
 	for _, x := range s.items {
 		if strings.EqualFold(x.Name, name) {
 			s.mu.Unlock()
-			return View{}, fmt.Errorf("a team called %q exists", name)
+			return View{}, fmt.Errorf("已经有叫「%s」的团队了", name)
 		}
 	}
 	s.items[t.ID] = t
@@ -253,7 +253,7 @@ func (s *Service) Update(id string, in Input) (View, error) {
 		for _, x := range s.items {
 			if x.ID != id && strings.EqualFold(x.Name, name) {
 				s.mu.Unlock()
-				return View{}, fmt.Errorf("a team called %q exists", name)
+				return View{}, fmt.Errorf("已经有叫「%s」的团队了", name)
 			}
 		}
 		nt.Name = name
@@ -264,7 +264,7 @@ func (s *Service) Update(id string, in Input) (View, error) {
 	if in.Visibility != "" {
 		if in.Visibility != Public && in.Visibility != Private {
 			s.mu.Unlock()
-			return View{}, fmt.Errorf("visibility must be public or private")
+			return View{}, errors.New("可见范围只能是公开或私密")
 		}
 		nt.Visibility = in.Visibility
 	}
@@ -331,13 +331,13 @@ func (s *Service) List() []View {
 // Delete removes an empty team (never the default one).
 func (s *Service) Delete(id string) error {
 	if id == agent.DefaultTeam {
-		return errors.New("the default team cannot be deleted")
+		return errors.New("默认团队不能删除")
 	}
 	if !s.Exists(id) {
 		return os.ErrNotExist
 	}
 	if a, c := s.count(id); a > 0 || c > 0 {
-		return fmt.Errorf("the team still has %d agents and %d channels; move or delete them first", a, c)
+		return fmt.Errorf("这个团队里还有 %d 个 Agent、%d 个频道，先把它们移走或删除", a, c)
 	}
 	s.mu.Lock()
 	delete(s.items, id)
@@ -352,14 +352,14 @@ func (s *Service) Delete(id string) error {
 func (s *Service) Move(agentID, team string) (*agent.Agent, error) {
 	team = agent.TeamOf(team)
 	if !s.Exists(team) {
-		return nil, fmt.Errorf("no team %q", team)
+		return nil, fmt.Errorf("没有这个团队：%s", team)
 	}
 	a, ok := s.agents.Get(agentID)
 	if !ok {
 		return nil, os.ErrNotExist
 	}
 	if a.Spec().Ephemeral {
-		return nil, errors.New("a sub-agent belongs to its parent's team")
+		return nil, errors.New("子 Agent 跟随它的上级所在的团队")
 	}
 	if a.Spec().TeamID() == team {
 		return a, nil
@@ -370,7 +370,7 @@ func (s *Service) Move(agentID, team string) (*agent.Agent, error) {
 		}
 		for _, x := range m.Agents {
 			if x == agentID {
-				return nil, fmt.Errorf("%s is in the channel %q of its current team; remove it from the channel first", a.Spec().Name, m.Title)
+				return nil, fmt.Errorf("%s 还在当前团队的频道「%s」里，先把它移出这个频道", a.Spec().Name, m.Title)
 			}
 		}
 	}

@@ -112,7 +112,7 @@ func TestTeams(t *testing.T) {
 	writer, _ := e.agents.Get(a2["id"].(string))
 
 	// a channel stays inside one team
-	if _, err := e.ch.Create("mixed", []string{ops.ID(), old.ID()}, "", "desktop"); err == nil || !strings.Contains(err.Error(), "another team") {
+	if _, err := e.ch.Create("mixed", []string{ops.ID(), old.ID()}, "", "desktop"); err == nil || !strings.Contains(err.Error(), "另一个团队") {
 		t.Fatalf("mixed channel: %v", err)
 	}
 	v, err := e.ch.Create("launch", []string{ops.ID(), writer.ID()}, "", "desktop")

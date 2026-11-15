@@ -40,12 +40,15 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          if ! gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
-            prerelease=""
-            case "$GITHUB_REF_NAME" in *-*) prerelease="--prerelease" ;; esac
-            gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" \
-              --draft --verify-tag --title "Crewbase $GITHUB_REF_NAME" --generate-notes $prerelease \
-              --notes "$(cat <<'NOTES'
+          v="${GITHUB_REF_NAME#v}"
+          # release notes: the version's CHANGELOG section, then how to install
+          awk -v v="$v" '
+            $0 ~ "^## \\[?" v "\\]?( |$)" { on = 1; next }
+            on && /^## / { exit }
+            on { print }
+          ' CHANGELOG.md > notes.md
+          cat >> notes.md <<'NOTES'
+
           ## 安装
 
           **macOS**（推荐，无需处理 Gatekeeper）：
@@ -62,7 +65,14 @@ jobs:
 
           已安装的客户端会自动更新。
           NOTES
-          )"
+          sed -i 's/^          //' notes.md
+          if ! gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
+            prerelease=""
+            case "$GITHUB_REF_NAME" in *-*) prerelease="--prerelease" ;; esac
+            gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" \
+              --draft --verify-tag --title "Crewbase $GITHUB_REF_NAME" --notes-file notes.md $prerelease
+          else
+            gh release edit "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --notes-file notes.md
           fi
 
   desktop:

@@ -136,7 +136,7 @@ func (s *Service) Create(name string, members []string, folder, by string) (View
 		if t := a.Spec().TeamID(); i == 0 {
 			team = t
 		} else if t != team {
-			return View{}, fmt.Errorf("%s is in another team; a channel's agents must all be in the same team", a.Spec().Name)
+			return View{}, fmt.Errorf("%s 在另一个团队；一个频道里的 Agent 必须属于同一个团队", a.Spec().Name)
 		}
 	}
 	if team == agent.DefaultTeam {
@@ -499,7 +499,7 @@ func (s *Service) AddMember(id, agentID string) error {
 	} else if a.IsChat() {
 		return fmt.Errorf("%q is a chat, not an agent; chats cannot join channels", agentID)
 	} else if a.Spec().TeamID() != agent.TeamOf(ss.Meta().Team) {
-		return fmt.Errorf("%s is in another team; move it to this channel's team first", a.Spec().Name)
+		return fmt.Errorf("%s 在另一个团队，先把它移到这个频道所在的团队", a.Spec().Name)
 	}
 	return ss.UpdateMeta(func(m *session.Meta) {
 		for _, x := range m.Agents {
