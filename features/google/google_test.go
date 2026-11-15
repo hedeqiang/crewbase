@@ -67,8 +67,8 @@ func newEnv(t *testing.T) *env {
 		t.Fatalf("%+v", info)
 	}
 	e := &env{h: h, f: f, kc: kc, dir: dir,
-		s:   kernel.Use[*Service](h.Root(), ServiceKey),
-		reg: kernel.Use[*tools.Registry](h.Root(), tools.ServiceKey),
+		s:    kernel.Use[*Service](h.Root(), ServiceKey),
+		reg:  kernel.Use[*tools.Registry](h.Root(), tools.ServiceKey),
 		base: "http://" + <-addr,
 		// a browser: follows Google's redirect to the callback, stops at the app
 		httpc: &http.Client{CheckRedirect: func(r *http.Request, _ []*http.Request) error {
