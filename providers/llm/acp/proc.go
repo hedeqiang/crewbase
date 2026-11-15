@@ -78,6 +78,7 @@ func (a *Adapter) startProc(ctx context.Context) (*proc, error) {
 	if err := cmd.Start(); err != nil {
 		return nil, &llm.Error{Kind: llm.ErrUnavailable, Provider: a.id, Message: "start: " + err.Error()}
 	}
+	afterStart(cmd)
 	p.conn = jsonrpc.NewConn(stdout, stdin, jsonrpc.Options{
 		OnRequest:      p.onRequest,
 		OnNotification: p.onNotification,

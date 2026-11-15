@@ -2,13 +2,23 @@
 
 package acp
 
-import "os/exec"
+import (
+	"os/exec"
+
+	"github.com/hedeqiang/crewbase/internal/winjob"
+)
 
 func setProcessGroup(*exec.Cmd) {}
 
-// killGroup kills only the direct child on platforms without process groups.
+func afterStart(cmd *exec.Cmd) {
+	if cmd != nil && cmd.Process != nil {
+		_ = winjob.Assign(cmd.Process.Pid)
+	}
+}
+
+// killGroup kills the process tree (a job object on Windows).
 func killGroup(cmd *exec.Cmd, _ bool) {
-	if cmd.Process != nil {
+	if cmd.Process != nil && !winjob.Kill(cmd.Process.Pid) {
 		_ = cmd.Process.Kill()
 	}
 }

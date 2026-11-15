@@ -25,3 +25,5 @@ func terminateTree(cmd *exec.Cmd) { signalTree(cmd, syscall.SIGTERM) }
 
 // killTree kills the process tree (SIGKILL).
 func killTree(cmd *exec.Cmd) { signalTree(cmd, syscall.SIGKILL) }
+
+func afterStart(*exec.Cmd) {}

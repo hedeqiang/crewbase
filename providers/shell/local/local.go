@@ -206,6 +206,7 @@ func (l *Local) run(ctx context.Context, conf sandbox.Confined, cwd string, time
 		errW.Close()
 		return res, fmt.Errorf("shell-local: start: %w", err)
 	}
+	afterStart(cmd)
 	outW.Close()
 	errW.Close()
 	pid := cmd.Process.Pid

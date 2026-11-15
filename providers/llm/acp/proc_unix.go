@@ -25,3 +25,5 @@ func killGroup(cmd *exec.Cmd, hard bool) {
 	}
 	_ = syscall.Kill(-cmd.Process.Pid, sig)
 }
+
+func afterStart(*exec.Cmd) {}

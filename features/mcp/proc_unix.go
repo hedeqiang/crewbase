@@ -21,3 +21,5 @@ func signalGroup(pid int, sig syscall.Signal) {
 
 // killGroup SIGKILLs the process group led by pid.
 func killGroup(pid int) { signalGroup(pid, syscall.SIGKILL) }
+
+func afterStart(*exec.Cmd) {}

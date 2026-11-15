@@ -584,6 +584,9 @@ func (s *Service) dialStdio(ctx context.Context, srv Server, ws string, onChange
 	cmd.WaitDelay = time.Second // don't hang on stderr held by grandchildren
 	setGroup(cmd)
 	err = cmd.Start()
+	if err == nil {
+		afterStart(cmd)
+	}
 	inR.Close()
 	outW.Close()
 	if err != nil {

@@ -528,6 +528,7 @@ func (p *proxy) spawn() (*generation, error) {
 		g.ctx.Dispose()
 		return nil, fmt.Errorf("start %s: %w", strings.Join(argv, " "), err)
 	}
+	afterStart(cmd)
 	inR.Close()
 	outW.Close()
 	errW.Close()

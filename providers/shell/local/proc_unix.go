@@ -19,3 +19,5 @@ func killGroup(pid int) {
 		_ = syscall.Kill(-pid, syscall.SIGKILL)
 	}
 }
+
+func afterStart(*exec.Cmd) {}
