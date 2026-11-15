@@ -44,6 +44,7 @@ import (
 	"github.com/hedeqiang/crewbase/core/agent"
 	"github.com/hedeqiang/crewbase/core/agentloop"
 	"github.com/hedeqiang/crewbase/core/llm"
+	"github.com/hedeqiang/crewbase/core/session"
 	"github.com/hedeqiang/crewbase/kernel"
 )
 
@@ -1083,9 +1084,12 @@ func (g *Gateway) Message(ctx context.Context, in Inbound) {
 		return
 	}
 	from := in.User.display()
-	if q, err := a.Enqueue(agent.Input{Session: b.session, Text: rest, From: from, Tag: g.tag(b.id, in.MessageID)}); err == nil {
-		g.noteChatInput(q.ID)
-	} else {
+	// noted before it is queued: the agent may claim it and build the
+	// request (chatNorm) before Enqueue even returns
+	id := session.NewID("in")
+	g.noteChatInput(id)
+	if _, err := a.Enqueue(agent.Input{ID: id, Session: b.session, Text: rest, From: from, Tag: g.tag(b.id, in.MessageID)}); err != nil {
+		g.forgetChatInput(id)
 		g.log.Warn("im enqueue failed", "agent", b.agent, "err", err.Error())
 		reply.Body = "没能把消息交给 " + a.Spec().Name + "，请稍后再试。"
 		g.postLog(ctx, reply)
@@ -1280,6 +1284,12 @@ func (g *Gateway) noteChatInput(id string) {
 	}
 }
 
+func (g *Gateway) forgetChatInput(id string) {
+	g.mu.Lock()
+	delete(g.chatInputs, id)
+	g.mu.Unlock()
+}
+
 func (g *Gateway) chatNorm(ctx context.Context, args agentloop.RequestArgs, next kernel.Next[agentloop.RequestArgs, *llm.Request]) (*llm.Request, error) {
 	req, err := next(ctx, args)
 	if err != nil || req == nil || args.Agent == nil {
@@ -1366,11 +1376,11 @@ func (g *Gateway) listen(in Inbound) {
 	b := &binding{id: newToken(), agent: a.ID(), session: a.Spec().Session, chat: in.Chat, anchor: anchor, listen: in.MessageID}
 	g.bind(b, in.Chat) // known by id (for the reply), not bound to the thread yet
 	from := in.User.display()
-	q, err := a.Enqueue(agent.Input{Session: b.session, Text: fmt.Sprintf(ListenPrompt, from, text), From: from,
-		Tag: g.tag(b.id, in.MessageID), Mode: agent.ModeReadOnly})
-	if err != nil {
+	id := session.NewID("in") // noted first: see the mention path
+	g.noteChatInput(id)
+	if _, err := a.Enqueue(agent.Input{ID: id, Session: b.session, Text: fmt.Sprintf(ListenPrompt, from, text), From: from,
+		Tag: g.tag(b.id, in.MessageID), Mode: agent.ModeReadOnly}); err != nil {
+		g.forgetChatInput(id)
 		g.log.Warn("im listen enqueue failed", "agent", a.ID(), "err", err.Error())
-		return
 	}
-	g.noteChatInput(q.ID)
 }

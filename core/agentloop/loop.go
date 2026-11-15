@@ -695,4 +695,3 @@ const ResumeNote = "[Crewbase restarted] Your previous turn was cut off in the m
 // RejectForReply is the rejection a pending approval gets when the person
 // writes instead of answering it.
 const RejectForReply = "The user sent a new message instead of approving this. Do not retry it; read their message and follow it."
-

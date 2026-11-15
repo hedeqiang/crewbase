@@ -182,6 +182,25 @@ const revealFrameJS = `((k) => {
   return {};
 })(%d)`
 
+// armClickJS makes ref n note the next trusted click that reaches it (or
+// its children), so a mouse click into an iframe can be confirmed.
+const armClickJS = `((n) => {
+  const el = (window.__crewbaseRefs || [])[n - 1];
+  if (!el || !el.isConnected) return {error: 'stale'};
+  el.__crewbaseHit = false;
+  if (!el.__crewbaseArmed) {
+    el.__crewbaseArmed = true;
+    el.addEventListener('click', (e) => { if (e.isTrusted) el.__crewbaseHit = true; }, true);
+  }
+  return {};
+})(%d)`
+
+// hitClickJS reports whether the armed ref n got the mouse click.
+const hitClickJS = `((n) => {
+  const el = (window.__crewbaseRefs || [])[n - 1];
+  return {hit: !!(el && el.__crewbaseHit)};
+})(%d)`
+
 // scriptClickJS clicks ref n from script (when the mouse cannot reach it).
 const scriptClickJS = `((n) => {
   const el = (window.__crewbaseRefs || [])[n - 1];

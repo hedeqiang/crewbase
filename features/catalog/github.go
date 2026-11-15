@@ -319,17 +319,23 @@ func (g *githubSignIn) poll(ctx context.Context, f *deviceFlow, p Preset, scope 
 			fail("error", err)
 			return
 		}
-		g.set(f, func(v *SignInView) { v.State, v.Server = "done", server })
+		// whether the App is installed anywhere is known before "done",
+		// so the dialog never shows a finished sign-in without that hint
+		none := false
 		if g.app() {
 			if n, err := g.installations(ctx, a.AccessToken); err == nil && n == 0 {
-				g.set(f, func(v *SignInView) {
-					v.NoInstallation = true
-					if g.slug != "" {
-						v.InstallURL = g.base + "/apps/" + url.PathEscape(g.slug) + "/installations/new"
-					}
-				})
+				none = true
 			}
 		}
+		g.set(f, func(v *SignInView) {
+			v.State, v.Server = "done", server
+			if none {
+				v.NoInstallation = true
+				if g.slug != "" {
+					v.InstallURL = g.base + "/apps/" + url.PathEscape(g.slug) + "/installations/new"
+				}
+			}
+		})
 		return
 	}
 }

@@ -317,13 +317,10 @@ func (t *bt) click(ctx context.Context, call tools.Call) (tools.Result, error) {
 		case !visible:
 			// the iframe is scrolled or clipped out of sight
 			err = s.EvalFrame(ctx, rf.frame, fmt.Sprintf(scriptClickJS, rf.local), nil)
-		default:
-			if rf.frame != "" {
-				// let the compositor catch up with the scroll first: the browser
-				// routes the click into the iframe by the last drawn frame
-				_ = s.EvalFrame(ctx, "", framesJS, nil)
-			}
+		case rf.frame == "":
 			err = s.Click(ctx, x, y)
+		default:
+			err = t.clickInFrame(ctx, s, pr, rf, x, y)
 		}
 		if err != nil {
 			return fail(err)
@@ -336,6 +333,47 @@ func (t *bt) click(ctx context.Context, call tools.Call) (tools.Result, error) {
 		return tools.Errorf("%v", err), nil
 	}
 	return t.snap(ctx, s, fmt.Sprintf("Clicked [%d].\n", n))
+}
+
+// clickInFrame clicks a ref inside an iframe with the real mouse. The
+// browser routes the click into the iframe by the last frame it drew, which
+// can lag behind a scroll on a slow machine; the element is armed to note
+// the click, and when it did not get it the point is measured again after
+// another frame and clicked once more, then clicked from script.
+func (t *bt) clickInFrame(ctx context.Context, s *browser.Session, pr *pageRefs, rf ref, x, y float64) error {
+	for try := 0; try < 2; try++ {
+		if try > 0 {
+			var r struct {
+				Error   string  `json:"error"`
+				Clicked bool    `json:"clicked"`
+				X       float64 `json:"x"`
+				Y       float64 `json:"y"`
+			}
+			if err := s.EvalFrame(ctx, rf.frame, fmt.Sprintf(prepareClickJS, rf.local, false), &r); err != nil || r.Error != "" {
+				break
+			}
+			if r.Clicked {
+				return nil // covered now: prepareClickJS clicked it from script
+			}
+			px, py, visible, err := toPage(ctx, s, pr, rf.frame, r.X, r.Y)
+			if err != nil || !visible {
+				break
+			}
+			x, y = px, py
+		}
+		_ = s.EvalFrame(ctx, rf.frame, fmt.Sprintf(armClickJS, rf.local), nil)
+		_ = s.EvalFrame(ctx, "", framesJS, nil) // let the compositor draw the scroll
+		if err := s.Click(ctx, x, y); err != nil {
+			return err
+		}
+		var h struct {
+			Hit bool `json:"hit"`
+		}
+		if err := s.EvalFrame(ctx, rf.frame, fmt.Sprintf(hitClickJS, rf.local), &h); err != nil || h.Hit {
+			return nil // confirmed, or the click navigated the frame away
+		}
+	}
+	return s.EvalFrame(ctx, rf.frame, fmt.Sprintf(scriptClickJS, rf.local), nil)
 }
 
 func (t *bt) typeTool(ctx context.Context, call tools.Call) (tools.Result, error) {
