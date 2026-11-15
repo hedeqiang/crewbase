@@ -1428,6 +1428,11 @@ function DirBrowser({ start, busy, onPick, onBack }: { start: string; busy: bool
         <span className="mono g" title={at?.path}>
           {at ? tailPath(shortPath(at.path)) : "…"}
         </span>
+        {at && !atHome && (
+          <button className="linkbtn" type="button" disabled={busy} onClick={() => onPick(at.path)}>
+            {t("dir.useHere")}
+          </button>
+        )}
       </div>
       {err && <p className="small errt" style={{ margin: "6px 9px" }}>{err}</p>}
       <div className="dblist" key={at?.path}>
@@ -1438,18 +1443,18 @@ function DirBrowser({ start, busy, onPick, onBack }: { start: string; busy: bool
           </button>
         )}
         {at?.dirs.map((x) => (
-          <button key={x.path} className="mi" type="button" onClick={() => void go(x.path)}>
-            <Folder size={15} />
-            <span className="g">{x.name}</span>
-            <ChevronRight size={13} className="muted" />
-          </button>
+          <div key={x.path} className="dbrow">
+            <button className="mi" type="button" title={t("dir.open")} onClick={() => void go(x.path)}>
+              <Folder size={15} />
+              <span className="g">{x.name}</span>
+              <ChevronRight size={13} className="muted" />
+            </button>
+            <button className="btn sm dbuse" type="button" disabled={busy} onClick={() => onPick(x.path)}>
+              {t("dir.useShort")}
+            </button>
+          </div>
         ))}
         {at && at.dirs.length === 0 && <p className="small muted" style={{ margin: "6px 9px" }}>{t("dir.noSub")}</p>}
-      </div>
-      <div className="dbfoot">
-        <button className="btn pri sm" type="button" disabled={busy || !at || !!atHome} onClick={() => at && onPick(at.path)}>
-          {t("dir.useThis")}
-        </button>
       </div>
     </div>
   );

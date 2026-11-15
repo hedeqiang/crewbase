@@ -1293,7 +1293,12 @@ button.tg:disabled { opacity: .5; cursor: not-allowed; }
 .dbhead { display: flex; align-items: center; gap: 6px; padding: 2px 4px 6px; border-bottom: 1px solid var(--border); font-size: 12px; }
 .dbhead .g { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .dblist { max-height: 300px; overflow: auto; padding: 4px 0; }
-.dbfoot { display: flex; justify-content: flex-end; padding: 6px 8px 4px; border-top: 1px solid var(--border); }
+.dbhead .linkbtn { margin-left: auto; flex: none; font-size: 12px; }
+.dbrow { position: relative; display: flex; align-items: center; }
+.dbrow .mi { flex: 1; min-width: 0; padding-right: 64px; }
+.dbrow .dbuse { position: absolute; right: 30px; opacity: 0; height: 24px; padding: 0 9px; font-size: 12px; }
+.dbrow:hover .dbuse, .dbrow:focus-within .dbuse { opacity: 1; }
+@media (hover: none) { .dbrow .dbuse { opacity: 1; } }
 
 .teamsw { display: flex; align-items: center; gap: 8px; margin: 0 12px 8px; padding: 6px 8px; border-radius: 8px; border: 1px solid var(--border); background: var(--panel); font-size: 13px; text-align: left; }
 .teamsw b { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
