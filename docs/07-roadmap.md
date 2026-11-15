@@ -41,7 +41,7 @@
 |---|---|
 | 部署 | `server` Profile；阿里云 ECS、AWS EC2 / ECS、通用 VPS 一键部署；零入站端口配对 |
 | 多端 | 远程方法白名单网关；移动端伴侣（通知、审批、对话）；设备分级权限 |
-| IM | Slack、Telegram、Discord、飞书网关（`notify` 提供方 + `approval` 应答方） |
+| IM | Slack、Telegram、Discord、飞书 / Lark 网关（`notify` 提供方 + `approval` 应答方） |
 | 团队 | 多人连接同一主机；成员与角色；审计日志（哈希链导出）；团队任务板（任务 DAG） |
 | 目标 | 持久目标续跑（轮次上限、阻塞原因码、恢复后需重新授权） |
 

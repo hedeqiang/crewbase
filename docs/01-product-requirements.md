@@ -120,7 +120,7 @@
 | D-1 | 桌面端（macOS / Windows / Linux）单一可执行文件，系统托盘常驻、自动更新 | P0 |
 | D-2 | 远程主机：阿里云 ECS、AWS EC2 / ECS、通用 VPS、家用 Mac mini；不暴露入站端口，通过 WebSocket Relay / Tailscale / WireGuard 主动出站配对 | P2 |
 | D-3 | 移动端伴侣：接收通知、处理审批、查看进展，不运行 Agent | P2 |
-| D-4 | IM 网关：Slack、Telegram、Discord、飞书，可在 IM 中接收进展和完成审批 | P2 |
+| D-4 | IM 网关：Slack、Telegram、Discord、飞书 / Lark，可在 IM 中接收进展和完成审批 | P2 |
 | D-5 | 运行形态由「Profile」决定：同一套插件可组装为桌面版、无头服务器版、SDK 版、ACP 服务器版 | P1 |
 
 ## 5. 非功能需求

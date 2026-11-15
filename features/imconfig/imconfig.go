@@ -40,7 +40,10 @@ type Platform struct {
 	AppID    bool   `json:"appId"`    // needs an app id: Feishu
 	Channel  string `json:"channel"`  // what "channel" means here (for the form hint)
 	TokenDoc string `json:"tokenDoc"` // where to get the token
-	spec     kernel.Spec
+	// Domain is the open platform of the provider (Feishu in China, Lark
+	// elsewhere: the same gateway, separate tenants and endpoints).
+	Domain string `json:"domain,omitempty"`
+	spec   kernel.Spec
 }
 
 // Platforms supported by the setup form.
@@ -48,7 +51,8 @@ var Platforms = []Platform{
 	{ID: "slack", Name: "Slack", App: true, Channel: "频道 ID（C…）", TokenDoc: "https://api.slack.com/apps", spec: slack.Plugin},
 	{ID: "telegram", Name: "Telegram", Channel: "群组 / 对话 ID（-100…）", TokenDoc: "https://t.me/BotFather", spec: telegram.Plugin},
 	{ID: "discord", Name: "Discord", Channel: "频道 ID", TokenDoc: "https://discord.com/developers/applications", spec: discord.Plugin},
-	{ID: "feishu", Name: "飞书", AppID: true, Channel: "群 chat_id（oc_…）", TokenDoc: "https://open.feishu.cn/app", spec: feishu.Plugin},
+	{ID: "feishu", Name: "飞书", AppID: true, Channel: "群 chat_id（oc_…）", TokenDoc: "https://open.feishu.cn/app", Domain: "https://open.feishu.cn", spec: feishu.Plugin},
+	{ID: "lark", Name: "Lark", AppID: true, Channel: "群 chat_id（oc_…）", TokenDoc: "https://open.larksuite.com/app", Domain: "https://open.larksuite.com", spec: feishu.Plugin},
 }
 
 func platform(id string) (Platform, bool) {
@@ -190,6 +194,9 @@ func (s *Service) mount(g Gateway) {
 	}
 	if p.AppID {
 		cfg["appId"] = g.AppID
+	}
+	if p.Domain != "" {
+		cfg["domain"] = p.Domain
 	}
 	for k, v := range s.extra {
 		cfg[k] = v
@@ -374,7 +381,7 @@ type Config struct {
 var Plugin = kernel.Register(kernel.Spec{
 	Name:        "@crewbase/im-config",
 	Inject:      []string{gateway.ServiceKey, credentials.ServiceKey},
-	Description: "Set up IM gateways (Slack, Telegram, Discord, 飞书) from the UI; tokens in the keychain.",
+	Description: "Set up IM gateways (Slack, Telegram, Discord, 飞书, Lark) from the UI; tokens in the keychain.",
 	Apply: func(c *kernel.Context) error {
 		cfg, err := kernel.Decode[Config](c)
 		if err != nil {

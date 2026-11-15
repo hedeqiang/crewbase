@@ -9,7 +9,7 @@ import { ImSetup } from "./ImSetup";
 
 const DEFAULT_QUIET: QuietHours = { on: false, start: "22:00", end: "08:00" };
 
-const CHANNEL_NAMES: Record<string, string> = { telegram: "Telegram", slack: "Slack", discord: "Discord" };
+const CHANNEL_NAMES: Record<string, string> = { telegram: "Telegram", slack: "Slack", discord: "Discord", lark: "Lark" };
 
 function channelName(ch: string) {
   if (ch === "desktop") return t("nt.ch.desktop");
