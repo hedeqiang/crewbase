@@ -16,6 +16,7 @@ import (
 	"fmt"
 	"net/url"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/hedeqiang/crewbase/capabilities/browser"
@@ -122,6 +123,9 @@ type bt struct {
 	action   time.Duration
 	takeover time.Duration
 	allow    []string
+
+	mu   sync.Mutex
+	refs map[string]*pageRefs // agent → element numbers of its latest snapshot
 }
 
 func (t *bt) agents() (*agent.Registry, bool) {
@@ -179,9 +183,10 @@ func settle(ctx context.Context, s *browser.Session) error {
 
 func (t *bt) snap(ctx context.Context, s *browser.Session, prefix string) (tools.Result, error) {
 	var snapObj snapshot
+	var pr *pageRefs
 	var err error
 	for i := 0; i < 3; i++ { // the page may be mid-navigation
-		if err = s.Eval(ctx, snapshotJS, &snapObj); err == nil || errors.Is(err, browser.ErrTakenOver) || ctx.Err() != nil {
+		if snapObj, pr, err = fullSnapshot(ctx, s); err == nil || errors.Is(err, browser.ErrTakenOver) || ctx.Err() != nil {
 			break
 		}
 		time.Sleep(200 * time.Millisecond)
@@ -189,6 +194,7 @@ func (t *bt) snap(ctx context.Context, s *browser.Session, prefix string) (tools
 	if err != nil {
 		return fail(err)
 	}
+	t.setRefs(s.Agent(), pr)
 	return tools.Result{
 		Content: prefix + snapObj.render(t.max),
 		Data: map[string]any{"kind": "browser-snapshot", "url": snapObj.URL, "title": snapObj.Title,
@@ -277,20 +283,49 @@ func (t *bt) click(ctx context.Context, call tools.Call) (tools.Result, error) {
 		return fail(err)
 	}
 	defer cancel()
+	rf, pr, ok := t.lookup(call.Agent, n)
+	if !ok {
+		return tools.Errorf(staleMsg, n), nil
+	}
 	var r struct {
 		Error   string  `json:"error"`
 		Clicked bool    `json:"clicked"`
 		X       float64 `json:"x"`
 		Y       float64 `json:"y"`
 	}
-	if err := s.Eval(ctx, fmt.Sprintf(prepareClickJS, n), &r); err != nil {
+	if err := reveal(ctx, s, pr, rf.frame); errors.Is(err, browser.ErrTakenOver) {
 		return fail(err)
+	} else if err != nil {
+		return tools.Errorf(staleMsg, n), nil
+	}
+	if err := s.EvalFrame(ctx, rf.frame, fmt.Sprintf(prepareClickJS, rf.local, rf.frame == ""), &r); err != nil {
+		if errors.Is(err, browser.ErrTakenOver) || rf.frame == "" {
+			return fail(err)
+		}
+		return tools.Errorf(staleMsg, n), nil // the frame went away
 	}
 	if r.Error != "" {
 		return tools.Errorf(staleMsg, n), nil
 	}
 	if !r.Clicked {
-		if err := s.Click(ctx, r.X, r.Y); err != nil {
+		x, y, visible, err := toPage(ctx, s, pr, rf.frame, r.X, r.Y)
+		switch {
+		case errors.Is(err, errStale):
+			return tools.Errorf(staleMsg, n), nil
+		case err != nil:
+			return fail(err)
+		case !visible:
+			// the iframe is scrolled or clipped out of sight
+			err = s.EvalFrame(ctx, rf.frame, fmt.Sprintf(scriptClickJS, rf.local), nil)
+		default:
+			if rf.frame != "" {
+				// let the compositor catch up with the scroll first: the browser
+				// routes the click into the iframe by the last drawn frame
+				_ = s.EvalFrame(ctx, "", framesJS, nil)
+			}
+			err = s.Click(ctx, x, y)
+		}
+		if err != nil {
 			return fail(err)
 		}
 	}
@@ -320,13 +355,25 @@ func (t *bt) typeTool(ctx context.Context, call tools.Call) (tools.Result, error
 		return fail(err)
 	}
 	defer cancel()
+	rf, pr, ok := t.lookup(call.Agent, n)
+	if !ok {
+		return tools.Errorf(staleMsg, n), nil
+	}
 	var r struct {
 		Error     string `json:"error"`
 		Sensitive string `json:"sensitive"`
 		OK        bool   `json:"ok"`
 	}
-	if err := s.Eval(ctx, fmt.Sprintf(prepareTypeJS, n), &r); err != nil {
+	if err := reveal(ctx, s, pr, rf.frame); errors.Is(err, browser.ErrTakenOver) {
 		return fail(err)
+	} else if err != nil {
+		return tools.Errorf(staleMsg, n), nil
+	}
+	if err := s.EvalFrame(ctx, rf.frame, fmt.Sprintf(prepareTypeJS, rf.local, rf.frame == ""), &r); err != nil {
+		if errors.Is(err, browser.ErrTakenOver) || rf.frame == "" {
+			return fail(err)
+		}
+		return tools.Errorf(staleMsg, n), nil
 	}
 	switch {
 	case r.Sensitive != "":

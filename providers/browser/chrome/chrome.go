@@ -99,18 +99,30 @@ type Chrome struct {
 	owner  string // attached mode: agent that owns the browser
 	fmu    sync.Once
 	fs     *filterState
+	// fakeWindow (tests): a "window" launch stays headless, so no window
+	// pops up, but everything else of a switch happens.
+	fakeWindow bool
+	// windowErr (tests): a window launch fails with it.
+	windowErr error
 }
 
 type slot struct {
 	mu     sync.Mutex // serializes start / stop
 	inst   atomic.Pointer[instance]
 	target target.ID // attached mode: the agent's tab, reused on reconnect
+	// window: a takeover moved the browser to a desktop window (window.go).
+	window atomic.Bool
+	// carry: tabs (and session cookies) to restore at the next start: the
+	// last known state of a window takeover, or of a switch that failed.
+	carry *carry
 }
 
 type instance struct {
 	agent    string
 	dir      string
 	attached bool
+	headless bool
+	frames   *frameConn // iframes (nil if unavailable)
 	cmd      *exec.Cmd
 	exited   chan struct{}
 	stderr   *tailBuf
@@ -280,7 +292,13 @@ func (c *Chrome) ensure(ctx context.Context, agentID string) (*instance, error) 
 	if c.attach != "" {
 		in, err = c.connect(ctx, agentID, s)
 	} else {
-		in, err = c.launch(ctx, agentID)
+		in, err = c.launch(ctx, agentID, c.headless && !s.window.Load())
+		if err == nil && s.carry != nil {
+			c.restore(ctx, in, &carry{tabs: pick(s.carry.tabs), cookies: s.carry.cookies})
+			if !s.window.Load() {
+				s.carry = nil
+			}
+		}
 	}
 	if err == nil {
 		c.mu.Lock()
@@ -303,7 +321,10 @@ func (c *Chrome) ensure(ctx context.Context, agentID string) (*instance, error) 
 	return in, nil
 }
 
-func (c *Chrome) launch(ctx context.Context, agentID string) (*instance, error) {
+func (c *Chrome) launch(ctx context.Context, agentID string, headless bool) (*instance, error) {
+	if !headless && c.windowErr != nil {
+		return nil, c.windowErr
+	}
 	dir, err := c.ProfileDir(agentID)
 	if err != nil {
 		return nil, err
@@ -326,7 +347,7 @@ func (c *Chrome) launch(ctx context.Context, agentID string) (*instance, error) 
 		"--use-mock-keychain",
 		fmt.Sprintf("--window-size=%d,%d", c.width, c.height),
 	}
-	if c.headless {
+	if headless || c.fakeWindow {
 		args = append(args, "--headless=new", "--hide-scrollbars", "--mute-audio")
 	}
 	if os.Geteuid() == 0 {
@@ -352,12 +373,15 @@ func (c *Chrome) launch(ctx context.Context, agentID string) (*instance, error) 
 	}
 	pw.Close()
 	go func() { _, _ = io.Copy(tail, pr); pr.Close() }()
-	in := &instance{agent: agentID, dir: dir, cmd: cmd, exited: make(chan struct{}), stderr: tail}
+	in := &instance{agent: agentID, dir: dir, cmd: cmd, exited: make(chan struct{}), stderr: tail, headless: headless}
 	go func() { _ = cmd.Wait(); close(in.exited) }()
 
 	fail := func(err error) (*instance, error) {
 		killTree(cmd.Process.Pid)
 		<-in.exited
+		if in.frames != nil {
+			in.frames.close()
+		}
 		if in.allocCancel != nil {
 			in.tabCancel()
 			in.browserCancel()
@@ -383,8 +407,31 @@ func (c *Chrome) launch(ctx context.Context, agentID string) (*instance, error) 
 		return fail(fmt.Errorf("browser-chrome: attach tab: %w", err))
 	}
 	in.page = &cdpPage{tab: in.tabCtx}
+	c.openFrames(ctx, in, wsURL)
 	c.applyFilter(in)
 	return in, nil
+}
+
+// openFrames gives the instance its frame connection (frames.go). Without
+// one the agent still works in the main frame.
+func (c *Chrome) openFrames(ctx context.Context, in *instance, wsURL string) {
+	t := chromedp.FromContext(in.tabCtx).Target
+	if t == nil {
+		return
+	}
+	fctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+	ws, err := browserWS(fctx, wsURL)
+	if err != nil {
+		return
+	}
+	agentID := in.agent
+	f, err := openFrames(fctx, ws, t.TargetID, func() func(string) bool { return c.filterFor(agentID) })
+	if err != nil {
+		return
+	}
+	in.frames = f
+	in.page.frames = f
 }
 
 func (c *Chrome) connect(ctx context.Context, agentID string, s *slot) (*instance, error) {
@@ -403,6 +450,9 @@ func (c *Chrome) connect(ctx context.Context, agentID string, s *slot) (*instanc
 			c.owner = ""
 		}
 		c.mu.Unlock()
+		if in.frames != nil {
+			in.frames.close()
+		}
 		if in.tabCancel != nil {
 			in.tabCancel()
 		}
@@ -435,6 +485,7 @@ func (c *Chrome) connect(ctx context.Context, agentID string, s *slot) (*instanc
 		s.target = t.TargetID
 	}
 	in.page = &cdpPage{tab: in.tabCtx}
+	c.openFrames(ctx, in, c.attach)
 	c.applyFilter(in)
 	return in, nil
 }
@@ -549,6 +600,9 @@ func (c *Chrome) stopLocked(s *slot, in *instance) {
 	}
 	s.inst.CompareAndSwap(in, nil)
 	c.forgetFilter(in)
+	if in.frames != nil {
+		in.frames.close() // the iframe sessions go with the connection
+	}
 	if in.attached {
 		// Attached: only disconnect; the browser and the agent's tab stay.
 		in.tabCancel()
@@ -602,6 +656,8 @@ func (c *Chrome) stop(agentID string) bool {
 	s.mu.Lock()
 	in := s.inst.Load()
 	c.stopLocked(s, in)
+	s.window.Store(false)
+	s.carry = nil
 	s.mu.Unlock()
 	return in != nil
 }
@@ -636,6 +692,23 @@ func (c *Chrome) Takeover(agentID, by string) error {
 
 // Handback implements browser.Browser.
 func (c *Chrome) Handback(agentID string) error {
+	if by, _ := c.ctl.Holder(agentID); by == "" {
+		return browser.ErrNotTakenOver
+	}
+	// A window takeover returns to headless first, while the agent is
+	// still paused. If that fails the tabs are kept for the next start.
+	c.mu.Lock()
+	s := c.slots[agentID]
+	c.mu.Unlock()
+	if s != nil {
+		s.mu.Lock()
+		if s.window.Load() {
+			ctx, cancel := context.WithTimeout(context.Background(), 2*c.start+30*time.Second)
+			_ = c.switchLocked(ctx, s, agentID, false)
+			cancel()
+		}
+		s.mu.Unlock()
+	}
 	if err := c.ctl.End(agentID); err != nil {
 		return err
 	}
@@ -649,10 +722,18 @@ func (c *Chrome) Handback(agentID string) error {
 // State implements browser.Browser.
 func (c *Chrome) State(agentID string) browser.State {
 	st := browser.State{Agent: agentID, Headless: c.headless, Attached: c.attach != "", View: "window"}
-	if c.headless {
+	st.TakenOverBy, st.Since = c.ctl.Holder(agentID)
+	c.mu.Lock()
+	s := c.slots[agentID]
+	c.mu.Unlock()
+	if s != nil {
+		st.Window = s.window.Load()
+	}
+	if c.headless && !st.Window {
 		st.View = "frames"
 	}
-	st.TakenOverBy, st.Since = c.ctl.Holder(agentID)
+	st.Headless = c.headless && !st.Window
+	st.CanWindow = c.canWindow()
 	in := c.peek(agentID)
 	if !in.alive() {
 		return st
