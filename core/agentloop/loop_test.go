@@ -516,3 +516,54 @@ func TestStoppedTurnIsNotResumed(t *testing.T) {
 		t.Fatalf("a stopped turn was resumed: %+v", q)
 	}
 }
+
+// Writing to an agent that waits for approval declines the request, and
+// the message is what the agent reads next, in the same turn.
+func TestReplyInsteadOfApproval(t *testing.T) {
+	e := newEnv(t, t.TempDir())
+	ad, _ := e.llms.Get("claude-code")
+	m := ad.(*mock.Adapter)
+	reg := kernel.Use[*tools.Registry](e.h.Root(), tools.ServiceKey)
+	ran := false
+	reg.Register(e.h.Root(), &tools.Tool{Name: "deploy", Category: tools.CategoryPublish, Description: "deploy",
+		Execute: func(context.Context, tools.Call) (tools.Result, error) { ran = true; return tools.Text("deployed"), nil }})
+	tools.PreExecute.Use(e.h.Root(), func(ctx context.Context, d *tools.Decision, next kernel.Next[*tools.Decision, *tools.Decision]) (*tools.Decision, error) {
+		if d.Call.Name == "deploy" {
+			d.RequireApproval("deploys need approval")
+		}
+		return next(ctx, d)
+	})
+	a, _ := e.agents.Create(agent.Spec{Name: "Dee"})
+	ss, _ := a.Session()
+	step := 0
+	m.Script = func(req llm.Request) (llm.Response, error) {
+		step++
+		if step == 1 {
+			return llm.Response{StopReason: "tool_use", Message: llm.Message{Role: llm.RoleAssistant, Parts: []llm.Part{
+				{Type: "tool_call", ToolCall: &llm.ToolCall{ID: "d1", Name: "deploy", Args: json.RawMessage(`{}`)}}}}}, nil
+		}
+		return llm.Response{StopReason: "end", Message: llm.TextMessage(llm.RoleAssistant, "ok: "+req.Messages[len(req.Messages)-1].Text())}, nil
+	}
+	send(t, a, "deploy to prod")
+	deadline := time.Now().Add(3 * time.Second)
+	for len(e.inbox.Pending()) == 0 && time.Now().Before(deadline) {
+		time.Sleep(10 * time.Millisecond)
+	}
+	if len(e.inbox.Pending()) != 1 {
+		t.Fatal("no approval asked")
+	}
+	send(t, a, "wait, deploy to staging first")
+	agentloop.WaitIdle(a, 3*time.Second)
+	if ran {
+		t.Fatal("the declined deploy ran")
+	}
+	if len(e.inbox.Pending()) != 0 {
+		t.Fatal("approval still pending")
+	}
+	if got := count(ss, session.TypeTurnStart); got != 1 {
+		t.Fatalf("turns = %d, want 1", got)
+	}
+	if _, text := lastAssistant(t, ss); !strings.Contains(text, "staging first") {
+		t.Fatalf("reply not read next: %q", text)
+	}
+}

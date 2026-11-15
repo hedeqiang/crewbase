@@ -16,6 +16,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/hedeqiang/crewbase/capabilities/approval"
 	"github.com/hedeqiang/crewbase/core/agent"
 	"github.com/hedeqiang/crewbase/core/llm"
 	"github.com/hedeqiang/crewbase/core/prompt"
@@ -143,6 +144,8 @@ type loop struct {
 	llms     *llm.Registry
 	toolsReg *tools.Registry
 	prompts  *prompt.Assembler
+
+	cur sync.Map // agent id → agent.Input of the running turn
 }
 
 // Plugin is the default driver.
@@ -198,6 +201,7 @@ var Plugin = kernel.Register(kernel.Spec{
 		for _, a := range l.agents.List() {
 			start(a)
 		}
+		agent.QueueChanged.Listen(c, l.replyInsteadOfApproval)
 		return nil
 	},
 })
@@ -224,6 +228,8 @@ func (l *loop) drive(ctx context.Context, a *agent.Agent) {
 
 func (l *loop) turn(parent context.Context, a *agent.Agent, in agent.Input) {
 	ctx, cancel := context.WithCancel(parent)
+	l.cur.Store(a.ID(), in)
+	defer l.cur.Delete(a.ID())
 	a.SetCurrent(in.ID, cancel)
 	a.SetStatus(agent.StatusRunning, "")
 	defer func() {
@@ -679,3 +685,35 @@ const StatusInterrupted = "interrupted"
 const ResumeNote = "[Crewbase restarted] Your previous turn was cut off in the middle by a restart; tool calls that were running then were interrupted. " +
 	"Pick up the same request where you left off: first check what is already done (files, commands' effects) instead of assuming, " +
 	"do not repeat actions with side effects that already happened, then finish the work."
+
+// RejectForReply is the rejection a pending approval gets when the person
+// writes instead of answering it.
+const RejectForReply = "The user sent a new message instead of approving this. Do not retry it; read their message and follow it."
+
+// replyInsteadOfApproval: a person who writes to an agent waiting for their
+// approval is answering it — the request is declined and their message is
+// what the agent reads next (it joins the running turn).
+func (l *loop) replyInsteadOfApproval(agentID string) {
+	a, ok := l.agents.Get(agentID)
+	if !ok {
+		return
+	}
+	v, ok := l.cur.Load(agentID)
+	if !ok {
+		return
+	}
+	cur := v.(agent.Input)
+	q := a.Queue()
+	if len(q) == 0 || !agent.Joinable(cur, q[0]) {
+		return
+	}
+	in, ok := kernel.Lookup[*approval.Inbox](l.c, approval.InboxKey)
+	if !ok {
+		return
+	}
+	for _, r := range in.Pending() {
+		if r.Agent == agentID && r.Session == cur.Session {
+			in.Decide(r.CallID, approval.Decision{Outcome: approval.OutcomeRejected, Message: RejectForReply, By: "reply"})
+		}
+	}
+}
