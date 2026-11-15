@@ -18,6 +18,7 @@ Crewbase（暂定名）是一个 Local-First、模型无关、插件优先的开
 | [参考笔记：常驻 Agent 与 Super-agent](references/always-on-agents.md) | Anthropic 常驻 Agent 五个基础件、DeepSeek Super-agent 架构，对照 Crewbase 的差距与吸纳计划 | 产品、工程 |
 | [ADR-0001 插件优先的内核](decisions/0001-plugin-first-kernel.md) | 为什么采用插件内核、为什么用 Go 移植而不是 fork | 工程 |
 | [ADR-0002 插件分四档运行](decisions/0002-plugin-runtime-tiers.md) | 内置 / 进程外 / WASM / 内容型 | 工程 |
+| [ADR-0003 团队](decisions/0003-teams.md) | 主机 → 团队 → 频道；团队是人 + Agent 的编组与共享资源边界（提议） | 产品、工程 |
 
 交互原型：仓库根目录 [`crewbase-prototype.html`](../crewbase-prototype.html)，浏览器直接打开。
 
