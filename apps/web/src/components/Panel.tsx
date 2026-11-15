@@ -1,7 +1,7 @@
 import { TaskBoard } from "./TaskBoard";
 import { useEffect, useMemo, useState } from "react";
-import { Archive, ArrowDown, ArrowUp, Globe, GripVertical, Link2, Minimize2, Pause, Play, Plus, Shuffle, Square, Trash, UserPlus, X } from "lucide-react";
-import { API, refString, type AgentView, type ChannelView, type ContextBreakdown, type ModelRef } from "../api";
+import { AlarmClock, Archive, ArrowDown, ArrowUp, Globe, GripVertical, Link2, Minimize2, Pause, Play, Plus, Shuffle, Square, Trash, UserPlus, X } from "lucide-react";
+import { API, refString, type Followup, type AgentView, type ChannelView, type ContextBreakdown, type ModelRef } from "../api";
 import { t, type Key } from "../i18n";
 import { activeModel, allModels, detailLabel, effortLabel, isExhausted, kfmt, modeLabel, modelLabel, pillTone, sameRef, statusLabel, until } from "../format";
 import { project } from "../projection";
@@ -327,8 +327,64 @@ function TaskTab({ agent }: { agent: AgentView }) {
           </div>
         ))
       )}
+      <Followups agent={agent} />
     </>
   );
+}
+
+/** Follow-ups the agent set for itself (followup_set): when each comes back. */
+function Followups({ agent }: { agent: AgentView }) {
+  const [list, setList] = useState<Followup[] | null>(null);
+  const load = () =>
+    API.followups(agent.id).then(
+      (r) => setList(r.followups),
+      () => setList(null),
+    );
+  // turns are when follow-ups are set or come back
+  useEffect(() => {
+    void load();
+  }, [agent.id, agent.status]);
+  if (!list || list.length === 0) return null;
+  const cancel = async (f: Followup) => {
+    try {
+      await API.cancelFollowup(agent.id, f.id);
+      await load();
+    } catch (e: any) {
+      toast(e?.message ?? String(e));
+    }
+  };
+  return (
+    <>
+      <div className="psec">{t("fu.title", { n: list.length })}</div>
+      {list.map((f) => (
+        <div className="qi" key={f.id}>
+          <span className="n">
+            <AlarmClock size={12} />
+          </span>
+          <span className="g">
+            <span className="qt">{f.note}</span>
+            <span className="small" style={{ display: "block" }}>
+              {dueLabel(f.due)}
+            </span>
+          </span>
+          <button className="ix" type="button" aria-label={t("fu.cancel")} title={t("fu.cancel")} onClick={() => void cancel(f)}>
+            <X size={13} />
+          </button>
+        </div>
+      ))}
+    </>
+  );
+}
+
+function dueLabel(iso: string): string {
+  const d = new Date(iso);
+  const now = new Date();
+  const hm = d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false });
+  const day = (x: Date) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
+  const diff = Math.round((day(d) - day(now)) / 86400000);
+  if (diff === 0) return t("fu.today", { time: hm });
+  if (diff === 1) return t("fu.tomorrow", { time: hm });
+  return t("fu.on", { date: d.toLocaleDateString([], { month: "numeric", day: "numeric" }), time: hm });
 }
 
 /** Models that can use provider-hosted web search / URL reading. */

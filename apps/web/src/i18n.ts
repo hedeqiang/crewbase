@@ -536,6 +536,11 @@ const zh = {
   "panel.queue": "{name} 的队列 · {n}",
   "panel.queueEmpty": "队列为空。发消息即可分配任务。",
   "panel.queueNext": "下一个",
+  "fu.title": "跟进提醒 · {n}",
+  "fu.cancel": "取消这个跟进",
+  "fu.today": "今天 {time} 回来",
+  "fu.tomorrow": "明天 {time} 回来",
+  "fu.on": "{date} {time} 回来",
   "panel.queueCancel": "取消",
   "panel.stop": "停止",
   "panel.pause": "暂停队列",
@@ -1114,6 +1119,11 @@ const zh = {
 export type Key = keyof typeof zh;
 
 const en: Partial<Record<Key, string>> = {
+  "fu.title": "Follow-ups · {n}",
+  "fu.cancel": "Cancel this follow-up",
+  "fu.today": "Back today at {time}",
+  "fu.tomorrow": "Back tomorrow at {time}",
+  "fu.on": "Back {date} at {time}",
   "ap.oldDaemon": "The running crewd is too old to add providers from here. Restart crewd and open this again.",
   "ap.loadFailed": "Could not load providers: {error}",
   "ap.vendors": "Model vendors",

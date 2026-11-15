@@ -768,7 +768,11 @@ export interface ImGateway {
   error?: string;
 }
 
+export type Followup = { id: string; agent: string; session: string; note: string; due: string; set: string };
+
 export const API = {
+  followups: (agent: string) => api<{ followups: Followup[] }>("GET", `/api/agents/${enc(agent)}/followups`),
+  cancelFollowup: (agent: string, id: string) => api("DELETE", `/api/agents/${enc(agent)}/followups/${enc(id)}`),
   imConfig: () => api<{ platforms: ImPlatform[]; gateways: ImGateway[] }>("GET", "/api/im/config"),
   saveIm: (id: string, b: Record<string, unknown>) => api<ImGateway>("PUT", `/api/im/config/${enc(id)}`, b),
   removeIm: (id: string) => api("DELETE", `/api/im/config/${enc(id)}`),

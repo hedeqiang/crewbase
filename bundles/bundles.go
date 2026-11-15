@@ -29,6 +29,7 @@ import (
 	_ "github.com/hedeqiang/crewbase/features/console"
 	_ "github.com/hedeqiang/crewbase/features/deepseek"
 	_ "github.com/hedeqiang/crewbase/features/devices"
+	_ "github.com/hedeqiang/crewbase/features/followups"
 	_ "github.com/hedeqiang/crewbase/features/gateway"
 	_ "github.com/hedeqiang/crewbase/features/goals"
 	_ "github.com/hedeqiang/crewbase/features/im"
@@ -116,6 +117,7 @@ var Base = kernel.Bundle{Name: "base", Entries: []kernel.Entry{
 	{ID: "deepseek-tools", Name: "@crewbase/deepseek-tools"},
 	{ID: "schedule", Name: "@crewbase/schedule", Config: map[string]any{"dir": "${root}"}},
 	{ID: "routines", Name: "@crewbase/routines", Config: map[string]any{"dir": "${root}"}},
+	{ID: "followups", Name: "@crewbase/followups"},
 	{ID: "alerts", Name: "@crewbase/alerts"},
 	{ID: "topics", Name: "@crewbase/topics"},
 	{ID: "audit", Name: "@crewbase/audit", Config: map[string]any{"dir": "${root}"}},
@@ -153,6 +155,7 @@ var Desktop = kernel.Bundle{Name: "desktop", Entries: []kernel.Entry{
 	{ID: "channel-api", Name: "@crewbase/channel-api"},
 	{ID: "webhook", Name: "@crewbase/webhook"},
 	{ID: "routines-api", Name: "@crewbase/routines-api"},
+	{ID: "followups-api", Name: "@crewbase/followups-api"},
 	{ID: "usage", Name: "@crewbase/usage"},
 	{ID: "workflows-api", Name: "@crewbase/workflows-api"},
 	{ID: "mcp-api", Name: "@crewbase/mcp-api"},
