@@ -53,6 +53,13 @@ func (a *Adapter) Models(context.Context) ([]llm.ModelInfo, error) {
 // SetKind sets the provider kind reported by Kind (subscription/api/local).
 func (a *Adapter) SetKind(k string) { a.kind = k }
 
+// SetDelay makes every request take d (cancellable, like a real model).
+func (a *Adapter) SetDelay(d time.Duration) {
+	a.mu.Lock()
+	a.delay = d
+	a.mu.Unlock()
+}
+
 // SetExhausted toggles simulated quota exhaustion.
 func (a *Adapter) SetExhausted(v bool) { a.exhausted.Store(v) }
 
@@ -74,13 +81,14 @@ func (a *Adapter) Stream(ctx context.Context, req llm.Request, onChunk func(llm.
 	a.mu.Lock()
 	a.requests = append(a.requests, req)
 	script := a.Script
+	delay := a.delay
 	a.mu.Unlock()
 	if a.exhausted.Load() {
 		return llm.Response{}, &llm.Error{Kind: llm.ErrQuotaExhausted, Provider: a.id, Message: "weekly limit reached", ResetsAt: time.Now().Add(time.Hour)}
 	}
-	if a.delay > 0 {
+	if delay > 0 {
 		select {
-		case <-time.After(a.delay):
+		case <-time.After(delay):
 		case <-ctx.Done():
 			return llm.Response{}, ctx.Err()
 		}

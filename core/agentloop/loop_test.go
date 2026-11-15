@@ -2,8 +2,8 @@ package agentloop_test
 
 import (
 	"context"
-	"fmt"
 	"encoding/json"
+	"fmt"
 	"os"
 	"strings"
 	"testing"
@@ -444,4 +444,75 @@ func TestStuckLoopIsNudgedThenStopped(t *testing.T) {
 		t.Fatalf("status %s %q", st, detail)
 	}
 	_ = ss
+}
+
+// A turn cut off by a shutdown is picked up again after the restart, once,
+// without repeating the person's message; a turn a person stopped is not.
+func TestInterruptedTurnResumesAfterRestart(t *testing.T) {
+	root := t.TempDir()
+	e := newEnv(t, root)
+	ad, _ := e.llms.Get("claude-code")
+	m := ad.(*mock.Adapter)
+	m.SetDelay(10 * time.Second) // still working when the host shuts down
+	a, _ := e.agents.Create(agent.Spec{Name: "Rex"})
+	ss, _ := a.Session()
+	send(t, a, "migrate the database")
+	deadline := time.Now().Add(3 * time.Second)
+	for len(m.Requests()) == 0 && time.Now().Before(deadline) {
+		time.Sleep(10 * time.Millisecond)
+	}
+	e.h.Close()
+
+	e2 := newEnv(t, root)
+	ad2, _ := e2.llms.Get("claude-code")
+	m2 := ad2.(*mock.Adapter)
+	var sawNote bool
+	m2.Script = func(req llm.Request) (llm.Response, error) {
+		for _, msg := range req.Messages {
+			if strings.Contains(msg.Text(), "Crewbase restarted") {
+				sawNote = true
+			}
+		}
+		return llm.Response{StopReason: "end", Message: llm.TextMessage(llm.RoleAssistant, "migration finished")}, nil
+	}
+	a2, _ := e2.agents.Get(a.ID())
+	agentloop.WaitIdle(a2, 3*time.Second)
+	ss2, _ := e2.agents.Sessions().Get(ss.ID())
+	if _, text := lastAssistant(t, ss2); text != "migration finished" || !sawNote {
+		t.Fatalf("not resumed: %q note=%v", text, sawNote)
+	}
+	if got := strings.Join(userTexts(ss2), "|"); got != "migrate the database" {
+		t.Fatalf("the message was repeated: %q", got)
+	}
+	e2.h.Close()
+
+	// a third start does not run it again
+	e3 := newEnv(t, root)
+	a3, _ := e3.agents.Get(a.ID())
+	if q := a3.Queue(); len(q) != 0 {
+		t.Fatalf("resumed twice: %+v", q)
+	}
+}
+
+func TestStoppedTurnIsNotResumed(t *testing.T) {
+	root := t.TempDir()
+	e := newEnv(t, root)
+	ad, _ := e.llms.Get("claude-code")
+	started := make(chan struct{}, 1)
+	ad.(*mock.Adapter).Script = func(req llm.Request) (llm.Response, error) {
+		started <- struct{}{}
+		time.Sleep(3 * time.Second)
+		return llm.Response{StopReason: "end", Message: llm.TextMessage(llm.RoleAssistant, "x")}, nil
+	}
+	a, _ := e.agents.Create(agent.Spec{Name: "Sid"})
+	send(t, a, "long task")
+	<-started
+	a.Stop()
+	agentloop.WaitIdle(a, 5*time.Second)
+	e.h.Close()
+	e2 := newEnv(t, root)
+	a2, _ := e2.agents.Get(a.ID())
+	if q := a2.Queue(); len(q) != 0 {
+		t.Fatalf("a stopped turn was resumed: %+v", q)
+	}
 }

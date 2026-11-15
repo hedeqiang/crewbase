@@ -66,7 +66,7 @@ type TurnStart struct {
 }
 
 type TurnEnd struct {
-	Status string `json:"status"` // completed | failed | cancelled
+	Status string `json:"status"` // completed | failed | cancelled | interrupted (shutdown)
 	Error  string `json:"error,omitempty"`
 	Steps  int    `json:"steps"`
 }
@@ -247,7 +247,10 @@ func (l *loop) turn(parent context.Context, a *agent.Agent, in agent.Input) {
 		return
 	}
 	in = *inp
-	if _, err := ss.Append(session.TypeUserMessage, "", session.UserMessage{Text: in.Text, From: in.From, To: a.ID(), Attachments: in.Attachments}); err != nil {
+	if in.Resumed {
+		// the message is already in the log; say what happened
+		_, _ = ss.Append(session.TypeInject, a.ID(), session.InjectData{Source: "restart", Text: ResumeNote})
+	} else if _, err := ss.Append(session.TypeUserMessage, "", session.UserMessage{Text: in.Text, From: in.From, To: a.ID(), Attachments: in.Attachments}); err != nil {
 		a.SetStatus(agent.StatusFailed, err.Error())
 		TurnEnded.Emit(d, TurnEndEvent{Agent: a.ID(), Session: ss.ID(), Input: in, TurnEnd: TurnEnd{Status: "failed", Error: "could not record input: " + err.Error()}})
 		return
@@ -269,7 +272,7 @@ func (l *loop) turn(parent context.Context, a *agent.Agent, in agent.Input) {
 	var watch stuckWatch
 	for steps < l.cfg.MaxSteps {
 		if ctx.Err() != nil {
-			l.endTurn(a, ss, in, TurnEnd{Status: "cancelled", Steps: steps})
+			l.endTurn(a, ss, in, TurnEnd{Status: stopStatus(parent), Steps: steps})
 			return
 		}
 		if steps > 0 {
@@ -281,7 +284,7 @@ func (l *loop) turn(parent context.Context, a *agent.Agent, in agent.Input) {
 		ref, resp, err = l.step(ctx, a, ss, ref, steps)
 		if err != nil {
 			if ctx.Err() != nil {
-				l.endTurn(a, ss, in, TurnEnd{Status: "cancelled", Steps: steps})
+				l.endTurn(a, ss, in, TurnEnd{Status: stopStatus(parent), Steps: steps})
 				return
 			}
 			l.endTurn(a, ss, in, TurnEnd{Status: "failed", Error: err.Error(), Steps: steps})
@@ -658,3 +661,21 @@ func (w *stuckWatch) verdict() stuckVerdict {
 	}
 	return stuckVerdict{}
 }
+
+// stopStatus is how a cancelled turn ends: "interrupted" when the host is
+// shutting down (picked up again after the restart), "cancelled" when a
+// person stopped it.
+func stopStatus(parent context.Context) string {
+	if parent.Err() != nil {
+		return StatusInterrupted
+	}
+	return "cancelled"
+}
+
+// StatusInterrupted ends a turn cut off by a shutdown.
+const StatusInterrupted = "interrupted"
+
+// ResumeNote starts a turn picked up again after a restart.
+const ResumeNote = "[Crewbase restarted] Your previous turn was cut off in the middle by a restart; tool calls that were running then were interrupted. " +
+	"Pick up the same request where you left off: first check what is already done (files, commands' effects) instead of assuming, " +
+	"do not repeat actions with side effects that already happened, then finish the work."

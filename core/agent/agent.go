@@ -106,6 +106,25 @@ type Input struct {
 	// Tag lets the producer recognise its own turns (e.g. "routine:<id>").
 	Tag    string    `json:"tag,omitempty"`
 	Queued time.Time `json:"queued"`
+	// Resumed marks an input whose turn was cut off by a restart and is
+	// picked up again (its message is already in the log).
+	Resumed bool `json:"resumed,omitempty"`
+}
+
+// resumable reports whether an input cut off by a restart is picked up
+// again: conversations (people, chat, follow-ups, job reports) are;
+// workflows, routines and goals are not (they record the interruption
+// themselves, and goals need re-authorisation after a restart).
+func resumable(in Input) bool {
+	if in.Tag == "" {
+		return true
+	}
+	for _, p := range []string{"im:", "followup:", "job:"} {
+		if strings.HasPrefix(in.Tag, p) {
+			return true
+		}
+	}
+	return false
 }
 
 // Agent is a live agent.
@@ -670,7 +689,9 @@ func (r *Registry) restoreQueue(a *Agent) {
 			continue
 		}
 		open := map[string]Input{}
+		all := map[string]Input{}
 		var order []string
+		running := "" // input whose turn started and has not ended
 		for _, e := range ss.Events() {
 			if e.Agent != a.spec.ID {
 				continue
@@ -680,6 +701,7 @@ func (r *Registry) restoreQueue(a *Agent) {
 				var in Input
 				if e.Decode(&in) == nil {
 					open[in.ID] = in
+					all[in.ID] = in
 					order = append(order, in.ID)
 				}
 			case session.TypeInputClaimed, session.TypeInputCancelled:
@@ -687,11 +709,31 @@ func (r *Registry) restoreQueue(a *Agent) {
 				if e.Decode(&m) == nil {
 					delete(open, m["id"])
 				}
+			case session.TypeTurnStart:
+				var m struct {
+					Input string `json:"input"`
+				}
+				if e.Decode(&m) == nil {
+					running = m.Input
+				}
+			case session.TypeTurnEnd:
+				var m struct {
+					Status string `json:"status"`
+				}
+				// a turn cut off by a shutdown is still unfinished
+				if e.Decode(&m) == nil && m.Status != "interrupted" {
+					running = ""
+				}
 			case session.TypeQueuePaused:
 				a.paused = true
 			case session.TypeQueueResumed:
 				a.paused = false
 			}
+		}
+		if in, ok := all[running]; ok && running != "" && resumable(in) {
+			in.Resumed, in.Front = true, true
+			in.Queued = time.Time{} // first
+			pending = append(pending, in)
 		}
 		for _, id := range order {
 			if in, ok := open[id]; ok {
