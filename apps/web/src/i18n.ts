@@ -1591,7 +1591,7 @@ const en: Partial<Record<Key, string>> = {
   "mode.sandbox": "Sandbox",
   "mode.host": "Host access",
   "tb.needsYou": "Needs you",
-  "list.search": "Search channels and agents",
+  "list.search": "Search",
   "list.needsYou": "Needs you",
   "dev.thisHost": "This computer",
   "dev.thisComputer": "This computer",

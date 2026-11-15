@@ -29,7 +29,6 @@ import {
 } from "../store";
 import { Avatar, MeAvatar } from "./Avatar";
 import { ListToggle } from "./Header";
-import { Logo } from "./Logo";
 import { RowMenuButton, RowMenuHost, openAddToFolder, openNewFolder, openRowMenu } from "./RowMenu";
 import { Popover, useMenu } from "./Popover";
 import { keyLabel } from "../shortcuts";
@@ -163,17 +162,15 @@ export function SessionList() {
   };
 
   return (
-    <aside className="list">
+    <aside className={"list" + (desktop() ? "" : " web")}>
       <RowMenuHost />
-      <div className="lbar">
-        {!desktop() && (
-          <span className="brand">
-            <Logo size={20} />
-            <b>Crewbase</b>
-          </span>
-        )}
-        <ListToggle />
-      </div>
+      {/* desktop: a bar under the window controls; web: the toggle is in the
+          conversation header, mirroring the right-panel toggle */}
+      {desktop() && (
+        <div className="lbar">
+          <ListToggle />
+        </div>
+      )}
       {teams.length > 1 && <TeamSwitcher teams={teams} current={team} />}
       <div className="lhead">
         <label className="search">
