@@ -75,7 +75,7 @@
 - [x] 桌面客户端（MyGo v0.9.0，纯 Go 无 CGO）：内嵌 / 连接已运行的 crewd、隐藏标题栏 + 红绿灯留位、托盘（需你 N、开机启动、关闭窗口后继续运行、退出）、Dock 角标、原生通知、单实例、深链（#/session、#/settings）、`make desktop` 产出 .app + .dmg；真实启动 / 关闭 / 再次启动 / 退出无残留已验证（D-1）
 - [x] 发版流水线：CI（vet、race 全量测试 Linux + macOS、Windows 交叉编译、网页构建）；推送 v* 标签 → 桌面三平台安装包 + 签名自动更新、crewd / crew / crew-relay 六平台压缩包、ghcr 镜像，全部成功后自动发布（docs/release.md）
 - [x] 桌面自动更新：本机生成 Ed25519 更新密钥（公钥在 mygo.json），更新窗口与「检查更新…」菜单；本机构建验证产出签名清单
-- [ ] 桌面：Developer ID 签名与公证（暂用临时签名，首次打开需右键打开）、Windows / Linux 实机运行；私钥需加入仓库 Secrets（`gh secret set MYGO_UPDATER_PRIVATE_KEY`）
+- [ ] 桌面（暂缓，暂无 Apple Developer ID）：Developer ID 签名与公证（暂用临时签名，首次打开需右键打开）、Windows / Linux 实机运行；私钥需加入仓库 Secrets（`gh secret set MYGO_UPDATER_PRIVATE_KEY`）
 
 ## Phase 2 — 多 Agent 协同、自动化、生态（第 7–12 周）
 - [x] `channel-local`：共享频道、单一负责人、交接工具与 Waterfall、停止 / 恢复 / 改派 / 归档（A-3 A-4 A-5）
@@ -286,6 +286,7 @@
 - [x] 第三期 · 团队共享：团队记忆 TEAM.md（团队每个 Agent 的提示词里都有，负责人在设置里编辑，Agent 用 team_memory_add 追加，不进其他团队）；MCP 服务器可共享给一个团队（team:<id>，一个连接，工具只给本团队 Agent）；团队默认运行权限（新 Agent 起始权限）；IM 网关可绑定团队（只能 @ 本团队 Agent，个人对话永远不能从 IM 访问）；团队用量（本期 tokens）。真实验证：主人在浏览器里建私密团队、设只读默认、写团队记忆、加入小王；小王的配对手机只看到自己的团队；真实模型（DeepSeek Flash）的客服用团队记忆回答并写入新约定，同团队的售后直接用上
 
 ## 体验修正
+- [x] 上手体验（全新安装、无模型实测）：欢迎页改为两步——①连接模型（加载中显示查找状态；没有模型时给出「用 API Key 连接」并说明 Claude Code / Codex / Ollama 等会自动发现；已连接时列出来源），②选一位队员；没有模型时输入框上方提示并可直接打开连接对话框；「provider not configured」类错误在对话和任务面板里显示为「还没有可用的模型」并带「连接模型」；修复：连接模型前创建的对话一直停在不存在的 Claude Code 上（仍是内置默认顺序、且一个都不可用的 Agent 会在模型连接后自动改用可用模型，启动时和运行中添加都会生效；手动选过的不动）；默认按 Enter 发送（Shift+Enter 换行，可在快捷键里改回 ⌘Enter）；手机首次打开不再被空列表挡住欢迎页
 - [x] 输入框里选工作目录：工具栏新增文件夹按钮（显示项目名或「默认工作区」），菜单里可原生选择文件夹（桌面客户端）、输入路径（支持 ~）、最近用过的文件夹、回到默认工作区、复制路径；切换后 Agent 收到说明；指令和记忆始终留在 Crewbase，不写进项目；去掉输入框下方的路径行
 
 ## 下一轮迭代计划（2026-11-15 再修订：吸纳常驻 Agent / Super-agent 两篇文章，见 docs/references/always-on-agents.md）

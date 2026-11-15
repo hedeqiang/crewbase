@@ -1,8 +1,8 @@
 import { keyLabel } from "../shortcuts";
-import { ArrowRight, Plus, MessageSquare } from "lucide-react";
+import { Check, KeyRound, Loader2, MessageSquare, Plus } from "lucide-react";
 import { useMemo, useState } from "react";
 import { t, type Key } from "../i18n";
-import { newChat, openNewAgent, openSettings, useStore, teamMode } from "../store";
+import { newChat, openConnect, openNewAgent, openSettings, useStore, teamMode } from "../store";
 import { AvatarRaw } from "./Avatar";
 import { Logo } from "./Logo";
 import { ShuffleButton, TEMPLATES, templatePage, type Draft } from "./NewAgent";
@@ -25,7 +25,10 @@ export function Welcome({ onTemplate }: { onTemplate: (d: Partial<Draft>) => voi
       .map((p) => ({ id: p.id, kind: p.kind, n: p.models.length, model: p.models[0]?.id }));
   }, [models]);
 
-  if (!first) {
+  const ready = sources.length > 0 || (models?.providers ?? []).some((p) => (p.models?.length ?? 0) > 0);
+
+  // keep the steps up until a model is connected, even after a first chat
+  if (!first && (ready || models === null)) {
     return (
       <div className="welcome quiet">
         <Logo size={40} />
@@ -54,10 +57,17 @@ export function Welcome({ onTemplate }: { onTemplate: (d: Partial<Draft>) => voi
       <h1>{name ? t("wel.hiName", { name }) : t("wel.hi")}</h1>
       <p className="lede">{t("wel.lede")}</p>
 
-      <div className="wsrc">
-        <div className="wsrc-h">{t("wel.found")}</div>
-        {sources.length > 0 ? (
-          <div className="wsrc-l">
+      <div className={"wstep" + (ready ? " done" : "")}>
+        <div className="wstep-h">
+          <span className="wnum">{ready ? <Check size={13} /> : 1}</span>
+          <b>{ready ? t("wel.step1Done") : t("wel.step1")}</b>
+        </div>
+        {models === null ? (
+          <p className="small muted wstep-b">
+            <Loader2 size={13} className="spin" /> {t("wel.looking")}
+          </p>
+        ) : sources.length > 0 ? (
+          <div className="wsrc-l wstep-b">
             {sources.slice(0, 6).map((s) => (
               <span key={s.id} className="wchip" title={s.id}>
                 <ProviderMark provider={s.id} model={s.model} size={14} />
@@ -66,14 +76,33 @@ export function Welcome({ onTemplate }: { onTemplate: (d: Partial<Draft>) => voi
               </span>
             ))}
             {sources.length > 6 && <span className="wchip muted">+{sources.length - 6}</span>}
+            <button className="linkbtn" type="button" onClick={openConnect}>
+              {t("wel.addMore")}
+            </button>
           </div>
         ) : (
-          <button className="linkbtn" type="button" onClick={() => openSettings("models")}>
-            {t("wel.noModels")} <ArrowRight size={13} />
-          </button>
+          <div className="wstep-b">
+            <p className="small muted">{t("wel.step1Desc")}</p>
+            <div className="wconn">
+              <button className="btn pri" type="button" onClick={openConnect}>
+                <KeyRound size={14} />
+                {t("wel.connectKey")}
+              </button>
+              <button className="btn" type="button" onClick={() => openSettings("models")}>
+                {t("wel.seeModels")}
+              </button>
+            </div>
+            <p className="small muted wfine">{t("wel.autoFound")}</p>
+          </div>
         )}
       </div>
 
+      <div className={"wstep" + (ready ? "" : " later")}>
+        <div className="wstep-h">
+          <span className="wnum">2</span>
+          <b>{t("wel.step2")}</b>
+        </div>
+      </div>
       <div className="wtplh">
         <span>{t("na.templates")}</span>
         <ShuffleButton page={page} onNext={() => setPage((p) => p + 1)} />

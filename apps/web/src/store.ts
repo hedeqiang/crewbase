@@ -112,6 +112,8 @@ export interface State {
   sessions: Record<string, SessionMeta>;
   approvals: ApprovalRequest[];
   models: ModelsResponse | null;
+  /** the 连接模型 dialog is open (from the welcome page, composer or an error) */
+  connecting: boolean;
   summaries: Record<string, SessionSummary>;
   channels: Record<string, ChannelView>;
   browser: Record<string, BrowserState>; // agent id → browser state
@@ -183,6 +185,7 @@ let state: State = {
   sessions: {},
   approvals: [],
   models: null,
+  connecting: false,
   summaries: {},
   channels: {},
   browser: {},
@@ -475,6 +478,14 @@ export async function refreshApprovals() {
   }
 }
 
+/** Whether any model can answer: null while the list is still loading. */
+export function hasModels(s: State = state): boolean | null {
+  if (!s.models) return null;
+  return (s.models.providers ?? []).some((p) => (p.models?.length ?? 0) > 0);
+}
+
+export const openConnect = () => setState({ connecting: true });
+
 export async function refreshModels() {
   try {
     // names and icons of providers added from the UI (older daemons lack the route)
@@ -617,6 +628,8 @@ export async function resync() {
     refreshUI(),
     refreshTeams(),
   ]);
+  // first run on a phone: the list is empty, the welcome steps matter
+  if (narrow() && state.listOpen && Object.keys(state.agents).length === 0) setState({ listOpen: false });
   for (const id of Object.keys(state.events)) void loadSession(id);
   if (state.current && !state.events[state.current]) void loadSession(state.current);
 }

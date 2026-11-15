@@ -24,8 +24,12 @@ export function statusTone(s: string): "run" | "wait" | "err" | "idle" | "ok" {
 }
 
 /** Human text for an agent's status detail ("takeover:<reason>", "approval:<id>"). */
+/** A failure because no model is set up (wording from core/llm). */
+export const NO_MODEL = /provider not configured|no (usable |available )?(model|provider)s?\b|unknown provider/i;
+
 export function detailLabel(detail?: string): string {
   if (!detail) return "";
+  if (NO_MODEL.test(detail)) return t("conn.none");
   if (detail.startsWith("takeover:")) return t("status.takeover", { reason: detail.slice(9) || "login" });
   if (detail.startsWith("approval:")) return t("list.waitApprove");
   return detail;

@@ -34,7 +34,7 @@ import { display, enterSends, MAC } from "../shortcuts";
 import { API, desktop, parseRef, refString, type AgentView, type ChannelView, type ContextBreakdown, type ModelRef } from "../api";
 import { t, type Key } from "../i18n";
 import { argsFull, argsPreview, project, type FeedItem, type Step } from "../projection";
-import { loadSession, openSession, refreshAgents, refreshSessions, setState, toast, useStore, sessionAgent } from "../store";
+import { hasModels, loadSession, openConnect, openSession, refreshAgents, refreshSessions, setState, toast, useStore, sessionAgent } from "../store";
 import { TakeoverCard, takeoverReason } from "./Browser";
 import { cloudVoice, dictate, dictationSupported, primeVoice, speak, speaking, speakSupported } from "../voice";
 import { addFiles, clearFiles, filesFrom, MsgAttachments, PendingChips } from "./Attachments";
@@ -54,6 +54,7 @@ import {
   sameRef,
   shortModelEffort,
   until,
+  NO_MODEL,
 } from "../format";
 import { Avatar } from "./Avatar";
 import { ApprovalActions } from "./Approval";
@@ -336,7 +337,16 @@ function FeedRow({ it, agents, showModel }: { it: FeedItem; agents: Record<strin
       return (
         <div className={"sys " + (it.tone === "error" ? "err" : it.tone)}>
           {it.tone === "error" && <span className="dot err" />}
-          <span>{it.key ? t(it.key as Key, it.vars) : it.text}</span>
+          {it.tone === "error" && NO_MODEL.test(it.text) ? (
+            <>
+              <span>{t("chat.noModelErr")}</span>
+              <button className="linkbtn" type="button" onClick={openConnect}>
+                {t("conn.connect")}
+              </button>
+            </>
+          ) : (
+            <span>{it.key ? t(it.key as Key, it.vars) : it.text}</span>
+          )}
         </div>
       );
   }
@@ -620,6 +630,7 @@ function Composer({
   lastModel?: ModelRef;
 }) {
   const agents = useStore((s) => s.agents);
+  const noModels = useStore((s) => hasModels(s) === false);
   const [mention, setMention] = useState<Mention | null>(null);
   const [msel, setMsel] = useState(0);
   const draft = useStore((s) => s.drafts[sessionId] ?? "");
@@ -821,6 +832,16 @@ function Composer({
           </button>
           <button className="btn dng" type="button" onClick={confirmHost}>
             {t("comp.hostOk")}
+          </button>
+        </div>
+      )}
+      {noModels && !archived && (
+        <div className="confirmbar nomodel">
+          <p>
+            <b>{t("conn.none")}</b> {t("conn.noneDesc")}
+          </p>
+          <button className="btn pri" type="button" onClick={openConnect}>
+            {t("conn.connect")}
           </button>
         </div>
       )}

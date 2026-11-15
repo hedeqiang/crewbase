@@ -15,6 +15,7 @@ import { TokenScreen } from "./components/TokenScreen";
 import { PairScreen, pairParams } from "./components/PairScreen";
 import { savedRelay, useRelay } from "./tunnel";
 import { NewChannel } from "./components/NewChannel";
+import { AddProviderDialog } from "./components/settings/AddProvider";
 
 export function App() {
   const authed = useStore((s) => s.authed);
@@ -171,6 +172,7 @@ function Shell() {
         )}
       </div>
       <Palette />
+      <ConnectModel />
       <NewChannel />
       <Toasts />
     </div>
@@ -188,4 +190,12 @@ function Toasts() {
       ))}
     </div>
   );
+}
+
+/** 连接模型, opened from wherever a missing model is noticed. */
+function ConnectModel() {
+  const on = useStore((s) => s.connecting);
+  const providers = useStore((s) => s.models?.providers);
+  if (!on) return null;
+  return <AddProviderDialog existing={(providers ?? []).map((p) => p.id)} onClose={() => setState({ connecting: false })} />;
 }

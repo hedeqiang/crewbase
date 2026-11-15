@@ -1060,11 +1060,13 @@ var Plugin = kernel.Register(kernel.Spec{
 			r.mu.Lock()
 			r.fallback = nil
 			r.mu.Unlock()
+			go r.adoptDefaults()
 		})
 		if err := c.Provide(ServiceKey, r); err != nil {
 			return err
 		}
 		r.loadAll()
+		go r.adoptDefaults() // providers registered before this plugin loaded
 		return nil
 	},
 })
@@ -1131,6 +1133,57 @@ func (r *Registry) computeDefaults(reg *llm.Registry, defs []llm.ModelRef) []llm
 		return defs
 	}
 	return out
+}
+
+// adoptDefaults moves agents that still have the built-in model order,
+// none of it configured (made before any model was connected, e.g. the
+// first chat of a fresh install), onto the models that are available now.
+// An order someone chose is never touched; failover handles those.
+func (r *Registry) adoptDefaults() {
+	reg, ok := kernel.Lookup[*llm.Registry](r.c, llm.ServiceKey)
+	if !ok {
+		return
+	}
+	defs := r.DefaultModels()
+	var now []llm.ModelRef
+	for _, a := range r.List() {
+		ms := a.Spec().Models
+		if !sameRefs(ms, defs) || anyConfigured(reg, ms) {
+			continue
+		}
+		if now == nil {
+			now = r.availableDefaults()
+			if !anyConfigured(reg, now) {
+				return // still nothing to move to
+			}
+		}
+		_ = a.Update(func(s *Spec) {
+			if sameRefs(s.Models, defs) {
+				s.Models = append([]llm.ModelRef(nil), now...)
+			}
+		})
+	}
+}
+
+func anyConfigured(reg *llm.Registry, ms []llm.ModelRef) bool {
+	for _, m := range ms {
+		if _, ok := reg.Get(m.Provider); ok {
+			return true
+		}
+	}
+	return false
+}
+
+func sameRefs(a, b []llm.ModelRef) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i].Provider != b[i].Provider || a[i].Model != b[i].Model {
+			return false
+		}
+	}
+	return true
 }
 
 // preferredModels ranks well-known strong models when a provider (such as

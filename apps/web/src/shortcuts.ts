@@ -77,12 +77,13 @@ export function fixedKeys(): { group: Shortcut["group"]; label: Key; keys: strin
 
 const ENTER_KEY = "crewbase.enterSends";
 
-/** Whether plain Enter sends a message (default: ⌘Enter sends). */
+/** Whether plain Enter sends a message (default yes; Shift+Enter is a new
+ *  line). Off, ⌘Enter sends and Enter is a new line. */
 export function enterSends(): boolean {
   try {
-    return localStorage.getItem(ENTER_KEY) === "1";
+    return localStorage.getItem(ENTER_KEY) !== "0";
   } catch {
-    return false;
+    return true;
   }
 }
 
