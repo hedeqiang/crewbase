@@ -7,7 +7,7 @@ import { modeLabel } from "../format";
 import { newChat, openNewAgent, openSession, openSettings, sessionAgent, setState, setTheme, toast, useStore } from "../store";
 import { Avatar } from "./Avatar";
 import { SlotIcon, runCommand, useSlot } from "./UISlots";
-import { SECTIONS, SECTION_ICONS } from "./Settings";
+import { SECTIONS, SECTION_ICONS } from "./settings/nav";
 
 interface Item {
   group: string;

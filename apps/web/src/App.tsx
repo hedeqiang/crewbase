@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import { API, desktop, initToken, openExternal, setUnauthorizedHandler, setToken } from "./api";
 import { t } from "./i18n";
 import { applyTheme, connectEvents, disconnectEvents, getState, resync, sessionAgent, setState, useStore, applyHashRoute } from "./store";
@@ -9,13 +9,15 @@ import { SessionList } from "./components/SessionList";
 import { Conversation } from "./components/Conversation";
 import { Panel } from "./components/Panel";
 import { NewAgent, emptyDraft, type Draft } from "./components/NewAgent";
-import { Settings } from "./components/Settings";
 import { Palette } from "./components/Palette";
 import { TokenScreen } from "./components/TokenScreen";
 import { PairScreen, pairParams } from "./components/PairScreen";
 import { savedRelay, useRelay } from "./tunnel";
 import { NewChannel } from "./components/NewChannel";
-import { AddProviderDialog } from "./components/settings/AddProvider";
+
+// Loaded when first opened: most sessions never visit settings.
+const Settings = lazy(() => import("./components/Settings").then((m) => ({ default: m.Settings })));
+const AddProviderDialog = lazy(() => import("./components/settings/AddProvider").then((m) => ({ default: m.AddProviderDialog })));
 
 export function App() {
   const authed = useStore((s) => s.authed);
@@ -153,7 +155,9 @@ function Shell() {
       {!connected && <div className="offline">{t("conn.offline")}</div>}
       <div className={cls}>
         {view === "settings" ? (
-          <Settings />
+          <Suspense fallback={<div className="center" />}>
+            <Settings />
+          </Suspense>
         ) : (
           <>
             {showList && <SessionList />}
@@ -197,5 +201,9 @@ function ConnectModel() {
   const on = useStore((s) => s.connecting);
   const providers = useStore((s) => s.models?.providers);
   if (!on) return null;
-  return <AddProviderDialog existing={(providers ?? []).map((p) => p.id)} onClose={() => setState({ connecting: false })} />;
+  return (
+    <Suspense fallback={null}>
+      <AddProviderDialog existing={(providers ?? []).map((p) => p.id)} onClose={() => setState({ connecting: false })} />
+    </Suspense>
+  );
 }

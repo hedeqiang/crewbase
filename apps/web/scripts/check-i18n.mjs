@@ -2,15 +2,16 @@
 // placeholders ({name}). Run by `pnpm build` (and so by CI).
 import { readFileSync } from "node:fs";
 
-const src = readFileSync(new URL("../src/i18n.ts", import.meta.url), "utf8");
-const block = (start) => {
+const zhSrc = readFileSync(new URL("../src/i18n.ts", import.meta.url), "utf8");
+const enSrc = readFileSync(new URL("../src/i18n.en.ts", import.meta.url), "utf8");
+const block = (start, src) => {
   const i = src.indexOf(start);
   const j = src.indexOf("\n};", i);
   return src.slice(i, j);
 };
 const entries = (b) => new Map([...b.matchAll(/\n {2}"([^"]+)": "((?:[^"\\]|\\.)*)"/g)].map((m) => [m[1], m[2]]));
-const zh = entries(block("const zh = {"));
-const en = entries(block("const en: Partial<Record<Key, string>> = {"));
+const zh = entries(block("const zh = {", zhSrc));
+const en = entries(block("export const en: Partial<Record<Key, string>> = {", enSrc));
 const ph = (s) => [...s.matchAll(/\{(\w+)\}/g)].map((m) => m[1]).sort().join(",");
 const missing = [...zh.keys()].filter((k) => !en.has(k));
 const extra = [...en.keys()].filter((k) => !zh.has(k));

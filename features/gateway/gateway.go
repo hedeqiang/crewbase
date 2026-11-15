@@ -24,6 +24,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/hedeqiang/crewbase/internal/spa"
+
 	"github.com/hedeqiang/crewbase/kernel"
 )
 
@@ -620,7 +622,7 @@ var Plugin = kernel.Register(kernel.Spec{
 			static = os.DirFS(cfg.WebDir)
 		}
 		if static != nil {
-			mux.Handle("/", spaHandler(static))
+			mux.Handle("/", spa.Handler(static))
 		}
 		ln, err := net.Listen("tcp", cfg.Addr)
 		if err != nil {
@@ -649,17 +651,3 @@ var Plugin = kernel.Register(kernel.Spec{
 
 // Listening reports the bound address.
 var Listening = kernel.NewEmit[string]("gateway/listening")
-
-func spaHandler(fsys fs.FS) http.Handler {
-	files := http.FileServer(http.FS(fsys))
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		p := strings.TrimPrefix(r.URL.Path, "/")
-		if p == "" {
-			p = "index.html"
-		}
-		if _, err := fs.Stat(fsys, p); err != nil {
-			r.URL.Path = "/"
-		}
-		files.ServeHTTP(w, r)
-	})
-}

@@ -9,10 +9,11 @@ import (
 	"io/fs"
 	"log/slog"
 	"net/http"
-	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/hedeqiang/crewbase/internal/spa"
 
 	"github.com/coder/websocket"
 )
@@ -81,7 +82,7 @@ func (s *Server) Handler() http.Handler {
 	})
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, _ *http.Request) { _, _ = w.Write([]byte("ok")) })
 	if s.cfg.Web != nil {
-		mux.Handle("/", webHandler(s.cfg.Web))
+		mux.Handle("/", spa.Handler(s.cfg.Web))
 	}
 	return securityHeaders(mux)
 }
@@ -92,20 +93,6 @@ func securityHeaders(h http.Handler) http.Handler {
 		w.Header().Set("Referrer-Policy", "no-referrer") // pairing links carry secrets in the fragment
 		w.Header().Set("X-Frame-Options", "DENY")
 		h.ServeHTTP(w, r)
-	})
-}
-
-func webHandler(fsys fs.FS) http.Handler {
-	files := http.FileServer(http.FS(fsys))
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		p := strings.TrimPrefix(r.URL.Path, "/")
-		if p == "" {
-			p = "index.html"
-		}
-		if _, err := fs.Stat(fsys, p); err != nil {
-			r.URL.Path = "/"
-		}
-		files.ServeHTTP(w, r)
 	})
 }
 

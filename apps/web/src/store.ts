@@ -26,7 +26,7 @@ import {
 } from "./api";
 import { tunnelEvents, viaRelay } from "./tunnel";
 import { notifyApprovals } from "./companion";
-import { getLang, setLang as setLangRaw, t, type Lang } from "./i18n";
+import { getLang, loadLang, setLang as setLangRaw, t, type Lang } from "./i18n";
 import { setUserProviders } from "./format";
 
 export type View = "chat" | "newAgent" | "settings";
@@ -267,7 +267,8 @@ export function setTheme(t: Theme) {
   setState({ theme: t });
 }
 
-export function setLang(l: Lang) {
+export async function setLang(l: Lang) {
+  await loadLang(l);
   setLangRaw(l);
   setState({ lang: l });
   // plugin entries and team names have per-language wording
