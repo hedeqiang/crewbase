@@ -7,6 +7,8 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/url"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -183,5 +185,29 @@ func TestCreateChat(t *testing.T) {
 	}
 	if code, _ := do(t, base, tok, "POST", "/api/agents", map[string]any{}); code != 400 {
 		t.Fatalf("agents still need a name: %d", code)
+	}
+}
+
+// Clients cannot create subagents, and a folder an agent works in directly
+// must be a real project folder.
+func TestCreateGuards(t *testing.T) {
+	base, _ := start(t)
+	if code, _ := do(t, base, tok, "POST", "/api/agents", map[string]any{"name": "x", "ephemeral": true}); code != 400 {
+		t.Fatalf("ephemeral via API: %d", code)
+	}
+	if code, _ := do(t, base, tok, "POST", "/api/agents", map[string]any{"name": "x", "parent": "kai"}); code != 400 {
+		t.Fatalf("parent via API: %d", code)
+	}
+	home, _ := os.UserHomeDir()
+	for _, dir := range []string{"/", "relative/dir", home, "/no/such/dir"} {
+		if code, _ := do(t, base, tok, "POST", "/api/agents", map[string]any{"kind": "chat", "sharedWorkspace": dir}); code != 400 {
+			t.Fatalf("project folder %q accepted: %d", dir, code)
+		}
+	}
+	proj := t.TempDir()
+	code, out := do(t, base, tok, "POST", "/api/agents", map[string]any{"kind": "chat", "sharedWorkspace": proj})
+	real, _ := filepath.EvalSymlinks(proj)
+	if code != 200 || out["workspace"] != real {
+		t.Fatalf("project folder: %d %v", code, out)
 	}
 }

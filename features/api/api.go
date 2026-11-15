@@ -147,6 +147,10 @@ var Plugin = kernel.Register(kernel.Spec{
 				if b.Kind != "" && b.Kind != agent.KindChat {
 					return gateway.BadRequest("unknown kind %q", b.Kind)
 				}
+				// subagents only; a project folder is checked by the registry
+				if b.Ephemeral || b.Parent != "" {
+					return gateway.BadRequest("ephemeral agents are created by delegation only")
+				}
 				if b.Mode == agent.ModeHost {
 					return gateway.BadRequest("host mode cannot be enabled at creation")
 				}

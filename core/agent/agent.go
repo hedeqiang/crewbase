@@ -528,6 +528,13 @@ func (r *Registry) Create(spec Spec) (*Agent, error) {
 	if spec.Mode == "" {
 		spec.Mode = ModeSandbox
 	}
+	if spec.SharedWorkspace != "" && !spec.Ephemeral {
+		dir, err := r.ProjectDir(spec.SharedWorkspace)
+		if err != nil {
+			return nil, err
+		}
+		spec.SharedWorkspace = dir
+	}
 	if len(spec.Models) == 0 {
 		spec.Models = r.availableDefaults()
 	}
@@ -697,6 +704,41 @@ func (r *Registry) Names() map[string]string {
 		m[a.ID()] = a.Spec().Name
 	}
 	return m
+}
+
+// ProjectDir checks a folder an agent is to work in directly (an editor's
+// project, `crew acp`): an absolute, existing directory that is neither the
+// file-system root, the home directory itself, nor inside Crewbase's data
+// directory. It returns the cleaned path with symlinks resolved.
+func (r *Registry) ProjectDir(dir string) (string, error) {
+	if !filepath.IsAbs(dir) {
+		return "", fmt.Errorf("project folder %q is not an absolute path", dir)
+	}
+	real, err := filepath.EvalSymlinks(filepath.Clean(dir))
+	if err != nil {
+		return "", fmt.Errorf("project folder: %w", err)
+	}
+	st, err := os.Stat(real)
+	if err != nil || !st.IsDir() {
+		return "", fmt.Errorf("project folder %q is not a directory", dir)
+	}
+	if filepath.Dir(real) == real {
+		return "", errors.New("the file-system root cannot be a project folder")
+	}
+	if home, err := os.UserHomeDir(); err == nil {
+		if h, err := filepath.EvalSymlinks(home); err == nil && h == real {
+			return "", errors.New("the home folder itself cannot be a project folder; open a project inside it")
+		}
+	}
+	if root, err := filepath.EvalSymlinks(r.root); err == nil {
+		if rel, err := filepath.Rel(root, real); err == nil && (rel == "." || !strings.HasPrefix(rel, "..")) {
+			return "", errors.New("a project folder cannot be inside Crewbase's data directory")
+		}
+		if rel, err := filepath.Rel(real, root); err == nil && !strings.HasPrefix(rel, "..") {
+			return "", errors.New("a project folder cannot contain Crewbase's data directory")
+		}
+	}
+	return real, nil
 }
 
 // Delete unpublishes an agent and disposes its scope. Its workspace stays
