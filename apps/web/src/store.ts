@@ -116,6 +116,8 @@ export interface State {
   channels: Record<string, ChannelView>;
   browser: Record<string, BrowserState>; // agent id → browser state
   newChannel: boolean;
+  /** folder new things are created in (the folder's + / menu), once */
+  createIn: string;
   modelsTab: "providers" | "routing";
   /** File to open in the right panel's 文件 tab. */
   fileOpen: string | null;
@@ -185,6 +187,7 @@ let state: State = {
   channels: {},
   browser: {},
   newChannel: false,
+  createIn: "",
   modelsTab: "providers",
   fileOpen: null,
   mcpTick: 0,
@@ -372,9 +375,9 @@ export async function refreshTeams() {
 }
 
 /** 新对话: a blank chat on the default model, opened right away. */
-export async function newChat() {
+export async function newChat(folder?: string) {
   try {
-    const a = await API.createAgent({ kind: "chat", team: currentTeam() });
+    const a = await API.createAgent({ kind: "chat", team: currentTeam(), folder: folder || undefined });
     setState((s) => ({ agents: { ...s.agents, [a.id]: a }, palette: false }));
     await refreshSessions();
     openSession(a.session);
@@ -383,8 +386,8 @@ export async function newChat() {
   }
 }
 
-export function openNewAgent() {
-  setState({ view: "newAgent", palette: false, listOpen: narrow() ? false : state.listOpen });
+export function openNewAgent(folder = "") {
+  setState({ view: "newAgent", palette: false, createIn: folder, listOpen: narrow() ? false : state.listOpen });
 }
 
 // ---------------------------------------------------------------- server sync
@@ -451,8 +454,8 @@ export async function refreshChannel(id: string) {
   }
 }
 
-export function openNewChannel() {
-  setState({ newChannel: true, palette: false });
+export function openNewChannel(folder = "") {
+  setState({ newChannel: true, palette: false, createIn: folder });
 }
 
 let sumTimer: number | undefined;

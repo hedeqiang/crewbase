@@ -89,7 +89,7 @@ export function Welcome({ onTemplate }: { onTemplate: (d: Partial<Draft>) => voi
       </div>
 
       <div className="wacts">
-        <button className="btn pri wnew" type="button" onClick={openNewAgent}>
+        <button className="btn pri wnew" type="button" onClick={() => openNewAgent()}>
           <Plus size={15} />
           {t("wel.blank")}
         </button>

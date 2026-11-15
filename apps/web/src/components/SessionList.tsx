@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Bot, Check, ChevronDown, ChevronRight, Lock, Users, Workflow, FolderPlus, Hash, LifeBuoy, LogOut, Moon, Plus, Power, Search, Settings, Keyboard, MessageSquare } from "lucide-react";
+import { Bot, Check, ChevronDown, ChevronRight, FolderInput, Lock, Users, Workflow, FolderPlus, Hash, LifeBuoy, LogOut, Moon, Plus, Power, Search, Settings, Keyboard, MessageSquare } from "lucide-react";
 import type { AgentView, SessionMeta, UsageStats } from "../api";
 import { API, desktop, openExternal, setToken, teamOf, type TeamView } from "../api";
 import { t } from "../i18n";
@@ -30,7 +30,7 @@ import {
 import { Avatar, MeAvatar } from "./Avatar";
 import { ListToggle } from "./Header";
 import { Logo } from "./Logo";
-import { RowMenuButton, RowMenuHost, openNewFolder, openRowMenu } from "./RowMenu";
+import { RowMenuButton, RowMenuHost, openAddToFolder, openNewFolder, openRowMenu } from "./RowMenu";
 import { Popover, useMenu } from "./Popover";
 import { keyLabel } from "../shortcuts";
 
@@ -262,7 +262,27 @@ export function SessionList() {
                 </div>
               )}
               {!folded[folder] && g.agents.map(agentRow)}
-              {folder && !folded[folder] && g.agents.length + g.channels.length === 0 && <div className="lfempty">{t("list.emptyFolder")}</div>}
+              {folder && !folded[folder] && g.agents.length + g.channels.length === 0 && (
+                <div className="lfempty">
+                  <span>{t("list.emptyFolder")}</span>
+                  {manage && (
+                    <span className="lfacts">
+                      <button type="button" className="chipbtn" onClick={() => void newChat(folder)}>
+                        <MessageSquare size={12} />
+                        {t("list.newChat")}
+                      </button>
+                      <button type="button" className="chipbtn" onClick={() => openNewAgent(folder)}>
+                        <Bot size={12} />
+                        {t("list.newAgent")}
+                      </button>
+                      <button type="button" className="chipbtn" onClick={() => openAddToFolder(folder)}>
+                        <FolderInput size={12} />
+                        {t("rm.folderAddExisting")}
+                      </button>
+                    </span>
+                  )}
+                </div>
+              )}
             </div>
           );
         })}

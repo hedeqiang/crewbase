@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Check, ChevronDown, FileUp, Folder, Shield, RefreshCw } from "lucide-react";
+import { Check, ChevronDown, FileUp, Folder, Shield, RefreshCw, Dices } from "lucide-react";
 import { API, refString, type ModelRef } from "../api";
 import { ImportRoleDialog } from "./ImportRole";
 import { t, type Key } from "../i18n";
@@ -76,12 +76,22 @@ export function NewAgent({ draft: f, setDraft }: { draft: Draft; setDraft: (d: D
   const [tplPage, setTplPage] = useState(0);
   const nameRef = useRef<HTMLInputElement>(null);
   const modelM = useMenu();
+  const [poke, setPoke] = useState(0);
   const modeM = useMenu();
   const all = useMemo(() => allModels(models), [models]);
   const folders = useFolders();
   // the team on screen may start its agents read-only (teams load after
   // the draft was first made)
   const teamDefault = useStore((s) => s.teams.find((x) => x.id === s.team)?.defaultMode);
+  // opened from a folder's + : the agent goes into that folder
+  const createIn = useStore((s) => s.createIn);
+  useEffect(() => {
+    if (createIn) {
+      setDraft({ ...f, folder: createIn });
+      setState({ createIn: "" });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [createIn]);
   useEffect(() => {
     if (teamDefault === "read-only" && f.mode === "sandbox") setDraft({ ...f, mode: "read-only" });
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -149,8 +159,31 @@ export function NewAgent({ draft: f, setDraft }: { draft: Draft; setDraft: (d: D
       <div className="na">
         <div className="na-col">
           <div className="na-hero">
-            <AvatarRaw color={f.color} shape={f.shape} size={92} name={f.name} />
+            <button
+              type="button"
+              className="na-heroav"
+              key={f.color + f.shape + poke}
+              title={t("na.poke")}
+              aria-label={t("na.poke")}
+              onClick={() => setPoke((n) => n + 1)}
+            >
+              <AvatarRaw color={f.color} shape={f.shape} size={92} name={f.name} />
+            </button>
             <b className="na-prev">{f.name.trim() || t("na.newAgent")}</b>
+            <button
+              type="button"
+              className="btn ghost sm na-dice"
+              onClick={() => {
+                const pickOther = <T,>(xs: readonly T[], cur: T) => {
+                  const rest = xs.filter((x) => x !== cur);
+                  return rest[Math.floor(Math.random() * rest.length)];
+                };
+                set({ color: pickOther(COLORS, f.color), shape: pickOther(SHAPES, f.shape as (typeof SHAPES)[number]) });
+              }}
+            >
+              <Dices size={14} />
+              {t("na.random")}
+            </button>
           </div>
           <div className="na-colors" role="radiogroup" aria-label={t("na.color")}>
             {COLORS.map((c) => (

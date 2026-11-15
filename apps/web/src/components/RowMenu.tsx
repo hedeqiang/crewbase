@@ -1,8 +1,10 @@
-import { Archive, FolderInput, FolderMinus, MoreHorizontal, Pencil, Trash2 } from "lucide-react";
+import { Archive, Bot, Check, FolderInput, FolderMinus, Hash, MessageSquare, MoreHorizontal, Pencil, Trash2 } from "lucide-react";
 import { useEffect, useRef, useState, type MouseEvent, type ReactNode } from "react";
 import { API, type AgentView, type SessionMeta } from "../api";
 import { t } from "../i18n";
-import { getState, resync, setState, toast, useFolders } from "../store";
+import { getState, newChat, openNewAgent, openNewChannel, resync, setState, toast, useFolders, useStore } from "../store";
+import { teamOf } from "../api";
+import { Avatar } from "./Avatar";
 
 type Target = { kind: "agent"; agent: AgentView } | { kind: "channel"; meta: SessionMeta } | { kind: "folder"; name: string };
 
@@ -59,9 +61,11 @@ export function RowMenuHost() {
   useEffect(() => {
     opener = setOpen;
     creator = () => setDialog({ kind: "create", target: { kind: "folder", name: "" } });
+    adder = (folder) => setDialog({ kind: "add", target: { kind: "folder", name: folder } });
     return () => {
       opener = null;
       creator = null;
+      adder = null;
     };
   }, []);
   useEffect(() => {
@@ -104,6 +108,11 @@ export function RowMenuHost() {
       <div ref={ref} className="pop menu rowmenu" style={{ left, top, width: 210 }} role="menu">
         {tg.kind === "folder" ? (
           <>
+            {item(<MessageSquare size={15} />, t("rm.folderNewChat"), () => void newChat(tg.name))}
+            {item(<Bot size={15} />, t("rm.folderNewAgent"), () => openNewAgent(tg.name))}
+            {item(<Hash size={15} />, t("rm.folderNewChannel"), () => openNewChannel(tg.name))}
+            {item(<FolderInput size={15} />, t("rm.folderAddExisting"), () => setDialog({ kind: "add", target: tg }))}
+            <div className="msep" />
             {item(<Pencil size={15} />, t("rm.renameFolder"), () => setDialog({ kind: "rename", target: tg }))}
             {item(<FolderMinus size={15} />, t("rm.dissolve"), () => setDialog({ kind: "delete", target: tg }), true)}
           </>
@@ -129,7 +138,8 @@ export function RowMenuHost() {
   return (
     <>
       {menu()}
-      {dialog && <RowDialog d={dialog} folders={folders} onClose={() => setDialog(null)} />}
+      {dialog && dialog.kind === "add" && dialog.target.kind === "folder" && <AddToFolder folder={dialog.target.name} onClose={() => setDialog(null)} />}
+      {dialog && dialog.kind !== "add" && <RowDialog d={dialog} folders={folders} onClose={() => setDialog(null)} />}
     </>
   );
 }
@@ -147,7 +157,90 @@ function nameOf(tg: Target) {
   return tg.kind === "agent" ? tg.agent.name : tg.kind === "channel" ? tg.meta.title || tg.meta.id : tg.name;
 }
 
-type DialogKind = "rename" | "move" | "delete" | "create";
+type DialogKind = "rename" | "move" | "delete" | "create" | "add";
+
+/** Opens a folder's 「添加已有…」 picker. */
+export function openAddToFolder(folder: string) {
+  adder?.(folder);
+}
+let adder: ((folder: string) => void) | null = null;
+
+/** 把已有的 Agent / 频道 / 对话放进文件夹: tick several, move them at once. */
+function AddToFolder({ folder, onClose }: { folder: string; onClose: () => void }) {
+  const agents = useStore((s) => s.agents);
+  const sessions = useStore((s) => s.sessions);
+  const team = useStore((s) => s.team);
+  const summaries = useStore((s) => s.summaries);
+  const [pick, setPick] = useState<Set<string>>(new Set());
+  const [busy, setBusy] = useState(false);
+  const rows = [
+    ...Object.values(agents)
+      .filter((a) => teamOf(a) === team && (a.folder ?? "") !== folder)
+      .map((a) => ({ id: "a:" + a.id, name: a.kind === "chat" ? summaries[a.session]?.topic || a.name : a.name, sub: a.folder || t("rm.topLevel"), agent: a })),
+    ...Object.values(sessions)
+      .filter((m) => m.kind === "channel" && teamOf(m) === team && (m.folder ?? "") !== folder)
+      .map((m) => ({ id: "c:" + m.id, name: "# " + (m.title || m.id), sub: m.folder || t("rm.topLevel"), agent: undefined })),
+  ];
+  const toggle = (id: string) =>
+    setPick((p) => {
+      const n = new Set(p);
+      if (n.has(id)) n.delete(id);
+      else n.add(id);
+      return n;
+    });
+  const save = async () => {
+    setBusy(true);
+    try {
+      for (const id of pick) {
+        if (id.startsWith("a:")) await API.patchAgent(id.slice(2), { folder });
+        else await API.updateChannel(id.slice(2), { folder });
+      }
+      toast(t("rm.addedToFolder", { n: pick.size, folder }));
+      await resync();
+      onClose();
+    } catch (e: any) {
+      toast(t("rm.failed", { error: e?.message ?? String(e) }));
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <>
+      <div className="scrim" onClick={onClose} />
+      <div className="modal rmd" role="dialog" aria-modal="true" aria-label={t("rm.addTitle", { folder })}>
+        <div className="mhd">
+          <b>{t("rm.addTitle", { folder })}</b>
+        </div>
+        <div className="mbd">
+          {rows.length === 0 ? (
+            <p className="small">{t("rm.addNone")}</p>
+          ) : (
+            <div className="mpick" role="listbox" aria-multiselectable="true">
+              {rows.map((r) => (
+                <button key={r.id} type="button" role="option" aria-selected={pick.has(r.id)} className="mopt" onClick={() => toggle(r.id)}>
+                  {r.agent ? <Avatar agent={r.agent} size={22} /> : <Hash size={16} className="muted" />}
+                  <span className="g">
+                    <b>{r.name}</b>
+                    <span className="small">{r.sub}</span>
+                  </span>
+                  <span className="ck">{pick.has(r.id) && <Check size={14} />}</span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+        <div className="mft">
+          <button className="btn ghost" type="button" onClick={onClose}>
+            {t("common.cancel")}
+          </button>
+          <button className="btn pri" type="button" disabled={busy || pick.size === 0} onClick={() => void save()}>
+            {t("rm.addBtn", { n: pick.size })}
+          </button>
+        </div>
+      </div>
+    </>
+  );
+}
 
 function RowDialog({ d, folders, onClose }: { d: { kind: DialogKind; target: Target }; folders: string[]; onClose: () => void }) {
   const tg = d.target;

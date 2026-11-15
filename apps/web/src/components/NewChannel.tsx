@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Check, Folder, Hash, X } from "lucide-react";
 import { API, teamOf } from "../api";
 import { t } from "../i18n";
-import { openSession, refreshChannels, refreshSessions, setState, toast, useFolders, useStore } from "../store";
+import { openSession, refreshChannels, refreshSessions, setState, toast, useFolders, useStore, getState } from "../store";
 import { Avatar } from "./Avatar";
 
 /** 新建频道: name, members (first selected = owner), folder (docs/03 §5.2). */
@@ -17,14 +17,14 @@ function Dialog() {
   const team = useStore((s) => s.team);
   const [name, setName] = useState("");
   const [members, setMembers] = useState<string[]>([]);
-  const [folder, setFolder] = useState("");
+  const [folder, setFolder] = useState(() => getState().createIn);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const nameRef = useRef<HTMLInputElement>(null);
   // a channel lives in one team: the team the sidebar shows
   const list = useMemo(() => Object.values(agents).filter((a) => a.kind !== "chat" && teamOf(a) === team).sort((a, b) => a.name.localeCompare(b.name)), [agents, team]);
   const folders = useFolders();
-  const close = () => setState({ newChannel: false });
+  const close = () => setState({ newChannel: false, createIn: "" });
 
   useEffect(() => {
     nameRef.current?.focus();
