@@ -59,6 +59,9 @@ func run(check bool) error {
 			b, _ := os.ReadFile(p)
 			if !bytes.Equal(b, out) {
 				stale = append(stale, p)
+				if len(stale) == 1 {
+					firstDiff(b, out)
+				}
 			}
 			continue
 		}
@@ -341,4 +344,22 @@ func render(goComps, webComps []component) []byte {
 	section("Go modules (crewd, crew, crew-relay and the desktop app)", goComps)
 	section("Web UI (bundled npm packages)", webComps)
 	return b.Bytes()
+}
+
+// firstDiff prints where the committed file and the fresh one part.
+func firstDiff(old, cur []byte) {
+	a, b := strings.Split(string(old), "\n"), strings.Split(string(cur), "\n")
+	for i := 0; i < max(len(a), len(b)); i++ {
+		var x, y string
+		if i < len(a) {
+			x = a[i]
+		}
+		if i < len(b) {
+			y = b[i]
+		}
+		if x != y {
+			fmt.Fprintf(os.Stderr, "first difference at line %d:\n  committed: %q\n  generated: %q\n", i+1, x, y)
+			return
+		}
+	}
 }
