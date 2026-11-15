@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import {
-  BadgeCheck, Bug, CalendarDays, Check, FolderInput, GitCommitHorizontal, Globe, ListChecks, LogIn, Megaphone,
+  BadgeCheck, Bug, CalendarDays, Check, Copy, ExternalLink, FolderInput, GitCommitHorizontal, Globe, ListChecks, LogIn, Megaphone,
   MoreHorizontal, Plug, Plus, Search, SearchCode, Server, ShieldAlert, Sparkles, Table, X,
 } from "lucide-react";
-import { API, api, type MarketEntry, type McpServer, type PluginView } from "../../api";
+import { API, api, desktop, openExternal, type MarketEntry, type McpServer, type PluginView } from "../../api";
 import { getLang, t, type Key } from "../../i18n";
 import { setState, toast, useStore } from "../../store";
 import { Head } from "../Settings";
@@ -12,8 +12,9 @@ import { MonoMark } from "../ProviderMark";
 import { ApproveDialog, errMsg, MCP_TONE, McpForm, McpTools, PluginCards, stateLabel } from "./ExtParts";
 
 // Brand icons from LobeHub Icons (@lobehub/icons-static-svg, MIT), as in
-// ProviderMark: only marks that exist in the package; everything else gets
-// our own letter tile.
+// ProviderMark, where the package has the mark; the others are the
+// companies' own marks from their brand pages or sites (src/assets/brands,
+// credited in THIRD_PARTY_NOTICES.txt). Anything else gets a letter tile.
 import github from "@lobehub/icons-static-svg/icons/github.svg?raw";
 import notion from "@lobehub/icons-static-svg/icons/notion.svg?raw";
 import cloudflare from "@lobehub/icons-static-svg/icons/cloudflare-color.svg?raw";
@@ -22,10 +23,22 @@ import figma from "@lobehub/icons-static-svg/icons/figma-color.svg?raw";
 import huggingface from "@lobehub/icons-static-svg/icons/huggingface-color.svg?raw";
 import devin from "@lobehub/icons-static-svg/icons/devin-color.svg?raw";
 import exa from "@lobehub/icons-static-svg/icons/exa-color.svg?raw";
-import brave from "@lobehub/icons-static-svg/icons/brave-color.svg?raw";
 import mcp from "@lobehub/icons-static-svg/icons/mcp.svg?raw";
+import context7 from "../../assets/brands/context7.svg?raw";
+import sentry from "../../assets/brands/sentry.svg?raw";
+import linear from "../../assets/brands/linear.svg?raw";
+import stripe from "../../assets/brands/stripe.svg?raw";
+import atlassian from "../../assets/brands/atlassian.svg?raw";
+import canva from "../../assets/brands/canva.svg?raw";
 
-const BRAND: Record<string, string> = { github, notion, cloudflare, google, figma, huggingface, devin, exa, brave, mcp };
+/** A mark and how it sits in the 40px tile: "tile" = the mark is its own
+ *  rounded square and fills the tile; "wide" = a wordmark. */
+const BRAND: Record<string, { svg: string; fit?: "tile" | "wide" }> = {
+  github: { svg: github }, notion: { svg: notion }, cloudflare: { svg: cloudflare }, google: { svg: google },
+  figma: { svg: figma }, huggingface: { svg: huggingface }, devin: { svg: devin }, exa: { svg: exa }, mcp: { svg: mcp },
+  context7: { svg: context7, fit: "tile" }, stripe: { svg: stripe, fit: "tile" }, sentry: { svg: sentry },
+  linear: { svg: linear }, atlassian: { svg: atlassian }, canva: { svg: canva, fit: "wide" },
+};
 const SKILL_ICONS: Record<string, ReactNode> = {
   "search-code": <SearchCode size={19} />, "git-commit": <GitCommitHorizontal size={19} />, bug: <Bug size={19} />,
   megaphone: <Megaphone size={19} />, globe: <Globe size={19} />, table: <Table size={19} />,
@@ -43,7 +56,9 @@ interface CatItem {
   name: string;
   icon?: string;
   desc: Text;
-  auth: "none" | "oauth" | "token" | "setup";
+  /** device = a built-in sign-in (signIn) runs; inputs are only its fallback. */
+  auth: "none" | "oauth" | "token" | "setup" | "device";
+  signIn?: string;
   docs?: string;
   setup?: Text;
   inputs?: CatInput[];
@@ -56,16 +71,94 @@ interface CatItem {
 interface CatCategory { id: string; title: Text; desc: Text }
 interface Catalog { categories: CatCategory[]; items: CatItem[] }
 interface SkillView { name: string; description: string; dir: string; source: string; agent?: string }
+/** A built-in device sign-in (GitHub). */
+interface SignInView {
+  state: "pending" | "done" | "denied" | "expired" | "error";
+  userCode?: string;
+  verificationUri?: string;
+  expiresAt?: string;
+  error?: string;
+  server?: string;
+  noInstallation?: boolean;
+  installUrl?: string;
+}
 
+const enc = encodeURIComponent;
 const catalogAPI = {
   list: () => api<Catalog>("GET", "/api/catalog"),
-  install: (id: string, b: { inputs?: Record<string, string>; scope?: string }) => api<{ kind: string; server?: McpServer }>("POST", `/api/catalog/${encodeURIComponent(id)}/install`, b),
+  install: (id: string, b: { inputs?: Record<string, string>; scope?: string }) => api<{ kind: string; server?: McpServer }>("POST", `/api/catalog/${enc(id)}/install`, b),
+  uninstall: (id: string) => api("DELETE", `/api/catalog/${enc(id)}`),
+  signIn: (id: string) => api<SignInView>("POST", `/api/catalog/${enc(id)}/signin`, {}),
+  signInState: (id: string) => api<SignInView>("GET", `/api/catalog/${enc(id)}/signin`),
+  cancelSignIn: (id: string) => api("DELETE", `/api/catalog/${enc(id)}/signin`),
   skills: () => api<{ skills: SkillView[] }>("GET", "/api/skills"),
-  removeSkill: (name: string, agent?: string) =>
-    api("DELETE", `/api/skills/${encodeURIComponent(name)}${agent ? "?agent=" + encodeURIComponent(agent) : ""}`),
+  removeSkill: (name: string, agent?: string) => api("DELETE", `/api/skills/${enc(name)}${agent ? "?agent=" + enc(agent) : ""}`),
 };
 
 const tx = (x?: Text) => (x ? (getLang() === "en" ? x.en : x.zh) || x.en || x.zh : "");
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+/** How clicking 连接 proceeds for an item. A new kind of catalog item (e.g.
+ *  a built-in connector) adds a case here and in MarketView.connect. */
+type ConnectHow = "direct" | "oauth" | "device" | "dialog";
+function connectHow(it: CatItem): ConnectHow {
+  if (it.kind === "skill") return "direct";
+  switch (it.auth) {
+    case "device":
+      return "device";
+    case "oauth":
+      return "oauth";
+    case "none":
+      return (it.inputs ?? []).some((x) => !x.optional) ? "dialog" : "direct";
+    default: // token, setup: something must be pasted or done first
+      return "dialog";
+  }
+}
+
+/** The server answers 401/403: its token expired or was revoked. */
+const needsReauth = (s?: McpServer) => s?.status?.state === "error" && /\b(401|403)\b|unauthori[sz]ed|forbidden|bad credentials/i.test(s.status.error ?? "");
+
+/** Polls the server list until name settles (ready, login, error). */
+async function settle(name: string, ms = 25000): Promise<McpServer | undefined> {
+  const end = Date.now() + ms;
+  let last: McpServer | undefined;
+  while (Date.now() < end) {
+    try {
+      last = (await API.mcp()).servers?.find((s) => s.name === name);
+    } catch {
+      /* try again */
+    }
+    const st = last?.status?.state;
+    if (st === "ready" || st === "error" || st === "disabled" || (st === "login" && last?.status.loginUrl)) return last;
+    await sleep(500);
+  }
+  return last;
+}
+
+/** Opens a sign-in page outside the app. In a browser the window must be
+ *  opened during the click (popup blockers), so it is opened at once and
+ *  pointed at the URL when the server publishes it. The result returns
+ *  false when nothing could be opened (blocked). */
+function signInWindow(): (url: string | null) => boolean {
+  if (desktop()?.openExternal) return (u) => (u ? (openExternal(u), true) : true);
+  const w = window.open("", "_blank");
+  if (w) {
+    try {
+      w.opener = null;
+      w.document.title = t("mk2.opening");
+      w.document.body.style.cssText = "font: 14px system-ui, sans-serif; color: #666; display: grid; place-items: center; height: 100vh; margin: 0";
+      w.document.body.textContent = t("mk2.opening");
+    } catch {
+      /* cross-origin already */
+    }
+  }
+  return (u) => {
+    if (!w || w.closed) return false;
+    if (u) w.location.href = u;
+    else w.close();
+    return true;
+  };
+}
 
 // ---------------------------------------------------------------- page
 
@@ -80,8 +173,8 @@ interface Data {
   marketErr: string | null;
 }
 
-/** 设置 › 插件与技能: a marketplace of built-in MCP presets, skills and
- *  third-party plugins, and everything installed. */
+/** 设置 › 插件与技能: a marketplace of built-in services, skills and
+ *  third-party plugins, and everything connected or installed. */
 export function Extensions() {
   const want = useStore((s) => s.settingsTab);
   const tick = useStore((s) => s.mcpTick);
@@ -89,6 +182,9 @@ export function Extensions() {
   const [q, setQ] = useState("");
   const [d, setD] = useState<Data>({ catalog: null, servers: null, skills: null, plugins: null, market: null, marketErr: null });
   const [approve, setApprove] = useState<PluginView | null>(null);
+  const [focus, setFocus] = useState<string | null>(null); // server to open in Installed
+  const [gh, setGh] = useState<CatItem | null>(null); // GitHub sign-in dialog
+  const [scopeOf, setScopeOf] = useState<McpServer | null>(null);
   useEffect(() => {
     if (want) {
       setView(want === "mcp" || want === "installed" ? "installed" : "market");
@@ -113,6 +209,20 @@ export function Extensions() {
     void reloadMarket();
   }, []);
 
+  const shared: Shared = {
+    d,
+    q: q.trim().toLowerCase(),
+    reload,
+    reloadMarket,
+    onApprove: setApprove,
+    onSignIn: setGh,
+    onScope: setScopeOf,
+    onManage: (server) => {
+      setFocus(server);
+      setView("installed");
+    },
+    focus,
+  };
   return (
     <>
       <Head
@@ -139,11 +249,7 @@ export function Extensions() {
             </button>
           )}
         </label>
-        {view === "market" ? (
-          <MarketView d={d} q={q.trim().toLowerCase()} reload={reload} reloadMarket={reloadMarket} onApprove={setApprove} />
-        ) : (
-          <InstalledView d={d} q={q.trim().toLowerCase()} reload={reload} reloadMarket={reloadMarket} onApprove={setApprove} />
-        )}
+        {view === "market" ? <MarketView {...shared} /> : <InstalledView {...shared} />}
       </div>
       {approve && (
         <ApproveDialog
@@ -155,16 +261,23 @@ export function Extensions() {
           }}
         />
       )}
+      {gh && <GitHubDialog item={gh} onClose={() => setGh(null)} onChanged={reload} />}
+      {scopeOf && <ScopeDialog server={scopeOf} label={d.catalog?.items.find((it) => it.server === scopeOf.name)?.name ?? scopeOf.name} onClose={() => setScopeOf(null)} onSaved={reload} />}
     </>
   );
 }
 
-interface ViewProps {
+interface Shared {
   d: Data;
   q: string;
   reload: () => void;
   reloadMarket: () => Promise<void>;
   onApprove: (p: PluginView) => void;
+  /** Opens the built-in sign-in (GitHub device flow) for an item. */
+  onSignIn: (it: CatItem) => void;
+  onScope: (s: McpServer) => void;
+  onManage: (server: string) => void;
+  focus: string | null;
 }
 
 function matches(q: string, ...xs: (string | undefined)[]) {
@@ -173,7 +286,8 @@ function matches(q: string, ...xs: (string | undefined)[]) {
 
 /** The 40px tile in front of a row. */
 function ItemIcon({ icon, id, label, kind }: { icon?: string; id: string; label: string; kind?: string }) {
-  if (icon && BRAND[icon]) return <span className="mkic brand" aria-hidden dangerouslySetInnerHTML={{ __html: BRAND[icon] }} />;
+  const b = icon ? BRAND[icon] : undefined;
+  if (b) return <span className={"mkic brand" + (b.fit ? " " + b.fit : "")} aria-hidden dangerouslySetInnerHTML={{ __html: b.svg }} />;
   if (kind === "skill") return <span className="mkic">{(icon && SKILL_ICONS[icon]) || <Sparkles size={19} />}</span>;
   if (kind === "plugin") return <span className="mkic"><Plug size={19} /></span>;
   if (kind === "server") return <span className="mkic"><Server size={19} /></span>;
@@ -184,38 +298,77 @@ function ItemIcon({ icon, id, label, kind }: { icon?: string; id: string; label:
 
 const PREVIEW = 6;
 
+/** What a row's action area shows. */
+type RowState = "idle" | "busy" | "connected" | "added" | "login" | "reauth" | "error" | "connecting";
+
 interface Row {
   key: string;
   name: string;
   desc: string;
   icon: ReactNode;
-  installed: boolean;
-  busy?: boolean;
-  onAdd: () => void;
+  state: RowState;
+  /** connect (MCP) or add (skill, plugin) */
+  verb: "connect" | "add";
+  error?: string;
+  onAct: () => void;
+  menu?: MenuItem[];
 }
 
-function MarketView({ d, q, reload, reloadMarket, onApprove }: ViewProps) {
-  const [busy, setBusy] = useState<string | null>(null);
+function MarketView({ d, q, reload, reloadMarket, onApprove, onSignIn, onManage }: Shared) {
+  const [busy, setBusy] = useState<Record<string, boolean>>({});
+  const [errs, setErrs] = useState<Record<string, string>>({});
   const [dialog, setDialog] = useState<CatItem | null>(null);
   const servers = d.servers ?? [];
+  const mark = (id: string, on: boolean) => setBusy((b) => ({ ...b, [id]: on }));
+  const fail = (id: string, e: unknown) => setErrs((x) => ({ ...x, [id]: errMsg(e) }));
 
-  /** Installs at once when nothing must be asked; else opens the dialog. */
-  const add = async (it: CatItem) => {
-    const ask = it.auth === "oauth" || it.auth === "setup" || (it.inputs ?? []).some((x) => !x.optional);
-    if (ask) return setDialog(it);
-    setBusy(it.id);
+  /** 连接: straight to the service where nothing must be asked (no-auth
+   *  servers connect, OAuth servers open the service's own sign-in page);
+   *  a dialog only for what must be entered or done first. */
+  const connect = async (it: CatItem) => {
+    setErrs((x) => ({ ...x, [it.id]: "" }));
+    const how = connectHow(it);
+    if (how === "dialog") return setDialog(it);
+    if (how === "device") return onSignIn(it);
+    const win = how === "oauth" ? signInWindow() : null;
+    mark(it.id, true);
     try {
-      await catalogAPI.install(it.id, {});
-      toast(t("mk.added", { name: it.name }));
+      const r = await catalogAPI.install(it.id, {});
       reload();
+      if (it.kind === "skill") return toast(t("mk.added", { name: it.name }));
+      const s = r.server && (await settle(r.server.name));
+      reload();
+      const st = s?.status;
+      if (st?.state === "ready") {
+        win?.(null);
+        toast(t("mk2.connectedToast", { name: it.name }));
+      } else if (st?.state === "login" && st.loginUrl) {
+        if (win?.(st.loginUrl)) toast(t("mk2.signInOpened", { name: it.name }));
+        else setErrs((x) => ({ ...x, [it.id]: t("mk2.popupBlocked") }));
+      } else {
+        win?.(null);
+        if (st?.error) fail(it.id, st.error);
+      }
     } catch (e) {
-      toast(t("mk.addFailed", { error: errMsg(e) }));
+      win?.(null);
+      fail(it.id, e);
     } finally {
-      setBusy(null);
+      mark(it.id, false);
     }
   };
+  const disconnect = (it: CatItem) => {
+    if (!window.confirm(t("mk2.disconnectConfirm", { name: it.name }))) return;
+    mark(it.id, true);
+    catalogAPI
+      .uninstall(it.id)
+      .then(() => toast(t("mk2.disconnected", { name: it.name })), (e) => toast(errMsg(e)))
+      .finally(() => {
+        mark(it.id, false);
+        reload();
+      });
+  };
   const addPlugin = async (m: MarketEntry) => {
-    setBusy("plugin:" + m.name);
+    mark("plugin:" + m.name, true);
     try {
       const v = await API.install({ market: m.name });
       toast(t("mk.added", { name: v.name }));
@@ -225,8 +378,46 @@ function MarketView({ d, q, reload, reloadMarket, onApprove }: ViewProps) {
     } catch (e) {
       toast(t("mk.addFailed", { error: errMsg(e) }));
     } finally {
-      setBusy(null);
+      mark("plugin:" + m.name, false);
     }
+  };
+
+  const rowOf = (it: CatItem): Row => {
+    const base = { key: it.id, name: it.name, desc: tx(it.desc), icon: <ItemIcon icon={it.icon} id={it.id} label={it.name} kind={it.kind} /> };
+    if (it.kind === "skill")
+      return { ...base, verb: "add", state: busy[it.id] ? "busy" : it.installed ? "added" : "idle", error: errs[it.id], onAct: () => void connect(it) };
+    const s = it.installed ? servers.find((x) => x.name === it.server) : undefined;
+    const st = s?.status;
+    let state: RowState = "idle";
+    let error = errs[it.id];
+    if (busy[it.id]) state = "busy";
+    else if (it.installed) {
+      if (!s || st?.state === "ready" || st?.state === "disabled") state = "connected";
+      else if (st?.state === "login") state = "login";
+      else if (needsReauth(s)) state = "reauth";
+      else if (st?.state === "error") {
+        state = "error";
+        error = st.error || error;
+      } else state = "connecting";
+    }
+    return {
+      ...base,
+      verb: "connect",
+      state,
+      error: state === "idle" || state === "error" ? error : undefined,
+      onAct: () => {
+        if (state === "login" && st?.loginUrl) openExternal(st.loginUrl);
+        else if (state === "reauth" && it.auth === "device") onSignIn(it);
+        else if (state === "reauth" || state === "error") onManage(it.server!);
+        else void connect(it);
+      },
+      menu: it.installed
+        ? [
+            { label: t("mk2.manage"), onClick: () => onManage(it.server!) },
+            { label: t("mk2.disconnect"), danger: true, onClick: () => disconnect(it) },
+          ]
+        : undefined,
+    };
   };
 
   if (!d.catalog) return <p className="small">{t("common.loading")}</p>;
@@ -234,17 +425,7 @@ function MarketView({ d, q, reload, reloadMarket, onApprove }: ViewProps) {
     id: c.id,
     title: tx(c.title),
     desc: tx(c.desc),
-    rows: d.catalog!.items
-      .filter((it) => it.category === c.id && matches(q, it.name, it.desc.zh, it.desc.en, c.title.zh, c.title.en))
-      .map((it) => ({
-        key: it.id,
-        name: it.name,
-        desc: tx(it.desc),
-        icon: <ItemIcon icon={it.icon} id={it.id} label={it.name} kind={it.kind} />,
-        installed: it.installed,
-        busy: busy === it.id,
-        onAdd: () => void add(it),
-      })),
+    rows: d.catalog!.items.filter((it) => it.category === c.id && matches(q, it.name, it.desc.zh, it.desc.en, c.title.zh, c.title.en)).map(rowOf),
   }));
   sections.push({
     id: "plugins",
@@ -257,9 +438,9 @@ function MarketView({ d, q, reload, reloadMarket, onApprove }: ViewProps) {
         name: m.name,
         desc: m.description,
         icon: <ItemIcon id={m.name} label={m.name} kind="plugin" />,
-        installed: !!m.installed,
-        busy: busy === "plugin:" + m.name,
-        onAdd: () => void addPlugin(m),
+        verb: "add",
+        state: busy["plugin:" + m.name] ? "busy" : m.installed ? "added" : "idle",
+        onAct: () => void addPlugin(m),
       })),
   });
   const shown = sections.filter((s) => s.rows.length > 0);
@@ -269,16 +450,52 @@ function MarketView({ d, q, reload, reloadMarket, onApprove }: ViewProps) {
       {shown.map((s) => (
         <Section key={s.id} title={s.title} desc={s.desc} rows={s.rows} all={!!q} />
       ))}
-      {dialog && (
-        <InstallDialog
-          item={dialog}
-          servers={servers}
-          onClose={() => setDialog(null)}
-          onInstalled={reload}
-        />
-      )}
+      {dialog && <ConnectDialog item={dialog} servers={servers} onClose={() => setDialog(null)} onChanged={reload} onSignIn={onSignIn} />}
     </>
   );
+}
+
+function RowAction({ r }: { r: Row }) {
+  const label = r.verb === "connect" ? t("mk2.connectName", { name: r.name }) : t("mk2.addName", { name: r.name });
+  switch (r.state) {
+    case "connected":
+    case "added":
+      return (
+        <span className="mkst ok">
+          <Check size={13} />
+          {r.state === "connected" ? t("mk2.connected") : t("mk2.added")}
+        </span>
+      );
+    case "connecting":
+      return (
+        <span className="mkst">
+          <span className="spin sm" />
+          {t("mk2.connecting")}
+        </span>
+      );
+    case "login":
+    case "reauth":
+      return (
+        <button className="btn sm pri" type="button" onClick={r.onAct}>
+          <LogIn size={12} />
+          {r.state === "login" ? t("mk2.signIn") : t("mk2.signInAgain")}
+        </button>
+      );
+    case "error":
+      return (
+        <span className="mkst err">
+          <i className="sdot err" />
+          {t("mk2.failed")}
+        </span>
+      );
+    default:
+      return (
+        <button className="btn sm mkconn" type="button" disabled={r.state === "busy"} aria-label={label} title={label} onClick={r.onAct}>
+          {r.state === "busy" ? <span className="spin sm" /> : null}
+          {r.state === "busy" ? t("mk2.connecting") : r.verb === "connect" ? t("mk2.connect") : t("mk2.add")}
+        </button>
+      );
+  }
 }
 
 function Section({ title, desc, rows, all }: { title: string; desc: string; rows: Row[]; all: boolean }) {
@@ -295,16 +512,14 @@ function Section({ title, desc, rows, all }: { title: string; desc: string; rows
             <div className="g">
               <b>{r.name}</b>
               <span title={r.desc}>{r.desc}</span>
+              {r.error && (
+                <span className="errt mkrerr" title={r.error}>
+                  {r.error}
+                </span>
+              )}
             </div>
-            {r.installed ? (
-              <span className="mkadd done" title={t("mk.installed")} aria-label={t("mk.installed")}>
-                <Check size={15} />
-              </span>
-            ) : (
-              <button className="mkadd" type="button" disabled={r.busy} aria-label={t("mk.add", { name: r.name })} title={t("mk.add", { name: r.name })} onClick={r.onAdd}>
-                {r.busy ? <span className="spin sm" /> : <Plus size={15} />}
-              </button>
-            )}
+            <RowAction r={r} />
+            {r.menu && <MoreMenu items={r.menu} />}
           </div>
         ))}
       </div>
@@ -314,6 +529,273 @@ function Section({ title, desc, rows, all }: { title: string; desc: string; rows
         </button>
       )}
     </section>
+  );
+}
+
+function useEsc(onClose: () => void) {
+  useEffect(() => {
+    const esc = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    window.addEventListener("keydown", esc);
+    return () => window.removeEventListener("keydown", esc);
+  }, [onClose]);
+}
+
+/** A portalled modal (the page body is a size container, which would
+ *  otherwise be the containing block of the fixed scrim and modal). */
+function Modal({ item, title, onClose, children }: { item: CatItem; title: string; onClose: () => void; children: ReactNode }) {
+  useEsc(onClose);
+  return createPortal(
+    <>
+      <div className="scrim" onClick={onClose} />
+      <div className="modal mkdlg" role="dialog" aria-modal="true" aria-labelledby="mkTitle">
+        <div className="mhd">
+          <ItemIcon icon={item.icon} id={item.id} label={item.name} kind={item.kind} />
+          <h3 id="mkTitle">{title}</h3>
+          <button className="ix" type="button" aria-label={t("common.close")} onClick={onClose}>
+            <X size={14} />
+          </button>
+        </div>
+        <div className="mbd">{children}</div>
+      </div>
+    </>,
+    document.body,
+  );
+}
+
+/** For items that need something first: values to paste (a token, the
+ *  Google client) or steps to take (Figma's Dev Mode server). Then follows
+ *  the connection until it is up or fails. */
+function ConnectDialog({ item, servers, onClose, onChanged, onSignIn }: { item: CatItem; servers: McpServer[]; onClose: () => void; onChanged: () => void; onSignIn?: (it: CatItem) => void }) {
+  const [vals, setVals] = useState<Record<string, string>>({});
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const [name, setName] = useState<string | null>(null); // the server, once added
+  const st = name ? servers.find((s) => s.name === name)?.status : undefined;
+  const inputs = item.inputs ?? [];
+  const partOf = item.server && !item.installed ? item.server : null; // a further part of an existing server
+  const ready = inputs.every((x) => x.optional || (vals[x.id] ?? "").trim());
+  useEffect(() => {
+    if (st?.state === "ready") {
+      toast(t("mk2.connectedToast", { name: item.name }));
+      onClose();
+    }
+  }, [st?.state]);
+
+  const submit = async () => {
+    setBusy(true);
+    setErr(null);
+    try {
+      const r = await catalogAPI.install(item.id, { inputs: vals });
+      onChanged();
+      if (r.server) setName(r.server.name);
+      else onClose();
+    } catch (e) {
+      setErr(errMsg(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Modal item={item} title={t("mk2.dlgTitle", { name: item.name })} onClose={onClose}>
+      <p className="small mkdesc">{tx(item.desc)}</p>
+      {name ? (
+        <div className="mksign">
+          {st?.state === "error" ? (
+            <p className="small errt">{st.error}</p>
+          ) : (
+            <p className="small">
+              <span className="spin sm" /> {t("mk2.connecting")}
+            </p>
+          )}
+          <div className="mft">
+            <button className="btn pri" type="button" onClick={onClose}>
+              {t("mk2.done")}
+            </button>
+          </div>
+        </div>
+      ) : (
+        <>
+          {item.setup && <p className="mknote">{tx(item.setup)}</p>}
+          {partOf && <p className="small">{t("mk.partOf", { server: partOf })}</p>}
+          {inputs.map((x) => (
+            <div key={x.id}>
+              <label className="fl" htmlFor={"mk-" + x.id}>
+                {tx(x.label)}
+              </label>
+              <input
+                id={"mk-" + x.id}
+                className="fi sm mono"
+                type={x.secret ? "password" : "text"}
+                autoComplete="off"
+                spellCheck={false}
+                value={vals[x.id] ?? ""}
+                placeholder={x.placeholder ?? (x.optional ? t("mk.optional") : "")}
+                onChange={(e) => setVals({ ...vals, [x.id]: e.target.value })}
+              />
+              {x.secret && <div className="small">{t("mk.secretNote")}</div>}
+            </div>
+          ))}
+          {err && <div className="ferr">{err}</div>}
+          <div className="mft">
+            {item.signIn && onSignIn ? (
+              <button className="btn ghost" type="button" style={{ marginRight: "auto" }} onClick={() => (onClose(), onSignIn(item))}>
+                {t("mk2.useSignIn", { name: item.name })}
+              </button>
+            ) : (
+              item.docs && (
+                <a className="btn ghost" href={item.docs} target="_blank" rel="noreferrer noopener" style={{ marginRight: "auto" }}>
+                  {t("mk.docs")}
+                </a>
+              )
+            )}
+            <button className="btn ghost" type="button" onClick={onClose}>
+              {t("common.cancel")}
+            </button>
+            <button className="btn pri" type="button" disabled={busy || !ready} onClick={submit}>
+              {busy ? t("mk2.connecting") : t("mk2.connect")}
+            </button>
+          </div>
+        </>
+      )}
+    </Modal>
+  );
+}
+
+/** GitHub's device sign-in: shows the code to enter at github.com/login/device
+ *  and waits for the person to approve; Crewbase then keeps the token in the
+ *  keychain and connects GitHub's MCP server. A personal access token is
+ *  the fallback. */
+function GitHubDialog({ item, onClose, onChanged }: { item: CatItem; onClose: () => void; onChanged: () => void }) {
+  const [v, setV] = useState<SignInView | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  const [pat, setPat] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [n, setN] = useState(0); // restarts
+  const done = useRef(false);
+  useEffect(() => {
+    let live = true;
+    setV(null);
+    setErr(null);
+    catalogAPI.signIn(item.id).then(
+      async (first) => {
+        if (!live) return;
+        setV(first);
+        let cur = first;
+        while (live && cur.state === "pending") {
+          await sleep(1500);
+          if (!live) return;
+          try {
+            cur = await catalogAPI.signInState(item.id);
+          } catch {
+            continue;
+          }
+          if (live) setV(cur);
+        }
+        if (live && cur.state === "done") {
+          done.current = true;
+          onChanged();
+          if (!cur.noInstallation) {
+            toast(t("mk2.connectedToast", { name: item.name }));
+            onClose();
+          }
+        }
+      },
+      (e) => live && setErr(errMsg(e)),
+    );
+    return () => {
+      live = false;
+    };
+  }, [n]);
+  const close = () => {
+    if (!done.current) void catalogAPI.cancelSignIn(item.id).catch(() => {});
+    onClose();
+  };
+  if (pat) return <ConnectDialog item={{ ...item, auth: "token" }} servers={[]} onClose={onClose} onChanged={onChanged} />;
+  const mins = v?.expiresAt ? Math.max(1, Math.round((Date.parse(v.expiresAt) - Date.now()) / 60000)) : 15;
+  const copy = () =>
+    void navigator.clipboard?.writeText(v?.userCode ?? "").then(
+      () => {
+        setCopied(true);
+        setTimeout(() => setCopied(false), 1500);
+      },
+      () => {},
+    );
+  const url = v?.verificationUri || "https://github.com/login/device";
+  return (
+    <Modal item={item} title={t("mk2.ghTitle")} onClose={close}>
+      {err ? (
+        <>
+          <p className="small errt mkghmsg">{err}</p>
+          <div className="mft">
+            <button className="btn ghost" type="button" style={{ marginRight: "auto" }} onClick={() => setPat(true)}>
+              {t("mk2.usePat")}
+            </button>
+            <button className="btn pri" type="button" onClick={() => setN(n + 1)}>
+              {t("mk2.retry")}
+            </button>
+          </div>
+        </>
+      ) : !v ? (
+        <p className="small mkghmsg">
+          <span className="spin sm" /> {t("mk2.ghGetting")}
+        </p>
+      ) : v.state === "done" ? (
+        <>
+          <p className="small okt mkghmsg">
+            <Check size={13} /> {t("mk2.ghDone")}
+          </p>
+          {v.noInstallation && <p className="mknote">{t("mk2.ghNoInstall")}</p>}
+          <div className="mft">
+            {v.installUrl && (
+              <a className="btn" href={v.installUrl} target="_blank" rel="noreferrer noopener" style={{ marginRight: "auto" }}>
+                <ExternalLink size={13} /> {t("mk2.ghInstall")}
+              </a>
+            )}
+            <button className="btn pri" type="button" onClick={onClose}>
+              {t("mk2.done")}
+            </button>
+          </div>
+        </>
+      ) : v.state === "pending" ? (
+        <>
+          <p className="small mkdesc">{t("mk2.ghStep")}</p>
+          <div className="mkcode">
+            <code aria-label={t("mk2.ghCode")}>{v.userCode}</code>
+            <button className="btn sm" type="button" onClick={copy}>
+              {copied ? <Check size={13} /> : <Copy size={13} />}
+              {copied ? t("mk2.copied") : t("mk2.copy")}
+            </button>
+          </div>
+          <button className="btn pri mkghopen" type="button" onClick={() => openExternal(url)}>
+            <ExternalLink size={14} /> {t("mk2.ghOpen", { host: url.replace(/^https?:\/\//, "") })}
+          </button>
+          <p className="small mkghwait">
+            <span className="spin sm" /> {t("mk2.ghWaiting", { min: mins })}
+          </p>
+          <div className="mft">
+            <button className="btn ghost" type="button" style={{ marginRight: "auto" }} onClick={() => (void catalogAPI.cancelSignIn(item.id).catch(() => {}), setPat(true))}>
+              {t("mk2.usePat")}
+            </button>
+            <button className="btn ghost" type="button" onClick={close}>
+              {t("common.cancel")}
+            </button>
+          </div>
+        </>
+      ) : (
+        <>
+          <p className="small errt mkghmsg">{v.state === "denied" ? t("mk2.ghDenied") : v.state === "expired" ? t("mk2.ghExpired") : v.error}</p>
+          <div className="mft">
+            <button className="btn ghost" type="button" style={{ marginRight: "auto" }} onClick={() => setPat(true)}>
+              {t("mk2.usePat")}
+            </button>
+            <button className="btn pri" type="button" onClick={() => setN(n + 1)}>
+              {t("mk2.retry")}
+            </button>
+          </div>
+        </>
+      )}
+    </Modal>
   );
 }
 
@@ -343,132 +825,46 @@ function ScopeSelect({ value, onChange, teamsToo }: { value: string; onChange: (
   );
 }
 
-/** Asks only what a preset needs (values to paste, who may use it), then
- *  for OAuth presets follows the connection until the person has signed in. */
-function InstallDialog({ item, servers, onClose, onInstalled }: { item: CatItem; servers: McpServer[]; onClose: () => void; onInstalled: () => void }) {
-  const [vals, setVals] = useState<Record<string, string>>({});
-  const [scope, setScope] = useState("global");
+/** Who may use a connected service: everyone (default), a team or an agent. */
+function ScopeDialog({ server, label, onClose, onSaved }: { server: McpServer; label: string; onClose: () => void; onSaved: () => void }) {
+  const [scope, setScope] = useState(server.scope || "global");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
-  const [name, setName] = useState<string | null>(null); // installed server (OAuth: follow it)
-  const live = name ? servers.find((s) => s.name === name) : undefined;
-  const st = live?.status;
-  const inputs = item.inputs ?? [];
-  const partOf = item.server && !item.installed ? item.server : null; // a further part of an existing server
-  const ready = inputs.every((x) => x.optional || (vals[x.id] ?? "").trim());
-  useEffect(() => {
-    const esc = (e: KeyboardEvent) => e.key === "Escape" && onClose();
-    window.addEventListener("keydown", esc);
-    return () => window.removeEventListener("keydown", esc);
-  }, [onClose]);
-
-  const submit = async () => {
+  useEsc(onClose);
+  const save = async () => {
     setBusy(true);
-    setErr(null);
     try {
-      const r = await catalogAPI.install(item.id, { inputs: vals, scope: partOf ? undefined : scope });
-      onInstalled();
-      if (item.auth === "oauth" && r.server) setName(r.server.name);
-      else {
-        toast(t("mk.added", { name: item.name }));
-        onClose();
-      }
+      await API.patchMcp(server.name, { scope });
+      toast(t("mk2.scopeSaved", { name: label }));
+      onSaved();
+      onClose();
     } catch (e) {
       setErr(errMsg(e));
     } finally {
       setBusy(false);
     }
   };
-
-  // Portalled: the page body is a size container, which would otherwise be
-  // the containing block of the fixed scrim and modal.
   return createPortal(
     <>
       <div className="scrim" onClick={onClose} />
-      <div className="modal mkdlg" role="dialog" aria-modal="true" aria-labelledby="mkTitle">
+      <div className="modal sm mkdlg" role="dialog" aria-modal="true" aria-labelledby="mkScope">
         <div className="mhd">
-          <ItemIcon icon={item.icon} id={item.id} label={item.name} kind={item.kind} />
-          <h3 id="mkTitle">{t("mk.dlgTitle", { name: item.name })}</h3>
+          <h3 id="mkScope">{t("mk2.scopeTitle", { name: label })}</h3>
           <button className="ix" type="button" aria-label={t("common.close")} onClick={onClose}>
             <X size={14} />
           </button>
         </div>
         <div className="mbd">
-          <p className="small mkdesc">{tx(item.desc)}</p>
-          {item.endpoint && (
-            <div className="mkep small">
-              <span>{item.transport === "http" ? t("mk.remote") : t("mk.local")}</span>
-              <code className="ell">{item.endpoint}</code>
-            </div>
-          )}
-          {name ? (
-            <div className="mksign">
-              {st?.state === "ready" ? (
-                <p className="small okt">
-                  <Check size={13} /> {t("mk.connected", { n: st.tools })}
-                </p>
-              ) : st?.state === "login" && st.loginUrl ? (
-                <a className="btn pri" href={st.loginUrl} target="_blank" rel="noreferrer noopener">
-                  <LogIn size={14} /> {t("mk.signIn", { name: item.name })}
-                </a>
-              ) : st?.state === "error" ? (
-                <p className="small errt">{st.error}</p>
-              ) : (
-                <p className="small">
-                  <span className="spin sm" /> {t("mk.waitLogin")}
-                </p>
-              )}
-              <div className="mft">
-                <button className="btn pri" type="button" onClick={onClose}>
-                  {t("mk.done")}
-                </button>
-              </div>
-            </div>
-          ) : (
-            <>
-              {item.setup && <p className="mknote">{tx(item.setup)}</p>}
-              {partOf && <p className="small">{t("mk.partOf", { server: partOf })}</p>}
-              {inputs.map((x) => (
-                <div key={x.id}>
-                  <label className="fl" htmlFor={"mk-" + x.id}>
-                    {tx(x.label)}
-                  </label>
-                  <input
-                    id={"mk-" + x.id}
-                    className="fi sm mono"
-                    type={x.secret ? "password" : "text"}
-                    autoComplete="off"
-                    spellCheck={false}
-                    value={vals[x.id] ?? ""}
-                    placeholder={x.placeholder ?? (x.optional ? t("mk.optional") : "")}
-                    onChange={(e) => setVals({ ...vals, [x.id]: e.target.value })}
-                  />
-                  {x.secret && <div className="small">{t("mk.secretNote")}</div>}
-                </div>
-              ))}
-              {item.auth === "oauth" && <p className="small">{t("mk.oauthNote", { name: item.name })}</p>}
-              {!partOf && (
-                <>
-                  <label className="fl">{t("mk.who")}</label>
-                  <ScopeSelect value={scope} onChange={setScope} teamsToo />
-                </>
-              )}
-              {err && <div className="ferr">{err}</div>}
-              <div className="mft">
-                {item.docs && (
-                  <a className="btn ghost" href={item.docs} target="_blank" rel="noreferrer noopener" style={{ marginRight: "auto" }}>
-                    {t("mk.docs")}
-                  </a>
-                )}
-                <button className="btn ghost" type="button" onClick={onClose}>
-                  {t("common.cancel")}
-                </button>
-                <button className="btn pri" type="button" disabled={busy || !ready} onClick={submit}>
-                  {busy ? t("mk.adding") : t("mk.addBtn")}
-                </button>
-              </div>
-            </>
-          )}
+          <ScopeSelect value={scope} onChange={setScope} teamsToo />
+          {err && <div className="ferr">{err}</div>}
+          <div className="mft">
+            <button className="btn ghost" type="button" onClick={onClose}>
+              {t("common.cancel")}
+            </button>
+            <button className="btn pri" type="button" disabled={busy || scope === (server.scope || "global")} onClick={save}>
+              {t("mk2.save")}
+            </button>
+          </div>
         </div>
       </div>
     </>,
@@ -516,39 +912,41 @@ function MoreMenu({ items }: { items: MenuItem[] }) {
       </button>
       {at &&
         createPortal(
-        <div ref={ref} className="menu" role="menu" style={{ top: at.y, right: Math.max(8, window.innerWidth - at.x), minWidth: 180 } as CSSProperties}>
-          {items.map((m) => (
-            <button
-              key={m.label}
-              type="button"
-              role="menuitem"
-              className={"mi" + (m.danger ? " dng" : "")}
-              disabled={m.disabled}
-              onClick={() => {
-                setAt(null);
-                m.onClick();
-              }}
-            >
-              {m.label}
-            </button>
-          ))}
-        </div>,
+          <div ref={ref} className="menu" role="menu" style={{ top: at.y, right: Math.max(8, window.innerWidth - at.x), minWidth: 180 } as CSSProperties}>
+            {items.map((m) => (
+              <button
+                key={m.label}
+                type="button"
+                role="menuitem"
+                className={"mi" + (m.danger ? " dng" : "")}
+                disabled={m.disabled}
+                onClick={() => {
+                  setAt(null);
+                  m.onClick();
+                }}
+              >
+                {m.label}
+              </button>
+            ))}
+          </div>,
           document.body,
         )}
     </>
   );
 }
 
-function stLabel(state?: string) {
-  const k = `ext.mcpSt.${state}` as Key;
-  return t(k) === k ? state || "—" : t(k);
+/** A connected server's status in words: 已连接 / 需要重新登录 / 出错 … */
+function stLabel(s: McpServer) {
+  if (needsReauth(s)) return t("mk2.reauth");
+  const k = `ext.mcpSt.${s.status?.state}` as Key;
+  return t(k) === k ? s.status?.state || "—" : t(k);
 }
 
-function InstalledView({ d, q, reload, reloadMarket, onApprove }: ViewProps) {
+function InstalledView({ d, q, reload, reloadMarket, onApprove, onSignIn, onScope, focus }: Shared) {
   const agents = useStore((s) => s.agents);
   const teams = useStore((s) => s.teams);
   const [adding, setAdding] = useState(false);
-  const [open, setOpen] = useState<string | null>(null);
+  const [open, setOpen] = useState<string | null>(focus);
   const [path, setPath] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
   const byServer = useMemo(() => {
@@ -558,6 +956,9 @@ function InstalledView({ d, q, reload, reloadMarket, onApprove }: ViewProps) {
   }, [d.catalog]);
   const builtinSkills = useMemo(() => new Map((d.catalog?.items ?? []).filter((it) => it.kind === "skill").map((it) => [it.name, it])), [d.catalog]);
   const sharedDir = (d.skills ?? []).find((s) => !s.agent)?.source;
+  useEffect(() => {
+    if (focus) document.getElementById("mk-srv-" + focus)?.scrollIntoView({ block: "center" });
+  }, [focus, d.servers === null]);
 
   const scopeLabel = (scope?: string) =>
     !scope || scope === "global"
@@ -589,7 +990,7 @@ function InstalledView({ d, q, reload, reloadMarket, onApprove }: ViewProps) {
     <>
       <section className="mksec">
         <div className="mksh">
-          <h3>{t("mk.instMcp")}</h3>
+          <h3>{t("mk2.instServices")}</h3>
           <span className="sp" />
           {!adding && (
             <button className="btn sm" type="button" onClick={() => setAdding(true)}>
@@ -609,20 +1010,22 @@ function InstalledView({ d, q, reload, reloadMarket, onApprove }: ViewProps) {
           />
         )}
         {servers.length === 0 ? (
-          !adding && <p className="small">{t("mk.noneMcp")}</p>
+          !adding && <p className="small">{t("mk2.noneServices")}</p>
         ) : (
           <div className="mklist">
             {servers.map((s) => {
               const it = byServer[s.name];
+              const label = it?.name ?? s.name;
               const st = s.status?.state;
+              const reauth = needsReauth(s);
               return (
-                <div className={"mkirow" + (s.enabled ? "" : " off")} key={s.name}>
+                <div className={"mkirow" + (s.enabled ? "" : " off")} key={s.name} id={"mk-srv-" + s.name}>
                   <div className="mkrow">
-                    <ItemIcon icon={it?.icon} id={s.name} label={it?.name ?? s.name} kind={it ? it.kind : "server"} />
+                    <ItemIcon icon={it?.icon} id={s.name} label={label} kind={it ? it.kind : "server"} />
                     <div className="g">
                       <b>
-                        {it?.name ?? s.name}
-                        <span className={"pill sm " + (MCP_TONE[st] ?? "")}>{stLabel(st)}</span>
+                        {label}
+                        <span className={"pill sm " + (reauth ? "amber" : MCP_TONE[st] ?? "")}>{stLabel(s)}</span>
                       </b>
                       <span className="mono" title={s.transport === "http" ? s.url : (s.command ?? []).join(" ")}>
                         {scopeLabel(s.scope)} · {t("ext.toolsN", { n: s.status?.tools ?? 0 })} · {s.transport === "http" ? s.url : (s.command ?? []).join(" ")}
@@ -632,6 +1035,11 @@ function InstalledView({ d, q, reload, reloadMarket, onApprove }: ViewProps) {
                       <a className="btn pri sm" href={s.status.loginUrl} target="_blank" rel="noreferrer noopener">
                         <LogIn size={12} /> {t("ext.mcpLogin")}
                       </a>
+                    )}
+                    {reauth && it?.auth === "device" && (
+                      <button className="btn pri sm" type="button" onClick={() => onSignIn(it)}>
+                        <LogIn size={12} /> {t("mk2.signInAgain")}
+                      </button>
                     )}
                     <button
                       className="tg"
@@ -645,13 +1053,14 @@ function InstalledView({ d, q, reload, reloadMarket, onApprove }: ViewProps) {
                     <MoreMenu
                       items={[
                         { label: t("mk.tools"), onClick: () => setOpen(open === s.name ? null : s.name) },
-                        ...(s.oauth ? [{ label: t("ext.mcpSignOut"), onClick: () => run(s.name, () => API.mcpSignOut(s.name), t("ext.mcpSignedOut", { name: s.name })) }] : []),
+                        { label: t("mk2.scopeMenu"), disabled: s.source === "config", onClick: () => onScope(s) },
+                        ...(s.oauth ? [{ label: t("ext.mcpSignOut"), onClick: () => run(s.name, () => API.mcpSignOut(s.name), t("ext.mcpSignedOut", { name: label })) }] : []),
                         {
-                          label: t("mk.remove"),
+                          label: t("mk2.disconnect"),
                           danger: true,
                           disabled: s.source === "config",
                           onClick: () => {
-                            if (window.confirm(t("ext.removeConfirm", { name: s.name }))) void run(s.name, () => API.deleteMcp(s.name), t("mk.removed", { name: s.name }));
+                            if (window.confirm(t("mk2.disconnectConfirm", { name: label }))) void run(s.name, () => API.deleteMcp(s.name), t("mk2.disconnected", { name: label }));
                           },
                         },
                       ]}
