@@ -260,7 +260,6 @@ func (s *Service) Spawn(ctx context.Context, provider string, req Request) (Resu
 	}
 	ch := make(chan out, 1)
 	go func() {
-		defer release()
 		var o out
 		func() {
 			defer func() {
@@ -270,6 +269,9 @@ func (s *Service) Spawn(ctx context.Context, provider string, req Request) (Resu
 			}()
 			o.r, o.err = p.Spawn(ctx, req)
 		}()
+		// free the slot before the result is seen, so a caller that got the
+		// result never finds the slot still taken
+		release()
 		ch <- o
 	}()
 	select {
