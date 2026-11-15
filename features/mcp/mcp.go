@@ -417,6 +417,11 @@ func (s *Service) serverDir(name string) string {
 	return filepath.Join(s.dir, "mcp", name)
 }
 
+// ServerDir is the server's own directory: writable inside its sandbox
+// whatever its scope, and never an agent's workspace, so it is where a
+// server should keep its sign-in state (catalog presets point it there).
+func (s *Service) ServerDir(name string) string { return s.serverDir(name) }
+
 type fileFormat struct {
 	Servers []Server `json:"servers"`
 }

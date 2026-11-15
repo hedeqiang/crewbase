@@ -66,7 +66,7 @@ func TestBuiltinCatalogIsValid(t *testing.T) {
 			}
 			in[x.ID] = "/tmp/secret-" + x.ID
 		}
-		srv, secrets, err := p.build(in)
+		srv, secrets, err := p.build(in, "/srv")
 		if err != nil {
 			t.Errorf("%s: build: %v", p.ID, err)
 			continue
@@ -95,7 +95,7 @@ func TestBuiltinCatalogIsValid(t *testing.T) {
 				opt[x.ID] = "v"
 			}
 		}
-		srv, _, err = p.build(opt)
+		srv, _, err = p.build(opt, "/srv")
 		if err != nil {
 			t.Errorf("%s: build without optional inputs: %v", p.ID, err)
 		}
@@ -128,10 +128,10 @@ func TestBuildFillsInputs(t *testing.T) {
 	p := Preset{Server: "x", Transport: "stdio", Command: []string{"run", "--tz={tz}", "{dir}"},
 		Env:    map[string]string{"KEY": "{key}", "AUTH": "Token {key}", "TZ": "{tz}"},
 		Inputs: []Input{{ID: "key", Secret: true}, {ID: "dir"}, {ID: "tz", Optional: true}}}
-	if _, _, err := p.build(map[string]string{"key": "k"}); err == nil {
+	if _, _, err := p.build(map[string]string{"key": "k"}, ""); err == nil {
 		t.Fatal("required dir missing")
 	}
-	srv, secrets, err := p.build(map[string]string{"key": " s3cr3t ", "dir": "/d"})
+	srv, secrets, err := p.build(map[string]string{"key": " s3cr3t ", "dir": "/d"}, "")
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -325,7 +325,7 @@ func (s *Service) Install(id string, req Request) (Result, error) {
 	} else if _, ok := svc.Get(p.Server); ok {
 		return Result{}, ErrInstalled
 	}
-	srv, secrets, err := p.build(req.Inputs)
+	srv, secrets, err := p.build(req.Inputs, svc.ServerDir(p.Server))
 	if err != nil {
 		return Result{}, err
 	}
@@ -360,7 +360,8 @@ func (s *Service) dropSecrets(m map[string]string) {
 
 // build turns p and the person's inputs into a server config. secrets maps
 // each keychain ref to its value (to be stored before the server is added).
-func (p Preset) build(in map[string]string) (mcp.Server, map[string]string, error) {
+// "{serverDir}" is the server's own folder (mcp.Service.ServerDir).
+func (p Preset) build(in map[string]string, serverDir string) (mcp.Server, map[string]string, error) {
 	vals := map[string]string{} // input id → value as written into config
 	secrets := map[string]string{}
 	for _, x := range p.Inputs {
@@ -381,6 +382,7 @@ func (p Preset) build(in map[string]string) (mcp.Server, map[string]string, erro
 	// fill replaces placeholders; ok=false when one names an empty input.
 	fill := func(t string) (string, bool) {
 		ok := true
+		t = strings.ReplaceAll(t, "{serverDir}", serverDir)
 		for _, x := range p.Inputs {
 			ph := "{" + x.ID + "}"
 			if !strings.Contains(t, ph) {
