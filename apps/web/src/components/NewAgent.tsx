@@ -394,7 +394,7 @@ export function NewAgent({ draft: f, setDraft }: { draft: Draft; setDraft: (d: D
         >
           <input className="fi" value={newFolder} maxLength={40} onChange={(e) => setNewFolder(e.target.value)} placeholder={t("na.newFolderPh")} />
           <button className="btn sm" type="submit" disabled={!newFolder.trim()}>
-            {t("dir.use")}
+            {t("common.add")}
           </button>
         </form>
       </Popover>

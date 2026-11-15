@@ -412,6 +412,8 @@ var Plugin = kernel.Register(kernel.Spec{
 				return ss.Meta(), nil
 			}})
 
+		registerDirs(c, g)
+
 		// ---- workspace files
 		type entry struct {
 			Name     string    `json:"name"`

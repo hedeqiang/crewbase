@@ -851,6 +851,7 @@ export const API = {
   setProjectDir: (agent: string, dir: string) => api<AgentView>("PATCH", `/api/agents/${enc(agent)}`, { projectDir: dir }),
   followups: (agent: string) => api<{ followups: Followup[] }>("GET", `/api/agents/${enc(agent)}/followups`),
   cancelFollowup: (agent: string, id: string) => api("DELETE", `/api/agents/${enc(agent)}/followups/${enc(id)}`),
+  browseDirs: (path?: string) => api<{ path: string; parent: string; home: string; dirs: { name: string; path: string }[] }>("GET", `/api/fs/dirs?path=${enc(path ?? "")}`),
   working: (agent: string) => api<Working>("GET", `/api/agents/${enc(agent)}/working`),
   taskProgress: (agent: string, name: string) => api<{ name: string; text: string }>("GET", `/api/agents/${enc(agent)}/tasks/${enc(name)}`),
   note: (agent: string, name: string) => api<{ name: string; text: string }>("GET", `/api/agents/${enc(agent)}/notes/${enc(name)}`),

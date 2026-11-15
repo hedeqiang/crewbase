@@ -6,6 +6,8 @@ import {
   Check,
   ChevronDown,
   ChevronRight,
+  ChevronLeft,
+  CornerLeftUp,
   CircleX,
   Folder,
   FolderOpen,
@@ -1392,11 +1394,72 @@ function rememberDir(d: string) {
   }
 }
 
+/** The end of a long path: "…/code/shop". */
+function tailPath(p: string, n = 34): string {
+  if (p.length <= n) return p;
+  const parts = p.split("/");
+  let out = parts.pop() ?? "";
+  while (parts.length && out.length + parts[parts.length - 1].length + 1 <= n - 2) out = parts.pop() + "/" + out;
+  return "…/" + out;
+}
+
+/** Folders on the host, one level at a time (no native picker here). */
+function DirBrowser({ start, busy, onPick, onBack }: { start: string; busy: boolean; onPick: (dir: string) => void; onBack: () => void }) {
+  const [at, setAt] = useState<{ path: string; parent: string; home: string; dirs: { name: string; path: string }[] } | null>(null);
+  const [err, setErr] = useState("");
+  const go = (p?: string) =>
+    API.browseDirs(p).then(
+      (r) => {
+        setAt(r);
+        setErr("");
+      },
+      (e: any) => setErr(e?.status === 403 ? t("dir.browseOwner") : e?.message ?? String(e)),
+    );
+  useEffect(() => {
+    void go(start || undefined);
+  }, []);
+  const atHome = at && at.path === at.home;
+  return (
+    <div className="dirbrowse">
+      <div className="dbhead">
+        <button className="ix" type="button" aria-label={t("ap.back")} onClick={onBack}>
+          <ChevronLeft size={15} />
+        </button>
+        <span className="mono g" title={at?.path}>
+          {at ? tailPath(shortPath(at.path)) : "…"}
+        </span>
+      </div>
+      {err && <p className="small errt" style={{ margin: "6px 9px" }}>{err}</p>}
+      <div className="dblist" key={at?.path}>
+        {at && !atHome && at.parent && (
+          <button className="mi" type="button" onClick={() => void go(at.parent)}>
+            <CornerLeftUp size={15} />
+            <span className="g">{t("dir.up")}</span>
+          </button>
+        )}
+        {at?.dirs.map((x) => (
+          <button key={x.path} className="mi" type="button" onClick={() => void go(x.path)}>
+            <Folder size={15} />
+            <span className="g">{x.name}</span>
+            <ChevronRight size={13} className="muted" />
+          </button>
+        ))}
+        {at && at.dirs.length === 0 && <p className="small muted" style={{ margin: "6px 9px" }}>{t("dir.noSub")}</p>}
+      </div>
+      <div className="dbfoot">
+        <button className="btn pri sm" type="button" disabled={busy || !at || !!atHome} onClick={() => at && onPick(at.path)}>
+          {t("dir.useThis")}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 /** The composer's folder menu: where this agent works (a project folder
  *  or its own workspace). */
 function DirMenu({ agent, onDone }: { agent: AgentView; onDone: () => void }) {
-  const [typed, setTyped] = useState("");
   const [busy, setBusy] = useState(false);
+  const [browsing, setBrowsing] = useState(false);
   const d = desktop();
   const project = agent.sharedWorkspace || "";
   const use = async (dir: string) => {
@@ -1413,10 +1476,14 @@ function DirMenu({ agent, onDone }: { agent: AgentView; onDone: () => void }) {
       setBusy(false);
     }
   };
+  // the system's folder picker in the desktop app; elsewhere (a browser,
+  // the relay) a folder browser served by the host
   const pick = async () => {
-    const dir = await d!.pickFolder!(project || undefined).catch(() => "");
+    if (!d?.pickFolder) return setBrowsing(true);
+    const dir = await d.pickFolder(project || undefined).catch(() => "");
     if (dir) await use(dir);
   };
+  if (browsing) return <DirBrowser start={project || ""} busy={busy} onPick={(dir) => void use(dir)} onBack={() => setBrowsing(false)} />;
   const recents = recentDirs().filter((x) => x !== project);
   return (
     <>
@@ -1446,24 +1513,10 @@ function DirMenu({ agent, onDone }: { agent: AgentView; onDone: () => void }) {
         </button>
       ))}
       <hr />
-      {d?.pickFolder && (
-        <button className="mi" type="button" disabled={busy} onClick={() => void pick()}>
-          <FolderOpen size={16} />
-          <span className="g">{t("dir.pick")}</span>
-        </button>
-      )}
-      <form
-        className="dirtype"
-        onSubmit={(e) => {
-          e.preventDefault();
-          if (typed.trim()) void use(typed.trim());
-        }}
-      >
-        <input className="fi mono" value={typed} onChange={(e) => setTyped(e.target.value)} placeholder={t("dir.typePh")} spellCheck={false} />
-        <button className="btn sm" type="submit" disabled={busy || !typed.trim()}>
-          {t("dir.use")}
-        </button>
-      </form>
+      <button className="mi" type="button" disabled={busy} onClick={() => void pick()}>
+        <FolderOpen size={16} />
+        <span className="g">{t("dir.pick")}</span>
+      </button>
       {project && (
         <button className="mi" type="button" disabled={busy} onClick={() => void use("")}>
           <Undo2 size={16} />
