@@ -85,6 +85,7 @@
 - [x] Routines + 晨报（R-1 R-2）：默认只读、NO_ISSUES 静默、需关注才通知；晨报只列待处理项，正常项折叠计数
 - [x] Workflows：手动 / 定时 / Webhook 触发 → 串并行步骤 → 审批卡点，模板 {{input}}/{{prev}}/{{steps.x}}，从失败步重跑、取消、运行可从日志重建（R-3 R-5）
 - [x] MCP 客户端与管理（C-3，P0）：官方 go-sdk v1.8；stdio（沙箱内、进程组）/ Streamable HTTP；`<server>__<tool>` 命名空间；注解→类别；list_changed 刷新失败保留旧列表；崩溃退避重连；凭证引用；Agent 作用域服务器；API 含探测
+- [~] 内置 Google 连接器（features/google）：Gmail / 日历 / 云端硬盘 / 文档 / 表格 / 幻灯片，一键 Google 官方登录（PKCE + 回环回调到网关，无需本机安装）；刷新令牌只在钥匙串，invalid_grant → 需要重新登录，退出登录即撤销；23 个工具按类别审批（发送、共享、邀请 = 对外发布）；市场条目 builtin:google。用本地伪造的 Google 端到端验证（界面连接 → mock Agent 调 gmail_search → 发送走审批 → 退出撤销）。待办：所有者提供桌面客户端密钥（ID 已内置）、真实账号验证、受限 scope 的 Google 安全评估（docs/06 §7.1）
 - [x] `history_search` / `history_read`、`memory_add` / `memory_search`（C-2）
 - [x] 技能按需加载（C-4）：目录只进提示词，`skill_load` 取全文；工作区 > 共享目录按名称覆盖
 - [x] 进程外插件桥接：stdio JSON-RPC 2.0、清单权限（交集授权）、Waterfall 2s 超时、只能拒绝不能放行、退出即撤销、崩溃退避后 FAILED、可选沙箱（S-6）

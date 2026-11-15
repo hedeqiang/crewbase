@@ -123,6 +123,55 @@
 - 插件卸载时，它注册的所有工具、监听器、界面都会撤销；进程外插件的子进程树被终止。
 - **MCP**：host 信任的 stdio 服务器在沙箱之外运行，只读模式下只放行它的读取类工具（沙箱再强也管不到它）。HTTP 服务器的 OAuth 令牌只存系统钥匙串；登录回调只接受正在等待的那次登录的 state，并且只用一次；登录链接只接受 https（本机回环除外）。
 
+### 7.1 内置 Google 连接器（features/google）
+
+Gmail、Google 日历、云端硬盘、文档、表格、幻灯片是内置功能，不用装 uvx / npx / Python，用户在 设置 › 插件与技能 点「连接」，直接进入 Google 官方登录页。
+
+- **登录方式**：已安装应用的 OAuth 2.0（授权码 + PKCE S256），回调到网关本机地址 `http://127.0.0.1:<端口>/api/google/callback`（Google「桌面应用」客户端接受任意回环端口）。回调只接受正在等待的那次登录的 state，只用一次，15 分钟失效。在另一台电脑（中继）上登录时，浏览器最后会停在打不开的 127.0.0.1 页面，把那个地址粘贴回 已安装 › Google 即可完成（`POST /api/google/finish`，同样校验 state）。
+- **一台主机一个 Google 账号**。每个产品单独连接；桌面应用客户端不支持增量授权，所以每次连接都请求「已连接产品 + 新产品」的全部权限，并带 `prompt=consent` 拿到覆盖全部权限的新刷新令牌（也带 `include_granted_scopes=true`）。用户在同意页取消勾选某项权限时，该产品不算连接。
+- **令牌存放**：刷新令牌只在系统钥匙串（`keychain:crewbase/google-oauth`）；访问令牌只在内存，过期前自动刷新，遇到 401 刷新一次重试。`google.json`（数据目录）只有邮箱、已授权的权限、已连接产品和谁能用，没有任何令牌。刷新时 Google 返回 `invalid_grant`（用户撤销、过期）→ 标记「需要重新登录」，不再反复请求，工具返回明确的错误让 Agent 告诉用户。
+- **断开**：断开一个产品只移除它的工具；断开最后一个 = 退出登录：先在 `https://oauth2.googleapis.com/revoke` 撤销授权，再删钥匙串项（Google 不可达时本地照样清除，并提示去 myaccount.google.com/permissions 移除）。
+- **工具只在产品连接后出现**，默认所有 Agent 可用；也可以只给一个 Agent 或一个团队（`scope`）。
+- **权限（scope）选择**（Google 文档的敏感度分级，2026-11）：
+
+  | 产品 | scope | 级别 | 理由 |
+  |---|---|---|---|
+  | 身份 | `openid` `email` | 非敏感 | 显示连接的是哪个邮箱 |
+  | Gmail | `gmail.readonly` | **受限** | 搜索、阅读邮件 |
+  | Gmail | `gmail.compose` | **受限** | 起草与发送（`gmail.send` 只是敏感，但不能建草稿；`gmail.modify` 更宽，不用） |
+  | 日历 | `calendar.events` + `calendar.freebusy` | 敏感 | 读写活动、查空闲；不用整个 `calendar` |
+  | 云端硬盘 | `drive.readonly` | **受限** | 搜索、读取用户已有的文件（只用 `drive.file` 就只能看到 Crewbase 自己建的文件，搜索就没意义了） |
+  | 云端硬盘 | `drive.file` | 非敏感 | 上传、共享 Crewbase 建的文件；不用可写的整个 `drive` |
+  | 文档 / 表格 / 幻灯片 | `documents` / `spreadsheets` / `presentations` | 敏感 | 读写用户已有的文档 |
+
+  受限 scope 要求应用在对外发布前通过 Google 的安全评估（CASA）；敏感 scope 需要 Google 审核。测试阶段（最多 100 个测试用户）不需要。
+
+- **审批**：按动作类别走规则引擎（§3）。
+
+  | 工具 | 类别（默认） |
+  |---|---|
+  | `gmail_search` `gmail_read` `calendar_list_events` `calendar_free_busy` `drive_search` `drive_read` `docs_read` `sheets_read` `slides_read` | 读取（Allow） |
+  | `gmail_draft` `drive_upload`（只进用户自己的硬盘）`docs_create` `docs_append` `docs_replace` `sheets_write` `sheets_append` `slides_create`，以及不邀请别人的 `calendar_create_event` / `calendar_update_event` | 写入（Allow） |
+  | `gmail_send`、`drive_share`、`calendar_rsvp`、邀请他人或修改有他人参加的活动的 `calendar_create_event` / `calendar_update_event` | **对外发布（Ask，记住需二次确认）** |
+  | `calendar_delete_event` | **删除（Ask）** |
+
+  审批卡上的摘要是可读的一句话，例如「发送邮件给 a@b.com：主题「季度报告」」。工具输出有上限（列表 12 000 字、单封邮件 / 文档 20 000 字），HTML 邮件转成纯文本，附件只列名称和大小，二进制文件只给元信息；邮件头里不允许换行（防注入）。429 / 5xx（以及 403 rateLimitExceeded）退避重试。
+
+**发布前需要所有者在 Google Cloud 做的事**：
+
+1. 在 Google Cloud Console 新建（或选用）一个项目。
+2. 启用 6 个 API：Gmail API、Google Calendar API、Google Drive API、Google Docs API、Google Sheets API、Google Slides API。
+3. OAuth 同意屏幕（Google Auth Platform › Branding / Audience / Data access）：用户类型选「外部」，发布状态先保持「测试」，把要试用的 Google 账号加为测试用户；在 Data access 里加上上表的 scope。
+4. Clients › 创建客户端，类型选「**桌面应用**」（Desktop app）。桌面客户端无需登记重定向地址，接受任意 `http://127.0.0.1:<端口>`。
+5. 把客户端 ID 和密钥交给 Crewbase（Google 认为已安装应用的密钥不保密；令牌端点仍要求带上它），任选其一，优先级从高到低：
+   - 插件配置：`crewbase.patch.yml` 里 `- id: google` 的 `config.clientId` / `config.clientSecret`（密钥也可以写成 `keychain:…` / `env:…` 引用）；
+   - 环境变量：`CREWBASE_GOOGLE_CLIENT_ID` / `CREWBASE_GOOGLE_CLIENT_SECRET`；
+   - 构建时写入：`go build -ldflags "-X github.com/hedeqiang/crewbase/features/google.DefaultClientID=… -X github.com/hedeqiang/crewbase/features/google.DefaultClientSecret=…"`。客户端 ID 已作为默认值写在代码里，密钥默认为空。
+   ID 和密钥都有才算「已设置」；缺任何一个，市场里的 Google 条目显示「此版本尚未设置 Google 登录」，点连接只提示，不会出错。
+6. 对外发布（超出测试用户）前提交 Google 验证：受限 scope（`gmail.readonly`、`gmail.compose`、`drive.readonly`）需要通过安全评估，敏感 scope 需要审核，同意屏幕需要隐私政策链接和已验证域名。
+
+测试 / 本地伪造：插件配置 `oauthBase` / `apiBase` 或环境变量 `CREWBASE_GOOGLE_OAUTH_BASE` / `CREWBASE_GOOGLE_API_BASE` 把全部 Google 端点指向别的地址（仅用于测试）。
+
 ## 8. 远程主机与多端
 
 - **零入站端口**：远程主机只主动建立出站加密连接（WebSocket Relay / Tailscale / WireGuard），与已配对的桌面端和移动端通信。
