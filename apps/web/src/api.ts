@@ -575,6 +575,12 @@ export interface BrowserState {
   since?: string;
   headless: boolean;
   view?: "frames" | "window" | string;
+  /** a takeover moved to a desktop window (back to headless on hand-back) */
+  window?: boolean;
+  /** the takeover can move to a desktop window */
+  canWindow?: boolean;
+  /** …and this client runs where that window would open */
+  windowHere?: boolean;
 }
 export interface Screenshot {
   mime: string;
@@ -981,6 +987,8 @@ export const API = {
   browser: (id: string) => api<BrowserState>("GET", `/api/agents/${enc(id)}/browser`),
   takeover: (id: string) => api<BrowserState>("POST", `/api/agents/${enc(id)}/browser/takeover`),
   handback: (id: string) => api<BrowserState>("POST", `/api/agents/${enc(id)}/browser/handback`),
+  /** Move a takeover to a desktop window (open) or back to the in-app frame view. */
+  browserWindow: (id: string, open: boolean) => api<BrowserState>("POST", `/api/agents/${enc(id)}/browser/window`, { open }),
   screenshot: (id: string) => api<Screenshot>("GET", `/api/agents/${enc(id)}/browser/screenshot`),
   /** One frame as a PNG (an object URL the caller revokes); falls back to JSON on older daemons. */
   screenshotFrame: async (id: string): Promise<{ src: string; width: number; height: number; url: string; revoke: boolean }> => {

@@ -1515,3 +1515,9 @@ button.psec.toggle { width: 100%; background: none; border: 0; font-family: inhe
 .toldi { display: flex; flex-direction: column; gap: 2px; font-size: 12.5px; padding: 8px 10px; border-radius: 10px; background: var(--sunken); }
 .modal.wide { width: min(720px, calc(100vw - 32px)); }
 .wview { max-height: min(70vh, 640px); overflow: auto; }
+/* browser takeover: frame view ⇄ desktop window */
+.brswitch { margin-top: 10px; }
+.brwin { margin-top: 10px; display: flex; gap: 10px; align-items: flex-start; padding: 12px; border: 1px dashed var(--takeover); border-radius: 10px; background: var(--sunken); }
+.brwin p { margin: 0; line-height: 1.55; }
+.brwin svg { flex: none; margin-top: 1px; }
+.brcard .acts { flex-wrap: wrap; }

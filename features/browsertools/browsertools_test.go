@@ -265,6 +265,25 @@ func TestTakeoverBlocksToolsAndResumes(t *testing.T) {
 	}
 	waitSSE(t, sse, "browser.state")
 
+	// The local desktop may move the takeover to a window (not opened here:
+	// no window pops up in tests; see the provider's window tests).
+	_, body = e.call(t, "GET", "/api/agents/"+id+"/browser", nil)
+	var view struct {
+		CanWindow  bool `json:"canWindow"`
+		WindowHere bool `json:"windowHere"`
+		Mine       bool `json:"mine"`
+	}
+	_ = json.Unmarshal(body, &view)
+	if !view.Mine || view.WindowHere != view.CanWindow {
+		t.Fatalf("browser view %s", body)
+	}
+	if code, _ := e.call(t, "POST", "/api/agents/"+id+"/browser/window", map[string]any{}); code != 400 {
+		t.Fatalf("window without open: %d", code)
+	}
+	if code, body := e.call(t, "POST", "/api/agents/"+id+"/browser/window", map[string]any{"open": false}); code != 200 {
+		t.Fatalf("back to frames (no-op): %d %s", code, body)
+	}
+
 	// Every tool is blocked and learns nothing about the page.
 	for _, name := range []string{browsertools.ToolSnapshot, browsertools.ToolBack} {
 		r := e.run(t, name, nil)

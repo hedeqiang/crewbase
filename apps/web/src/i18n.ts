@@ -1309,6 +1309,18 @@ const zh = {
   "prof.reference": "节省按参考价估算：输入 ${i} / 输出 ${o} 每百万 tokens。经网关（如 magpie）的用量不计入节省或花费。",
 
   "kind.gateway": "网关",
+
+  "brx.openWindow": "在窗口中打开",
+  "brx.openHint": "在这台电脑上把同一个浏览器（同样的登录和标签页）作为真实窗口打开，方便使用已保存的登录、通行密钥或完成人机验证。页面会重新载入。",
+  "brx.opening": "正在打开窗口……同样的登录和标签页会一起带过去。",
+  "brx.closing": "正在回到画面视图……",
+  "brx.window": "浏览器已在这台电脑上以窗口打开，登录和标签页都还在。在窗口里完成后点「交还控制权」，{name} 会从你停留的标签页继续。",
+  "brx.windowClosed": "窗口已关闭，标签页已记住。可以重新打开窗口，或直接交还控制权。",
+  "brx.elsewhere": "浏览器窗口开在运行 Crewbase 的电脑上。可以去那台电脑上操作，或切回画面视图在这里继续。",
+  "brx.reopen": "重新打开窗口",
+  "brx.backToFrames": "回到画面视图",
+  "brx.backHint": "关闭窗口，在这里逐帧查看和操作（标签页保留）",
+  "brx.noWindow": "无法打开窗口，继续使用画面视图：{error}",
 } as const;
 
 export type Key = keyof typeof zh;

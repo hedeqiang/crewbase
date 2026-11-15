@@ -8,6 +8,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"image/png"
+	"net"
 	"net/url"
 	"strconv"
 	"strings"
@@ -33,6 +34,21 @@ func Caller(r *gateway.Request) string {
 	return r.Device + ":" + hex.EncodeToString(sum[:8])
 }
 
+// Local reports whether the request comes from the desktop on the machine
+// running Crewbase (the local token over loopback), where a browser window
+// would be visible.
+func Local(r *gateway.Request) bool {
+	if r.Device != "desktop" || r.DeviceID != "" || r.HTTP == nil {
+		return false
+	}
+	host, _, err := net.SplitHostPort(r.HTTP.RemoteAddr)
+	if err != nil {
+		return false
+	}
+	ip := net.ParseIP(host)
+	return ip != nil && ip.IsLoopback()
+}
+
 // Screenshot is the takeover view frame returned by the API.
 type Screenshot struct {
 	Mime   string `json:"mime"`
@@ -51,6 +67,8 @@ func apiErr(err error) error {
 		return gateway.Conflict("take over the browser first")
 	case errors.Is(err, browser.ErrNotRunning):
 		return gateway.Conflict("the browser is not running")
+	case errors.Is(err, browser.ErrNoWindow):
+		return gateway.Conflict("%v", err)
 	case errors.Is(err, browser.ErrClosed):
 		return gateway.Conflict("the browser provider is unavailable")
 	}
@@ -64,7 +82,7 @@ var APIPlugin = kernel.Register(kernel.Spec{
 	Name:        "@crewbase/browser-api",
 	Inject:      []string{gateway.ServiceKey, browser.ServiceKey},
 	Optional:    []string{agent.ServiceKey},
-	Description: "Browser takeover API: state, takeover, handback, screenshot frames and input; browser.state SSE.",
+	Description: "Browser takeover API: state, takeover, handback, screenshot frames and input, move to a desktop window and back; browser.state SSE.",
 	Apply: func(c *kernel.Context) error {
 		g := kernel.Use[*gateway.Gateway](c, gateway.ServiceKey)
 		b := kernel.Use[browser.Browser](c, browser.ServiceKey)
@@ -87,10 +105,14 @@ var APIPlugin = kernel.Register(kernel.Spec{
 					return nil, err
 				}
 				st := b.State(r.Params["id"])
+				_, win := b.(browser.Windower)
 				return struct {
 					browser.State
 					Mine bool `json:"mine"`
-				}{st, st.TakenOverBy != "" && st.TakenOverBy == Caller(r)}, nil
+					// WindowHere: this client can move the takeover to a window
+					// (it runs on the machine where the window would open).
+					WindowHere bool `json:"windowHere"`
+				}{st, st.TakenOverBy != "" && st.TakenOverBy == Caller(r), win && st.CanWindow && Local(r)}, nil
 			}})
 		g.Handle(c, gateway.Route{Method: "POST", Path: "/api/agents/{id}/browser/takeover",
 			Handle: func(_ context.Context, r *gateway.Request) (any, error) {
@@ -117,6 +139,43 @@ var APIPlugin = kernel.Register(kernel.Spec{
 					return nil, apiErr(browser.ErrNotController)
 				}
 				if err := b.Handback(id); err != nil {
+					return nil, apiErr(err)
+				}
+				return b.State(id), nil
+			}})
+		// Move a takeover to a real window on the desktop and back. Only for
+		// the local desktop: the window opens on the machine running
+		// Crewbase, which a phone or a remote client cannot see.
+		g.Handle(c, gateway.Route{Method: "POST", Path: "/api/agents/{id}/browser/window",
+			Validate: func(r *gateway.Request) error {
+				var in struct {
+					Open *bool `json:"open"`
+				}
+				if err := r.Decode(&in); err != nil {
+					return err
+				}
+				if in.Open == nil {
+					return gateway.BadRequest("open (true or false) is required")
+				}
+				return nil
+			},
+			Handle: func(_ context.Context, r *gateway.Request) (any, error) {
+				id := r.Params["id"]
+				if _, err := agentFor(id); err != nil {
+					return nil, err
+				}
+				w, ok := b.(browser.Windower)
+				if !ok {
+					return nil, gateway.Conflict("this browser cannot open a window")
+				}
+				var in struct {
+					Open bool `json:"open"`
+				}
+				_ = r.Decode(&in)
+				if in.Open && !Local(r) {
+					return nil, &gateway.Error{Status: 403, Code: "forbidden", Message: "the window opens on the computer running Crewbase; open it from there"}
+				}
+				if err := w.SetWindow(id, Caller(r), in.Open); err != nil {
 					return nil, apiErr(err)
 				}
 				return b.State(id), nil

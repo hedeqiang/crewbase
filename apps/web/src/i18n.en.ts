@@ -1266,4 +1266,16 @@ export const en: Partial<Record<Key, string>> = {
   "conn.connect": "Connect a model",
   "chat.noModelErr": "This turn couldn't start: no model is available yet.",
   "wel.sub": "Subscription",
+
+  "brx.openWindow": "Open in a window",
+  "brx.openHint": "Opens the same browser (same logins and tabs) as a real window on this computer, for saved logins, passkeys or captchas. Pages reload.",
+  "brx.opening": "Opening the window… your logins and tabs come along.",
+  "brx.closing": "Returning to the in-app view…",
+  "brx.window": "The browser is open as a window on this computer, with its logins and tabs. Finish there, then click \"Hand back control\"; {name} continues from the tab you were on.",
+  "brx.windowClosed": "The window was closed; its tabs are remembered. Reopen it, or hand back control.",
+  "brx.elsewhere": "The browser window is open on the computer running Crewbase. Work there, or switch back to the in-app view to continue here.",
+  "brx.reopen": "Reopen window",
+  "brx.backToFrames": "Back to in-app view",
+  "brx.backHint": "Close the window and view and control it here, frame by frame (tabs are kept)",
+  "brx.noWindow": "Couldn't open a window; staying in the in-app view: {error}",
 };
