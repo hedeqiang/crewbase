@@ -1504,3 +1504,14 @@ button.tg:disabled { opacity: .5; cursor: not-allowed; }
 .wfine { margin-top: 10px !important; font-size: 11.5px; }
 .wstep + .wtplh { margin-top: 0; }
 .confirmbar.nomodel { border-color: var(--border); background: var(--surface); }
+
+/* working memory (panel) */
+button.qi.wrow { width: 100%; text-align: left; background: none; border: 0; font: inherit; color: inherit; cursor: pointer; border-radius: 8px; }
+button.qi.wrow:hover { background: var(--hover); }
+.psec.phead { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.psec.phead .linkbtn { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; }
+button.psec.toggle { width: 100%; background: none; border: 0; font-family: inherit; cursor: pointer; padding-left: 0; padding-right: 0; text-align: left; }
+.told { display: flex; flex-direction: column; gap: 8px; margin-bottom: 6px; }
+.toldi { display: flex; flex-direction: column; gap: 2px; font-size: 12.5px; padding: 8px 10px; border-radius: 10px; background: var(--sunken); }
+.modal.wide { width: min(720px, calc(100vw - 32px)); }
+.wview { max-height: min(70vh, 640px); overflow: auto; }

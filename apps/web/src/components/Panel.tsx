@@ -1,4 +1,5 @@
 import { TaskBoard } from "./TaskBoard";
+import { WorkNotes, WorkTasks } from "./Working";
 import { useEffect, useMemo, useState } from "react";
 import { AlarmClock, Archive, ArrowDown, ArrowUp, Globe, GripVertical, Link2, Minimize2, Pause, Play, Plus, Shuffle, Square, Trash, UserPlus, X } from "lucide-react";
 import { API, refString, type Followup, type AgentView, type ChannelView, type ContextBreakdown, type ModelRef } from "../api";
@@ -328,6 +329,7 @@ function TaskTab({ agent }: { agent: AgentView }) {
         ))
       )}
       <Followups agent={agent} />
+      {agent.kind !== "chat" && <WorkTasks agent={agent} />}
     </>
   );
 }
@@ -668,6 +670,7 @@ function AgentTab({ agent, sessionId }: { agent: AgentView; sessionId: string })
           </button>
         ))}
       </div>
+      <WorkNotes agent={agent} />
       <div style={{ marginTop: 20 }}>
         <button className="btn dng" type="button" onClick={del}>
           <Trash size={13} />

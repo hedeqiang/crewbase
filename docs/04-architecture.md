@@ -93,10 +93,14 @@ crewbase/
 ├── workspaces/<agent-id>/      Agent 工作目录（产物文件）
 │   ├── INSTRUCTIONS.md         角色指令
 │   ├── MEMORY.md               长期记忆（人类可读、可编辑）
+│   ├── tasks/<name>.md         进行中任务的进度文件（提示词只带列表；done/ 为已完成）
+│   ├── notes/*.md|txt          参考笔记（提示词只带目录，note_read 按需读）
+│   ├── .memory/told.jsonl      主动告诉过用户的内容（例行、跟进、后台结果等，避免重复）
 │   └── browser/                独立浏览器 Profile
 ├── sessions/<session-id>/
 │   └── session.v1.jsonl.zst    会话日志（唯一真源）
 ├── index.sqlite                会话索引、全文检索、队列、定时任务、审批状态
+├── parked.json                 停靠中的审批调用（重启后告诉 Agent 重新发起）
 └── audit/                      审计日志（Phase 3，哈希链）
 ```
 

@@ -148,6 +148,7 @@ var Base = kernel.Bundle{Name: "base", Entries: []kernel.Entry{
 	{ID: "memory", Name: "@crewbase/memory-markdown-sqlite", Config: map[string]any{"root": "${root}"}},
 	// Nightly: agents curate an overgrown MEMORY.md (backed up first).
 	{ID: "memory-tidy", Name: "@crewbase/memory-tidy"},
+	{ID: "memory-working", Name: "@crewbase/memory-working"},
 }}
 
 // Desktop adds the local gateway, API and desktop approval cards.
@@ -159,6 +160,7 @@ var Desktop = kernel.Bundle{Name: "desktop", Entries: []kernel.Entry{
 	{ID: "webhook", Name: "@crewbase/webhook"},
 	{ID: "routines-api", Name: "@crewbase/routines-api"},
 	{ID: "followups-api", Name: "@crewbase/followups-api"},
+	{ID: "memory-working-api", Name: "@crewbase/memory-working-api"},
 	{ID: "usage", Name: "@crewbase/usage"},
 	{ID: "workflows-api", Name: "@crewbase/workflows-api"},
 	{ID: "mcp-api", Name: "@crewbase/mcp-api"},

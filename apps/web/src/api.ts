@@ -831,6 +831,10 @@ export interface ImGateway {
 }
 
 export type Followup = { id: string; agent: string; session: string; note: string; due: string; set: string };
+export type WorkTask = { name: string; title: string; updated: string };
+export type WorkNote = { name: string; title: string; size: number; updated: string };
+export type ToldEntry = { time: string; session: string; via: string; text: string };
+export type Working = { tasks: WorkTask[]; notes: WorkNote[]; told: ToldEntry[] };
 
 export const API = {
   updates: () => api<UpdateInfo>("GET", "/api/updates"),
@@ -847,6 +851,11 @@ export const API = {
   setProjectDir: (agent: string, dir: string) => api<AgentView>("PATCH", `/api/agents/${enc(agent)}`, { projectDir: dir }),
   followups: (agent: string) => api<{ followups: Followup[] }>("GET", `/api/agents/${enc(agent)}/followups`),
   cancelFollowup: (agent: string, id: string) => api("DELETE", `/api/agents/${enc(agent)}/followups/${enc(id)}`),
+  working: (agent: string) => api<Working>("GET", `/api/agents/${enc(agent)}/working`),
+  taskProgress: (agent: string, name: string) => api<{ name: string; text: string }>("GET", `/api/agents/${enc(agent)}/tasks/${enc(name)}`),
+  note: (agent: string, name: string) => api<{ name: string; text: string }>("GET", `/api/agents/${enc(agent)}/notes/${enc(name)}`),
+  putNote: (agent: string, name: string, text: string) => api<{ name: string }>("PUT", `/api/agents/${enc(agent)}/notes/${enc(name)}`, { text }),
+  deleteNote: (agent: string, name: string) => api("DELETE", `/api/agents/${enc(agent)}/notes/${enc(name)}`),
   imConfig: () => api<{ platforms: ImPlatform[]; gateways: ImGateway[] }>("GET", "/api/im/config"),
   saveIm: (id: string, b: Record<string, unknown>) => api<ImGateway>("PUT", `/api/im/config/${enc(id)}`, b),
   removeIm: (id: string) => api("DELETE", `/api/im/config/${enc(id)}`),
