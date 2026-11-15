@@ -44,7 +44,13 @@ Crewbase runs a team of agents on your own machine or server. Each agent has its
 curl -fsSL https://github.com/hedeqiang/crewbase/releases/latest/download/install.sh | sh
 ```
 
-You can also download `crewbase-<version>.dmg` — a universal app that runs natively on Apple silicon and Intel — from [Releases](https://github.com/hedeqiang/crewbase/releases/latest). The app is not notarized by Apple yet, so the first launch of a browser-downloaded copy has to be allowed in **System Settings › Privacy & Security › Open Anyway**. The install script above avoids this.
+Or with [Homebrew](https://brew.sh):
+
+```sh
+brew install --cask hedeqiang/tap/crewbase
+```
+
+You can also download `crewbase-<version>.dmg` — a universal app that runs natively on Apple silicon and Intel — from [Releases](https://github.com/hedeqiang/crewbase/releases/latest). The app is not notarized by Apple yet, so the first launch of a browser-downloaded copy has to be allowed in **System Settings › Privacy & Security › Open Anyway**. The install script and Homebrew avoid this.
 
 **Windows:** download `crewbase-setup-<version>-amd64.exe` (or `arm64`) from [Releases](https://github.com/hedeqiang/crewbase/releases/latest). The installer is unsigned for now; choose *More info › Run anyway* in SmartScreen.
 

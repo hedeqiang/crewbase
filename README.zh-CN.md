@@ -44,7 +44,13 @@ Crewbase 在你自己的电脑或服务器上运行一支 Agent 团队。每个 
 curl -fsSL https://github.com/hedeqiang/crewbase/releases/latest/download/install.sh | sh
 ```
 
-也可以在 [Releases](https://github.com/hedeqiang/crewbase/releases/latest) 下载 `crewbase-<版本>.dmg`（通用版，Apple 芯片与 Intel 都原生运行）。应用暂未经 Apple 公证，浏览器下载的副本首次打开需要在 **系统设置 › 隐私与安全性 › 仍要打开** 中允许；用上面的安装脚本则不会遇到。
+或者用 [Homebrew](https://brew.sh)：
+
+```sh
+brew install --cask hedeqiang/tap/crewbase
+```
+
+也可以在 [Releases](https://github.com/hedeqiang/crewbase/releases/latest) 下载 `crewbase-<版本>.dmg`（通用版，Apple 芯片与 Intel 都原生运行）。应用暂未经 Apple 公证，浏览器下载的副本首次打开需要在 **系统设置 › 隐私与安全性 › 仍要打开** 中允许；用上面的安装脚本或 Homebrew 则不会遇到。
 
 **Windows：** 在 [Releases](https://github.com/hedeqiang/crewbase/releases/latest) 下载 `crewbase-setup-<版本>-amd64.exe`（或 `arm64`）。安装程序暂未签名，SmartScreen 提示时选择「更多信息 › 仍要运行」。
 
