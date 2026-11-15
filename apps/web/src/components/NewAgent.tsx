@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Check, ChevronDown, FileUp, Folder, Shield, RefreshCw, Dices } from "lucide-react";
+import { Check, ChevronDown, Dices, FileUp, Folder, Plus, RefreshCw, Shield } from "lucide-react";
 import { API, refString, type ModelRef } from "../api";
 import { ImportRoleDialog } from "./ImportRole";
 import { t, type Key } from "../i18n";
@@ -73,10 +73,38 @@ export function NewAgent({ draft: f, setDraft }: { draft: Draft; setDraft: (d: D
   const models = useStore((s) => s.models);
   const [err, setErr] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [tplPage, setTplPage] = useState(0);
   const nameRef = useRef<HTMLInputElement>(null);
   const modelM = useMenu();
   const [poke, setPoke] = useState(0);
+  const folderM = useMenu();
+  const [newFolder, setNewFolder] = useState("");
+  // which start the form came from ("" = blank, null = edited by hand)
+  const [picked, setPicked] = useState<string | null>("");
+  const pickTemplate = (x: (typeof TEMPLATES)[number]) => {
+    setErr(false);
+    setPicked(x.key);
+    set({
+      name: t(`tpl.${x.key}.name` as Key),
+      desc: t(`tpl.${x.key}.${x.instr ? "instr" : "desc"}` as Key),
+      role: t(`tpl.${x.key}.role` as Key),
+      color: x.color,
+      shape: x.shape,
+      mode: teamMode(x.mode),
+    });
+    nameRef.current?.focus();
+  };
+  const pickBlank = () => {
+    setPicked("");
+    setDraft({ ...emptyDraft(), folder: f.folder, model: f.model, effort: f.effort });
+    nameRef.current?.focus();
+  };
+  const randomLook = () => {
+    const other = <T,>(xs: readonly T[], cur: T) => {
+      const rest = xs.filter((x) => x !== cur);
+      return rest[Math.floor(Math.random() * rest.length)];
+    };
+    set({ color: other(COLORS, f.color), shape: other(SHAPES, f.shape as (typeof SHAPES)[number]) });
+  };
   const modeM = useMenu();
   const all = useMemo(() => allModels(models), [models]);
   const folders = useFolders();
@@ -157,177 +185,219 @@ export function NewAgent({ draft: f, setDraft }: { draft: Draft; setDraft: (d: D
   return (
     <section className="main">
       <div className="na">
-        <div className="na-col">
-          <div className="na-hero">
-            <button
-              type="button"
-              className="na-heroav"
-              key={f.color + f.shape + poke}
-              title={t("na.poke")}
-              aria-label={t("na.poke")}
-              onClick={() => setPoke((n) => n + 1)}
-            >
-              <AvatarRaw color={f.color} shape={f.shape} size={92} name={f.name} />
-            </button>
-            <b className="na-prev">{f.name.trim() || t("na.newAgent")}</b>
-            <button
-              type="button"
-              className="btn ghost sm na-dice"
-              onClick={() => {
-                const pickOther = <T,>(xs: readonly T[], cur: T) => {
-                  const rest = xs.filter((x) => x !== cur);
-                  return rest[Math.floor(Math.random() * rest.length)];
-                };
-                set({ color: pickOther(COLORS, f.color), shape: pickOther(SHAPES, f.shape as (typeof SHAPES)[number]) });
-              }}
-            >
-              <Dices size={14} />
-              {t("na.random")}
-            </button>
-          </div>
-          <div className="na-colors" role="radiogroup" aria-label={t("na.color")}>
-            {COLORS.map((c) => (
-              <button key={c} type="button" className="dotc" style={{ ["--c" as any]: c }} aria-pressed={f.color === c} aria-label={c} onClick={() => set({ color: c })} />
-            ))}
-          </div>
-          <div className="na-shapes" role="radiogroup" aria-label={t("na.shape")}>
-            {SHAPES.map((s) => (
-              <button key={s} type="button" className="shp" aria-pressed={f.shape === s} aria-label={s} onClick={() => set({ shape: s })}>
-                <AvatarRaw color={f.color} shape={s} size={30} name={f.name} />
-              </button>
-            ))}
-          </div>
-
-          <label className="fl" htmlFor="naName">
-            {t("na.name")} <i>*</i>
-          </label>
-          <input
-            ref={nameRef}
-            id="naName"
-            className={"fi" + (err ? " bad" : "")}
-            value={f.name}
-            maxLength={24}
-            autoComplete="off"
-            placeholder={t("na.namePh")}
-            onChange={(e) => {
-              set({ name: e.target.value });
-              if (e.target.value.trim()) setErr(false);
-            }}
-            onKeyDown={(e) => e.key === "Enter" && create()}
-          />
-          {err && <div className="ferr">{t("na.needName")}</div>}
-
-          <label className="fl" htmlFor="naRole">
-            {t("na.role")}
-          </label>
-          <input id="naRole" className="fi" value={f.role} maxLength={16} placeholder={t("na.rolePh")} onChange={(e) => set({ role: e.target.value })} />
-
-          <label className="fl" htmlFor="naDesc">
-            {t("na.desc")}
-          </label>
-          <textarea id="naDesc" className="fi" rows={3} value={f.desc} placeholder={t("na.descPh")} onChange={(e) => set({ desc: e.target.value })} />
-
-          <div className="rows">
-            <button type="button" className="rowsel" ref={modelM.ref} onClick={modelM.toggle} aria-haspopup="menu">
-              <span>{t("na.model")}</span>
-              <span className="v">
-                {primary ? (
-                  <>
-                    <ProviderMark provider={primary.provider} model={primary.model} />
-                    {shortModel(models, primary)}
-                    <i>· {effortLabel(f.effort) || t("effort.default")}</i>
-                  </>
-                ) : (
-                  <i>{t("na.modelNone")}</i>
-                )}
-                <ChevronDown size={14} />
+        <div className="na-grid">
+          {/* left: where to start — blank or a template; picking one fills the form */}
+          <aside className="na-side">
+            <div className="na-sideh">{t("na.startFrom")}</div>
+            <button type="button" className={"tpl" + (picked === "" ? " on" : "")} onClick={() => pickBlank()}>
+              <span className="tplblank">
+                <Plus size={18} />
+              </span>
+              <span className="g">
+                <b>{t("na.blank")}</b>
+                <span>{t("na.blankDesc")}</span>
               </span>
             </button>
-            <div className="rowhint">
-              {backup ? (
-                <>
-                  <ProviderMark provider={backup.provider} model={backup.model} size={12} />
-                  <span className="ml">{t("na.backup", { model: shortModel(models, backup) })}</span>
-                </>
-              ) : (
-                t("na.noBackup")
-              )}
-            </div>
-            <button type="button" className="rowsel" ref={modeM.ref} onClick={modeM.toggle} aria-haspopup="menu">
-              <span>{t("na.mode")}</span>
-              <span className="v">
-                <Shield size={15} />
-                {modeLabel(f.mode)}
-                <ChevronDown size={14} />
-              </span>
-            </button>
-            <label className="rowsel">
-              <span>{t("na.folder")}</span>
-              <span className="v">
-                <Folder size={15} />
-                <input className="inl" list="naFolders" value={f.folder} placeholder={t("na.folderPh")} onChange={(e) => set({ folder: e.target.value })} />
-                <datalist id="naFolders">
-                  {folders.map((x) => (
-                    <option key={x} value={x} />
-                  ))}
-                </datalist>
-              </span>
-            </label>
-          </div>
-          <div className="na-acts">
-            <button className="btn big" type="button" onClick={() => setState({ view: "chat" })}>
-              {t("common.cancel")}
-            </button>
-            <button className="btn pri big" type="button" disabled={busy} onClick={create}>
-              {busy ? t("na.creating") : t("na.create")}
-            </button>
-          </div>
-        </div>
-
-        <div className="na-sug">
-          <div className="na-sugh">
-            <div className="vsec">{t("na.templates")}</div>
-            <ShuffleButton page={tplPage} onNext={() => setTplPage((p) => p + 1)} />
-          </div>
-          <div className="sugs">
-            {templatePage(tplPage).map((x) => (
-              <button
-                key={x.key}
-                type="button"
-                className="sug"
-                onClick={() => {
-                  setErr(false);
-                  set({
-                    name: t(`tpl.${x.key}.name` as Key),
-                    desc: t(`tpl.${x.key}.${x.instr ? "instr" : "desc"}` as Key),
-                    role: t(`tpl.${x.key}.role` as Key),
-                    color: x.color,
-                    shape: x.shape,
-                    mode: teamMode(x.mode),
-                  });
-                }}
-              >
-                <AvatarRaw color={x.color} shape={x.shape} size={40} name={t(`tpl.${x.key}.name` as Key)} />
-                <span>
+            {TEMPLATES.map((x) => (
+              <button key={x.key} type="button" className={"tpl" + (picked === x.key ? " on" : "")} onClick={() => pickTemplate(x)}>
+                <AvatarRaw color={x.color} shape={x.shape} size={34} name={t(`tpl.${x.key}.name` as Key)} />
+                <span className="g">
                   <b>{t(`tpl.${x.key}.name` as Key)}</b>
                   <span>{t(`tpl.${x.key}.desc` as Key)}</span>
-                  <span className="meta">
-                    {primary && <ProviderMark provider={primary.provider} model={primary.model} size={12} />}
-                    {primary ? shortModel(models, primary) : ""} · {modeLabel(x.mode)}
-                  </span>
                 </span>
               </button>
             ))}
+            <button type="button" className="tpl imp" onClick={() => setImporting(true)}>
+              <span className="tplblank">
+                <FileUp size={16} />
+              </span>
+              <span className="g">
+                <b>{t("ir.title")}</b>
+                <span>{t("ir.entryDesc")}</span>
+              </span>
+            </button>
+          </aside>
+
+          {/* right: the agent */}
+          <div className="na-main">
+            <div className="na-card na-id">
+              <button
+                type="button"
+                className="na-heroav"
+                key={f.color + f.shape + poke}
+                title={t("na.poke")}
+                aria-label={t("na.poke")}
+                onClick={() => setPoke((n) => n + 1)}
+              >
+                <AvatarRaw color={f.color} shape={f.shape} size={84} name={f.name} />
+              </button>
+              <div className="na-look">
+                <div className="na-lookh">
+                  <span className="small muted">{t("na.look")}</span>
+                  <button type="button" className="linkbtn na-dice" onClick={randomLook}>
+                    <Dices size={13} />
+                    {t("na.random")}
+                  </button>
+                </div>
+                <div className="na-shapes" role="radiogroup" aria-label={t("na.shape")}>
+                  {SHAPES.map((sh) => (
+                    <button key={sh} type="button" className="shp" aria-pressed={f.shape === sh} aria-label={sh} onClick={() => set({ shape: sh })}>
+                      <AvatarRaw color={f.color} shape={sh} size={26} name={f.name} />
+                    </button>
+                  ))}
+                </div>
+                <div className="na-colors" role="radiogroup" aria-label={t("na.color")}>
+                  {COLORS.map((c) => (
+                    <button key={c} type="button" className="dotc" style={{ ["--c" as any]: c }} aria-pressed={f.color === c} aria-label={c} onClick={() => set({ color: c })} />
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div className="na-card">
+              <div className="na-two">
+                <div>
+                  <label className="fl" htmlFor="naName">
+                    {t("na.name")} <i>*</i>
+                  </label>
+                  <input
+                    ref={nameRef}
+                    id="naName"
+                    className={"fi" + (err ? " bad" : "")}
+                    value={f.name}
+                    maxLength={24}
+                    autoComplete="off"
+                    placeholder={t("na.namePh")}
+                    onChange={(e) => {
+                      set({ name: e.target.value });
+                      if (e.target.value.trim()) setErr(false);
+                    }}
+                    onKeyDown={(e) => e.key === "Enter" && create()}
+                  />
+                  {err && <div className="ferr">{t("na.needName")}</div>}
+                </div>
+                <div>
+                  <label className="fl" htmlFor="naRole">
+                    {t("na.role")}
+                  </label>
+                  <input id="naRole" className="fi" value={f.role} maxLength={16} placeholder={t("na.rolePh")} onChange={(e) => set({ role: e.target.value })} />
+                </div>
+              </div>
+              <label className="fl" htmlFor="naDesc">
+                {t("na.desc")}
+              </label>
+              <textarea
+                id="naDesc"
+                className="fi na-desc"
+                rows={f.desc.length > 160 ? 8 : 3}
+                value={f.desc}
+                placeholder={t("na.descPh")}
+                onChange={(e) => set({ desc: e.target.value })}
+              />
+            </div>
+
+            <div className="na-card rows">
+              <button type="button" className="rowsel" ref={modelM.ref} onClick={modelM.toggle} aria-haspopup="menu">
+                <span>{t("na.model")}</span>
+                <span className="v">
+                  {primary ? (
+                    <>
+                      <ProviderMark provider={primary.provider} model={primary.model} />
+                      {shortModel(models, primary)}
+                      <i>· {effortLabel(f.effort) || t("effort.default")}</i>
+                    </>
+                  ) : (
+                    <i>{t("na.modelNone")}</i>
+                  )}
+                  <ChevronDown size={14} />
+                </span>
+              </button>
+              <div className="rowhint">
+                {backup ? (
+                  <>
+                    <ProviderMark provider={backup.provider} model={backup.model} size={12} />
+                    <span className="ml">{t("na.backup", { model: shortModel(models, backup) })}</span>
+                  </>
+                ) : (
+                  t("na.noBackup")
+                )}
+              </div>
+              <button type="button" className="rowsel" ref={modeM.ref} onClick={modeM.toggle} aria-haspopup="menu">
+                <span>{t("na.mode")}</span>
+                <span className="v">
+                  <Shield size={15} />
+                  {modeLabel(f.mode)}
+                  <ChevronDown size={14} />
+                </span>
+              </button>
+              <button type="button" className="rowsel" ref={folderM.ref} onClick={folderM.toggle} aria-haspopup="menu">
+                <span>{t("na.folder")}</span>
+                <span className="v">
+                  <Folder size={15} />
+                  {f.folder.trim() || <i>{t("na.noFolder")}</i>}
+                  <ChevronDown size={14} />
+                </span>
+              </button>
+            </div>
+
+            <div className="na-acts">
+              <button className="btn" type="button" onClick={() => setState({ view: "chat" })}>
+                {t("common.cancel")}
+              </button>
+              <button className="btn pri" type="button" disabled={busy} onClick={create}>
+                {busy ? t("na.creating") : t("na.create")}
+              </button>
+            </div>
           </div>
-          <button type="button" className="ir-entry" onClick={() => setImporting(true)}>
-            <FileUp size={16} />
-            <span className="g">
-              <b>{t("ir.title")}</b>
-              <span>{t("ir.entryDesc")}</span>
-            </span>
-          </button>
         </div>
       </div>
+      <Popover anchor={folderM.anchor} open={folderM.open} onClose={folderM.close} width={260}>
+        <div className="mlbl">{t("na.folder")}</div>
+        <button
+          className="mi"
+          type="button"
+          onClick={() => {
+            set({ folder: "" });
+            folderM.close();
+          }}
+        >
+          <span className="g">{t("na.noFolder")}</span>
+          <span className="ck">{!f.folder.trim() && <Check size={14} />}</span>
+        </button>
+        {folders.map((x) => (
+          <button
+            key={x}
+            className="mi"
+            type="button"
+            onClick={() => {
+              set({ folder: x });
+              folderM.close();
+            }}
+          >
+            <Folder size={15} />
+            <span className="g">{x}</span>
+            <span className="ck">{f.folder.trim() === x && <Check size={14} />}</span>
+          </button>
+        ))}
+        <hr />
+        <form
+          className="dirtype"
+          onSubmit={(e) => {
+            e.preventDefault();
+            const v = newFolder.trim();
+            if (v) {
+              set({ folder: v });
+              setNewFolder("");
+              folderM.close();
+            }
+          }}
+        >
+          <input className="fi" value={newFolder} maxLength={40} onChange={(e) => setNewFolder(e.target.value)} placeholder={t("na.newFolderPh")} />
+          <button className="btn sm" type="submit" disabled={!newFolder.trim()}>
+            {t("dir.use")}
+          </button>
+        </form>
+      </Popover>
       {importing && (
         <ImportRoleDialog
           onClose={() => setImporting(false)}
