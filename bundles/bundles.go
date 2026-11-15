@@ -27,6 +27,7 @@ import (
 	_ "github.com/hedeqiang/crewbase/features/channel"
 	_ "github.com/hedeqiang/crewbase/features/compaction"
 	_ "github.com/hedeqiang/crewbase/features/console"
+	_ "github.com/hedeqiang/crewbase/features/deepseek"
 	_ "github.com/hedeqiang/crewbase/features/devices"
 	_ "github.com/hedeqiang/crewbase/features/gateway"
 	_ "github.com/hedeqiang/crewbase/features/goals"
@@ -111,6 +112,8 @@ var Base = kernel.Bundle{Name: "base", Entries: []kernel.Entry{
 	{ID: "notify", Name: "@crewbase/notify"},
 	{ID: "ui", Name: "@crewbase/ui"},
 	{ID: "attachments", Name: "@crewbase/attachments"},
+	// DeepSeek Search / Fetch / OCR for any model, once a DeepSeek key exists.
+	{ID: "deepseek-tools", Name: "@crewbase/deepseek-tools"},
 	{ID: "schedule", Name: "@crewbase/schedule", Config: map[string]any{"dir": "${root}"}},
 	{ID: "routines", Name: "@crewbase/routines", Config: map[string]any{"dir": "${root}"}},
 	{ID: "alerts", Name: "@crewbase/alerts"},
@@ -166,6 +169,7 @@ var Desktop = kernel.Bundle{Name: "desktop", Entries: []kernel.Entry{
 	{ID: "roles", Name: "@crewbase/roles"},
 	{ID: "ui-api", Name: "@crewbase/ui-api"},
 	{ID: "attachments-api", Name: "@crewbase/attachments-api"},
+	{ID: "voice-api", Name: "@crewbase/voice-api"},
 	{ID: "devices", Name: "@crewbase/devices", Config: map[string]any{"dir": "${root}"}},
 	{ID: "members", Name: "@crewbase/members", Config: map[string]any{"dir": "${root}"}},
 	{ID: "taskboard-api", Name: "@crewbase/taskboard-api"},

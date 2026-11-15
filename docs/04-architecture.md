@@ -142,6 +142,15 @@ crewbase/
 - ACP（CLI 订阅）：只给工作区路径，由 CLI 自己的读文件工具读取。
 - 下载：`GET /api/agents/{id}/raw?path=` 提供工作区文件。只有 png / jpeg / gif / webp 内联显示，其他类型一律作为附件下载（nosniff，CSP sandbox），所以上传的 HTML / SVG 不会在应用的源里执行。
 
+### 6.6 DeepSeek 工具 API（与模型无关）
+
+`features/deepseek`（`@crewbase/deepseek-tools`、`@crewbase/voice-api`）调用 DeepSeek 的独立工具接口，不论 Agent 用哪个模型：
+
+- **工具**：`web_search`（/v1/tools/search）、`web_fetch`（/v1/tools/fetch，读页面为 Markdown）、`ocr_file`（/v1/tools/ocr）。三者都是 read 类别；`web_fetch` 在只读 / 沙箱模式下按 `allowHosts` 限制。只在配置了 Key 时注册，Key 增删后自动出现 / 消失。
+- **Key**：已添加的 DeepSeek 提供方的 Key，其次 `keychain:crewbase/deepseek`、`env:DEEPSEEK_API_KEY`；`config.keyRef` 可覆盖。
+- **附件 OCR**：提供 `ocr` 服务；附件装载时，不能看图的模型收到图片的识别文字，扫描版 PDF 与旧版 .doc / .ppt 也走 OCR，结果缓存在 `uploads/.ocr/<sha256>.txt`。
+- **语音**：`/api/voice/transcribe`（16-bit WAV / Ogg Opus ≤ 8 MiB → ASR）与 `/api/voice/speak`（TTS → WAV），网页在有 Key 时优先使用，否则用浏览器语音。音频只透传，不保存。
+
 ## 7. 部署形态
 
 | 形态 | Profile | 说明 |

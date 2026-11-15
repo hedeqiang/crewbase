@@ -250,3 +250,90 @@ func TestClipLongText(t *testing.T) {
 		t.Fatal("long text not clipped")
 	}
 }
+
+type fakeOCR struct {
+	on    bool
+	calls int
+	fail  bool
+}
+
+func (f *fakeOCR) OCRAvailable(context.Context) bool { return f.on }
+func (f *fakeOCR) Recognize(_ context.Context, name, mime string, _ []byte) (string, error) {
+	f.calls++
+	if f.fail {
+		return "", fmt.Errorf("service busy")
+	}
+	return "识别：" + name + " " + mime, nil
+}
+
+func TestOCRFallback(t *testing.T) {
+	ws := t.TempDir()
+	now := time.Now()
+	img, _ := Save(ws, "receipt.png", pngBytes(t), now)
+	scan, _ := Save(ws, "scan.pdf", minimalPDF(""), now)
+	text, _ := Save(ws, "a.pdf", minimalPDF("This PDF has a perfectly good text layer already."), now)
+	parts := []llm.Part{}
+	for _, at := range []llm.Attachment{img, scan, text} {
+		at := at
+		parts = append(parts, llm.Part{Type: llm.PartAttachment, Attachment: &at})
+	}
+	mk := func() llm.Request {
+		return llm.Request{Messages: []llm.Message{{Role: llm.RoleUser, Parts: append([]llm.Part(nil), parts...)}}}
+	}
+	o := &fakeOCR{on: true}
+	s := NewService()
+	s.OCR = func() OCR { return o }
+
+	req := mk()
+	s.Hydrate(context.Background(), ws, fakeAdapter{}, "m", &req)
+	ps := req.Messages[0].Parts
+	if !strings.Contains(ps[0].Attachment.Text, "识别：receipt.png image/png") || !strings.Contains(ps[0].Attachment.Text, "OCR") {
+		t.Fatalf("image: %q", ps[0].Attachment.Text)
+	}
+	if !strings.Contains(ps[1].Attachment.Text, "识别：scan.pdf") {
+		t.Fatalf("scanned pdf: %q", ps[1].Attachment.Text)
+	}
+	if strings.Contains(ps[2].Attachment.Text, "识别") || o.calls != 2 {
+		t.Fatalf("text pdf went to OCR (calls %d): %q", o.calls, ps[2].Attachment.Text)
+	}
+	// cached on disk: the next turn (and a restart) does not recognize again
+	s2 := NewService()
+	s2.OCR = func() OCR { return o }
+	req = mk()
+	s2.Hydrate(context.Background(), ws, fakeAdapter{}, "m", &req)
+	if o.calls != 2 || !strings.Contains(req.Messages[0].Parts[0].Attachment.Text, "识别") {
+		t.Fatalf("cache: calls %d", o.calls)
+	}
+	// vision models see the image themselves
+	o.calls = 0
+	os.RemoveAll(filepath.Join(ws, "uploads", ".ocr"))
+	req = mk()
+	s.Hydrate(context.Background(), ws, fakeAdapter{accept: map[string]bool{"image/png": true}}, "m", &req)
+	if o.calls != 1 { // only the scanned PDF
+		t.Fatalf("vision model image went to OCR: %d", o.calls)
+	}
+	// failures are not retried every turn; no key = not called
+	ws2 := t.TempDir()
+	img2, _ := Save(ws2, "x.png", pngBytes(t), now)
+	f := &fakeOCR{on: true, fail: true}
+	s3 := NewService()
+	s3.OCR = func() OCR { return f }
+	for range 3 {
+		r := llm.Request{Messages: []llm.Message{{Role: llm.RoleUser, Parts: []llm.Part{{Type: llm.PartAttachment, Attachment: &img2}}}}}
+		s3.Hydrate(context.Background(), ws2, fakeAdapter{}, "m", &r)
+		if !strings.Contains(r.Messages[0].Parts[0].Attachment.Text, "不能查看图片") {
+			t.Fatal("failure text")
+		}
+	}
+	if f.calls != 1 {
+		t.Fatalf("failed OCR retried: %d", f.calls)
+	}
+	off := &fakeOCR{}
+	s3.OCR = func() OCR { return off }
+	img3, _ := Save(ws2, "y.png", append(pngBytes(t), 0), now)
+	r := llm.Request{Messages: []llm.Message{{Role: llm.RoleUser, Parts: []llm.Part{{Type: llm.PartAttachment, Attachment: &img3}}}}}
+	s3.Hydrate(context.Background(), ws2, fakeAdapter{}, "m", &r)
+	if off.calls != 0 {
+		t.Fatal("OCR called without a key")
+	}
+}

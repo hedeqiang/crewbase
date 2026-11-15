@@ -13,6 +13,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"os"
 	"path"
@@ -215,11 +216,27 @@ func Resolve(workspace string, rel, name string) (llm.Attachment, error) {
 
 // ---------------------------------------------------------------- service
 
+// OCRKey is the optional `ocr` service (DeepSeek OCR, features/deepseek).
+const OCRKey = "ocr"
+
+// OCR recognizes the text of scanned documents and images.
+type OCR interface {
+	OCRAvailable(ctx context.Context) bool
+	Recognize(ctx context.Context, name, mime string, data []byte) (string, error)
+}
+
+// ocrBudget bounds recognition while a request is being prepared.
+const ocrBudget = 3 * time.Minute
+
 // Service is the `attachments` service (agentloop.Hydrator).
 type Service struct {
 	mu    sync.Mutex
 	texts map[string]textEntry // sha256 → extracted text
 	order []string
+	// OCR is looked up per request (it may load after this plugin).
+	OCR func() OCR
+
+	failed map[string]time.Time // sha256 → last failed recognition
 }
 
 type textEntry struct {
@@ -231,7 +248,9 @@ type textEntry struct {
 const cacheEntries = 64
 
 // NewService makes a service with an empty text cache.
-func NewService() *Service { return &Service{texts: map[string]textEntry{}} }
+func NewService() *Service {
+	return &Service{texts: map[string]textEntry{}, failed: map[string]time.Time{}}
+}
 
 var _ agentloop.Hydrator = (*Service)(nil)
 
@@ -264,7 +283,7 @@ func (s *Service) extract(at *llm.Attachment, data []byte) textEntry {
 }
 
 // Hydrate fills Data and Text of every attachment part in req.
-func (s *Service) Hydrate(_ context.Context, workspace string, ad llm.Adapter, model string, req *llm.Request) {
+func (s *Service) Hydrate(ctx context.Context, workspace string, ad llm.Adapter, model string, req *llm.Request) {
 	fa, _ := ad.(llm.FileAccepter)
 	for i := range req.Messages {
 		for j := range req.Messages[i].Parts {
@@ -274,12 +293,12 @@ func (s *Service) Hydrate(_ context.Context, workspace string, ad llm.Adapter, m
 			}
 			at := *p.Attachment // copy: never write into the projected log
 			p.Attachment = &at
-			s.fill(workspace, fa, model, &at)
+			s.fill(ctx, workspace, fa, model, &at)
 		}
 	}
 }
 
-func (s *Service) fill(workspace string, fa llm.FileAccepter, model string, at *llm.Attachment) {
+func (s *Service) fill(ctx context.Context, workspace string, fa llm.FileAccepter, model string, at *llm.Attachment) {
 	where := fmt.Sprintf("工作区路径 %s", at.Path)
 	p, err := resolveIn(workspace, at.Path)
 	var data []byte
@@ -297,12 +316,20 @@ func (s *Service) fill(workspace string, fa llm.FileAccepter, model string, at *
 	if at.IsImage() || strings.HasPrefix(at.Mime, "image/") {
 		if native {
 			at.Text = fmt.Sprintf("[图片 %s，%s]", at.Name, where)
+		} else if t, ok := s.recognize(ctx, workspace, at, data); ok {
+			at.Text = fmt.Sprintf("[图片 %s（%s）；当前模型不能查看图片，以下是 OCR 识别出的文字]\n<file name=%q>\n%s\n</file>", at.Name, where, at.Name, t)
 		} else {
 			at.Text = fmt.Sprintf("[图片 %s 已保存（%s）；当前模型不能查看图片，需要时请让用户换用支持图片的模型]", at.Name, where)
 		}
 		return
 	}
 	e := s.extract(at, data)
+	if !native && needsOCR(at.Mime, e) {
+		if t, ok := s.recognize(ctx, workspace, at, data); ok {
+			t, cut := clipText(t)
+			e = textEntry{text: t, ok: true, truncated: cut}
+		}
+	}
 	head := fmt.Sprintf("[附件 %s（%s，%s）]", at.Name, where, humanSize(at.Size))
 	full := head + "\n[无法直接读取此类文件的文字；文件已在工作区，可用工具处理]"
 	switch {
@@ -316,6 +343,58 @@ func (s *Service) fill(workspace string, fa llm.FileAccepter, model string, at *
 		return
 	}
 	at.Text = full
+}
+
+// needsOCR: scanned PDFs (almost no text layer) and legacy Word /
+// PowerPoint files, which have no text form here.
+func needsOCR(mime string, e textEntry) bool {
+	switch mime {
+	case "application/pdf":
+		return len([]rune(strings.TrimSpace(e.text))) < 40
+	case "application/msword", "application/vnd.ms-powerpoint":
+		return !e.ok
+	}
+	return false
+}
+
+// recognize returns the OCR text of an attachment, kept next to the
+// uploads (uploads/.ocr/<sha256>.txt) so a file is recognized (and billed)
+// once. A failure is not retried for ten minutes.
+func (s *Service) recognize(ctx context.Context, workspace string, at *llm.Attachment, data []byte) (string, bool) {
+	if s.OCR == nil || at.SHA256 == "" || workspace == "" {
+		return "", false
+	}
+	cache := filepath.Join(workspace, "uploads", ".ocr", at.SHA256+".txt")
+	if b, err := os.ReadFile(cache); err == nil {
+		return string(b), len(b) > 0
+	}
+	s.mu.Lock()
+	last, bad := s.failed[at.SHA256]
+	s.mu.Unlock()
+	if bad && time.Since(last) < 10*time.Minute {
+		return "", false
+	}
+	o := s.OCR()
+	if o == nil || !o.OCRAvailable(ctx) {
+		return "", false
+	}
+	rctx, cancel := context.WithTimeout(ctx, ocrBudget)
+	defer cancel()
+	t, err := o.Recognize(rctx, at.Name, at.Mime, data)
+	t = strings.TrimSpace(t)
+	if err != nil || t == "" {
+		s.mu.Lock()
+		s.failed[at.SHA256] = time.Now()
+		s.mu.Unlock()
+		if err != nil {
+			slog.Warn("attachments: OCR failed", "file", at.Name, "err", err)
+		}
+		return "", false
+	}
+	if os.MkdirAll(filepath.Dir(cache), 0o700) == nil {
+		_ = os.WriteFile(cache, []byte(t), 0o600)
+	}
+	return t, true
 }
 
 func humanSize(n int64) string {
@@ -333,6 +412,11 @@ var Plugin = kernel.Register(kernel.Spec{
 	Name:        "@crewbase/attachments",
 	Description: "Conversation attachments: load images, PDFs, Office and text files into model requests.",
 	Apply: func(c *kernel.Context) error {
-		return c.Provide(agentloop.AttachmentsKey, NewService())
+		s := NewService()
+		s.OCR = func() OCR {
+			o, _ := kernel.Lookup[OCR](c, OCRKey)
+			return o
+		}
+		return c.Provide(agentloop.AttachmentsKey, s)
 	},
 })

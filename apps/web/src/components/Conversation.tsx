@@ -32,7 +32,7 @@ import { t, type Key } from "../i18n";
 import { argsFull, argsPreview, project, type FeedItem, type Step } from "../projection";
 import { loadSession, openSession, refreshAgents, refreshSessions, setState, toast, useStore, sessionAgent } from "../store";
 import { TakeoverCard, takeoverReason } from "./Browser";
-import { dictate, dictationSupported, speak, speaking, speakSupported } from "../voice";
+import { cloudVoice, dictate, dictationSupported, primeVoice, speak, speaking, speakSupported } from "../voice";
 import { addFiles, clearFiles, filesFrom, MsgAttachments, PendingChips } from "./Attachments";
 import {
   activeModel,
@@ -705,7 +705,10 @@ function Composer({
       },
     );
   };
-  useEffect(() => () => stopRec.current?.(), []);
+  useEffect(() => {
+    void primeVoice();
+    return () => stopRec.current?.();
+  }, []);
 
   const canSend = (!!draft.trim() || pending.some((f) => f.state === "ok")) && !pending.some((f) => f.state === "up");
 
@@ -974,7 +977,7 @@ function Composer({
             type="button"
             aria-label={listening ? t("voice.stopDictation") : t("chat.voice")}
             aria-pressed={listening}
-            title={!dictationSupported() ? t("voice.unsupported") : listening ? t("voice.stopDictation") : t("chat.voice")}
+            title={!dictationSupported() ? t("voice.unsupported") : listening ? t("voice.stopDictation") : cloudVoice() ? t("voice.cloud") : t("chat.voice")}
             disabled={archived}
             onClick={toggleDictation}
           >

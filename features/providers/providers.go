@@ -517,3 +517,23 @@ func registerAPI(c *kernel.Context, g *gateway.Gateway, s *Service) {
 			return nil, nil
 		}})
 }
+
+// KeyRefFor returns the key reference of the first provider made from
+// preset (e.g. "deepseek", or a custom provider on host) that has a key,
+// for features that call the vendor's other APIs with the same key.
+func (s *Service) KeyRefFor(preset, host string) (string, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	var best *Provider
+	for _, p := range s.items {
+		match := p.Preset == preset || (host != "" && strings.Contains(strings.ToLower(p.BaseURL), "://"+host))
+		if match && p.KeyRef != "" && (best == nil || p.Created.Before(best.Created)) {
+			p := p
+			best = &p
+		}
+	}
+	if best == nil {
+		return "", false
+	}
+	return best.KeyRef, true
+}

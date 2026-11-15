@@ -200,10 +200,12 @@
 - [x] openai 适配器 deepseek 方言：thinking 开关、NativeTools → deepseek_web_search / deepseek_read_url、解析 annotations（引用）/ server_tool_calls（搜索与阅读步骤，实时流式）/ server_tool_use（按次计费）、safetyCheck 与 refusal；预设 base URL 更新；magpie 对 deepseek/* 模型自动切方言
 - [x] 真实端到端：Agent 开启联网搜索 → DeepSeek Flash 搜索全网 → 带出处回答；引用不回流到模型历史
 - [x] 压缩摘要优先用 summarize 路由模型（默认 DeepSeek Flash；仅本地 Agent 只走本地路由；路由失败回退 Agent 自身模型，再失败用抽取式摘要；compaction/end 记录实际摘要模型）
-- [ ] 与模型无关的 `web` 能力：DeepSeek Search / Fetch 独立 API 作为 web_search / web_fetch 工具提供方（待官方文档）
+- [x] 与模型无关的 web / OCR 工具（features/deepseek）：有 DeepSeek Key 即给所有 Agent 加 web_search（支持 site: / lang: / after: 等语法）/ web_fetch（只读、沙箱模式按 allowHosts 限制，403/404 引导改用浏览器）/ ocr_file；Key 取自已添加的 DeepSeek 提供方（或 keychain:crewbase/deepseek、DEEPSEEK_API_KEY），加 / 删 Key 后工具自动出现 / 消失
+- [x] 附件 OCR：不能看图的模型收到图片 OCR 文字；扫描版 PDF（几乎无文字层）与 .doc / .ppt 走 OCR；结果缓存在 uploads/.ocr/<sha256>.txt（同一文件只识别、计费一次），失败 10 分钟内不重试
 - [x] 文件输入：图片内联（deepseek-flash 视觉，经 magpie 真实验证）；PDF / Word / PowerPoint 直连上传 Files API（purpose 在 file 之前、30 天过期、file_id 按工作区缓存）；经 magpie 无 /files 时用本地提取文字
 - [x] 语音：输入框麦克风听写（浏览器 Web Speech API，中间结果实时显示、最终文本追加到草稿，按语言选中文 / 英文，权限被拒有明确提示）；回复旁「朗读」（系统语音，跳过代码块与 Markdown 记号，再点停止）
-- [ ] 语音：接入 DeepSeek ASR / TTS 等云端服务（待官方文档）
+- [x] 语音云端：有 DeepSeek Key 时麦克风录 16 kHz WAV（≤ 2 分钟）→ /api/voice/transcribe → DeepSeek ASR；「朗读」→ DeepSeek TTS（stella，过滤 Markdown），失败回落系统语音；无 Key 仍用浏览器语音。音频只透传不落盘。真实 Chrome + 假麦克风 + 假 DeepSeek 服务端验证：录音转写进输入框、朗读请求与播放
+- [ ] DeepSeek 工具 API 真实调用（需 DeepSeek Key 一次短测）
 - [x] UI：Agent 设置「联网搜索 / 阅读链接」开关、回复下方来源列表与搜索步骤（当前构建真实验证：thinking → server_tool → text → citation）
 
 ## 真实环境验证（2026-11-14，本机 + OrbStack Linux）
@@ -249,6 +251,7 @@
 ## 迭代日志
 | 日期 | 迭代 | 结果 |
 |---|---|---|
+| 2026-11-15 | 16 | 发版与 DeepSeek 工具：GitHub Actions CI（Linux + macOS race、Windows 交叉编译、网页）与标签发版（桌面三平台 + 签名自动更新、命令行六平台、ghcr 镜像，自动发布）；本机生成更新签名密钥、更新窗口与「检查更新…」；DeepSeek Search / Fetch / OCR 作为与模型无关的工具，附件 OCR，云端语音（ASR / TTS）。真实守护进程 + 假 DeepSeek 端到端：三个工具、图片附件走 OCR、录音转写、朗读 |
 | 2026-11-15 | 15+ | 收尾：凭证引用变更入审计（只记引用）；MCP resources / prompts、OAuth 登录（真实界面：添加服务 → 等你登录 → 浏览器同意 → 已连接，令牌在钥匙串、测试后已清理）、host 信任服务器只读收紧 |
 | 2026-11-15 | 15 | 迭代 15 完成：团队任务板（DAG、唯一负责人、按根会话共享、工具 + 提示词 + 看板）；成员与角色（admin / member / viewer，审批按类别授权，设备随角色、移除即断开，消息与审批署名并审计）；只读设备档位（网关只放行 GET）。真实验证：三个 Agent 用工具建出依赖链，人在看板上完成 #1 后 #2 变为可以开始；成员手机批准删除被拒（403）、可以拒绝，审计与对话里都记为「小王」 |
 | 2026-11-15 | 14 | 迭代 14 完成：设备配对与分级（一次性码、哈希令牌、移除即断流）；零入站中继（crew-relay，端到端加密，主机签名认证，Go 客户端与网页 WebCrypto 隧道）；手机伴侣 PWA（扫码配对、手机权限界面、后台审批通知）；补丁按键合并配置；修复只读模式下放在 /tmp 的工作区仍可写（Seatbelt 受保护路径）；新对话（⌘N，空白但能用工具）。真实验证：本机中继 + 守护进程，模拟 iPhone 扫码配对，经中继看对话、批准删除操作，手机流量不直连守护进程 |
