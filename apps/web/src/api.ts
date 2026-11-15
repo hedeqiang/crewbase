@@ -812,6 +812,19 @@ export interface ImPlatform {
   appId: boolean;
   channel: string;
   tokenDoc: string;
+  domain?: string;
+  /** 飞书 / Lark: one product, two open platforms (the first is the default). */
+  regions?: ImRegion[];
+}
+
+export interface ImRegion {
+  id: string;
+  name: string;
+  nameEn?: string;
+  brand: string;
+  brandEn?: string;
+  domain: string;
+  tokenDoc: string;
 }
 
 export interface ImGateway {
@@ -820,10 +833,13 @@ export interface ImGateway {
   channel: string;
   allowUsers: string[];
   appId?: string;
+  region?: string;
   relayReplies: boolean;
   approvals: boolean;
   enabled: boolean;
   hasToken: boolean;
+  hasAppToken?: boolean;
+  connected?: boolean;
   running: boolean;
   error?: string;
   listen?: { agent: string; keywords?: string[] } | null;
@@ -860,6 +876,8 @@ export const API = {
   saveIm: (id: string, b: Record<string, unknown>) => api<ImGateway>("PUT", `/api/im/config/${enc(id)}`, b),
   removeIm: (id: string) => api("DELETE", `/api/im/config/${enc(id)}`),
   testIm: (id: string) => api<{ ok: boolean; error?: string }>("POST", `/api/im/${enc(id)}/test`),
+  verifyIm: (b: { platform?: string; region?: string; appId?: string; botToken?: string; appToken?: string; id?: string }) =>
+    api<{ ok: boolean; bot?: string; error?: string }>("POST", "/api/im/config/verify", b),
   health: () => api<{ ok: boolean }>("GET", "/api/health"),
   pair: (b: { code: string; name: string; platform: string }) => api<{ token: string; device: DeviceView }>("POST", "/api/pair", b),
   whoami: () => api<{ tier: string; device?: DeviceView }>("GET", "/api/whoami"),

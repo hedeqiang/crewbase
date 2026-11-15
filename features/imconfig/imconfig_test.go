@@ -124,6 +124,10 @@ func TestSetupFromUI(t *testing.T) {
 		}
 		time.Sleep(50 * time.Millisecond)
 	}
+	// the setup list carries the live connection state
+	if _, cfg := do("GET", "/api/im/config", nil); cfg["gateways"].([]any)[0].(map[string]any)["connected"] != true {
+		t.Fatalf("config not connected: %v", cfg)
+	}
 	if code, r := do("POST", "/api/im/tg/test", nil); code != 200 || r["ok"] != true || sends.Load() == 0 {
 		t.Fatal(code, r)
 	}
@@ -153,4 +157,3 @@ func toStrings(v any) []string {
 	}
 	return out
 }
-

@@ -169,10 +169,12 @@ type Input struct {
 // View is a gateway with whether its tokens are stored.
 type View struct {
 	Gateway
-	HasToken    bool   `json:"hasToken"`
-	HasAppToken bool   `json:"hasAppToken"`
-	Running     bool   `json:"running"`
-	Error       string `json:"error,omitempty"`
+	HasToken    bool `json:"hasToken"`
+	HasAppToken bool `json:"hasAppToken"`
+	Running     bool `json:"running"`
+	// Connected: the provider reached the platform (Error says why not).
+	Connected bool   `json:"connected"`
+	Error     string `json:"error,omitempty"`
 }
 
 var idRe = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{0,31}$`)
@@ -449,6 +451,12 @@ func (s *Service) view(g Gateway) View {
 	_, v.Running = s.live[g.ID]
 	v.Error = s.errs[g.ID]
 	s.mu.Unlock()
+	if v.Running && v.Error == "" {
+		if gw, ok := kernel.Lookup[*im.Gateway](s.c, im.ServicePrefix+g.ID); ok {
+			st := gw.Status()
+			v.Connected, v.Error = st.Connected, st.Error
+		}
+	}
 	return v
 }
 
@@ -554,5 +562,3 @@ var Plugin = kernel.Register(kernel.Spec{
 		return c.Provide(ServiceKey, s)
 	},
 })
-
-var _ = im.ServicePrefix
