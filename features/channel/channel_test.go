@@ -173,3 +173,63 @@ func TestRenameMoveDelete(t *testing.T) {
 		t.Fatal("deleted channel accepts posts")
 	}
 }
+
+// A deleted channel is gone from the session list people see (the sidebar
+// reads it): it is flagged in its meta, also for channels deleted before
+// the flag existed, which are flagged when the plugin starts.
+func TestDeletedChannelLeavesSessionList(t *testing.T) {
+	root := t.TempDir()
+	start := func() (*kernel.Host, *channel.Service, *agent.Registry, *session.Store) {
+		h := kernel.NewHost(nil)
+		for _, x := range []struct {
+			s   kernel.Spec
+			cfg map[string]any
+		}{
+			{session.Plugin, map[string]any{"dir": root + "/sessions"}}, {prompt.Plugin, nil}, {tools.Plugin, nil}, {approval.Plugin, nil},
+			{llm.Plugin, nil}, {mock.Plugin, nil}, {router.Plugin, nil},
+			{agent.Plugin, map[string]any{"root": root, "defaultModels": []string{"mock/default"}}},
+			{agentloop.Plugin, nil}, {channel.Plugin, nil},
+		} {
+			if _, err := h.Load(x.s, kernel.LoadOptions{Config: x.cfg}); err != nil {
+				t.Fatal(err)
+			}
+		}
+		r := h.Root()
+		return h, kernel.Use[*channel.Service](r, channel.ServiceKey), kernel.Use[*agent.Registry](r, agent.ServiceKey), kernel.Use[*session.Store](r, session.ServiceKey)
+	}
+	h, s, agents, store := start()
+	a, _ := agents.Create(agent.Spec{Name: "A"})
+	gone, _ := s.Create("gone", []string{a.ID()}, "", "lin")
+	old, _ := s.Create("old", []string{a.ID()}, "", "lin")
+	kept, _ := s.Create("kept", []string{a.ID()}, "", "lin")
+	if err := s.Delete(gone.ID, "lin"); err != nil {
+		t.Fatal(err)
+	}
+	// deleted by an older version: only the state event, no flag
+	ss, _ := store.Get(old.ID)
+	if _, err := ss.Append(channel.TypeState, "", map[string]string{"state": channel.StateDeleted, "by": "lin"}); err != nil {
+		t.Fatal(err)
+	}
+	flags := func(st *session.Store) map[string]bool {
+		out := map[string]bool{}
+		for _, m := range st.List() {
+			if m.Kind == "channel" {
+				out[m.ID] = m.Deleted
+			}
+		}
+		return out
+	}
+	if f := flags(store); !f[gone.ID] || f[old.ID] || f[kept.ID] {
+		t.Fatalf("before restart: %v", f)
+	}
+	h.Close()
+
+	h2, s2, _, store2 := start()
+	defer h2.Close()
+	if f := flags(store2); !f[gone.ID] || !f[old.ID] || f[kept.ID] {
+		t.Fatalf("after restart: %v", f)
+	}
+	if l := s2.List(); len(l) != 1 || l[0].ID != kept.ID {
+		t.Fatalf("channels: %+v", l)
+	}
+}

@@ -171,7 +171,23 @@ func (s *Service) Delete(id, by string) error {
 		return err
 	}
 	_ = s.Stop(id, by)
-	return s.setState(ss, StateDeleted, by)
+	if err := s.setState(ss, StateDeleted, by); err != nil {
+		return err
+	}
+	return ss.UpdateMeta(func(m *session.Meta) { m.Deleted = true })
+}
+
+// markDeleted gives channels deleted before Meta.Deleted existed the flag,
+// so they stop showing up in lists.
+func (s *Service) markDeleted() {
+	for _, m := range s.sessions.List() {
+		if m.Kind != "channel" || m.Deleted {
+			continue
+		}
+		if ss, err := s.sessions.Get(m.ID); err == nil && State(ss) == StateDeleted {
+			_ = ss.UpdateMeta(func(m *session.Meta) { m.Deleted = true })
+		}
+	}
 }
 
 // Rename changes the title and/or folder.
@@ -558,6 +574,7 @@ var Plugin = kernel.Register(kernel.Spec{
 	Apply: func(c *kernel.Context) error {
 		s := &Service{c: c, sessions: kernel.Use[*session.Store](c, session.ServiceKey), agents: kernel.Use[*agent.Registry](c, agent.ServiceKey)}
 		kernel.Use[*tools.Registry](c, tools.ServiceKey).Register(c, s.handoverTool())
+		s.markDeleted()
 		return c.Provide(ServiceKey, s)
 	},
 })

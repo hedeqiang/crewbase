@@ -85,6 +85,9 @@ type Meta struct {
 	// Topic is a short generated description of what the session is about.
 	Topic   string    `json:"topic,omitempty"`
 	Created time.Time `json:"created"`
+	// Deleted: a deleted channel. Its log is kept for auditing, but it is
+	// gone for people: lists, counts and lookups leave it out.
+	Deleted bool `json:"deleted,omitempty"`
 }
 
 // Appended is emitted after every successful append (scoped to the agent).

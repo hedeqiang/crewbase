@@ -332,7 +332,7 @@ func (s *Service) count(id string) (agents, channels int) {
 		}
 	}
 	for _, m := range s.agents.Sessions().List() {
-		if m.Kind == "channel" && agent.TeamOf(m.Team) == id {
+		if m.Kind == "channel" && !m.Deleted && agent.TeamOf(m.Team) == id {
 			channels++
 		}
 	}
@@ -402,7 +402,7 @@ func (s *Service) Move(agentID, team string) (*agent.Agent, error) {
 		return a, nil
 	}
 	for _, m := range s.agents.Sessions().List() {
-		if m.Kind != "channel" {
+		if m.Kind != "channel" || m.Deleted {
 			continue
 		}
 		for _, x := range m.Agents {

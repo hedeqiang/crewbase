@@ -425,6 +425,13 @@ var Plugin = kernel.Register(kernel.Spec{
 		g.Handle(c, gateway.Route{Method: "GET", Path: "/api/sessions", Devices: mobile,
 			Handle: func(_ context.Context, r *gateway.Request) (any, error) {
 				list := sessions.List()
+				live := list[:0:0]
+				for _, m := range list {
+					if !m.Deleted {
+						live = append(live, m)
+					}
+				}
+				list = live
 				if acc, ok := kernel.Lookup[Access](c, "access"); ok {
 					out := list[:0:0]
 					for _, m := range list {
