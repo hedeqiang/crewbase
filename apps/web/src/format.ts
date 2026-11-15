@@ -53,7 +53,7 @@ export function dayLabel(iso: string): string {
   y.setDate(now.getDate() - 1);
   if (same(d, now)) return `${t("time.today")} ${hhmm(iso)}`;
   if (same(d, y)) return `${t("time.yesterday")} ${hhmm(iso)}`;
-  return `${d.getMonth() + 1}月${d.getDate()}日 ${hhmm(iso)}`;
+  return t("time.date", { m: d.getMonth() + 1, d: d.getDate(), time: hhmm(iso) });
 }
 
 export function ago(iso: string, now = Date.now()): string {

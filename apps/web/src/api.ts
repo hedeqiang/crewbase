@@ -1,3 +1,4 @@
+import { getLang } from "./i18n";
 import { useEffect, useState } from "react";
 import { apiFetch, tunnelBlobURL, viaRelay } from "./tunnel";
 // REST helpers and API types (mirrors features/api, core/session, core/agent,
@@ -288,6 +289,8 @@ export interface UIContribution {
   key: string;
   title?: string;
   desc?: string;
+  titleEn?: string;
+  descEn?: string;
   icon?: string;
   order?: number;
   owner: string;
@@ -350,6 +353,30 @@ export interface CrewbaseDesktop {
   setBadge?: (n: number) => void;
   /** Native folder chooser; resolves to "" when cancelled. */
   pickFolder?: (start?: string) => Promise<string>;
+  updates?: () => Promise<DesktopUpdates>;
+  checkForUpdates?: () => void;
+  setUpdatePrefs?: (checks: boolean, downloads: boolean) => Promise<DesktopUpdates>;
+  setLanguage?: (l: "zh" | "en") => void;
+}
+
+export interface DesktopUpdates {
+  version: string;
+  enabled: boolean;
+  automaticChecks: boolean;
+  automaticDownloads: boolean;
+  lastCheck?: string;
+  available?: string;
+}
+
+export interface UpdateInfo {
+  current: string;
+  latest?: string;
+  available: boolean;
+  url?: string;
+  notes?: string;
+  checked?: string;
+  error?: string;
+  enabled: boolean;
 }
 
 declare global {
@@ -779,6 +806,8 @@ export interface RelayStatus {
 export interface ImPlatform {
   id: string;
   name: string;
+  nameEn?: string;
+  channelEn?: string;
   app: boolean;
   appId: boolean;
   channel: string;
@@ -804,6 +833,8 @@ export interface ImGateway {
 export type Followup = { id: string; agent: string; session: string; note: string; due: string; set: string };
 
 export const API = {
+  updates: () => api<UpdateInfo>("GET", "/api/updates"),
+  checkUpdates: () => api<UpdateInfo>("POST", "/api/updates/check"),
   teams: () => api<{ teams: TeamView[] }>("GET", "/api/teams"),
   createTeam: (b: { name: string; visibility: TeamVisibility; color?: string }) => api<TeamView>("POST", "/api/teams", b),
   teamMemory: (id: string) => api<{ text: string }>("GET", `/api/teams/${enc(id)}/memory`),
@@ -843,8 +874,8 @@ export const API = {
   agent: (id: string) => api<AgentView>("GET", `/api/agents/${enc(id)}`),
   createAgent: (b: Partial<AgentView> & { modelRefs?: string[] }) => api<AgentView>("POST", "/api/agents", b),
   ui: () => api<{ slots: string[]; contributions: UIContribution[] }>("GET", "/api/ui"),
-  uiPanel: (slot: string, key: string, session = "") => api<UIPanel>("POST", "/api/ui/panel", { slot, key, session }),
-  uiRun: (slot: string, key: string, session = "") => api<{ toast?: string; open?: string }>("POST", "/api/ui/run", { slot, key, session }),
+  uiPanel: (slot: string, key: string, session = "") => api<UIPanel>("POST", "/api/ui/panel", { slot, key, session, lang: getLang() }),
+  uiRun: (slot: string, key: string, session = "") => api<{ toast?: string; open?: string }>("POST", "/api/ui/run", { slot, key, session, lang: getLang() }),
   previewImport: (src: ImportSource) => api<RoleTemplate>("POST", "/api/agents/import/preview", src),
   importAgent: (src: ImportSource, options: ImportOptions) =>
     api<{ agent: string; session: string; name: string; skills: number }>("POST", "/api/agents/import", { ...src, options }),

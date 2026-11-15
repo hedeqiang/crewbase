@@ -34,12 +34,14 @@ const ServiceKey = "im-config"
 
 // Platform describes what each provider needs.
 type Platform struct {
-	ID       string `json:"id"`
-	Name     string `json:"name"`
-	App      bool   `json:"app"`      // needs a second (app-level) token: Slack socket mode
-	AppID    bool   `json:"appId"`    // needs an app id: Feishu
-	Channel  string `json:"channel"`  // what "channel" means here (for the form hint)
-	TokenDoc string `json:"tokenDoc"` // where to get the token
+	ID        string `json:"id"`
+	Name      string `json:"name"`
+	App       bool   `json:"app"`      // needs a second (app-level) token: Slack socket mode
+	AppID     bool   `json:"appId"`    // needs an app id: Feishu
+	Channel   string `json:"channel"`  // what "channel" means here (for the form hint)
+	TokenDoc  string `json:"tokenDoc"` // where to get the token
+	NameEn    string `json:"nameEn,omitempty"`
+	ChannelEn string `json:"channelEn,omitempty"`
 	// Domain is the open platform of the provider (Feishu in China, Lark
 	// elsewhere: the same gateway, separate tenants and endpoints).
 	Domain string `json:"domain,omitempty"`
@@ -48,11 +50,11 @@ type Platform struct {
 
 // Platforms supported by the setup form.
 var Platforms = []Platform{
-	{ID: "slack", Name: "Slack", App: true, Channel: "频道 ID（C…）", TokenDoc: "https://api.slack.com/apps", spec: slack.Plugin},
-	{ID: "telegram", Name: "Telegram", Channel: "群组 / 对话 ID（-100…）", TokenDoc: "https://t.me/BotFather", spec: telegram.Plugin},
-	{ID: "discord", Name: "Discord", Channel: "频道 ID", TokenDoc: "https://discord.com/developers/applications", spec: discord.Plugin},
-	{ID: "feishu", Name: "飞书", AppID: true, Channel: "群 chat_id（oc_…）", TokenDoc: "https://open.feishu.cn/app", Domain: "https://open.feishu.cn", spec: feishu.Plugin},
-	{ID: "lark", Name: "Lark", AppID: true, Channel: "群 chat_id（oc_…）", TokenDoc: "https://open.larksuite.com/app", Domain: "https://open.larksuite.com", spec: feishu.Plugin},
+	{ID: "slack", Name: "Slack", App: true, Channel: "频道 ID（C…）", ChannelEn: "Channel ID (C…)", TokenDoc: "https://api.slack.com/apps", spec: slack.Plugin},
+	{ID: "telegram", Name: "Telegram", Channel: "群组 / 对话 ID（-100…）", ChannelEn: "Group / chat ID (-100…)", TokenDoc: "https://t.me/BotFather", spec: telegram.Plugin},
+	{ID: "discord", Name: "Discord", Channel: "频道 ID", ChannelEn: "Channel ID", TokenDoc: "https://discord.com/developers/applications", spec: discord.Plugin},
+	{ID: "feishu", Name: "飞书", NameEn: "Feishu", AppID: true, Channel: "群 chat_id（oc_…）", ChannelEn: "Group chat_id (oc_…)", TokenDoc: "https://open.feishu.cn/app", Domain: "https://open.feishu.cn", spec: feishu.Plugin},
+	{ID: "lark", Name: "Lark", AppID: true, Channel: "群 chat_id（oc_…）", ChannelEn: "Group chat_id (oc_…)", TokenDoc: "https://open.larksuite.com/app", Domain: "https://open.larksuite.com", spec: feishu.Plugin},
 }
 
 func platform(id string) (Platform, bool) {

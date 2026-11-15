@@ -37,24 +37,24 @@ func (s *shell) menuBar() *mygo.Menu {
 	)
 	return mygo.NewMenu([]*mygo.MenuItem{
 		{Label: appName, Submenu: []*mygo.MenuItem{
-			{Role: mygo.RoleAbout, Label: "关于 " + appName},
+			{Role: mygo.RoleAbout, Label: fmt.Sprintf(tr("about"), appName)},
 			updater.MenuItem(),
 			mygo.Separator(),
-			{Label: "设置…", Accelerator: "CmdOrCtrl+,", Click: func(*mygo.MenuItem, *mygo.Window) { s.openSettings() }},
+			{Label: tr("settings"), Accelerator: "CmdOrCtrl+,", Click: func(*mygo.MenuItem, *mygo.Window) { s.openSettings() }},
 			mygo.Separator(),
 			{Role: mygo.RoleServices},
 			mygo.Separator(),
-			{Role: mygo.RoleHide, Label: "隐藏 " + appName},
+			{Role: mygo.RoleHide, Label: fmt.Sprintf(tr("hide"), appName)},
 			{Role: mygo.RoleHideOthers},
 			{Role: mygo.RoleUnhide},
 			mygo.Separator(),
-			{Role: mygo.RoleQuit, Label: "退出 " + appName},
+			{Role: mygo.RoleQuit, Label: fmt.Sprintf(tr("quit"), appName)},
 		}},
 		{Role: mygo.RoleEditMenu},
-		{Label: "显示", Submenu: view},
+		{Label: tr("view"), Submenu: view},
 		// RoleWindow keeps macOS's list of windows; Close (⌘W) is here
 		// because the app has no File menu. Closing hides the window.
-		{Role: mygo.RoleWindow, Label: "窗口", Submenu: []*mygo.MenuItem{
+		{Role: mygo.RoleWindow, Label: tr("window"), Submenu: []*mygo.MenuItem{
 			{Role: mygo.RoleMinimize},
 			{Role: mygo.RoleZoom},
 			mygo.Separator(),
@@ -71,7 +71,7 @@ func (s *shell) trayMenu(needs []need) *mygo.Menu {
 	for i, n := range needs {
 		if i == maxNeedItems {
 			sub = append(sub, mygo.Separator(), &mygo.MenuItem{
-				Label: fmt.Sprintf("还有 %d 项…", len(needs)-maxNeedItems),
+				Label: fmt.Sprintf(tr("needsMore"), len(needs)-maxNeedItems),
 				Click: func(*mygo.MenuItem, *mygo.Window) { s.showWindow() },
 			})
 			break
@@ -83,13 +83,13 @@ func (s *shell) trayMenu(needs []need) *mygo.Menu {
 		})
 	}
 	if len(sub) == 0 {
-		sub = []*mygo.MenuItem{{Label: "没有等你处理的事", Disabled: true}}
+		sub = []*mygo.MenuItem{{Label: tr("needsNone"), Disabled: true}}
 	}
 	return mygo.NewMenu([]*mygo.MenuItem{
-		{Label: "打开 " + appName, Click: func(*mygo.MenuItem, *mygo.Window) { s.showWindow() }},
-		{Label: fmt.Sprintf("需要你 (%d)", len(needs)), Submenu: sub, Disabled: len(needs) == 0},
+		{Label: fmt.Sprintf(tr("open"), appName), Click: func(*mygo.MenuItem, *mygo.Window) { s.showWindow() }},
+		{Label: fmt.Sprintf(tr("needs"), len(needs)), Submenu: sub, Disabled: len(needs) == 0},
 		mygo.Separator(),
-		{Label: "开机时启动", Type: mygo.MenuItemCheckbox, Checked: mygo.App.OpenAtLogin(),
+		{Label: tr("atLogin"), Type: mygo.MenuItemCheckbox, Checked: mygo.App.OpenAtLogin(),
 			Click: func(it *mygo.MenuItem, _ *mygo.Window) {
 				on := it.Checked
 				go func() {
@@ -99,13 +99,13 @@ func (s *shell) trayMenu(needs []need) *mygo.Menu {
 					s.updateTray()
 				}()
 			}},
-		{Label: "关闭窗口后继续运行", Type: mygo.MenuItemCheckbox, Checked: s.prefs.keepRunning(),
+		{Label: tr("keepRunning"), Type: mygo.MenuItemCheckbox, Checked: s.prefs.keepRunning(),
 			Click: func(it *mygo.MenuItem, _ *mygo.Window) {
 				on := it.Checked
 				go s.prefs.setKeepRunning(on)
 			}},
 		mygo.Separator(),
-		{Label: "退出 " + appName, Click: func(*mygo.MenuItem, *mygo.Window) { mygo.App.Quit() }},
+		{Label: fmt.Sprintf(tr("quit"), appName), Click: func(*mygo.MenuItem, *mygo.Window) { mygo.App.Quit() }},
 	})
 }
 

@@ -99,6 +99,10 @@ type Input struct {
 	DefaultMode *string   `json:"defaultMode"`
 }
 
+// DefaultTeamName is the default team's name until someone renames it (the
+// UI shows it in the viewer's language).
+const DefaultTeamName = "我的团队"
+
 // Changed fires after every change.
 var Changed = kernel.NewEmit[string]("teams/changed")
 
@@ -161,7 +165,7 @@ func (s *Service) ensureDefault() error {
 	if _, ok := s.items[agent.DefaultTeam]; ok {
 		return nil
 	}
-	s.items[agent.DefaultTeam] = &Team{ID: agent.DefaultTeam, Name: "我的团队", Visibility: Public, Color: "#3b32c4",
+	s.items[agent.DefaultTeam] = &Team{ID: agent.DefaultTeam, Name: DefaultTeamName, Visibility: Public, Color: "#3b32c4",
 		People: []Person{{ID: "owner", Role: RoleLead}}, Created: time.Unix(0, 0).UTC()}
 	return s.saveLocked()
 }

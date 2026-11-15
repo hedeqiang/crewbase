@@ -5,9 +5,10 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -p . && vite build",
+    "build": "node scripts/check-i18n.mjs && tsc -p . && vite build",
     "typecheck": "tsc -p .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "check-i18n": "node scripts/check-i18n.mjs"
   },
   "dependencies": {
     "@lobehub/icons-static-svg": "^1.102.0",

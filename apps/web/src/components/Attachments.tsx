@@ -47,7 +47,7 @@ export function addFiles(session: string, agent: string, files: File[]) {
     }
     const id = ++seq;
     // pasted screenshots arrive as "image.png"; give them a dated name
-    const name = f.name && f.name !== "image.png" ? f.name : `截图 ${new Date().toLocaleString("sv").replace(/[: ]/g, (c) => (c === ":" ? "." : " "))}.png`;
+    const name = f.name && f.name !== "image.png" ? f.name : `${t("att.screenshot")} ${new Date().toLocaleString("sv").replace(/[: ]/g, (c) => (c === ":" ? "." : " "))}.png`;
     const p: PendingFile = { id, name, size: f.size, mime: f.type, state: "up", preview: IMAGE.test(f.type) ? URL.createObjectURL(f) : undefined };
     setState((s) => ({ attach: { ...s.attach, [session]: [...(s.attach[session] ?? []), p] } }));
     uploadFile(agent, f, name).then(

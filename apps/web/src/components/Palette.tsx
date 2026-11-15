@@ -1,3 +1,4 @@
+import { keyLabel } from "../shortcuts";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Bot, Hash, ListChecks, Monitor, PanelRight, Search, Shield, Square, SunMoon, MessageSquare } from "lucide-react";
 import { API } from "../api";
@@ -53,8 +54,8 @@ function PaletteInner() {
         run: () => openSession(r.session),
       });
     for (const s of SECTIONS) it.push({ group: t("pal.settings"), icon: SECTION_ICONS[s], title: t(`set.${s}` as Key), run: () => openSettings(s) });
-    it.push({ group: t("pal.commands"), icon: <MessageSquare size={16} />, title: t("list.newChat"), sub: "⌘N", run: () => void newChat() });
-    it.push({ group: t("pal.commands"), icon: <Bot size={16} />, title: t("pal.cmd.newAgent"), sub: "⇧⌘N", run: openNewAgent });
+    it.push({ group: t("pal.commands"), icon: <MessageSquare size={16} />, title: t("list.newChat"), sub: keyLabel("newChat"), run: () => void newChat() });
+    it.push({ group: t("pal.commands"), icon: <Bot size={16} />, title: t("pal.cmd.newAgent"), sub: keyLabel("newAgent"), run: openNewAgent });
     const nextTheme = theme === "system" ? "light" : theme === "light" ? "dark" : "system";
     it.push({ group: t("pal.commands"), icon: <SunMoon size={16} />, title: t("pal.cmd.theme", { theme: t(`theme.${nextTheme}`) }), run: () => setTheme(nextTheme) });
     it.push({ group: t("pal.commands"), icon: <PanelRight size={16} />, title: t("pal.cmd.panel"), run: () => setState((s) => ({ panelOpen: !s.panelOpen, view: "chat" })) });
@@ -97,7 +98,7 @@ function PaletteInner() {
   return (
     <>
       <div className="scrim" onClick={close} />
-      <div className="palette" role="dialog" aria-label="⌘K">
+      <div className="palette" role="dialog" aria-label={t("keys.palette")}>
         <label className="pin">
           <Search size={16} />
           <input

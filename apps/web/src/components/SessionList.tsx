@@ -32,6 +32,7 @@ import { ListToggle } from "./Header";
 import { Logo } from "./Logo";
 import { RowMenuButton, RowMenuHost, openNewFolder, openRowMenu } from "./RowMenu";
 import { Popover, useMenu } from "./Popover";
+import { keyLabel } from "../shortcuts";
 
 const ISSUES_URL = "https://github.com/hedeqiang/crewbase/issues";
 
@@ -107,7 +108,7 @@ export function SessionList() {
     const topic = summaries[a.session]?.topic;
     const waiting = (pendingBy[a.id] ?? 0) > 0 || !!takeoverReason(a);
     return (
-      <button key={a.id} className="ci" type="button" aria-current={sel(a.session)} onClick={() => openSession(a.session)} onContextMenu={(e) => openRowMenu(e, { kind: "agent", agent: a })}>
+      <button key={a.id} className="ci" data-session={a.session} type="button" aria-current={sel(a.session)} onClick={() => openSession(a.session)} onContextMenu={(e) => openRowMenu(e, { kind: "agent", agent: a })}>
         <Avatar agent={a} size={32} status={!isChat(a)} />
         <span className="ct">
           <span className="l1">
@@ -129,7 +130,7 @@ export function SessionList() {
     const who = snip?.agent ? agents[snip.agent]?.name : undefined;
     const topic = summaries[m.id]?.topic;
     return (
-      <button key={m.id} className={"ci" + (ch?.state === "archived" ? " arch" : "")} type="button" aria-current={sel(m.id)} onClick={() => openSession(m.id)} onContextMenu={(e) => openRowMenu(e, { kind: "channel", meta: m })}>
+      <button key={m.id} className={"ci" + (ch?.state === "archived" ? " arch" : "")} data-session={m.id} type="button" aria-current={sel(m.id)} onClick={() => openSession(m.id)} onContextMenu={(e) => openRowMenu(e, { kind: "channel", meta: m })}>
         <span className="chav">
           <Hash size={16} />
           {owner && (
@@ -294,7 +295,7 @@ export function SessionList() {
           className="ib"
           type="button"
           aria-label={t("list.settings")}
-          title={t("list.settings") + "（⌘,）"}
+          title={t("list.settings") + " (" + keyLabel("settings") + ")"}
           aria-pressed={view === "settings"}
           onClick={() => (view === "settings" ? setState({ view: "chat" }) : openSettings("general"))}
         >
@@ -316,7 +317,7 @@ export function SessionList() {
             {t("list.newChat")}
             <span>{t("list.newChatDesc")}</span>
           </span>
-          <kbd>⌘N</kbd>
+          <kbd>{keyLabel("newChat")}</kbd>
         </button>
         <button
           className="mi"
@@ -331,7 +332,7 @@ export function SessionList() {
             {t("list.newAgent")}
             <span>{t("list.newAgentDesc")}</span>
           </span>
-          <kbd>⇧⌘N</kbd>
+          <kbd>{keyLabel("newAgent")}</kbd>
         </button>
         <button
           className="mi"
@@ -347,6 +348,7 @@ export function SessionList() {
             {t("list.newChannel")}
             <span>{t("list.newChannelDesc")}</span>
           </span>
+          <kbd>{keyLabel("newChannel")}</kbd>
         </button>
         <button
           className="mi"
@@ -539,7 +541,7 @@ function MeMenu({ close, profile }: { close: () => void; profile: Profile }) {
       >
         <Settings size={16} />
         <span className="g">{t("me.allSettings")}</span>
-        <kbd>⌘,</kbd>
+        <kbd>{keyLabel("settings")}</kbd>
       </button>
       <hr />
       {shell?.quit ? (

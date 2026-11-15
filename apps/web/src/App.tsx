@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
 import { API, desktop, initToken, openExternal, setUnauthorizedHandler, setToken } from "./api";
 import { t } from "./i18n";
-import { applyTheme, connectEvents, disconnectEvents, getState, goHistory, newChat, openNewAgent, openSettings, resync, sessionAgent, setState, useStore, applyHashRoute } from "./store";
+import { applyTheme, connectEvents, disconnectEvents, getState, resync, sessionAgent, setState, useStore, applyHashRoute } from "./store";
+import { actionOf } from "./shortcuts";
+import { runShortcut } from "./actions";
 import { ConvHeader, useNeedsYou } from "./components/Header";
 import { SessionList } from "./components/SessionList";
 import { Conversation } from "./components/Conversation";
@@ -113,28 +115,24 @@ function Shell() {
 
   useEffect(() => {
     const key = (e: KeyboardEvent) => {
-      const mod = e.metaKey || e.ctrlKey;
-      if (mod && e.key.toLowerCase() === "k") {
-        e.preventDefault();
-        setState((s) => ({ palette: !s.palette }));
-      } else if (mod && !e.shiftKey && !e.altKey && (e.key === "[" || e.key === "]")) {
-        e.preventDefault();
-        goHistory(e.key === "[" ? -1 : 1);
-      } else if (mod && e.key === ",") {
-        e.preventDefault();
-        openSettings("general");
-      } else if (mod && e.key.toLowerCase() === "n" && !e.altKey) {
-        e.preventDefault();
-        if (e.shiftKey) openNewAgent();
-        else void newChat();
-      } else if (e.key === "Escape") {
+      if (e.defaultPrevented || e.isComposing) return;
+      const el = e.target as HTMLElement | null;
+      const typing = !!el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.tagName === "SELECT" || el.isContentEditable);
+      // while a shortcut is being recorded in settings, keys belong to it
+      if (el?.closest?.("[data-recording]")) return;
+      if (e.key === "Escape") {
         const s = getState();
         if (s.palette) setState({ palette: false });
         else if (s.newChannel) setState({ newChannel: false });
         else if (s.hostConfirm) setState({ hostConfirm: null });
         else if (window.matchMedia("(max-width: 820px)").matches && s.listOpen) setState({ listOpen: false });
         else if (window.matchMedia("(max-width: 1100px)").matches && s.panelOpen) setState({ panelOpen: false });
+        return;
       }
+      const id = actionOf(e, typing);
+      if (!id) return;
+      e.preventDefault();
+      runShortcut(id);
     };
     window.addEventListener("keydown", key);
     return () => window.removeEventListener("keydown", key);

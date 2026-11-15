@@ -1,7 +1,7 @@
 import { CheckCircle2, ExternalLink, Loader2, MessageCircle, Send, Trash2, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { API, type ImGateway, type ImPlatform } from "../../api";
-import { t } from "../../i18n";
+import { getLang, t } from "../../i18n";
 import { toast, useStore } from "../../store";
 
 /** 即时通讯 (in 设置 › 通知): connect Slack / Telegram / Discord / 飞书 bots. */
@@ -14,7 +14,8 @@ export function ImSetup({ onChanged }: { onChanged: () => void }) {
   const load = async () => {
     try {
       const r = await API.imConfig();
-      setPlatforms(r.platforms);
+      // platform names in the interface language (飞书 → Feishu)
+      setPlatforms(r.platforms.map((p) => (getLang() === "en" ? { ...p, name: p.nameEn || p.name, channel: p.channelEn || p.channel } : p)));
       setList(r.gateways);
     } catch (e: any) {
       setErr(e?.status === 404 ? t("dev.old") : e?.message ?? String(e));

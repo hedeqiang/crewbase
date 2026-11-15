@@ -5,8 +5,10 @@ import (
 	"errors"
 	"net/url"
 	"runtime"
+	"time"
 
 	"github.com/egoist/mygo"
+	"github.com/egoist/mygo/plugins/updater"
 )
 
 // Desktop is the Go side of window.crewbaseDesktop. It is bound with
@@ -35,14 +37,60 @@ func (d Desktop) OpenExternal(rawURL string) error {
 // returns the chosen folder, "" when cancelled. start is where it opens.
 func (d Desktop) PickFolder(start string) (string, error) {
 	paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{
-		Parent: d.s.window(), Title: "选择项目文件夹", ButtonLabel: "选择",
-		Message:     "Agent 会在这个文件夹里读写文件、运行命令（按它的运行权限）。",
+		Parent: d.s.window(), Title: tr("pickFolder"), ButtonLabel: tr("pick"),
+		Message:     tr("pickFolderMsg"),
 		DefaultPath: start, Directory: true, CreateDirectories: true,
 	})
 	if err != nil || len(paths) == 0 {
 		return "", err
 	}
 	return paths[0], nil
+}
+
+// UpdateStatus is what 设置 › 通用 shows about updates.
+type UpdateStatus struct {
+	Version            string `json:"version"`
+	Enabled            bool   `json:"enabled"` // this build can update itself
+	AutomaticChecks    bool   `json:"automaticChecks"`
+	AutomaticDownloads bool   `json:"automaticDownloads"`
+	LastCheck          string `json:"lastCheck,omitempty"` // RFC 3339
+	Available          string `json:"available,omitempty"` // a newer version found
+}
+
+// Updates reports the update state.
+func (d Desktop) Updates() UpdateStatus {
+	st := UpdateStatus{Version: mygo.App.Version(), Enabled: mygo.Updater.Enabled(),
+		AutomaticChecks: updater.AutomaticChecks(), AutomaticDownloads: updater.AutomaticDownloads(), Available: updater.AvailableVersion()}
+	if t := updater.LastCheck(); !t.IsZero() {
+		st.LastCheck = t.UTC().Format(time.RFC3339)
+	}
+	return st
+}
+
+// CheckForUpdates checks now, showing the update window (also when up to date).
+func (d Desktop) CheckForUpdates() { updater.CheckForUpdates() }
+
+// SetUpdatePrefs changes the background check and download preferences.
+func (d Desktop) SetUpdatePrefs(checks, downloads bool) UpdateStatus {
+	updater.SetAutomaticChecks(checks)
+	updater.SetAutomaticDownloads(downloads)
+	return d.Updates()
+}
+
+// SetLanguage switches the shell's menus, tray and dialogs to the UI's
+// language ("zh" | "en").
+func (d Desktop) SetLanguage(l string) {
+	if l != "zh" && l != "en" {
+		return
+	}
+	if prev, _ := uiLang.Load().(string); prev == l {
+		return
+	}
+	uiLang.Store(l)
+	mygo.App.SetLanguages(mygoLang())
+	mygo.App.SetMenu(d.s.menuBar())
+	d.s.setDockMenu()
+	d.s.updateTray()
 }
 
 // SetBadge sets the page's count for the Dock badge. The badge shows the
@@ -55,7 +103,8 @@ func (d Desktop) SetBadge(n int) {
 
 // preloadScript defines window.crewbaseDesktop in pages of origin. The
 // surface is exactly { version, platform, quit(), openExternal(url),
-// setBadge(n), pickFolder(start) }; it calls the Desktop service through window.mygo, which
+// setBadge(n), pickFolder(start), updates(), checkForUpdates(),
+// setUpdatePrefs(checks, downloads) }; it calls the Desktop service through window.mygo, which
 // MyGo injects before preload scripts run.
 func preloadScript(origin, version string) string {
 	o, _ := json.Marshal(origin)
@@ -73,6 +122,10 @@ func preloadScript(origin, version string) string {
       openExternal: (url) => { call("OpenExternal", String(url)); },
       setBadge: (n) => { call("SetBadge", Math.max(0, Math.floor(Number(n) || 0))); },
       pickFolder: (start) => window.mygo.call("Desktop.PickFolder", String(start || "")),
+      updates: () => window.mygo.call("Desktop.Updates"),
+      checkForUpdates: () => { call("CheckForUpdates"); },
+      setUpdatePrefs: (checks, downloads) => window.mygo.call("Desktop.SetUpdatePrefs", !!checks, !!downloads),
+      setLanguage: (l) => { call("SetLanguage", String(l)); },
     }),
   });
 })();`

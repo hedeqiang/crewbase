@@ -1,3 +1,4 @@
+import { keyLabel } from "../shortcuts";
 import { ArrowRight, Plus, MessageSquare } from "lucide-react";
 import { useMemo, useState } from "react";
 import { t, type Key } from "../i18n";
@@ -29,7 +30,7 @@ export function Welcome({ onTemplate }: { onTemplate: (d: Partial<Draft>) => voi
       <div className="welcome quiet">
         <Logo size={40} />
         <b>{t("wel.pick")}</b>
-        <span className="small">{t("wel.pickDesc")}</span>
+        <span className="small">{t("wel.pickDesc", { key: keyLabel("palette") })}</span>
       </div>
     );
   }

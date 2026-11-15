@@ -29,6 +29,7 @@ import (
 
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/plugins/updater"
+	"github.com/hedeqiang/crewbase/kernel"
 	// The UI is written in Chinese: MyGo's own menus, dialogs and roles
 	// follow it (App.SetLanguages below).
 	_ "github.com/egoist/mygo/locales/zh-Hans"
@@ -71,18 +72,19 @@ func main() {
 		mygo.App.SetName(appName)
 		mygo.App.SetVersion(devVersion)
 	}
-	mygo.App.SetLanguages("zh-Hans")
+	// the in-process host (and its API) report the app's version
+	kernel.Version = mygo.App.Version()
+	mygo.App.SetLanguages(mygoLang())
 	setupLogging()
 	// Signed updates from the GitHub releases (mygo.json updates); builds
 	// that cannot update themselves (go run, package managers) never check.
-	mygo.Use(updater.New(updater.Options{Language: "zh-Hans"}))
+	// the update window follows the app's language (App.SetLanguages)
+	mygo.Use(updater.Plugin)
 
 	s := &shell{prefs: loadPrefs(), hidden: mygo.App.WasOpenedAtLogin()}
 	mygo.Bind(Desktop{s})
 	mygo.App.SetMenu(s.menuBar())
-	mygo.App.Dock.SetMenu(mygo.NewMenu([]*mygo.MenuItem{
-		{Label: "打开 Crewbase", Click: func(*mygo.MenuItem, *mygo.Window) { s.showWindow() }},
-	}))
+	s.setDockMenu()
 
 	mygo.App.OnSecondInstance(func([]string, string) {
 		slog.Info("desktop: second launch; showing the window")
@@ -321,3 +323,11 @@ func (s *shell) beforeQuit(e *mygo.QuitEvent) {
 		mygo.App.Quit()
 	}()
 }
+
+func (s *shell) setDockMenu() {
+	mygo.App.Dock.SetMenu(mygo.NewMenu([]*mygo.MenuItem{
+		{Label: fmt.Sprintf(tr("open"), appName), Click: func(*mygo.MenuItem, *mygo.Window) { s.showWindow() }},
+	}))
+}
+
+func getenv(k string) string { return os.Getenv(k) }

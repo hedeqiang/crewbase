@@ -8,6 +8,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"net/http"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -138,6 +139,8 @@ var Plugin = kernel.Register(kernel.Spec{
 	Apply: func(c *kernel.Context) error {
 		cfg, err := kernel.Decode[struct {
 			Dir string `json:"dir"`
+			// UpdateCheck: daily check for a newer release (default on)
+			UpdateCheck *bool `json:"updateCheck"`
 		}](c)
 		if err != nil {
 			return err
@@ -799,6 +802,14 @@ var Plugin = kernel.Register(kernel.Spec{
 				}
 				return map[string]any{"moved": n}, nil
 			}})
+
+		// ---- updates (crewd in a browser / server; the desktop app has its own)
+		up := &updates{enabled: cfg.UpdateCheck == nil || *cfg.UpdateCheck, client: &http.Client{}}
+		c.Go(up.run)
+		g.Handle(c, gateway.Route{Method: "GET", Path: "/api/updates", Devices: mobile,
+			Handle: func(context.Context, *gateway.Request) (any, error) { return up.get(), nil }})
+		g.Handle(c, gateway.Route{Method: "POST", Path: "/api/updates/check",
+			Handle: func(ctx context.Context, _ *gateway.Request) (any, error) { return up.check(ctx), nil }})
 
 		// ---- system info (profile menu, about)
 		g.Handle(c, gateway.Route{Method: "GET", Path: "/api/system", Devices: mobile,

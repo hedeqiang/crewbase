@@ -40,6 +40,8 @@ RUN pnpm build
 # ---------------------------------------------------------------- Go binaries
 FROM ${REGISTRY}library/golang:${GO_VERSION}-alpine AS build
 ARG GOPROXY=https://proxy.golang.org,direct
+# set by the release workflow (e.g. 0.3.0); dev builds keep the default
+ARG VERSION=
 ENV GOPROXY=${GOPROXY} CGO_ENABLED=0 GOFLAGS=-trimpath
 WORKDIR /src
 COPY go.mod go.sum ./
@@ -49,8 +51,9 @@ COPY . .
 RUN rm -rf apps/web/dist && mkdir -p apps/web/dist && touch apps/web/dist/.keep
 COPY --from=web /src/apps/web/dist/ apps/web/dist/
 RUN --mount=type=cache,target=/root/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build \
-    go build -ldflags="-s -w" -o /out/crewd ./apps/crewd \
- && go build -ldflags="-s -w" -o /out/crew ./apps/cli \
+    LD="-s -w${VERSION:+ -X github.com/hedeqiang/crewbase/kernel.Version=$VERSION}" \
+ && go build -ldflags="$LD" -o /out/crewd ./apps/crewd \
+ && go build -ldflags="$LD" -o /out/crew ./apps/cli \
  && mkdir -p /out/data/home && chown -R 65532:65532 /out/data && chmod 700 /out/data
 
 # ---------------------------------------------------------------- runtimes

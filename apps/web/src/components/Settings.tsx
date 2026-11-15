@@ -1,7 +1,7 @@
 import { AddProviderDialog } from "./settings/AddProvider";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Bell, Boxes, ChevronLeft, Cpu, Info, Keyboard, ListChecks, MousePointer2, Plus, Puzzle, Search, Server, Settings as Gear, User, Workflow, Users } from "lucide-react";
-import { API, type ApprovalHistoryItem, type ProviderView, type RememberedChoice, type Settings as SettingsData, type UserProvider } from "../api";
+import { API, desktop, type DesktopUpdates, type UpdateInfo, type ApprovalHistoryItem, type ProviderView, type RememberedChoice, type Settings as SettingsData, type UserProvider } from "../api";
 import { t, type Key, type Lang } from "../i18n";
 import { ago, kfmt, modeLabel, providerName, until } from "../format";
 import { openSession, setLang, setState, toast, useStore, type SettingsSection, resync } from "../store";
@@ -17,6 +17,24 @@ import { Routing } from "./settings/Routing";
 import { Avatar } from "./Avatar";
 import { ApprovalActions } from "./Approval";
 import { ProviderMark } from "./ProviderMark";
+import { Markdown } from "./Markdown";
+import {
+  SHORTCUTS,
+  binding,
+  comboOf,
+  conflict,
+  display,
+  enterSends,
+  fixedKeys,
+  isCustom,
+  onShortcutsChange,
+  resetAll,
+  resetBinding,
+  setBinding,
+  setEnterSends,
+  type ActionId,
+  type Shortcut,
+} from "../shortcuts";
 import { ThemeSeg } from "./SessionList";
 
 const NAV: { group: Key; items: { id: SettingsSection; icon: ReactNode }[] }[] = [
@@ -108,43 +126,131 @@ export function Settings() {
   );
 }
 
-const MAC = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
-const mod = MAC ? "⌘" : "Ctrl+";
+const GROUPS: { id: Shortcut["group"]; title: Key }[] = [
+  { id: "general", title: "keys.general" },
+  { id: "nav", title: "keys.nav" },
+  { id: "chat", title: "keys.chat" },
+  { id: "panel", title: "keys.panel" },
+];
 
+function Combo({ combo }: { combo: string }) {
+  const parts = display(combo);
+  if (!parts.length) return <span className="small muted">{t("keys.none")}</span>;
+  return (
+    <span className="kcombo">
+      {parts.map((p, i) => (
+        <kbd key={i} className="kbig">
+          {p}
+        </kbd>
+      ))}
+    </span>
+  );
+}
+
+/** 设置 › 快捷键: every shortcut, click one to record a new key. */
 function Keys() {
-  const groups: { title: Key; rows: [Key, string][] }[] = [
-    {
-      title: "keys.general",
-      rows: [
-        ["keys.palette", mod + "K"],
-        ["keys.newAgent", mod + "N"],
-        ["keys.settings", mod + ","],
-        ["keys.close", "Esc"],
-      ],
-    },
-    {
-      title: "keys.chat",
-      rows: [
-        ["keys.back", mod + "["],
-        ["keys.forward", mod + "]"],
-        ["keys.send", mod + "Enter"],
-        ["keys.mention", "@"],
-      ],
-    },
-  ];
+  const [, bump] = useState(0);
+  const [rec, setRec] = useState<ActionId | null>(null);
+  const [msg, setMsg] = useState("");
+  useEffect(() => onShortcutsChange(() => bump((n) => n + 1)), []);
+  useEffect(() => {
+    if (!rec) return;
+    const key = (e: KeyboardEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (e.key === "Escape") {
+        setRec(null);
+        setMsg("");
+        return;
+      }
+      if (e.key === "Backspace" || e.key === "Delete") {
+        setBinding(rec, "");
+        setRec(null);
+        setMsg("");
+        return;
+      }
+      const c = comboOf(e);
+      if (!c) return; // a modifier alone: keep waiting
+      const why = conflict(rec, c);
+      if (why === "reserved") {
+        setMsg(t("keys.reserved", { keys: display(c).join("") }));
+        return;
+      }
+      if (why === "needsModifier") {
+        setMsg(t("keys.needsModifier"));
+        return;
+      }
+      if (why) {
+        const other = SHORTCUTS.find((s) => s.id === why);
+        // swap: the other action takes this one's old key
+        setBinding(why as ActionId, binding(rec));
+        setMsg(t("keys.swapped", { other: other ? t(other.label) : why }));
+      } else setMsg("");
+      setBinding(rec, c);
+      setRec(null);
+    };
+    window.addEventListener("keydown", key, true);
+    return () => window.removeEventListener("keydown", key, true);
+  }, [rec]);
+  const fixed = fixedKeys();
+  const custom = SHORTCUTS.some((s) => isCustom(s.id));
   return (
     <>
-      <Head title={t("keys.title")} sub={t("keys.sub")} />
+      <Head
+        title={t("keys.title")}
+        sub={t("keys.sub")}
+        right={
+          custom ? (
+            <button className="btn sm" type="button" onClick={() => resetAll()}>
+              {t("keys.resetAll")}
+            </button>
+          ) : undefined
+        }
+      />
       <div className="vb">
-        {groups.map((g) => (
-          <div key={g.title} className="kgrp">
+        <p className="small" style={{ margin: "0 0 10px" }}>
+          {rec ? t("keys.recording") : t("keys.howto")}
+        </p>
+        {msg && <p className="small warnq">{msg}</p>}
+        {GROUPS.map((g) => (
+          <div key={g.id} className="kgrp">
             <div className="vsec">{t(g.title)}</div>
             <div className="sbox">
-              {g.rows.map(([k, v]) => (
-                <Row key={k} title={t(k)}>
-                  <kbd className="kbig">{v}</kbd>
+              {SHORTCUTS.filter((s) => s.group === g.id).map((s) => (
+                <Row key={s.id} title={t(s.label)}>
+                  <span className="krow">
+                    <button
+                      type="button"
+                      className={"kbtn" + (rec === s.id ? " rec" : "")}
+                      data-recording={rec === s.id ? "" : undefined}
+                      onClick={() => {
+                        setMsg("");
+                        setRec(rec === s.id ? null : s.id);
+                      }}
+                      title={t("keys.change")}
+                    >
+                      {rec === s.id ? <span className="small">{t("keys.pressKeys")}</span> : <Combo combo={binding(s.id)} />}
+                    </button>
+                    {isCustom(s.id) && (
+                      <button className="linkbtn" type="button" onClick={() => resetBinding(s.id)} title={t("keys.reset")}>
+                        {t("keys.reset")}
+                      </button>
+                    )}
+                  </span>
                 </Row>
               ))}
+              {fixed
+                .filter((f) => f.group === g.id)
+                .map((f) => (
+                  <Row key={f.label} title={t(f.label)} dim>
+                    <Combo combo={f.keys} />
+                  </Row>
+                ))}
+              {g.id === "chat" && (
+                <Row title={t("keys.enterSends")} desc={t("keys.enterSendsDesc")}>
+                  <button className="tg" type="button" role="switch" aria-checked={enterSends()} aria-label={t("keys.enterSends")} onClick={() => setEnterSends(!enterSends())} />
+                </Row>
+              )}
             </div>
           </div>
         ))}
@@ -254,6 +360,7 @@ function General() {
         </div>
         <div className="vsec">{t("set.about")}</div>
         <div className="sbox">
+          <Updates />
           <Row title={t("set.license")} desc={t("set.licenseDesc")}>
             <a className="linkbtn" href="/THIRD_PARTY_NOTICES.txt" target="_blank" rel="noreferrer noopener">
               {t("set.notices")}
@@ -261,6 +368,97 @@ function General() {
           </Row>
         </div>
       </div>
+    </>
+  );
+}
+
+/** 关于 › 版本与更新: the desktop app updates itself (its updater); in a
+ *  browser the daemon checks GitHub once a day and links the release. */
+function Updates() {
+  const d = desktop();
+  const [du, setDu] = useState<DesktopUpdates | null>(null);
+  const [info, setInfo] = useState<UpdateInfo | null>(null);
+  const [busy, setBusy] = useState(false);
+  const manage = useStore((s) => s.tier === "desktop");
+  useEffect(() => {
+    if (d?.updates) d.updates().then(setDu, () => setDu(null));
+    else API.updates().then(setInfo, () => setInfo(null));
+  }, []);
+  if (du) {
+    const when = du.lastCheck ? ago(du.lastCheck) : t("upd.never");
+    return (
+      <>
+        <Row title={t("upd.version", { v: du.version })} desc={du.available ? t("upd.availableDesktop", { v: du.available }) : du.enabled ? t("upd.lastCheck", { when }) : t("upd.disabled")}>
+          <button className={"btn" + (du.available ? " pri" : "")} type="button" disabled={!du.enabled} onClick={() => d!.checkForUpdates!()}>
+            {du.available ? t("upd.install") : t("upd.check")}
+          </button>
+        </Row>
+        {du.enabled && (
+          <>
+            <Row title={t("upd.autoCheck")} desc={t("upd.autoCheckDesc")}>
+              <button
+                className="tg"
+                type="button"
+                role="switch"
+                aria-checked={du.automaticChecks}
+                aria-label={t("upd.autoCheck")}
+                onClick={() => d!.setUpdatePrefs!(!du.automaticChecks, du.automaticChecks ? false : du.automaticDownloads).then(setDu)}
+              />
+            </Row>
+            <Row title={t("upd.autoInstall")} desc={t("upd.autoInstallDesc")}>
+              <button
+                className="tg"
+                type="button"
+                role="switch"
+                aria-checked={du.automaticDownloads}
+                aria-label={t("upd.autoInstall")}
+                disabled={!du.automaticChecks}
+                onClick={() => d!.setUpdatePrefs!(du.automaticChecks, !du.automaticDownloads).then(setDu)}
+              />
+            </Row>
+          </>
+        )}
+      </>
+    );
+  }
+  if (!info) return null;
+  const check = async () => {
+    setBusy(true);
+    try {
+      const i = await API.checkUpdates();
+      setInfo(i);
+      toast(i.error ? t("upd.failed", { error: i.error }) : i.available ? t("upd.found", { v: i.latest ?? "" }) : t("upd.upToDate"));
+    } catch (e: any) {
+      toast(e?.message ?? String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+  const desc = info.available
+    ? t("upd.availableWeb", { v: info.latest ?? "" })
+    : info.checked
+      ? t("upd.lastCheck", { when: ago(info.checked) }) + (info.error ? " · " + t("upd.failed", { error: info.error }) : "")
+      : info.enabled
+        ? t("upd.autoDaily")
+        : t("upd.never");
+  return (
+    <>
+      <Row title={t("upd.version", { v: info.current })} desc={desc}>
+        {info.available && info.url ? (
+          <a className="btn pri" href={info.url} target="_blank" rel="noreferrer noopener">
+            {t("upd.see")}
+          </a>
+        ) : (
+          <button className="btn" type="button" disabled={busy || !manage} onClick={() => void check()}>
+            {busy ? t("upd.checking") : t("upd.check")}
+          </button>
+        )}
+      </Row>
+      {info.available && info.notes && (
+        <div className="updnotes">
+          <Markdown text={info.notes} />
+        </div>
+      )}
     </>
   );
 }

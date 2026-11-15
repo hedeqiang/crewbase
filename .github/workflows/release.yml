@@ -112,6 +112,17 @@ jobs:
           CGO_ENABLED: "0"
           MYGO_UPDATER_PRIVATE_KEY: ${{ secrets.MYGO_UPDATER_PRIVATE_KEY }}
         run: go tool mygo build -platform "${{ matrix.platform }}" -upload apps/desktop
+      - name: Updates for macOS apps installed per architecture
+        if: matrix.name == 'macOS'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        # apps installed from arm64 / amd64 builds read their own manifest:
+        # point them at the universal app (its signature covers the archive)
+        run: |
+          m=apps/desktop/build/darwin-universal/update-darwin-universal.json
+          cp "$m" update-darwin-arm64.json
+          cp "$m" update-darwin-amd64.json
+          gh release upload "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --clobber update-darwin-arm64.json update-darwin-amd64.json
 
   binaries:
     needs: draft-release
@@ -145,7 +156,7 @@ jobs:
             dir="crewbase-cli-$v-$os-$arch"
             mkdir -p "out/$dir"
             for app in crewd:apps/crewd crew:apps/cli crew-relay:apps/relayd; do
-              GOOS=$os GOARCH=$arch go build -trimpath -ldflags "-s -w" -o "out/$dir/${app%%:*}$ext" "./${app#*:}"
+              GOOS=$os GOARCH=$arch go build -trimpath -ldflags "-s -w -X github.com/hedeqiang/crewbase/kernel.Version=$v" -o "out/$dir/${app%%:*}$ext" "./${app#*:}"
             done
             cp LICENSE THIRD_PARTY_NOTICES.txt "out/$dir/"
             if [ "$os" = windows ]; then
@@ -180,6 +191,7 @@ jobs:
           tags="$repo:$v"
           chromium="$repo:$v-chromium"
           case "$v" in *-*) ;; *) tags="$tags,$repo:latest"; chromium="$chromium,$repo:chromium" ;; esac
+          echo "version=$v" >> "$GITHUB_OUTPUT"
           echo "tags=$tags" >> "$GITHUB_OUTPUT"
           echo "chromium=$chromium" >> "$GITHUB_OUTPUT"
       - uses: docker/build-push-action@v6
@@ -187,13 +199,16 @@ jobs:
           context: .
           platforms: linux/amd64,linux/arm64
           push: true
+          build-args: VERSION=${{ steps.tags.outputs.version }}
           tags: ${{ steps.tags.outputs.tags }}
       - uses: docker/build-push-action@v6
         with:
           context: .
           platforms: linux/amd64,linux/arm64
           push: true
-          build-args: RUNTIME=chromium
+          build-args: |
+            RUNTIME=chromium
+            VERSION=${{ steps.tags.outputs.version }}
           tags: ${{ steps.tags.outputs.chromium }}
 
   publish:
@@ -215,7 +230,7 @@ jobs:
             grep -qx "$name $size" assets.txt || { echo "::error::$name does not match $(basename "$f") (size $size)"; exit 1; }
             n=$((n+1))
           done
-          test "$n" -ge 5 # darwin-universal, linux ×2, windows ×2
+          test "$n" -ge 7 # darwin universal (+ arm64 / amd64 copies), linux ×2, windows ×2
       - name: Publish
         env:
           GH_TOKEN: ${{ github.token }}

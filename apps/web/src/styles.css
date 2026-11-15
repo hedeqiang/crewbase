@@ -1336,3 +1336,12 @@ button.tg:disabled { opacity: .5; cursor: not-allowed; }
 .teammem { border-top: 1px solid var(--border); padding: 8px 14px 12px; display: flex; flex-direction: column; gap: 6px; }
 .teammem textarea { width: 100%; font-size: 12px; line-height: 1.5; }
 .teammem .acts { display: flex; justify-content: flex-end; }
+
+.updnotes { padding: 4px 16px 12px; font-size: 13px; border-top: 1px solid var(--border); }
+
+.krow { display: inline-flex; align-items: center; gap: 8px; }
+.kbtn { display: inline-flex; align-items: center; min-width: 88px; justify-content: flex-end; padding: 3px 6px; border-radius: 8px; border: 1px dashed transparent; background: none; cursor: pointer; }
+.kbtn:hover { border-color: var(--border); background: var(--hover); }
+.kbtn.rec { border-color: var(--accent); background: var(--accent-soft, var(--hover)); }
+.kcombo { display: inline-flex; gap: 4px; }
+.warnq { color: var(--warn-text, #b7791f); }

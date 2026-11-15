@@ -95,14 +95,33 @@ type Result struct {
 	Open string `json:"open,omitempty"`
 }
 
+// Lang is the viewer's interface language ("zh" | "en"), for panels and
+// commands that word their output (from the page's request; "" = zh).
+func Lang(ctx context.Context) string {
+	if l, _ := ctx.Value(langKey{}).(string); l == "en" {
+		return "en"
+	}
+	return "zh"
+}
+
+type langKey struct{}
+
+// WithLang carries the viewer's language to Panel and Run.
+func WithLang(ctx context.Context, lang string) context.Context {
+	return context.WithValue(ctx, langKey{}, lang)
+}
+
 // Contribution is one entry in a slot.
 type Contribution struct {
 	Slot  string `json:"slot"`
 	Key   string `json:"key"` // event type for conversation.node, else a unique id
 	Title string `json:"title,omitempty"`
 	Desc  string `json:"desc,omitempty"`
-	Icon  string `json:"icon,omitempty"` // a lucide icon name; unknown names fall back
-	Order int    `json:"order,omitempty"`
+	// TitleEn / DescEn: the same in English (shown to English viewers).
+	TitleEn string `json:"titleEn,omitempty"`
+	DescEn  string `json:"descEn,omitempty"`
+	Icon    string `json:"icon,omitempty"` // a lucide icon name; unknown names fall back
+	Order   int    `json:"order,omitempty"`
 	// Owner is the registering plugin (defaults to the context's plugin id;
 	// the process bridge sets the external plugin's name).
 	Owner string `json:"owner"`

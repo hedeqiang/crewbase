@@ -100,7 +100,7 @@ export function Avatar({ agent, size = 30, status = false }: { agent?: AgentView
   );
 }
 
-export function MeAvatar({ size = 26, label = "你" }: { size?: number; label?: string }) {
+export function MeAvatar({ size = 26, label = "•" }: { size?: number; label?: string }) {
   return (
     <span className="av me-av" style={{ "--s": `${size}px` } as CSSProperties} aria-hidden>
       {label}

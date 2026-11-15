@@ -30,6 +30,7 @@ import {
   Volume2,
   Square,
 } from "lucide-react";
+import { display, enterSends, MAC } from "../shortcuts";
 import { API, desktop, parseRef, refString, type AgentView, type ChannelView, type ContextBreakdown, type ModelRef } from "../api";
 import { t, type Key } from "../i18n";
 import { argsFull, argsPreview, project, type FeedItem, type Step } from "../projection";
@@ -714,6 +715,10 @@ function Composer({
     return () => stopRec.current?.();
   }, []);
 
+  const sendKey = (() => {
+    const d = display(enterSends() ? "enter" : "mod+enter");
+    return MAC ? d.join("") : d.join("+");
+  })();
   const canSend = (!!draft.trim() || pending.some((f) => f.state === "ok")) && !pending.some((f) => f.state === "up");
 
   const attach = (files: File[]) => {
@@ -912,7 +917,9 @@ function Composer({
                 return;
               }
             }
-            if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+            // ⌘Enter sends; with 「Enter 发送」 on, plain Enter sends and
+            // Shift+Enter starts a new line
+            if (e.key === "Enter" && !e.nativeEvent.isComposing && ((e.metaKey || e.ctrlKey) || (enterSends() && !e.shiftKey && !e.altKey))) {
               e.preventDefault();
               void send();
             }
@@ -1002,7 +1009,7 @@ function Composer({
           >
             {listening ? <MicOff size={15} /> : <Mic size={15} />}
           </button>
-          <button className={"send" + (canSend ? " on" : "")} type="submit" disabled={!canSend || sending} aria-label={t("chat.send")} title={t("chat.send")}>
+          <button className={"send" + (canSend ? " on" : "")} type="submit" disabled={!canSend || sending} aria-label={t("chat.send", { key: sendKey })} title={t("chat.send", { key: sendKey })}>
             <ArrowUp size={16} />
           </button>
         </div>

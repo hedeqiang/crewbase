@@ -27,6 +27,7 @@ var APIPlugin = kernel.Register(kernel.Spec{
 			Slot    string `json:"slot"`
 			Key     string `json:"key"`
 			Session string `json:"session"`
+			Lang    string `json:"lang"`
 		}
 		fail := func(err error) error {
 			if errors.Is(err, ErrNotFound) {
@@ -46,7 +47,7 @@ var APIPlugin = kernel.Register(kernel.Spec{
 				}
 				cctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 				defer cancel()
-				p, err := s.Panel(cctx, b.Slot, b.Key, b.Session)
+				p, err := s.Panel(WithLang(cctx, b.Lang), b.Slot, b.Key, b.Session)
 				if err != nil {
 					return nil, fail(err)
 				}
@@ -63,7 +64,7 @@ var APIPlugin = kernel.Register(kernel.Spec{
 				}
 				cctx, cancel := context.WithTimeout(ctx, 60*time.Second)
 				defer cancel()
-				res, err := s.Run(cctx, b.Slot, b.Key, b.Session)
+				res, err := s.Run(WithLang(cctx, b.Lang), b.Slot, b.Key, b.Session)
 				if err != nil {
 					return nil, fail(err)
 				}

@@ -264,6 +264,9 @@ export function setTheme(t: Theme) {
 export function setLang(l: Lang) {
   setLangRaw(l);
   setState({ lang: l });
+  // plugin entries and team names have per-language wording
+  void refreshUI();
+  void refreshTeams();
 }
 
 export function openSession(id: string) {
@@ -360,7 +363,9 @@ export function currentTeam(): string | undefined {
 export async function refreshTeams() {
   try {
     const r = await API.teams();
-    setState((s) => ({ teams: r.teams, team: r.teams.some((x) => x.id === s.team) ? s.team : DEFAULT_TEAM }));
+    // the default team's original name follows the interface language
+    const teams = r.teams.map((x) => (x.default && x.name === "我的团队" ? { ...x, name: t("teams.defaultName") } : x));
+    setState((s) => ({ teams, team: teams.some((x) => x.id === s.team) ? s.team : DEFAULT_TEAM }));
   } catch {
     /* an older daemon: no teams */
   }
@@ -570,7 +575,9 @@ export async function refreshUI() {
   try {
     const r = await API.ui();
     setState((s) => {
-      const ui = r.contributions ?? [];
+      // plugins may word their entries in English too
+      const en = getLang() === "en";
+      const ui = (r.contributions ?? []).map((c) => (en ? { ...c, title: c.titleEn || c.title, desc: c.descEn || c.desc } : c));
       // a plugin tab that went away falls back to the task tab
       const gone = s.panelTab.startsWith("ui:") && !ui.some((c) => c.slot === "sidebar-right.tab" && "ui:" + c.key === s.panelTab);
       return gone ? { ui, panelTab: "task" } : { ui };
