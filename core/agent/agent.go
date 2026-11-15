@@ -191,6 +191,33 @@ func (a *Agent) Instructions() string {
 	return string(b)
 }
 
+// Memory budget in the system prompt (runes): every request carries it,
+// so it stays bounded however long MEMORY.md grows. The beginning (facts
+// written first, usually the lasting ones) and the most recent entries are
+// kept; the middle is left to memory_search.
+const (
+	MemoryHead = 2500
+	MemoryTail = 5500
+)
+
+// MemoryForPrompt bounds m for the system prompt, cutting at line breaks.
+func MemoryForPrompt(m string) string {
+	r := []rune(m)
+	if len(r) <= MemoryHead+MemoryTail+200 {
+		return m
+	}
+	head := string(r[:MemoryHead])
+	if i := strings.LastIndex(head, "\n"); i > len(head)/2 {
+		head = head[:i]
+	}
+	tail := string(r[len(r)-MemoryTail:])
+	if i := strings.Index(tail, "\n"); i >= 0 && i < len(tail)/2 {
+		tail = tail[i+1:]
+	}
+	omitted := len(r) - len([]rune(head)) - len([]rune(tail))
+	return head + fmt.Sprintf("\n\n[… %d characters of older memory not shown here; memory_search finds them …]\n\n", omitted) + tail
+}
+
 // Memory reads MEMORY.md.
 func (a *Agent) Memory() string {
 	b, _ := os.ReadFile(filepath.Join(a.Workspace(), "MEMORY.md"))
@@ -932,7 +959,7 @@ var Plugin = kernel.Register(kernel.Spec{
 			if m == "" || m == "# Memory" {
 				return ""
 			}
-			return "Long-term memory (MEMORY.md):\n" + m
+			return "Long-term memory (MEMORY.md):\n" + MemoryForPrompt(m)
 		}})
 		llm.AdaptersChanged.Listen(c, func(struct{}) {
 			r.mu.Lock()
