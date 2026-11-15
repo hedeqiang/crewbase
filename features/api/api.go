@@ -52,6 +52,14 @@ type ProviderView struct {
 	Error  string          `json:"error,omitempty"`
 }
 
+// Access is the `access` service (teams): what the person behind a device
+// may see. Without it everything is visible.
+type Access interface {
+	Agent(deviceID string, a *agent.Agent) bool
+	Session(deviceID, id string) bool
+	ChatOwner(deviceID string) string
+}
+
 // TeamChecker is the `teams` service as seen by the API.
 type TeamChecker interface{ Exists(id string) bool }
 
@@ -131,15 +139,25 @@ var Plugin = kernel.Register(kernel.Spec{
 
 		// ---- agents
 		g.Handle(c, gateway.Route{Method: "GET", Path: "/api/agents", Devices: mobile,
-			Handle: func(context.Context, *gateway.Request) (any, error) {
+			Handle: func(_ context.Context, r *gateway.Request) (any, error) {
 				out := []AgentView{}
+				acc, limited := kernel.Lookup[Access](c, "access")
 				for _, a := range agents.List() {
+					if limited && !acc.Agent(r.DeviceID, a) {
+						continue
+					}
 					out = append(out, view(a))
 				}
 				return map[string]any{"agents": out}, nil
 			}})
-		g.Handle(c, gateway.Route{Method: "POST", Path: "/api/agents",
+		// phones too: the access layer decides (a team member creates agents
+		// in teams they act in, and anyone their own chats)
+		g.Handle(c, gateway.Route{Method: "POST", Path: "/api/agents", Devices: mobile,
 			Validate: func(r *gateway.Request) error {
+				// without the access layer only the desktop creates agents
+				if _, ok := kernel.Lookup[Access](c, "access"); !ok && r.Device != "desktop" {
+					return &gateway.Error{Status: 403, Code: "forbidden", Message: "not allowed from this device"}
+				}
 				var b createBody
 				if err := r.Decode(&b); err != nil {
 					return err
@@ -174,6 +192,13 @@ var Plugin = kernel.Register(kernel.Spec{
 				_ = r.Decode(&b)
 				spec := b.Spec
 				spec.ID = ""
+				// a blank chat is personal: it belongs to whoever started it
+				spec.Owner = ""
+				if spec.Kind == agent.KindChat {
+					if acc, ok := kernel.Lookup[Access](c, "access"); ok {
+						spec.Owner = acc.ChatOwner(r.DeviceID)
+					}
+				}
 				for _, m := range b.Models {
 					ref, _ := llm.ParseRef(m)
 					spec.Models = append(spec.Models, ref)
@@ -389,8 +414,18 @@ var Plugin = kernel.Register(kernel.Spec{
 
 		// ---- sessions
 		g.Handle(c, gateway.Route{Method: "GET", Path: "/api/sessions", Devices: mobile,
-			Handle: func(context.Context, *gateway.Request) (any, error) {
-				return map[string]any{"sessions": sessions.List()}, nil
+			Handle: func(_ context.Context, r *gateway.Request) (any, error) {
+				list := sessions.List()
+				if acc, ok := kernel.Lookup[Access](c, "access"); ok {
+					out := list[:0:0]
+					for _, m := range list {
+						if acc.Session(r.DeviceID, m.ID) {
+							out = append(out, m)
+						}
+					}
+					list = out
+				}
+				return map[string]any{"sessions": list}, nil
 			}})
 		g.Handle(c, gateway.Route{Method: "GET", Path: "/api/sessions/{id}/events", Devices: mobile,
 			Validate: func(r *gateway.Request) error {
@@ -416,14 +451,17 @@ var Plugin = kernel.Register(kernel.Spec{
 
 		// ---- approvals
 		g.Handle(c, gateway.Route{Method: "GET", Path: "/api/approvals", Devices: mobile,
-			Handle: func(context.Context, *gateway.Request) (any, error) {
+			Handle: func(_ context.Context, r *gateway.Request) (any, error) {
 				in, ok := kernel.Lookup[*approval.Inbox](c, approval.InboxKey)
 				if !ok {
 					return map[string]any{"pending": []any{}}, nil
 				}
-				p := in.Pending()
-				if p == nil {
-					p = []approval.Request{}
+				p := []approval.Request{}
+				acc, limited := kernel.Lookup[Access](c, "access")
+				for _, x := range in.Pending() {
+					if !limited || acc.Session(r.DeviceID, x.Session) {
+						p = append(p, x)
+					}
 				}
 				return map[string]any{"pending": p}, nil
 			}})

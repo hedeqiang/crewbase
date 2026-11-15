@@ -32,6 +32,7 @@ import (
 	"github.com/hedeqiang/crewbase/core/agent"
 	"github.com/hedeqiang/crewbase/core/session"
 	"github.com/hedeqiang/crewbase/features/gateway"
+	"github.com/hedeqiang/crewbase/features/members"
 	"github.com/hedeqiang/crewbase/kernel"
 )
 
@@ -66,6 +67,8 @@ type Team struct {
 	Visibility string    `json:"visibility"`
 	People     []Person  `json:"people"`
 	Created    time.Time `json:"created"`
+	// Seeded: the host's existing members were added (default team, once).
+	Seeded bool `json:"seeded,omitempty"`
 }
 
 // View is a team with what it holds.
@@ -74,6 +77,11 @@ type View struct {
 	Default  bool `json:"default"`
 	Agents   int  `json:"agents"`
 	Channels int  `json:"channels"`
+	// For the person asking: their role ("" = not in it), whether they may
+	// act in it and manage it.
+	MyRole    string `json:"myRole"`
+	CanAct    bool   `json:"canAct"`
+	CanManage bool   `json:"canManage"`
 }
 
 // Input creates or edits a team (nil / "" = unchanged).
@@ -274,6 +282,14 @@ func (s *Service) Update(id string, in Input) (View, error) {
 			s.mu.Unlock()
 			return View{}, err
 		}
+		lead := false
+		for _, p := range ps {
+			lead = lead || p.Role == RoleLead
+		}
+		if !lead {
+			s.mu.Unlock()
+			return View{}, errors.New("团队至少要有一位负责人")
+		}
 		nt.People = ps
 	}
 	*t = nt
@@ -385,6 +401,115 @@ func (s *Service) Move(agentID, team string) (*agent.Agent, error) {
 	return a, nil
 }
 
+// hostRoleToTeam maps a host role to the role in the default team.
+func hostRoleToTeam(r string) string {
+	switch r {
+	case "admin":
+		return RoleLead
+	case "viewer":
+		return RoleViewer
+	}
+	return RoleMember
+}
+
+type memberList interface {
+	List() []members.Member
+}
+
+// seed puts the host's existing members in the default team, once, so
+// nobody loses what they saw before teams.
+func (s *Service) seed() {
+	ml, ok := kernel.Lookup[memberList](s.c, "members")
+	if !ok {
+		return
+	}
+	s.mu.Lock()
+	t := s.items[agent.DefaultTeam]
+	if t == nil || t.Seeded {
+		s.mu.Unlock()
+		return
+	}
+	for _, m := range ml.List() {
+		t.People = addPerson(t.People, Person{ID: m.ID, Role: hostRoleToTeam(m.Role)})
+	}
+	t.Seeded = true
+	_ = s.saveLocked()
+	s.mu.Unlock()
+}
+
+func addPerson(ps []Person, p Person) []Person {
+	for _, x := range ps {
+		if x.ID == p.ID {
+			return ps
+		}
+	}
+	return append(ps, p)
+}
+
+// onMember: new host members join the default team; removed ones leave
+// every team.
+func (s *Service) onMember(e members.Event) {
+	s.mu.Lock()
+	changed := false
+	switch e.Kind {
+	case "added":
+		if t := s.items[agent.DefaultTeam]; t != nil {
+			t.People = addPerson(t.People, Person{ID: e.Member.ID, Role: hostRoleToTeam(e.Member.Role)})
+			changed = true
+		}
+	case "removed":
+		for _, t := range s.items {
+			out := t.People[:0]
+			for _, p := range t.People {
+				if p.ID != e.Member.ID {
+					out = append(out, p)
+				}
+			}
+			if len(out) != len(t.People) {
+				t.People, changed = out, true
+			}
+		}
+	}
+	if changed {
+		_ = s.saveLocked()
+	}
+	s.mu.Unlock()
+	if changed {
+		Changed.Emit(s.c, agent.DefaultTeam)
+	}
+}
+
+// Join adds w to a public team as a member.
+func (s *Service) Join(w Who, id string) (View, error) {
+	s.mu.Lock()
+	t, ok := s.items[id]
+	if !ok {
+		s.mu.Unlock()
+		return View{}, os.ErrNotExist
+	}
+	if t.Visibility != Public && !w.admin() {
+		s.mu.Unlock()
+		return View{}, errors.New("这是私密团队，需要团队负责人邀请")
+	}
+	t.People = addPerson(t.People, Person{ID: w.ID, Role: RoleMember})
+	err := s.saveLocked()
+	v := *t
+	s.mu.Unlock()
+	if err != nil {
+		return View{}, err
+	}
+	Changed.Emit(s.c, id)
+	return s.viewFor(v, w), nil
+}
+
+func (s *Service) viewFor(t Team, w Who) View {
+	v := s.view(t)
+	v.MyRole = s.RoleIn(w, t.ID)
+	v.CanAct = s.CanAct(w, t.ID)
+	v.CanManage = s.CanManage(w, t.ID)
+	return v
+}
+
 // ---------------------------------------------------------------- plugin
 
 // Config of the plugin.
@@ -412,17 +537,46 @@ var Plugin = kernel.Register(kernel.Spec{
 		if err := s.ensureDefault(); err != nil {
 			return err
 		}
+		s.seed()
+		members.Changed.Listen(c, s.onMember)
 		if err := c.Provide(ServiceKey, s); err != nil {
 			return err
 		}
+		if err := c.Provide(AccessKey, Visible{s}); err != nil {
+			return err
+		}
 		g := kernel.Use[*gateway.Gateway](c, gateway.ServiceKey)
+		g.SetGuard(s.guard)
+		g.Hub().SetFilter(s.eventVisible)
+		c.Defer(func() {
+			g.SetGuard(nil)
+			g.Hub().SetFilter(nil)
+		})
 		Changed.Listen(c, func(string) { g.Hub().Publish("teams.changed", struct{}{}) })
 		mobile := []string{"mobile"}
 		g.Handle(c, gateway.Route{Method: "GET", Path: "/api/teams", Devices: mobile,
-			Handle: func(context.Context, *gateway.Request) (any, error) {
-				return map[string]any{"teams": s.List(), "defaultTeam": agent.DefaultTeam}, nil
+			Handle: func(_ context.Context, r *gateway.Request) (any, error) {
+				w := s.WhoIs(r.DeviceID)
+				out := []View{}
+				for _, v := range s.List() {
+					if s.TeamVisible(w, v.ID) {
+						out = append(out, s.viewFor(v.Team, w))
+					}
+				}
+				return map[string]any{"teams": out, "defaultTeam": agent.DefaultTeam, "me": w.ID}, nil
 			}})
-		g.Handle(c, gateway.Route{Method: "POST", Path: "/api/teams",
+		g.Handle(c, gateway.Route{Method: "POST", Path: "/api/teams/{id}/join", Devices: mobile,
+			Handle: func(_ context.Context, r *gateway.Request) (any, error) {
+				v, err := s.Join(s.WhoIs(r.DeviceID), r.Params["id"])
+				if errors.Is(err, os.ErrNotExist) {
+					return nil, gateway.NotFound()
+				}
+				if err != nil {
+					return nil, gateway.Conflict("%v", err)
+				}
+				return v, nil
+			}})
+		g.Handle(c, gateway.Route{Method: "POST", Path: "/api/teams", Devices: mobile,
 			Handle: func(_ context.Context, r *gateway.Request) (any, error) {
 				var in Input
 				if err := r.Decode(&in); err != nil {
@@ -434,7 +588,7 @@ var Plugin = kernel.Register(kernel.Spec{
 				}
 				return v, nil
 			}})
-		g.Handle(c, gateway.Route{Method: "PATCH", Path: "/api/teams/{id}",
+		g.Handle(c, gateway.Route{Method: "PATCH", Path: "/api/teams/{id}", Devices: mobile,
 			Handle: func(_ context.Context, r *gateway.Request) (any, error) {
 				var in Input
 				if err := r.Decode(&in); err != nil {

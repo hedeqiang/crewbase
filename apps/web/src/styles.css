@@ -1322,3 +1322,11 @@ button.tg:disabled { opacity: .5; cursor: not-allowed; }
 .teamagent { display: flex; align-items: center; gap: 10px; padding: 5px 0; }
 .teamagent .g { flex: 1; min-width: 0; display: flex; gap: 8px; align-items: baseline; }
 .teamagent .ssel select { font-size: 12px; }
+
+.teampeople { border-top: 1px solid var(--border); padding: 8px 14px 10px; display: flex; flex-direction: column; gap: 2px; }
+.teampeople .tsub, .teamagents .tsub { margin-bottom: 4px; }
+.teamperson { display: flex; align-items: center; gap: 10px; padding: 3px 0; }
+.teamperson .g { flex: 1; min-width: 0; }
+.teamperson .ssel select, .addperson select { font-size: 12px; }
+.addperson { align-self: flex-start; margin-top: 4px; }
+.mi .ro { font-size: 11px; color: var(--muted); border: 1px solid var(--border); border-radius: 5px; padding: 0 5px; }

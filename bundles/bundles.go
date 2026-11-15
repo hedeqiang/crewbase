@@ -194,6 +194,7 @@ var Server = kernel.Bundle{Name: "server", Entries: []kernel.Entry{
 	{ID: "channel-api", Name: "@crewbase/channel-api"},
 	{ID: "devices", Name: "@crewbase/devices", Config: map[string]any{"dir": "${root}"}},
 	{ID: "members", Name: "@crewbase/members", Config: map[string]any{"dir": "${root}"}},
+	{ID: "teams", Name: "@crewbase/teams", Config: map[string]any{"dir": "${root}"}},
 	{ID: "taskboard-api", Name: "@crewbase/taskboard-api"},
 	{ID: "relay", Name: "@crewbase/relay", Config: map[string]any{"dir": "${root}"}, Disabled: true},
 }}

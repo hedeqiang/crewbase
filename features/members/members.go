@@ -354,6 +354,10 @@ func (s *Service) SenderName(deviceID string) string {
 	return p.Name
 }
 
+// HostRoleOf is the host role of the person behind deviceID: owner, admin,
+// member or viewer.
+func (s *Service) HostRoleOf(deviceID string) string { return s.PersonOf(deviceID).Role }
+
 // MemberIDOf is the member behind deviceID ("" = the owner).
 func (s *Service) MemberIDOf(deviceID string) string { return s.PersonOf(deviceID).ID }
 

@@ -85,7 +85,12 @@ export interface TeamView {
   default: boolean;
   agents: number;
   channels: number;
+  /** for the person asking */
+  myRole: "" | "lead" | "member" | "viewer";
+  canAct: boolean;
+  canManage: boolean;
 }
+export type TeamRole = "lead" | "member" | "viewer";
 
 export const DEFAULT_TEAM = "default";
 /** The team an agent or channel belongs to. */
@@ -798,7 +803,9 @@ export type Followup = { id: string; agent: string; session: string; note: strin
 export const API = {
   teams: () => api<{ teams: TeamView[] }>("GET", "/api/teams"),
   createTeam: (b: { name: string; visibility: TeamVisibility; color?: string }) => api<TeamView>("POST", "/api/teams", b),
-  patchTeam: (id: string, b: { name?: string; visibility?: TeamVisibility; color?: string }) => api<TeamView>("PATCH", `/api/teams/${enc(id)}`, b),
+  patchTeam: (id: string, b: { name?: string; visibility?: TeamVisibility; color?: string; people?: { id: string; role: TeamRole }[] }) =>
+    api<TeamView>("PATCH", `/api/teams/${enc(id)}`, b),
+  joinTeam: (id: string) => api<TeamView>("POST", `/api/teams/${enc(id)}/join`),
   deleteTeam: (id: string) => api("DELETE", `/api/teams/${enc(id)}`),
   moveToTeam: (team: string, agent: string) => api<{ id: string; team: string }>("POST", `/api/teams/${enc(team)}/agents`, { agent }),
   setProjectDir: (agent: string, dir: string) => api<AgentView>("PATCH", `/api/agents/${enc(agent)}`, { projectDir: dir }),

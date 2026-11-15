@@ -21,6 +21,8 @@ import {
   setState,
   setTheme,
   switchTeam,
+  refreshTeams,
+  toast,
   useStore,
   type Profile,
   type Theme,
@@ -622,6 +624,28 @@ function TeamSwitcher({ teams, current }: { teams: TeamView[]; current: string }
               {x.name}
               <span>{t("teams.counts", { agents: x.agents, channels: x.channels })}</span>
             </span>
+            {!x.canAct &&
+              (x.visibility === "public" ? (
+                <span
+                  className="btn sm"
+                  role="button"
+                  tabIndex={0}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    API.joinTeam(x.id).then(
+                      () => {
+                        toast(t("teams.joined", { name: x.name }));
+                        void refreshTeams();
+                      },
+                      (err) => toast(err?.message ?? String(err)),
+                    );
+                  }}
+                >
+                  {t("teams.join")}
+                </span>
+              ) : (
+                <span className="ro">{t("teams.readOnly")}</span>
+              ))}
             <span className="ck">{x.id === current && <Check size={14} />}</span>
           </button>
         ))}

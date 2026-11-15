@@ -1,6 +1,6 @@
 import { Globe, Lock, Pencil, Plus, Trash2 } from "lucide-react";
-import { useState } from "react";
-import { API, DEFAULT_TEAM, teamOf, type TeamView, type TeamVisibility } from "../../api";
+import { useEffect, useState } from "react";
+import { API, DEFAULT_TEAM, teamOf, type MemberView, type TeamRole, type TeamView, type TeamVisibility } from "../../api";
 import { t } from "../../i18n";
 import { refreshAgents, refreshTeams, switchTeam, toast, useStore } from "../../store";
 import { Avatar } from "../Avatar";
@@ -19,6 +19,16 @@ export function Teams() {
   const [busy, setBusy] = useState(false);
   const [editing, setEditing] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
+  const [people, setPeople] = useState<MemberView[]>([]);
+  const myName = useStore((s) => s.profile.displayName);
+  useEffect(() => {
+    API.members().then(
+      (r) => setPeople(r.members),
+      () => setPeople([]),
+    );
+  }, []);
+  const personName = (id: string) => (id === "owner" ? myName || t("teams.ownerName") : people.find((p) => p.id === id)?.name ?? t("teams.gone"));
+  const setTeamPeople = (tm: TeamView, ps: { id: string; role: TeamRole }[]) => void run(() => API.patchTeam(tm.id, { people: ps }));
 
   const run = async (fn: () => Promise<unknown>, ok?: string) => {
     setBusy(true);
@@ -158,6 +168,61 @@ export function Teams() {
                 <button className="ix dng" type="button" title={t("common.delete")} aria-label={t("common.delete")} onClick={() => remove(tm)}>
                   <Trash2 size={13} />
                 </button>
+              )}
+            </div>
+            <div className="teampeople">
+              <div className="small muted tsub">{t("teams.people", { n: tm.people.length })}</div>
+              {tm.people.map((pp) => (
+                <div className="teamperson" key={pp.id}>
+                  <span className="g">
+                    <b>{personName(pp.id)}</b>
+                  </span>
+                  <span className="ssel">
+                    <select
+                      value={pp.role}
+                      disabled={busy || !tm.canManage}
+                      aria-label={t("teams.roleOf", { name: personName(pp.id) })}
+                      onChange={(e) => setTeamPeople(tm, tm.people.map((x) => (x.id === pp.id ? { ...x, role: e.target.value as TeamRole } : x)))}
+                    >
+                      {(["lead", "member", "viewer"] as const).map((r) => (
+                        <option key={r} value={r}>
+                          {t(`teams.role.${r}`)}
+                        </option>
+                      ))}
+                    </select>
+                  </span>
+                  {tm.canManage && (
+                    <button
+                      className="ix dng"
+                      type="button"
+                      title={t("teams.removePerson")}
+                      aria-label={t("teams.removePerson")}
+                      disabled={busy || (pp.role === "lead" && tm.people.filter((x) => x.role === "lead").length === 1)}
+                      onClick={() => setTeamPeople(tm, tm.people.filter((x) => x.id !== pp.id))}
+                    >
+                      <Trash2 size={12} />
+                    </button>
+                  )}
+                </div>
+              ))}
+              {tm.canManage && (
+                <span className="ssel addperson">
+                  <select
+                    value=""
+                    disabled={busy}
+                    aria-label={t("teams.addPerson")}
+                    onChange={(e) => e.target.value && setTeamPeople(tm, [...tm.people, { id: e.target.value, role: "member" }])}
+                  >
+                    <option value="">{t("teams.addPerson")}</option>
+                    {[{ id: "owner", name: personName("owner") }, ...people]
+                      .filter((p) => !tm.people.some((x) => x.id === p.id))
+                      .map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {p.name}
+                        </option>
+                      ))}
+                  </select>
+                </span>
               )}
             </div>
             {members(tm).length > 0 && (

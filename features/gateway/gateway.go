@@ -150,6 +150,7 @@ type Gateway struct {
 	hub       *Hub
 	host      *kernel.Host
 	addr      string // bound address (host:port)
+	guard     Guard
 }
 
 // Addr is the address the gateway listens on ("" before it is bound).
@@ -216,6 +217,18 @@ func (g *Gateway) Handle(c *kernel.Context, r Route) {
 		}
 		g.mu.Unlock()
 	})
+}
+
+// Guard checks a request against what the person behind it may reach
+// (route is the matched route path, e.g. /api/agents/{id}). Set by the
+// access layer (teams); nil allows everything the device tier allows.
+type Guard func(r *Request, route string) error
+
+// SetGuard installs the access guard.
+func (g *Gateway) SetGuard(f Guard) {
+	g.mu.Lock()
+	g.guard = f
+	g.mu.Unlock()
 }
 
 // Hub returns the SSE hub.
@@ -387,6 +400,15 @@ func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, BadRequest("body must be JSON"))
 		return
 	}
+	g.mu.RLock()
+	guard := g.guard
+	g.mu.RUnlock()
+	if guard != nil && !route.Public {
+		if err := guard(req, route.Path); err != nil {
+			writeErr(w, err)
+			return
+		}
+	}
 	if route.Validate != nil {
 		if err := route.Validate(req); err != nil {
 			writeErr(w, err)
@@ -429,9 +451,18 @@ type Message struct {
 
 // Hub fans messages out to SSE subscribers.
 type Hub struct {
-	mu   sync.Mutex
-	subs map[chan Message]string // → device id ("" = local)
-	gone map[chan Message]chan struct{}
+	mu     sync.Mutex
+	subs   map[chan Message]string // → device id ("" = local)
+	gone   map[chan Message]chan struct{}
+	filter func(deviceID string, m Message) bool
+}
+
+// SetFilter decides per subscriber which messages it receives (e.g. only
+// what the person behind the device may see). nil = everything.
+func (h *Hub) SetFilter(f func(deviceID string, m Message) bool) {
+	h.mu.Lock()
+	h.filter = f
+	h.mu.Unlock()
 }
 
 func NewHub() *Hub {
@@ -456,11 +487,21 @@ func (h *Hub) kick(deviceID string) {
 // Publish sends to every subscriber; slow subscribers drop messages and
 // are expected to resync via the REST API.
 func (h *Hub) Publish(typ string, data any) {
+	m := Message{Type: typ, Data: data}
 	h.mu.Lock()
-	defer h.mu.Unlock()
-	for ch := range h.subs {
+	subs := make(map[chan Message]string, len(h.subs))
+	for ch, id := range h.subs {
+		subs[ch] = id
+	}
+	filter := h.filter
+	h.mu.Unlock()
+	// filtered outside the lock: the filter may look up agents and sessions
+	for ch, id := range subs {
+		if filter != nil && !filter(id, m) {
+			continue
+		}
 		select {
-		case ch <- Message{Type: typ, Data: data}:
+		case ch <- m:
 		default:
 		}
 	}

@@ -46,7 +46,10 @@ type Spec struct {
 	Shape     string    `json:"shape,omitempty"`
 	Folder    string    `json:"folder,omitempty"`
 	// Team the agent belongs to ("" = the default team, DefaultTeam).
-	Team    string    `json:"team,omitempty"`
+	Team string `json:"team,omitempty"`
+	// Owner is the person who created a blank chat ("" = the host's owner):
+	// chats are personal, only their owner sees them.
+	Owner   string    `json:"owner,omitempty"`
 	Host    string    `json:"host,omitempty"`
 	Created time.Time `json:"created"`
 	// Session is the agent's direct-conversation session.
