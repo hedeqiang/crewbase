@@ -1517,6 +1517,8 @@ button.psec.toggle { width: 100%; background: none; border: 0; font-family: inhe
 
 /* ---- settings › chat apps (即时通讯) */
 .immark { border-radius: 9px; font-weight: 650; }
+.immark.brand { display: inline-grid; place-items: center; background: #fff; border: 1px solid var(--border); box-sizing: border-box; flex: none; }
+.immark.brand svg { width: 100%; height: 100%; display: block; }
 .imintro { display: flex; align-items: flex-start; gap: 12px; padding: 14px 16px; margin-bottom: 12px; border-radius: 14px; background: var(--accent-soft); color: var(--text); }
 .imintro-i { display: inline-grid; place-items: center; width: 32px; height: 32px; border-radius: 9px; background: var(--surface); color: var(--accent-text); flex: none; }
 .imintro .g { display: flex; flex-direction: column; gap: 3px; min-width: 0; }

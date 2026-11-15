@@ -5,21 +5,39 @@ import { getLang, t, type Key } from "../../i18n";
 import { setState, toast, useStore } from "../../store";
 import { Popover, useMenu } from "../Popover";
 import { Head } from "../Settings";
+import slackSvg from "../../assets/im/slack.svg?raw";
+import discordSvg from "../../assets/im/discord.svg?raw";
+import telegramSvg from "../../assets/im/telegram.svg?raw";
+import feishuSvg from "../../assets/im/feishu.svg?raw";
 
-// Our own lettered tiles (no IM brand marks ship with @lobehub/icons-static-svg):
-// a fixed tint per platform so each card is recognisable at a glance.
-const HUE: Record<string, number> = { slack: 300, telegram: 200, discord: 235, feishu: 170 };
+// Each platform's own mark, from its official brand assets (slack.com,
+// discord.com/branding, telegram.org, feishu.cn / larksuite.com; see
+// THIRD_PARTY_NOTICES.txt). Discord's symbol is white on its blurple tile.
+
+const MARKS: Record<string, { svg: string; tile?: string; pad: number }> = {
+  slack: { svg: slackSvg, pad: 0.2 },
+  discord: { svg: discordSvg, tile: "#5865F2", pad: 0.22 },
+  telegram: { svg: telegramSvg, pad: 0.08 },
+  feishu: { svg: feishuSvg, pad: 0.14 },
+};
 
 export function ImMark({ platform, label, size = 32 }: { platform: string; label: string; size?: number }) {
-  const ch = Array.from(label.trim())[0]?.toUpperCase() ?? "?";
+  const m = MARKS[platform];
+  if (!m) {
+    const ch = Array.from(label.trim())[0]?.toUpperCase() ?? "?";
+    return (
+      <span className="pmark mono-tile immark" aria-hidden style={{ width: size, height: size, fontSize: Math.round(size * 0.46), ["--h" as string]: 210 } as CSSProperties}>
+        {ch}
+      </span>
+    );
+  }
   return (
     <span
-      className="pmark mono-tile immark"
+      className="pmark immark brand"
       aria-hidden
-      style={{ width: size, height: size, fontSize: Math.round(size * 0.46), ["--h" as string]: HUE[platform] ?? 210 } as CSSProperties}
-    >
-      {ch}
-    </span>
+      style={{ width: size, height: size, padding: Math.round(size * m.pad), background: m.tile } as CSSProperties}
+      dangerouslySetInnerHTML={{ __html: m.svg }}
+    />
   );
 }
 
