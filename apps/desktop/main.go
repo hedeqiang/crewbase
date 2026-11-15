@@ -28,6 +28,7 @@ import (
 	"time"
 
 	"github.com/egoist/mygo"
+	"github.com/egoist/mygo/plugins/updater"
 	// The UI is written in Chinese: MyGo's own menus, dialogs and roles
 	// follow it (App.SetLanguages below).
 	_ "github.com/egoist/mygo/locales/zh-Hans"
@@ -72,6 +73,9 @@ func main() {
 	}
 	mygo.App.SetLanguages("zh-Hans")
 	setupLogging()
+	// Signed updates from the GitHub releases (mygo.json updates); builds
+	// that cannot update themselves (go run, package managers) never check.
+	mygo.Use(updater.New(updater.Options{Language: "zh-Hans"}))
 
 	s := &shell{prefs: loadPrefs(), hidden: mygo.App.WasOpenedAtLogin()}
 	mygo.Bind(Desktop{s})

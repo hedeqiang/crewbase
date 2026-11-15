@@ -1,0 +1,175 @@
+# Release: push a tag v<version> matching apps/desktop/mygo.json.
+#
+#   1. bump "version" in apps/desktop/mygo.json, add a "## <version>"
+#      section to CHANGELOG.md, commit
+#   2. git tag v0.2.0 && git push origin v0.2.0
+#
+# The draft release gets the desktop apps (macOS .dmg, Windows installer,
+# Linux .deb / .rpm / .tar.gz) with signed auto-updates, and the crewd /
+# crew / crew-relay archives; the server image goes to ghcr.io. The release
+# is published once every job uploaded, and installed apps update to it.
+#
+# macOS apps are signed ad hoc until a Developer ID is configured
+# (docs/release.md): on other Macs, the first launch needs right-click →
+# Open, or `xattr -dr com.apple.quarantine /Applications/Crewbase.app`.
+# Updates are signed with MYGO_UPDATER_PRIVATE_KEY either way.
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  draft-release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Check the version
+        run: test "$GITHUB_REF_NAME" = "v$(jq -r .version apps/desktop/mygo.json)"
+      - name: Check the changelog
+        run: grep -qE "^## \[?${GITHUB_REF_NAME#v}\]?( |$)" CHANGELOG.md
+      - name: Check the update key
+        env:
+          KEY: ${{ secrets.MYGO_UPDATER_PRIVATE_KEY }}
+        run: test -n "$KEY" || { echo "::error::set the MYGO_UPDATER_PRIVATE_KEY secret (docs/release.md)"; exit 1; }
+      - name: Create the draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if ! gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
+            prerelease=""
+            case "$GITHUB_REF_NAME" in *-*) prerelease="--prerelease" ;; esac
+            gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" \
+              --draft --verify-tag --title "Crewbase $GITHUB_REF_NAME" --generate-notes $prerelease
+          fi
+
+  desktop:
+    needs: draft-release
+    name: desktop (${{ matrix.name }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { name: macOS, os: macos-latest, platform: "darwin/arm64,darwin/amd64" }
+          - { name: Windows, os: ubuntu-latest, platform: "windows/amd64,windows/arm64" }
+          - { name: Linux, os: ubuntu-latest, platform: "linux/amd64,linux/arm64" }
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: apps/web/pnpm-lock.yaml
+      - name: Build the web UI
+        working-directory: apps/web
+        run: pnpm install --frozen-lockfile && pnpm build
+      - name: Install NSIS, for the Windows installers
+        if: matrix.name == 'Windows'
+        run: sudo apt-get update && sudo apt-get install -y nsis
+      - name: Build and upload
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CGO_ENABLED: "0"
+          MYGO_UPDATER_PRIVATE_KEY: ${{ secrets.MYGO_UPDATER_PRIVATE_KEY }}
+        run: go tool mygo build -platform "${{ matrix.platform }}" -upload apps/desktop
+
+  binaries:
+    needs: draft-release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: apps/web/pnpm-lock.yaml
+      - name: Build the web UI
+        working-directory: apps/web
+        run: pnpm install --frozen-lockfile && pnpm build
+      - name: Build crewd, crew and crew-relay
+        env:
+          CGO_ENABLED: "0"
+        run: |
+          v="${GITHUB_REF_NAME#v}"
+          mkdir -p out
+          for target in darwin/arm64 darwin/amd64 linux/amd64 linux/arm64 windows/amd64 windows/arm64; do
+            os="${target%/*}"; arch="${target#*/}"; ext=""
+            [ "$os" = windows ] && ext=".exe"
+            dir="crewbase-$v-$os-$arch"
+            mkdir -p "out/$dir"
+            for app in crewd:apps/crewd crew:apps/cli crew-relay:apps/relayd; do
+              GOOS=$os GOARCH=$arch go build -trimpath -ldflags "-s -w" -o "out/$dir/${app%%:*}$ext" "./${app#*:}"
+            done
+            cp LICENSE "out/$dir/"
+            if [ "$os" = windows ]; then
+              (cd out && zip -qr "$dir.zip" "$dir")
+            else
+              tar -C out -czf "out/$dir.tar.gz" "$dir"
+            fi
+          done
+          (cd out && sha256sum crewbase-*.tar.gz crewbase-*.zip > crewbase-$v-checksums.txt)
+      - name: Upload
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --clobber out/crewbase-*.tar.gz out/crewbase-*.zip out/crewbase-*-checksums.txt
+
+  image:
+    needs: draft-release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+      - name: Tags
+        id: tags
+        run: |
+          repo="ghcr.io/${GITHUB_REPOSITORY,,}"
+          v="${GITHUB_REF_NAME#v}"
+          tags="$repo:$v"
+          chromium="$repo:$v-chromium"
+          case "$v" in *-*) ;; *) tags="$tags,$repo:latest"; chromium="$chromium,$repo:chromium" ;; esac
+          echo "tags=$tags" >> "$GITHUB_OUTPUT"
+          echo "chromium=$chromium" >> "$GITHUB_OUTPUT"
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.tags.outputs.tags }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          build-args: RUNTIME=chromium
+          tags: ${{ steps.tags.outputs.chromium }}
+
+  publish:
+    needs: [desktop, binaries, image]
+    runs-on: ubuntu-latest
+    steps:
+      - env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release edit "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --draft=false

@@ -7,12 +7,22 @@
   "license": "Apache-2.0",
   "icon": "resources/icon.png",
   "out": "build",
-  "resourcesExclude": ["icon.png"],
+  "resourcesExclude": [
+    "icon.png"
+  ],
   "macos": {
     "minimumSystemVersion": "12.0"
   },
   "linux": {
     "comment": "Crewbase — a crew of AI agents on your desktop",
-    "categories": ["Development", "Utility"]
+    "categories": [
+      "Development",
+      "Utility"
+    ]
+  },
+  "updates": {
+    "publicKey": "tHTQgYUQ+Wz50SlGjtVf4+rpPJLQafpDFfdOY4NuBCw=",
+    "github": "hedeqiang/crewbase",
+    "changelog": "../../CHANGELOG.md"
   }
 }

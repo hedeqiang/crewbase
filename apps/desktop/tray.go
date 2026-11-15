@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/egoist/mygo"
+	"github.com/egoist/mygo/plugins/updater"
 	"github.com/hedeqiang/crewbase/capabilities/notify"
 )
 
@@ -37,6 +38,7 @@ func (s *shell) menuBar() *mygo.Menu {
 	return mygo.NewMenu([]*mygo.MenuItem{
 		{Label: appName, Submenu: []*mygo.MenuItem{
 			{Role: mygo.RoleAbout, Label: "关于 " + appName},
+			updater.MenuItem(),
 			mygo.Separator(),
 			{Label: "设置…", Accelerator: "CmdOrCtrl+,", Click: func(*mygo.MenuItem, *mygo.Window) { s.openSettings() }},
 			mygo.Separator(),

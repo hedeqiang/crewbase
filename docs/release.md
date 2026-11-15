@@ -1,0 +1,65 @@
+# 发版
+
+`.github/workflows/release.yml` 在推送 `v*` 标签时构建并发布：
+
+| 产物 | 内容 |
+|---|---|
+| 桌面客户端 | macOS `.dmg`（arm64 / x64）、Windows 安装程序（x64 / arm64）、Linux `.deb` / `.rpm` / `.tar.gz` + `install.sh`；每个平台带签名的自动更新清单 `update-<platform>.json` 与增量包 |
+| 命令行 | `crewd` / `crew` / `crew-relay`，macOS / Linux / Windows × amd64 / arm64，附校验和 |
+| 服务端镜像 | `ghcr.io/hedeqiang/crewbase:<version>`（distroless）与 `:<version>-chromium` |
+
+`.github/workflows/ci.yml` 在每次推送 main 与 PR 时跑 `go vet`、带 race 的全量测试（Linux + macOS）、Windows 交叉编译与网页构建。
+
+## 一次性设置
+
+更新签名密钥已在维护者的 Mac 上用 `go tool mygo keygen` 生成，公钥写在 `apps/desktop/mygo.json` 的 `updates.publicKey`。私钥在：
+
+```
+~/Library/Application Support/mygo/update-keys/mygo-update.key
+```
+
+把它加到仓库的 Actions Secrets（只需一次）：
+
+```sh
+gh secret set MYGO_UPDATER_PRIVATE_KEY < ~/Library/Application\ Support/mygo/update-keys/mygo-update.key
+```
+
+**请另存一份到密码管理器**：已安装的客户端只接受这把密钥签名的更新，丢了就无法再给它们推送更新。
+
+## 发一个版本
+
+1. 改 `apps/desktop/mygo.json` 的 `version`（例如 `0.2.0`）
+2. 在 `CHANGELOG.md` 加 `## 0.2.0` 一节——这就是更新窗口里显示的说明
+3. 提交并推送标签：
+
+```sh
+git tag v0.2.0 && git push origin v0.2.0
+```
+
+标签与 `mygo.json` 版本、CHANGELOG 小节、密钥三者任一不对，流水线在第一步就停下。各平台并行构建、上传到草稿 Release，全部成功后自动发布；已安装的客户端随即检查到更新（启动 10 秒后、之后每天一次，或菜单「检查更新…」）。带 `-` 的标签（`v0.2.0-beta.1`）发布为预发布版，普通用户不会收到。
+
+## 没有 Apple 开发者证书时
+
+macOS 应用使用**临时签名（ad hoc）**。它能正常运行、正常自动更新（更新的完整性由上面的 Ed25519 密钥保证，不依赖 Apple 签名），但 Gatekeeper 会拦截从网上下载的首次启动。用户第一次打开时：
+
+- 在「应用程序」里右键 Crewbase → 打开 → 再点「打开」；或
+- 系统设置 › 隐私与安全性 → 「仍要打开」；或
+- 终端：`xattr -dr com.apple.quarantine /Applications/Crewbase.app`
+
+通过 `install.sh` 或 Homebrew 之类不带隔离标记的方式安装则不受影响。之后的自动更新由应用自己下载，不带隔离标记，不会再被拦。
+
+Windows 安装程序未签名，SmartScreen 会提示「更多信息 → 仍要运行」。
+
+## 以后有了证书
+
+- **Apple**：按 MyGo 文档（`docs/github-actions.md` 的 Signing and notarizing macOS apps）加 `MACOS_CERTIFICATE` 等 5 个 Secrets，在 `mygo.json` 写 `macos.signingIdentity` 与 `macos.notarize`，并在 macOS 构建前加导入证书那一步。
+- **Windows**：加 `WINDOWS_CERTIFICATE` / `WINDOWS_CERTIFICATE_PASSWORD`，安装 `osslsigncode`，`mygo.json` 写 `windows.certificate`。
+
+更新签名密钥与平台证书互不相关，换证书不影响已安装客户端的自动更新。
+
+## 本机打包
+
+```sh
+make desktop                                   # 当前平台，临时签名，无更新清单
+MYGO_UPDATER_PRIVATE_KEY="$(cat ~/Library/Application\ Support/mygo/update-keys/mygo-update.key)" make desktop   # 带更新清单
+```

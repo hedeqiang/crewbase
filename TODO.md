@@ -73,7 +73,9 @@
 - [x] UI 接入上述接口 + 频道（@提及、交接线、改派、归档、交接需确认）/ 文件面板 / 上下文构成 / 联网搜索开关 / 来源引用 / 例行巡检 + 晨报 / 工作流表单编辑器 / 审批（已记住、历史）/ 插件市场与授权 / MCP / 用量与热力图 / 路由与切换 / 新 Agent 默认值（原：Agent 等审批时状态 waiting、会话摘要（updated/last/unread）、上下文构成、立即压缩、新对话、文件树与读写 INSTRUCTIONS/MEMORY、已记住选择列表与撤销、审批历史、模型重置/启用开关/多窗口额度、设置（默认模式与模型顺序）、主机列表、频道 UI）
 - [x] 插槽机制：conversation.node（事件类型或 tool:<工具名>）/ sidebar-right.tab / settings.card / palette.command / composer.action；声明式、随插件上下文卸载自动消失、同键拒绝重复注册；进程外插件经 ui/panel、ui/run 回调（需声明服务 ui）；titlebar.action / settings.section 待需要时再开放
 - [x] 桌面客户端（MyGo v0.9.0，纯 Go 无 CGO）：内嵌 / 连接已运行的 crewd、隐藏标题栏 + 红绿灯留位、托盘（需你 N、开机启动、关闭窗口后继续运行、退出）、Dock 角标、原生通知、单实例、深链（#/session、#/settings）、`make desktop` 产出 .app + .dmg；真实启动 / 关闭 / 再次启动 / 退出无残留已验证（D-1）
-- [ ] 桌面：自动更新（需生成更新签名密钥）、Developer ID 签名与公证、Windows / Linux 实机运行
+- [x] 发版流水线：CI（vet、race 全量测试 Linux + macOS、Windows 交叉编译、网页构建）；推送 v* 标签 → 桌面三平台安装包 + 签名自动更新、crewd / crew / crew-relay 六平台压缩包、ghcr 镜像，全部成功后自动发布（docs/release.md）
+- [x] 桌面自动更新：本机生成 Ed25519 更新密钥（公钥在 mygo.json），更新窗口与「检查更新…」菜单；本机构建验证产出签名清单
+- [ ] 桌面：Developer ID 签名与公证（暂用临时签名，首次打开需右键打开）、Windows / Linux 实机运行；私钥需加入仓库 Secrets（`gh secret set MYGO_UPDATER_PRIVATE_KEY`）
 
 ## Phase 2 — 多 Agent 协同、自动化、生态（第 7–12 周）
 - [x] `channel-local`：共享频道、单一负责人、交接工具与 Waterfall、停止 / 恢复 / 改派 / 归档（A-3 A-4 A-5）
