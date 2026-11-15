@@ -4,15 +4,19 @@
 
 ![Crewbase mark](crewbase-mark.svg)
 
-**Relay（接力）**：三位成员沿上升弧线依次传递工作，下方是共同的底座（base）。透明度 50% → 75% → 100% 表示「交接进行中」，对应单一负责人与显式交接的产品理念。
+**Lookout（瞭望）**：一双队员的眼睛望向工作，下方一条底座（base）。眼睛与 Agent 头像「队员」用同一套原创造型（白色眼白 + 深色瞳孔 + 高光），瞳孔略偏右下，表示正在看手头的事。
 
 | 项 | 规格 |
 |---|---|
-| 网格 | 32 × 32，圆角 9 |
-| 底色 | Crew Indigo `#3B32C4`（不与状态色蓝 `#007CF7` 混用） |
-| 图形 | 白色；圆点 r = 3.2，圆心 (9.5, 17.5)、(16, 12)、(22.5, 17.5)；底座 16 × 2.6，圆角 1.3 |
+| 网格 | 32 × 32，圆角 9（网页 PWA / 触控图标为直角满版，由系统加遮罩） |
+| 底色 | Crew Mint `#7FD8B4`（不与状态色混用：蓝 `#007CF7`、绿色「完成」点） |
+| 图形 | 眼白 `#FFFFFF` r = 5.1，圆心 (10.6, 15)、(21.4, 15)；瞳孔 Ink `#1A1A1E` r = 2.5，圆心 (11.9, 15.7)、(22.7, 15.7)；高光白色 r = 0.8，圆心 (12.7, 14.8)、(23.5, 14.8)；底座 Ink 10 × 2.4，左上角 (11, 23.2)，圆角 1.2 |
+| 菜单栏图标 | 去掉底色，图形画成黑色；瞳孔镂空（`data-tray="cut"`），高光不画（`data-tray="skip"`） |
 | 最小尺寸 | 16 px |
-| 源文件 | `docs/brand/crewbase-mark.svg`、`apps/web/src/components/Logo.tsx`、`apps/web/index.html`（favicon） |
+| 源文件 | `docs/brand/crewbase-mark.svg`（唯一真源）、`apps/web/src/components/Logo.tsx`、`apps/web/index.html`（favicon、theme-color）、`apps/web/public/icon.svg`、`manifest.webmanifest`（theme_color） |
+| 生成 | `go generate ./apps/desktop`：桌面 `resources/icon.png`、`assets/tray.png`，以及网页 `apps/web/public/icon-{180,192,512}.png` |
+
+旧标识 Relay（接力，Crew Indigo `#3B32C4`）于 v0.3 之后停用。
 
 ## Agent 头像（原创）
 

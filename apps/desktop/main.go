@@ -13,7 +13,7 @@
 //	make desktop                     # Crewbase.app + .dmg in apps/desktop/build
 package main
 
-//go:generate go run ./internal/icongen
+//go:generate go run ./internal/icongen -web ../web/public
 
 import (
 	_ "embed"

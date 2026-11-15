@@ -5,10 +5,14 @@
 //     grid: an 824 px body centred with 100 px margins);
 //   - assets/tray.png: the 32×32 (16 pt @2x) menu bar template icon, the
 //     mark's white shapes drawn black on transparent, keeping their
-//     opacities (the "relay" fade), without the indigo tile.
+//     opacities, without the tile. A shape marked data-tray="cut" is
+//     punched out of the shapes below it (the pupils), and data-tray="skip"
+//     leaves it out (the highlights);
+//   - with -web DIR: DIR/icon-{180,192,512}.png, the full-bleed (maskable)
+//     PWA and touch icons, the tile drawn square edge to edge.
 //
 // It understands the subset of SVG the mark uses: <rect> and <circle> with
-// fill, opacity and rx. Run it with `go generate ./apps/desktop`.
+// fill, opacity, rx and data-tray. Run it with `go generate ./apps/desktop`.
 package main
 
 import (
@@ -31,6 +35,7 @@ type shape struct {
 	x, y, w, h, r float64 // rect: x y w h rx; circle: x y = centre, r
 	fill          color.NRGBA
 	opacity       float64
+	tray          string // data-tray: "", "cut" or "skip"
 }
 
 func (s shape) inside(px, py float64) bool {
@@ -61,6 +66,15 @@ func attr(se xml.StartElement, name string, def float64) float64 {
 		}
 	}
 	return def
+}
+
+func str(se xml.StartElement, name string) string {
+	for _, a := range se.Attr {
+		if a.Name.Local == name {
+			return strings.TrimSpace(a.Value)
+		}
+	}
+	return ""
 }
 
 func fill(se xml.StartElement) color.NRGBA {
@@ -108,10 +122,10 @@ func parse(path string) ([]shape, float64, error) {
 			}
 		case "rect":
 			out = append(out, shape{x: attr(se, "x", 0), y: attr(se, "y", 0), w: attr(se, "width", 0), h: attr(se, "height", 0),
-				r: attr(se, "rx", 0), fill: fill(se), opacity: attr(se, "opacity", 1)})
+				r: attr(se, "rx", 0), fill: fill(se), opacity: attr(se, "opacity", 1), tray: str(se, "data-tray")})
 		case "circle":
 			out = append(out, shape{circle: true, x: attr(se, "cx", 0), y: attr(se, "cy", 0), r: attr(se, "r", 0),
-				fill: fill(se), opacity: attr(se, "opacity", 1)})
+				fill: fill(se), opacity: attr(se, "opacity", 1), tray: str(se, "data-tray")})
 		}
 	}
 	if len(out) == 0 {
@@ -137,6 +151,11 @@ func render(shapes []shape, px int, scale, ox, oy, off float64) *image.NRGBA {
 							continue
 						}
 						sa := s.opacity
+						if s.tray == "cut" {
+							// Erase what is below, by this shape's opacity.
+							cr, cg, cb, ca = cr*(1-sa), cg*(1-sa), cb*(1-sa), ca*(1-sa)
+							continue
+						}
 						cr = float64(s.fill.R)/255*sa + cr*(1-sa)
 						cg = float64(s.fill.G)/255*sa + cg*(1-sa)
 						cb = float64(s.fill.B)/255*sa + cb*(1-sa)
@@ -177,22 +196,40 @@ func main() {
 	src := flag.String("svg", "../../docs/brand/crewbase-mark.svg", "the brand mark")
 	icon := flag.String("icon", "resources/icon.png", "the 1024×1024 app icon")
 	tray := flag.String("tray", "assets/tray.png", "the 32×32 tray template icon")
+	web := flag.String("web", "", "if set, write the web app's full-bleed icon-{180,192,512}.png here")
 	flag.Parse()
 
 	shapes, size, err := parse(*src)
 	if err != nil {
 		log.Fatal(err)
 	}
+	// The colour icons paint every shape as drawn; data-tray is for the tray.
+	trayShapes := shapes
+	shapes = append([]shape(nil), shapes...)
+	for i := range shapes {
+		shapes[i].tray = ""
+	}
 
 	// App icon: the tile on Apple's grid, 824 of 1024 px.
 	const body = 824.0
 	write(*icon, render(shapes, 1024, body/size, 0, 0, (1024-body)/2))
 
+	// Web: the tile square to the edge (maskable; the OS applies its own mask).
+	if *web != "" {
+		square := append([]shape(nil), shapes...)
+		if t := square[0]; !t.circle && t.w >= size && t.h >= size {
+			square[0].r = 0
+		}
+		for _, px := range []int{180, 192, 512} {
+			write(filepath.Join(*web, fmt.Sprintf("icon-%d.png", px)), render(square, px, float64(px)/size, 0, 0, 0))
+		}
+	}
+
 	// Tray: the glyphs alone (the first full-size rect is the tile), black.
 	var glyphs []shape
 	minX, minY, maxX, maxY := math.Inf(1), math.Inf(1), math.Inf(-1), math.Inf(-1)
-	for i, s := range shapes {
-		if i == 0 && !s.circle && s.w >= size && s.h >= size {
+	for i, s := range trayShapes {
+		if i == 0 && !s.circle && s.w >= size && s.h >= size || s.tray == "skip" {
 			continue
 		}
 		s.fill = color.NRGBA{A: 255}

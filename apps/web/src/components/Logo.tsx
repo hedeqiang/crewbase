@@ -1,9 +1,10 @@
-// Crewbase mark — original design ("Relay").
-// Three members in a rising arc hand work along to the next, above the base
-// line they share. Indigo tile, white marks; the opacity steps read as a
-// handover in progress. Geometry is on a 32-unit grid; see docs/brand.md.
+// Crewbase mark — original design ("Lookout").
+// A pair of crew eyes above a small base line: the same eye the agent avatars
+// wear (white sclera, dark pupil, highlight), glancing toward the work. Mint
+// tile, ink pupils; geometry is on a 32-unit grid; see docs/brand/README.md.
 
-export const LOGO_TILE = "#3B32C4";
+export const LOGO_TILE = "#7FD8B4";
+const INK = "#1A1A1E";
 
 export function Logo({ size = 20, title }: { size?: number; title?: string }) {
   return (
@@ -17,10 +18,13 @@ export function Logo({ size = 20, title }: { size?: number; title?: string }) {
       aria-hidden={title ? undefined : true}
     >
       <rect width="32" height="32" rx="9" fill={LOGO_TILE} />
-      <circle cx="9.5" cy="17.5" r="3.2" fill="#fff" opacity="0.5" />
-      <circle cx="16" cy="12" r="3.2" fill="#fff" opacity="0.75" />
-      <circle cx="22.5" cy="17.5" r="3.2" fill="#fff" />
-      <rect x="8" y="22.6" width="16" height="2.6" rx="1.3" fill="#fff" />
+      <circle cx="10.6" cy="15" r="5.1" fill="#fff" />
+      <circle cx="21.4" cy="15" r="5.1" fill="#fff" />
+      <circle cx="11.9" cy="15.7" r="2.5" fill={INK} />
+      <circle cx="22.7" cy="15.7" r="2.5" fill={INK} />
+      <circle cx="12.7" cy="14.8" r="0.8" fill="#fff" />
+      <circle cx="23.5" cy="14.8" r="0.8" fill="#fff" />
+      <rect x="11" y="23.2" width="10" height="2.4" rx="1.2" fill={INK} />
     </svg>
   );
 }

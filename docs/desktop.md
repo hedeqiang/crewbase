@@ -12,7 +12,7 @@ make desktop PLATFORM=darwin/universal,windows/amd64,linux/amd64   # 交叉构�
 产物在 `apps/desktop/build/<os>-<arch>/`：macOS 为 `Crewbase.app` 与 `crewbase-0.1.0-arm64.dmg`（默认 ad hoc 签名；正式分发需在 `mygo.json` 的 `macos.signingIdentity` / `macos.notarize` 中配置 Developer ID 与公证），Windows 为 exe 与 NSIS 安装包，Linux 为可执行文件、tar.gz + install.sh、deb / rpm / PKGBUILD。MyGo CLI 以 Go tool 形式固定在 `go.mod`（`go tool mygo`），不需要 Bun。
 
 - 配置：`apps/desktop/mygo.json`（名称 Crewbase、标识 `app.crewbase.desktop`、版本 0.1.0）。
-- 图标：`resources/icon.png`（1024×1024）与 `assets/tray.png`（32×32 模板图）都由 `go generate ./apps/desktop` 从 [`docs/brand/crewbase-mark.svg`](brand/crewbase-mark.svg) 渲染，SVG 是唯一真源；改了标识后重新生成即可。
+- 图标：`resources/icon.png`（1024×1024）与 `assets/tray.png`（32×32 模板图）以及网页的 `icon-{180,192,512}.png` 都由 `go generate ./apps/desktop` 从 [`docs/brand/crewbase-mark.svg`](brand/crewbase-mark.svg) 渲染，SVG 是唯一真源；改了标识后重新生成即可。
 - 无 CGO：`CGO_ENABLED=0 GOOS=windows go build ./apps/desktop` 与 `GOOS=linux` 都可编译。Linux 运行时需要 WebKitGTK 4.1，托盘需要 `libayatana-appindicator3`；Windows 需要 WebView2 Runtime。
 
 开发时可直接 `go run ./apps/desktop`（应用名、版本按开发版处理，带 DevTools）。
