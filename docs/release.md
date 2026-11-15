@@ -4,7 +4,7 @@
 
 | 产物 | 内容 |
 |---|---|
-| 桌面客户端 | macOS `.dmg`（arm64 / x64）、Windows 安装程序（x64 / arm64）、Linux `.deb` / `.rpm` / `.tar.gz` + `install.sh`；每个平台带签名的自动更新清单 `update-<platform>.json` 与增量包 |
+| 桌面客户端 | macOS 通用版 `.dmg`（Apple 芯片与 Intel 同一个包）、Windows 安装程序（x64 / arm64）、Linux `.deb` / `.rpm` / `.tar.gz` + `install.sh`；每个平台带签名的自动更新清单 `update-<platform>.json` 与增量包 |
 | 命令行 | `crewd` / `crew` / `crew-relay`，macOS / Linux / Windows × amd64 / arm64，名为 `crewbase-cli-<版本>-<系统>-<架构>`，附校验和（不可与桌面更新包 `crewbase-<版本>-<系统>-<架构>.tar.gz` 同名） |
 | 服务端镜像 | `ghcr.io/hedeqiang/crewbase:<version>`（distroless）与 `:<version>-chromium` |
 

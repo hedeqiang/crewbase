@@ -54,7 +54,7 @@ jobs:
           curl -fsSL https://github.com/hedeqiang/crewbase/releases/latest/download/install.sh | sh
           ```
 
-          也可以下载 `.dmg`；应用暂未经 Apple 公证，首次打开需在「系统设置 › 隐私与安全性」点「仍要打开」。
+          也可以下载 `crewbase-<版本>.dmg`（通用版，Apple 芯片与 Intel 都原生运行）；应用暂未经 Apple 公证，首次打开需在「系统设置 › 隐私与安全性」点「仍要打开」。
 
           **Windows**：下载 `crewbase-setup-*.exe`（未签名，SmartScreen 选「更多信息 → 仍要运行」）。
           **Linux**：同上 `install.sh`，或 `.deb` / `.rpm`。
@@ -73,7 +73,8 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { name: macOS, os: macos-latest, platform: "darwin/arm64,darwin/amd64" }
+          # one universal app (Apple Silicon + Intel): no wrong download to pick
+          - { name: macOS, os: macos-latest, platform: "darwin/universal" }
           - { name: Windows, os: ubuntu-latest, platform: "windows/amd64,windows/arm64" }
           - { name: Linux, os: ubuntu-latest, platform: "linux/amd64,linux/arm64" }
     steps:
@@ -204,7 +205,7 @@ jobs:
             grep -qx "$name $size" assets.txt || { echo "::error::$name does not match $(basename "$f") (size $size)"; exit 1; }
             n=$((n+1))
           done
-          test "$n" -ge 6
+          test "$n" -ge 5 # darwin-universal, linux ×2, windows ×2
       - name: Publish
         env:
           GH_TOKEN: ${{ github.token }}
