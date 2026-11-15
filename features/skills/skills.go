@@ -9,9 +9,11 @@ package skills
 import (
 	"bufio"
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 	"sync"
@@ -32,6 +34,8 @@ type Skill struct {
 	Description string `json:"description"`
 	Dir         string `json:"dir"`
 	Source      string `json:"source"` // workspace | <configured dir>
+	// Agent is the agent whose workspace holds the skill (All only).
+	Agent string `json:"agent,omitempty"`
 }
 
 // Changed notifies that the catalog changed (no delta).
@@ -201,6 +205,131 @@ func (s *Service) Load(agentID, name string) (Skill, string, []string, error) {
 		return sk, body, files, nil
 	}
 	return Skill{}, "", nil, fmt.Errorf("unknown skill %q", name)
+}
+
+// All returns every installed skill: the configured directories (shared by
+// all agents) and each agent's workspace skills (Agent set). Unlike List it
+// does not resolve name clashes, so a settings page can show both copies.
+func (s *Service) All() []Skill {
+	var out []Skill
+	for _, d := range s.dirs {
+		out = append(out, s.scan(d, d)...)
+	}
+	for _, a := range s.agents.List() {
+		for _, sk := range s.scan(filepath.Join(a.Workspace(), "skills"), "workspace") {
+			sk.Agent = a.ID()
+			out = append(out, sk)
+		}
+	}
+	return out
+}
+
+// Errors of Install and Remove.
+var (
+	ErrExists   = errors.New("skill already installed")
+	ErrNotFound = errors.New("skill not found")
+)
+
+// installDir is where Install writes and Remove deletes: the agent's
+// workspace skills/ for an agent, else the first configured directory
+// (${root}/skills). Other configured directories are the person's own and
+// are never written to.
+func (s *Service) installDir(agentID string) (dir, source string, err error) {
+	if agentID != "" {
+		a, ok := s.agents.Get(agentID)
+		if !ok {
+			return "", "", fmt.Errorf("unknown agent %q", agentID)
+		}
+		return filepath.Join(a.Workspace(), "skills"), "workspace", nil
+	}
+	if len(s.dirs) == 0 {
+		return "", "", errors.New("no skills directory is configured")
+	}
+	return s.dirs[0], s.dirs[0], nil
+}
+
+var folderRe = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{0,63}$`)
+
+// Install writes a skill folder <name>/ holding files (slash-separated
+// relative paths, at least SKILL.md) for agentID ("" = every agent). It
+// never overwrites: a skill of that name already there is ErrExists.
+func (s *Service) Install(agentID, name string, files map[string][]byte) (Skill, error) {
+	if !folderRe.MatchString(name) {
+		return Skill{}, fmt.Errorf("bad skill name %q", name)
+	}
+	if _, ok := files["SKILL.md"]; !ok {
+		return Skill{}, errors.New("a skill needs a SKILL.md")
+	}
+	root, source, err := s.installDir(agentID)
+	if err != nil {
+		return Skill{}, err
+	}
+	for _, sk := range s.scan(root, source) {
+		if sk.Name == name {
+			return Skill{}, ErrExists
+		}
+	}
+	dir := filepath.Join(root, name)
+	if _, err := os.Stat(dir); err == nil {
+		return Skill{}, ErrExists
+	}
+	// Write a temp folder and rename it, so the poll (and the prompt
+	// catalog) never sees a half-written skill.
+	if err := os.MkdirAll(root, 0o755); err != nil {
+		return Skill{}, err
+	}
+	tmp, err := os.MkdirTemp(root, ".install-")
+	if err != nil {
+		return Skill{}, err
+	}
+	defer os.RemoveAll(tmp)
+	for rel, b := range files {
+		p := filepath.Join(tmp, filepath.FromSlash(rel))
+		if !strings.HasPrefix(p, tmp+string(filepath.Separator)) {
+			return Skill{}, fmt.Errorf("bad file path %q", rel)
+		}
+		if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+			return Skill{}, err
+		}
+		if err := os.WriteFile(p, b, 0o644); err != nil {
+			return Skill{}, err
+		}
+	}
+	if err := os.Rename(tmp, dir); err != nil {
+		return Skill{}, err
+	}
+	Changed.Emit(s.c, struct{}{})
+	meta, _, err := parse(filepath.Join(dir, "SKILL.md"))
+	if err != nil {
+		return Skill{}, err
+	}
+	if meta.Name == "" {
+		meta.Name = name
+	}
+	return Skill{Name: meta.Name, Description: meta.Description, Dir: dir, Source: source, Agent: agentID}, nil
+}
+
+// Remove deletes the skill named name from agentID's workspace or, for "",
+// from the first configured directory.
+func (s *Service) Remove(agentID, name string) error {
+	root, source, err := s.installDir(agentID)
+	if err != nil {
+		return err
+	}
+	for _, sk := range s.scan(root, source) {
+		if sk.Name != name {
+			continue
+		}
+		if filepath.Dir(sk.Dir) != filepath.Clean(root) {
+			return ErrNotFound
+		}
+		if err := os.RemoveAll(sk.Dir); err != nil {
+			return err
+		}
+		Changed.Emit(s.c, struct{}{})
+		return nil
+	}
+	return ErrNotFound
 }
 
 func catalog(list []Skill) string {
