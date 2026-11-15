@@ -7,6 +7,9 @@ package agentloop
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -263,6 +266,7 @@ func (l *loop) turn(parent context.Context, a *agent.Agent, in agent.Input) {
 	TurnStarted.Emit(d, TurnStartEvent{Agent: a, Session: ss, Input: in})
 
 	steps := 0
+	var watch stuckWatch
 	for steps < l.cfg.MaxSteps {
 		if ctx.Err() != nil {
 			l.endTurn(a, ss, in, TurnEnd{Status: "cancelled", Steps: steps})
@@ -294,6 +298,15 @@ func (l *loop) turn(parent context.Context, a *agent.Agent, in agent.Input) {
 				Mode: agent.Stricter(a.Mode(), in.Mode), Workspace: a.Workspace(),
 			})
 			stop = stop || exe.Result.StopTurn
+			watch.see(tc.Name, tc.Args, exe.Result)
+		}
+		switch v := watch.verdict(); v.action {
+		case stuckNudge:
+			_, _ = ss.Append(session.TypeInject, a.ID(), session.InjectData{Text: v.text, Source: "watchdog"})
+		case stuckStop:
+			_, _ = ss.Append(session.TypeNotice, a.ID(), map[string]string{"text": v.text})
+			l.endTurn(a, ss, in, TurnEnd{Status: "failed", Error: v.text, Steps: steps})
+			return
 		}
 		_, _ = ss.Append(session.TypeStepEnd, a.ID(), map[string]int{"step": steps})
 		if stop {
@@ -576,4 +589,72 @@ func WaitIdle(a *agent.Agent, timeout time.Duration) bool {
 		time.Sleep(10 * time.Millisecond)
 	}
 	return false
+}
+
+// ---------------------------------------------------------------- stuck
+
+// stuckWatch notices a turn going round in circles: the same tool call
+// (name + arguments) getting the same result again and again, or a long
+// run of failing calls. It first nudges the model to change approach, and
+// stops the turn if that does not help, instead of burning the step budget.
+type stuckWatch struct {
+	lastSig  string
+	repeats  int // consecutive identical call+result
+	failures int // consecutive failing calls
+	nudged   bool
+	nudgedAt int // repeats / failures when nudged
+}
+
+// Thresholds.
+const (
+	stuckRepeatNudge = 3
+	stuckRepeatStop  = 5
+	stuckFailNudge   = 6
+	stuckFailStop    = 10
+)
+
+type stuckAction int
+
+const (
+	stuckNone stuckAction = iota
+	stuckNudge
+	stuckStop
+)
+
+type stuckVerdict struct {
+	action stuckAction
+	text   string
+}
+
+func (w *stuckWatch) see(name string, args json.RawMessage, r tools.Result) {
+	h := sha256.Sum256([]byte(name + "\x00" + string(args) + "\x00" + r.Content))
+	sig := hex.EncodeToString(h[:8])
+	if sig == w.lastSig {
+		w.repeats++
+	} else {
+		w.lastSig, w.repeats = sig, 1
+	}
+	if r.IsError {
+		w.failures++
+	} else {
+		w.failures = 0
+	}
+}
+
+func (w *stuckWatch) verdict() stuckVerdict {
+	switch {
+	case w.repeats >= stuckRepeatStop:
+		return stuckVerdict{stuckStop, fmt.Sprintf("已停止：连续 %d 次用相同参数调用同一个工具，结果都一样，Agent 在原地打转。请给它更具体的指示，或换个做法。", w.repeats)}
+	case w.failures >= stuckFailStop:
+		return stuckVerdict{stuckStop, fmt.Sprintf("已停止：连续 %d 次工具调用失败。请查看最近的错误，给 Agent 更具体的指示或放宽权限后再继续。", w.failures)}
+	case !w.nudged && w.repeats >= stuckRepeatNudge:
+		w.nudged = true
+		return stuckVerdict{stuckNudge, fmt.Sprintf("[watchdog] You have made the same tool call with the same arguments %d times and got the same result each time. "+
+			"Repeating it will not change the outcome. Stop, think about why, and try a different approach — or, if you are blocked, explain what you need and end your turn.", w.repeats)}
+	case !w.nudged && w.failures >= stuckFailNudge:
+		w.nudged = true
+		return stuckVerdict{stuckNudge, fmt.Sprintf("[watchdog] Your last %d tool calls all failed. Step back: read the errors, check your assumptions (paths, permissions, run mode), "+
+			"and change approach. If something outside your control is blocking you, tell the user what you need and end your turn.", w.failures)}
+	}
+	return stuckVerdict{}
 }

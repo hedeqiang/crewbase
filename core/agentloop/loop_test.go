@@ -2,6 +2,7 @@ package agentloop_test
 
 import (
 	"context"
+	"fmt"
 	"encoding/json"
 	"os"
 	"strings"
@@ -408,4 +409,39 @@ func TestMessageMidTurnIsSeenNextStep(t *testing.T) {
 	if !strings.Contains(text, "use port 8080") {
 		t.Fatalf("mid-turn message not seen at the next step: %q", text)
 	}
+}
+
+// A model repeating the same call is nudged once, then stopped, instead of
+// running to the step limit.
+func TestStuckLoopIsNudgedThenStopped(t *testing.T) {
+	e := newEnv(t, t.TempDir())
+	ad, _ := e.llms.Get("claude-code")
+	m := ad.(*mock.Adapter)
+	a, _ := e.agents.Create(agent.Spec{Name: "Loopy"})
+	ss, _ := a.Session()
+	calls := 0
+	nudgeSeen := false
+	m.Script = func(req llm.Request) (llm.Response, error) {
+		calls++
+		for _, msg := range req.Messages {
+			if strings.Contains(msg.Text(), "[watchdog]") {
+				nudgeSeen = true
+			}
+		}
+		return llm.Response{StopReason: "tool_use", Message: llm.Message{Role: llm.RoleAssistant, Parts: []llm.Part{
+			{Type: "tool_call", ToolCall: &llm.ToolCall{ID: fmt.Sprintf("t%d", calls), Name: "missing_tool", Args: json.RawMessage(`{"x":1}`)}}}}}, nil
+	}
+	send(t, a, "do it")
+	agentloop.WaitIdle(a, 5*time.Second)
+	if !nudgeSeen {
+		t.Fatal("the model was never told it was repeating itself")
+	}
+	if calls > 6 {
+		t.Fatalf("ran %d steps; should stop after 5 identical calls", calls)
+	}
+	st, detail := a.Status()
+	if st != agent.StatusFailed || !strings.Contains(detail, "原地打转") {
+		t.Fatalf("status %s %q", st, detail)
+	}
+	_ = ss
 }
