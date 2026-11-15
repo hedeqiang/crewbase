@@ -198,7 +198,7 @@ func (s *Service) fire(_ context.Context, f schedule.Firing) error {
 		p.Session = "" // its conversation is gone: the agent's own
 	}
 	text := fmt.Sprintf("[跟进提醒] 这是你在 %s 设置的跟进，现在到点了：\n\n%s\n\n"+
-		"检查这件事现在的状态。需要用户知道或决定的，简短告诉用户；还没结果的，可以再设一个跟进；不需要做什么就简单说明，不要编造进展。",
+		"只检查这件事现在的状态，不要顺带做别的。需要用户知道或决定的，简短告诉用户；还没结果的，可以再设一个跟进；不需要做什么就一句话说明，不要编造进展。",
 		p.Set.In(s.clock().Location()).Format("01-02 15:04"), p.Note)
 	_, err := a.Enqueue(agent.Input{Session: p.Session, Text: text, From: "followup", Tag: "followup:" + id})
 	return err

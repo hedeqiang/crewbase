@@ -422,7 +422,7 @@ func nameChat(a *agent.Agent, text string) {
 
 // chatFragments are the only prompt fragments a blank chat gets: the base
 // working rules, the workspace path and the summary of compacted history.
-var chatFragments = map[string]bool{"base": true, "agent-identity": true, "context-compaction": true}
+var chatFragments = map[string]bool{"base": true, "agent-identity": true, "environment": true, "context-compaction": true}
 
 // SystemSections are the prompt sections a's requests carry (all of them
 // for an agent; the chat subset for a blank chat).

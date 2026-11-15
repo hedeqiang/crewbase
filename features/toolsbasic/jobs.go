@@ -221,7 +221,7 @@ func (js *jobs) report(j *job) {
 	if j.result.Blocked {
 		b.WriteString("沙箱拦截了这个命令的某个操作；不要原样重试。\n")
 	}
-	b.WriteString("根据结果继续：成功就接着做下一步，失败就看输出定位原因。")
+	b.WriteString("如果它是你手头计划里的一步，就接着做下一步；失败就根据输出找原因。如果没有后续步骤，简短告诉用户结果即可——不要为了找事做去翻工作区。")
 	_, _ = a.Enqueue(agent.Input{Session: j.Session, Text: b.String(), From: "job", Tag: "job:" + j.ID})
 }
 

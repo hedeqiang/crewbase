@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"time"
 
@@ -18,6 +19,7 @@ import (
 	"github.com/hedeqiang/crewbase/capabilities/sandbox"
 	"github.com/hedeqiang/crewbase/capabilities/shell"
 	"github.com/hedeqiang/crewbase/core/agent"
+	"github.com/hedeqiang/crewbase/core/prompt"
 	"github.com/hedeqiang/crewbase/core/tools"
 	"github.com/hedeqiang/crewbase/kernel"
 )
@@ -500,6 +502,31 @@ var Plugin = kernel.Register(kernel.Spec{
 			reg.Register(c, t)
 		}
 		agent.Deleted.Listen(c, b.jobs.stopAll)
+		if pa, ok := kernel.Lookup[*prompt.Assembler](c, prompt.ServiceKey); ok {
+			env := Environment(c)
+			pa.Register(c, &prompt.Fragment{Name: "environment", Order: 12, Render: func(string) string { return env }})
+		}
 		return nil
 	},
 })
+
+// Environment tells the model where its commands run, so it uses the
+// right tools the first time (BSD `stat -f` on macOS, not GNU `stat -c`).
+func Environment(c *kernel.Context) string {
+	host := map[string]string{"darwin": "macOS", "linux": "Linux", "windows": "Windows"}[runtime.GOOS]
+	if host == "" {
+		host = runtime.GOOS
+	}
+	userland := ""
+	switch runtime.GOOS {
+	case "darwin":
+		userland = " with BSD userland (e.g. `stat -f`, `md5`, `sed -i ''`; no GNU coreutils unless installed)"
+	case "linux":
+		userland = " with GNU userland"
+	}
+	s := fmt.Sprintf("Commands (bash) run with /bin/sh on %s %s%s.", host, runtime.GOARCH, userland)
+	if sb, ok := kernel.Lookup[sandbox.Sandbox](c, sandbox.ServiceKey); ok && sb.Name() == "docker" {
+		s = fmt.Sprintf("In read-only and sandbox modes commands (bash) run with /bin/sh inside a Linux container with the workspace mounted; in host mode they run on %s %s%s.", host, runtime.GOARCH, userland)
+	}
+	return s
+}
