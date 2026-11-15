@@ -84,6 +84,59 @@ var APIPlugin = kernel.Register(kernel.Spec{
 			Handle: func(_ context.Context, r *gateway.Request) (any, error) {
 				return nil, apiErr(s.Uninstall(r.Params["id"], r.HTTP.URL.Query().Get("agent")))
 			}})
+		// Built-in sign-in (GitHub device flow): starts it, reports it, stops it.
+		checkSignIn := func(r *gateway.Request) error {
+			p, ok := preset(r.Params["id"])
+			if !ok {
+				return gateway.NotFound()
+			}
+			if p.SignIn == "" || s.gh == nil {
+				return gateway.BadRequest("this item has no sign-in")
+			}
+			return nil
+		}
+		g.Handle(c, gateway.Route{Method: "POST", Path: "/api/catalog/{id}/signin",
+			Validate: func(r *gateway.Request) error {
+				if err := checkSignIn(r); err != nil {
+					return err
+				}
+				var b Request
+				if err := r.Decode(&b); err != nil {
+					return err
+				}
+				return checkScope(b.Scope, false)
+			},
+			Handle: func(_ context.Context, r *gateway.Request) (any, error) {
+				var b Request
+				_ = r.Decode(&b)
+				if s.gh.clientID == "" {
+					return nil, gateway.BadRequest("%v", ErrNoSignIn)
+				}
+				v, err := s.gh.Start(r.Params["id"], b.Scope)
+				if err != nil && !errors.Is(err, ErrUnknown) && !errors.Is(err, ErrNoSignIn) {
+					// GitHub refused or could not be reached: shown in the dialog
+					return nil, &gateway.Error{Status: 502, Code: "signin_failed", Message: err.Error()}
+				}
+				if errors.Is(err, ErrNoSignIn) {
+					return nil, gateway.BadRequest("%v", err)
+				}
+				return v, apiErr(err)
+			}})
+		g.Handle(c, gateway.Route{Method: "GET", Path: "/api/catalog/{id}/signin",
+			Validate: checkSignIn,
+			Handle: func(_ context.Context, r *gateway.Request) (any, error) {
+				if v, ok := s.gh.View(r.Params["id"]); ok {
+					return v, nil
+				}
+				return nil, gateway.NotFound()
+			}})
+		g.Handle(c, gateway.Route{Method: "DELETE", Path: "/api/catalog/{id}/signin",
+			Handle: func(_ context.Context, r *gateway.Request) (any, error) {
+				if s.gh == nil || !s.gh.Cancel(r.Params["id"]) {
+					return nil, gateway.NotFound()
+				}
+				return nil, nil
+			}})
 		return nil
 	},
 })

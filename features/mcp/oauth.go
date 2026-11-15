@@ -48,6 +48,11 @@ type OAuth struct {
 
 func oauthRef(server string) string { return "keychain:crewbase/mcp-oauth-" + server }
 
+// SignInRef is the keychain reference of a server's sign-in state (the
+// OAuth token, or what a catalog sign-in keeps to refresh its token). It
+// is deleted when the person signs out or removes the server.
+func SignInRef(server string) string { return oauthRef(server) }
+
 // storedToken is what the keychain holds for a server.
 type storedToken struct {
 	Token        *oauth2.Token `json:"token"`
