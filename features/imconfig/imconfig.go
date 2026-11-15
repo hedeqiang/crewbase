@@ -1,4 +1,4 @@
-// Package imconfig sets up IM gateways from the UI (设置 › 通知 › 即时通讯):
+// Package imconfig sets up IM gateways from the UI (设置 › 即时通讯):
 // pick a platform, paste the bot token(s), choose the channel and who may
 // talk to Crewbase, test, enable. The tokens go to the system keychain
 // (keychain:crewbase/im-<id>-bot / -app); im.json keeps references only.
@@ -42,10 +42,40 @@ type Platform struct {
 	TokenDoc  string `json:"tokenDoc"` // where to get the token
 	NameEn    string `json:"nameEn,omitempty"`
 	ChannelEn string `json:"channelEn,omitempty"`
-	// Domain is the open platform of the provider (Feishu in China, Lark
-	// elsewhere: the same gateway, separate tenants and endpoints).
+	// Domain is the open platform of the provider; for a platform with
+	// regions it is the first region's.
 	Domain string `json:"domain,omitempty"`
-	spec   kernel.Spec
+	// Regions: one product, separate tenants and endpoints (飞书 in
+	// mainland China, Lark elsewhere). The first is the default.
+	Regions []Region `json:"regions,omitempty"`
+	spec    kernel.Spec
+}
+
+// Region of a platform: where its open platform and developer console are.
+type Region struct {
+	ID       string `json:"id"`
+	Name     string `json:"name"`
+	NameEn   string `json:"nameEn,omitempty"`
+	Brand    string `json:"brand"` // the product's name there (飞书 / Lark)
+	BrandEn  string `json:"brandEn,omitempty"`
+	Domain   string `json:"domain"`
+	TokenDoc string `json:"tokenDoc"`
+}
+
+// region of p by id ("" = the default); ok is false for an unknown id.
+func (p Platform) region(id string) (Region, bool) {
+	if len(p.Regions) == 0 {
+		return Region{Domain: p.Domain, TokenDoc: p.TokenDoc}, id == ""
+	}
+	if id == "" {
+		return p.Regions[0], true
+	}
+	for _, r := range p.Regions {
+		if r.ID == id {
+			return r, true
+		}
+	}
+	return Region{}, false
 }
 
 // Platforms supported by the setup form.
@@ -53,8 +83,42 @@ var Platforms = []Platform{
 	{ID: "slack", Name: "Slack", App: true, Channel: "频道 ID（C…）", ChannelEn: "Channel ID (C…)", TokenDoc: "https://api.slack.com/apps", spec: slack.Plugin},
 	{ID: "telegram", Name: "Telegram", Channel: "群组 / 对话 ID（-100…）", ChannelEn: "Group / chat ID (-100…)", TokenDoc: "https://t.me/BotFather", spec: telegram.Plugin},
 	{ID: "discord", Name: "Discord", Channel: "频道 ID", ChannelEn: "Channel ID", TokenDoc: "https://discord.com/developers/applications", spec: discord.Plugin},
-	{ID: "feishu", Name: "飞书", NameEn: "Feishu", AppID: true, Channel: "群 chat_id（oc_…）", ChannelEn: "Group chat_id (oc_…)", TokenDoc: "https://open.feishu.cn/app", Domain: "https://open.feishu.cn", spec: feishu.Plugin},
-	{ID: "lark", Name: "Lark", AppID: true, Channel: "群 chat_id（oc_…）", ChannelEn: "Group chat_id (oc_…)", TokenDoc: "https://open.larksuite.com/app", Domain: "https://open.larksuite.com", spec: feishu.Plugin},
+	{ID: "feishu", Name: "飞书 / Lark", NameEn: "Feishu / Lark", AppID: true, Channel: "群 chat_id（oc_…）", ChannelEn: "Group chat_id (oc_…)",
+		TokenDoc: "https://open.feishu.cn/app", Domain: "https://open.feishu.cn", spec: feishu.Plugin,
+		Regions: []Region{
+			{ID: "cn", Name: "中国大陆", NameEn: "Mainland China", Brand: "飞书", BrandEn: "Feishu", Domain: "https://open.feishu.cn", TokenDoc: "https://open.feishu.cn/app"},
+			{ID: "intl", Name: "国际版", NameEn: "International", Brand: "Lark", BrandEn: "Lark", Domain: "https://open.larksuite.com", TokenDoc: "https://open.larksuite.com/app"},
+		}},
+}
+
+// legacy maps a platform id merged into another to (platform, region):
+// "lark" was its own entry before 飞书 / Lark became one platform with a
+// region.
+func legacy(id, region string) (string, string) {
+	if id == "lark" {
+		if region == "" {
+			region = "intl"
+		}
+		return "feishu", region
+	}
+	return id, region
+}
+
+// normalize upgrades a saved gateway: a "lark" gateway is the merged
+// platform in the international region, a region-less 飞书 one is in
+// mainland China. Its id — and so its keychain items, thread file and
+// notification column — stays the same.
+func normalize(g Gateway) Gateway {
+	g.Platform, g.Region = legacy(g.Platform, g.Region)
+	p, ok := platform(g.Platform)
+	if !ok || len(p.Regions) == 0 {
+		g.Region = ""
+		return g
+	}
+	if _, ok := p.region(g.Region); !ok || g.Region == "" {
+		g.Region = p.Regions[0].ID
+	}
+	return g
 }
 
 func platform(id string) (Platform, bool) {
@@ -73,6 +137,7 @@ type Gateway struct {
 	Channel      string    `json:"channel"`
 	AllowUsers   []string  `json:"allowUsers"`
 	AppID        string    `json:"appId,omitempty"`
+	Region       string    `json:"region,omitempty"` // platforms with regions (飞书 / Lark)
 	RelayReplies bool      `json:"relayReplies"`
 	Approvals    bool      `json:"approvals"`
 	Enabled      bool      `json:"enabled"`
@@ -89,6 +154,7 @@ type Input struct {
 	Channel      string   `json:"channel"`
 	AllowUsers   []string `json:"allowUsers"`
 	AppID        string   `json:"appId"`
+	Region       string   `json:"region"` // "" = unchanged (new gateway: the default)
 	RelayReplies *bool    `json:"relayReplies"`
 	Approvals    *bool    `json:"approvals"`
 	Enabled      *bool    `json:"enabled"`
@@ -148,7 +214,7 @@ func (s *Service) load() error {
 		return fmt.Errorf("im.json: %w", err)
 	}
 	for _, g := range list {
-		s.items[g.ID] = g
+		s.items[g.ID] = normalize(g) // written in the new shape on the next save
 	}
 	return nil
 }
@@ -205,8 +271,8 @@ func (s *Service) mount(g Gateway) {
 	if p.AppID {
 		cfg["appId"] = g.AppID
 	}
-	if p.Domain != "" {
-		cfg["domain"] = p.Domain
+	if r, _ := p.region(g.Region); r.Domain != "" {
+		cfg["domain"] = r.Domain
 	}
 	if g.Listen != nil {
 		cfg["listen"] = g.Listen
@@ -248,6 +314,7 @@ func (s *Service) Save(id string, in Input) (View, error) {
 	s.mu.Lock()
 	prev, exists := s.items[id]
 	s.mu.Unlock()
+	in.Platform, in.Region = legacy(in.Platform, in.Region)
 	if id == "" {
 		id = in.Platform
 	}
@@ -275,6 +342,13 @@ func (s *Service) Save(id string, in Input) (View, error) {
 	}
 	if p.AppID && (in.AppID != "" || !exists) {
 		g.AppID = strings.TrimSpace(in.AppID)
+	}
+	if len(p.Regions) > 0 && (in.Region != "" || !exists) {
+		r, ok := p.region(in.Region)
+		if !ok {
+			return View{}, fmt.Errorf("unknown region %q", in.Region)
+		}
+		g.Region = r.ID
 	}
 	if in.RelayReplies != nil {
 		g.RelayReplies = *in.RelayReplies
@@ -405,12 +479,13 @@ type Config struct {
 // Plugin manages UI-configured IM gateways and exposes:
 //
 //	GET    /api/im/config               → {platforms, gateways}
+//	POST   /api/im/config/verify Check  check credentials (nothing saved)
 //	PUT    /api/im/config/{id}  Input   create / update (tokens write-only)
 //	DELETE /api/im/config/{id}          remove (and its tokens)
 var Plugin = kernel.Register(kernel.Spec{
 	Name:        "@crewbase/im-config",
 	Inject:      []string{gateway.ServiceKey, credentials.ServiceKey},
-	Description: "Set up IM gateways (Slack, Telegram, Discord, 飞书, Lark) from the UI; tokens in the keychain.",
+	Description: "Set up IM gateways (Slack, Telegram, Discord, 飞书 / Lark) from the UI; tokens in the keychain.",
 	Apply: func(c *kernel.Context) error {
 		cfg, err := kernel.Decode[Config](c)
 		if err != nil {
@@ -441,6 +516,18 @@ var Plugin = kernel.Register(kernel.Spec{
 		g.Handle(c, gateway.Route{Method: "GET", Path: "/api/im/config",
 			Handle: func(context.Context, *gateway.Request) (any, error) {
 				return map[string]any{"platforms": Platforms, "gateways": s.List()}, nil
+			}})
+		g.Handle(c, gateway.Route{Method: "POST", Path: "/api/im/config/verify",
+			Handle: func(ctx context.Context, r *gateway.Request) (any, error) {
+				var in Check
+				if err := r.Decode(&in); err != nil {
+					return nil, err
+				}
+				res, err := s.Verify(ctx, in)
+				if err != nil {
+					return nil, gateway.BadRequest("%v", err)
+				}
+				return res, nil
 			}})
 		g.Handle(c, gateway.Route{Method: "PUT", Path: "/api/im/config/{id}",
 			Handle: func(_ context.Context, r *gateway.Request) (any, error) {

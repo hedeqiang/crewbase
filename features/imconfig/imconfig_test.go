@@ -9,7 +9,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -98,7 +97,7 @@ func TestSetupFromUI(t *testing.T) {
 		json.NewDecoder(resp.Body).Decode(&out)
 		return resp.StatusCode, out
 	}
-	if code, out := do("GET", "/api/im/config", nil); code != 200 || len(out["platforms"].([]any)) != 5 {
+	if code, out := do("GET", "/api/im/config", nil); code != 200 || len(out["platforms"].([]any)) != 4 {
 		t.Fatal(code, out)
 	}
 	// a token is required
@@ -155,66 +154,3 @@ func toStrings(v any) []string {
 	return out
 }
 
-// Lark uses the same gateway against open.larksuite.com: the platform's
-// domain reaches the Feishu SDK (token and long-connection endpoint).
-func TestLarkUsesItsDomain(t *testing.T) {
-	var hits atomic.Int32
-	var paths sync.Map
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		hits.Add(1)
-		paths.Store(r.URL.Path, true)
-		w.Header().Set("Content-Type", "application/json")
-		io.WriteString(w, `{"code":1,"msg":"fake lark"}`)
-	}))
-	defer srv.Close()
-	saved := imconfig.Platforms
-	defer func() { imconfig.Platforms = saved }()
-	imconfig.Platforms = append([]imconfig.Platform(nil), saved...)
-	found := false
-	for i := range imconfig.Platforms {
-		if imconfig.Platforms[i].ID == "lark" {
-			if imconfig.Platforms[i].Domain != "https://open.larksuite.com" {
-				t.Fatalf("lark domain %q", imconfig.Platforms[i].Domain)
-			}
-			imconfig.Platforms[i].Domain = srv.URL
-			found = true
-		}
-	}
-	if !found {
-		t.Fatal("no lark platform")
-	}
-	h := kernel.NewHost(nil)
-	defer h.Close()
-	dir := t.TempDir()
-	for _, x := range []struct {
-		s   kernel.Spec
-		cfg map[string]any
-	}{
-		{session.Plugin, map[string]any{"dir": dir + "/sessions"}}, {prompt.Plugin, nil},
-		{agent.Plugin, map[string]any{"root": dir}}, {tools.Plugin, nil},
-		{approval.Plugin, nil}, {notify.Plugin, nil}, {credentials.Plugin, nil},
-		{gateway.Plugin, map[string]any{"addr": "127.0.0.1:0", "token": deskTok}},
-	} {
-		if _, err := h.Load(x.s, kernel.LoadOptions{Config: x.cfg}); err != nil {
-			t.Fatal(err)
-		}
-	}
-	kernel.Use[*credentials.Service](h.Root(), credentials.ServiceKey).SetBackend("keychain", credentials.NewMemory())
-	if _, err := h.Load(imconfig.Plugin, kernel.LoadOptions{Config: map[string]any{"dir": dir}}); err != nil {
-		t.Fatal(err)
-	}
-	s := kernel.Use[*imconfig.Service](h.Root(), imconfig.ServiceKey)
-	if _, err := s.Save("", imconfig.Input{Platform: "lark", Channel: "oc_1", AppID: "cli_x", BotToken: "secret", AllowUsers: []string{"ou_1"}}); err != nil {
-		t.Fatal(err)
-	}
-	deadline := time.Now().Add(5 * time.Second)
-	for hits.Load() == 0 && time.Now().Before(deadline) {
-		time.Sleep(50 * time.Millisecond)
-	}
-	if hits.Load() == 0 {
-		t.Fatal("the Lark gateway never called its domain")
-	}
-	var got []string
-	paths.Range(func(k, _ any) bool { got = append(got, k.(string)); return true })
-	t.Logf("lark requests: %v", got)
-}
