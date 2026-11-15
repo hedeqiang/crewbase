@@ -3,6 +3,11 @@
 Each `## <version>` section becomes the release notes of that version,
 shown in the desktop app's update window.
 
+## 0.4.1
+
+- 修复：删除频道后它仍留在侧边栏，再删提示 not found；团队里也还算着这个频道（无法删除团队、无法把成员 Agent 移到别的团队）。之前删过的频道升级后自动消失
+- Mac 可以用 Homebrew 安装：`brew install --cask hedeqiang/tap/crewbase`
+
 ## 0.4.0
 
 连接外部服务不用再自己安装：Gmail、GitHub、Notion 等点「连接」就走官方登录；Agent 等你批准时不再卡住，也记得自己说过什么、做到哪一步。
