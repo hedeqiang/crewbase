@@ -45,16 +45,16 @@ type tidier struct {
 	now    func() time.Time
 }
 
-func memDir(a *agent.Agent) string { return filepath.Join(a.Workspace(), ".memory") }
+func memDir(a *agent.Agent) string { return filepath.Join(a.Home(), ".memory") }
 
 // due reports whether a needs a tidy-up: long enough, and changed since the
 // last one.
 func (t *tidier) due(a *agent.Agent) (int, bool) {
 	s := a.Spec()
-	if a.IsChat() || s.Ephemeral || a.Mode() == agent.ModeReadOnly {
+	if a.IsChat() || s.Ephemeral || a.Mode() == agent.ModeReadOnly || a.ProjectDir() != "" {
 		return 0, false
 	}
-	p := filepath.Join(a.Workspace(), "MEMORY.md")
+	p := filepath.Join(a.Home(), "MEMORY.md")
 	st, err := os.Stat(p)
 	if err != nil {
 		return 0, false
@@ -78,7 +78,7 @@ func (t *tidier) backup(a *agent.Agent, stamp string) (string, error) {
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return "", err
 	}
-	b, err := os.ReadFile(filepath.Join(a.Workspace(), "MEMORY.md"))
+	b, err := os.ReadFile(filepath.Join(a.Home(), "MEMORY.md"))
 	if err != nil {
 		return "", err
 	}

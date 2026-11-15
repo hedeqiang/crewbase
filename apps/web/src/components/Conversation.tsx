@@ -8,6 +8,9 @@ import {
   ChevronRight,
   CircleX,
   Folder,
+  FolderOpen,
+  Clock,
+  Undo2,
   Hand,
   Mic,
   Minimize2,
@@ -27,7 +30,7 @@ import {
   Volume2,
   Square,
 } from "lucide-react";
-import { API, parseRef, refString, type AgentView, type ChannelView, type ContextBreakdown, type ModelRef } from "../api";
+import { API, desktop, parseRef, refString, type AgentView, type ChannelView, type ContextBreakdown, type ModelRef } from "../api";
 import { t, type Key } from "../i18n";
 import { argsFull, argsPreview, project, type FeedItem, type Step } from "../projection";
 import { loadSession, openSession, refreshAgents, refreshSessions, setState, toast, useStore, sessionAgent } from "../store";
@@ -634,6 +637,7 @@ function Composer({
   const permM = useMenu();
   const modelM = useMenu();
   const ctxM = useMenu();
+  const dirM = useMenu();
 
   useLayoutEffect(() => {
     const el = ta.current;
@@ -946,6 +950,21 @@ function Composer({
             <span className="lbl">{modeLabel(mode)}</span>
             <ChevronDown size={14} />
           </button>
+          {!channel && (
+            <button
+              className={"cbtn cdir" + (agent.sharedWorkspace ? " on" : "")}
+              type="button"
+              ref={dirM.ref}
+              onClick={dirM.toggle}
+              aria-haspopup="menu"
+              disabled={!manage}
+              title={t("comp.workdir", { dir: agent.workspace })}
+            >
+              <Folder size={15} />
+              <span className="lbl">{dirName(agent.workspace, !!agent.sharedWorkspace)}</span>
+              <ChevronDown size={14} />
+            </button>
+          )}
           {composerActions.map((c) => (
             <button key={c.key} className="cbtn" type="button" title={c.desc || c.title} onClick={() => void runCommand(c, sessionId)}>
               <SlotIcon name={c.icon} />
@@ -989,17 +1008,6 @@ function Composer({
         </div>
       </form>
       <div className="cfoot">
-        <button
-          className="hostlink"
-          type="button"
-          title={t("comp.workdir", { dir: agent.workspace })}
-          onClick={() => {
-            void navigator.clipboard?.writeText(agent.workspace).then(() => toast(t("comp.copied")), () => {});
-          }}
-        >
-          <Folder size={13} />
-          <MidPath path={shortPath(agent.workspace)} />
-        </button>
         <span className="sp" />
         {shown && quota !== null && (
           <span className={"quota" + (quota <= 10 ? " warnq" : "")}>
@@ -1044,6 +1052,10 @@ function Composer({
             <span>{t("common.soon")}</span>
           </span>
         </button>
+      </Popover>
+
+      <Popover anchor={dirM.anchor} open={dirM.open} onClose={dirM.close} placement="top" width={340}>
+        <DirMenu agent={agent} onDone={dirM.close} />
       </Popover>
 
       <Popover anchor={permM.anchor} open={permM.open} onClose={permM.close} placement="top" width={300}>
@@ -1318,13 +1330,117 @@ export function shortPath(p: string): string {
 }
 
 /** Middle-ellipsis path: keeps the head and the last segment visible. */
-function MidPath({ path }: { path: string }) {
-  const i = path.lastIndexOf("/");
-  if (i <= 0 || path.length < 28) return <span className="path">{path}</span>;
+/** Label of the working folder: the project's name, or 默认工作区. */
+function dirName(p: string, project: boolean): string {
+  if (!project) return t("dir.default");
+  const parts = p.replace(/\/+$/, "").split("/");
+  return parts[parts.length - 1] || p;
+}
+
+const RECENT_KEY = "crewbase.recentDirs";
+
+function recentDirs(): string[] {
+  try {
+    const v = JSON.parse(localStorage.getItem(RECENT_KEY) || "[]");
+    return Array.isArray(v) ? v.filter((x) => typeof x === "string").slice(0, 6) : [];
+  } catch {
+    return [];
+  }
+}
+
+function rememberDir(d: string) {
+  try {
+    localStorage.setItem(RECENT_KEY, JSON.stringify([d, ...recentDirs().filter((x) => x !== d)].slice(0, 6)));
+  } catch {
+    /* private mode */
+  }
+}
+
+/** The composer's folder menu: where this agent works (a project folder
+ *  or its own workspace). */
+function DirMenu({ agent, onDone }: { agent: AgentView; onDone: () => void }) {
+  const [typed, setTyped] = useState("");
+  const [busy, setBusy] = useState(false);
+  const d = desktop();
+  const project = agent.sharedWorkspace || "";
+  const use = async (dir: string) => {
+    setBusy(true);
+    try {
+      const a = await API.setProjectDir(agent.id, dir);
+      setState((s) => ({ agents: { ...s.agents, [a.id]: a } }));
+      if (dir) rememberDir(a.workspace);
+      toast(dir ? t("dir.set", { dir: shortPath(a.workspace) }) : t("dir.reset"));
+      onDone();
+    } catch (e: any) {
+      toast(e?.message ?? String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+  const pick = async () => {
+    const dir = await d!.pickFolder!(project || undefined).catch(() => "");
+    if (dir) await use(dir);
+  };
+  const recents = recentDirs().filter((x) => x !== project);
   return (
-    <span className="path mid">
-      <span className="hd">{path.slice(0, i)}</span>
-      <span className="tl">{path.slice(i)}</span>
-    </span>
+    <>
+      <div className="mlbl">{t("dir.title", { name: agent.name })}</div>
+      <button
+        className="mi"
+        type="button"
+        title={t("comp.copyPath")}
+        onClick={() => void navigator.clipboard?.writeText(agent.workspace).then(() => toast(t("comp.copied")), () => {})}
+      >
+        <Folder size={16} />
+        <span className="g">
+          {project ? dirName(project, true) : t("dir.default")}
+          <span className="mono">{shortPath(agent.workspace)}</span>
+        </span>
+        <span className="ck">
+          <Check size={14} />
+        </span>
+      </button>
+      {recents.map((r) => (
+        <button key={r} className="mi" type="button" disabled={busy} onClick={() => void use(r)}>
+          <Clock size={16} />
+          <span className="g">
+            {dirName(r, true)}
+            <span className="mono">{shortPath(r)}</span>
+          </span>
+        </button>
+      ))}
+      <hr />
+      {d?.pickFolder && (
+        <button className="mi" type="button" disabled={busy} onClick={() => void pick()}>
+          <FolderOpen size={16} />
+          <span className="g">{t("dir.pick")}</span>
+        </button>
+      )}
+      <form
+        className="dirtype"
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (typed.trim()) void use(typed.trim());
+        }}
+      >
+        <input className="fi mono" value={typed} onChange={(e) => setTyped(e.target.value)} placeholder={t("dir.typePh")} spellCheck={false} />
+        <button className="btn sm" type="submit" disabled={busy || !typed.trim()}>
+          {t("dir.use")}
+        </button>
+      </form>
+      {project && (
+        <button className="mi" type="button" disabled={busy} onClick={() => void use("")}>
+          <Undo2 size={16} />
+          <span className="g">
+            {t("dir.back")}
+            <span>{t("dir.backDesc")}</span>
+          </span>
+        </button>
+      )}
+      <p className="small" style={{ margin: "4px 9px 6px" }}>
+        {t("dir.note")}
+      </p>
+    </>
   );
 }
+

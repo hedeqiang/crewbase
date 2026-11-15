@@ -217,8 +217,21 @@ var Plugin = kernel.Register(kernel.Spec{
 					Folder      *string   `json:"folder"`
 					Models      *[]string `json:"modelRefs"`
 					NativeTools *[]string `json:"nativeTools"`
+					// ProjectDir: a folder to work in ("" = the agent's own workspace)
+					ProjectDir *string `json:"projectDir"`
 				}
 				_ = r.Decode(&b)
+				if b.ProjectDir != nil {
+					prev := a.Workspace()
+					if err := a.SetProjectDir(strings.TrimSpace(*b.ProjectDir)); err != nil {
+						return nil, gateway.BadRequest("%v", err)
+					}
+					if now := a.Workspace(); now != prev {
+						if ss, err := a.Session(); err == nil {
+							_ = a.Inject(ss, fmt.Sprintf("[工作目录已更改] 从现在起在 %s 工作（之前是 %s）。相对路径和命令都从这里开始；之前目录里的文件不在这里。", now, prev), "workdir")
+						}
+					}
+				}
 				prevMode := a.Mode()
 				err = a.Update(func(s *agent.Spec) {
 					set := func(dst *string, v *string) {

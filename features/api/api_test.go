@@ -211,3 +211,36 @@ func TestCreateGuards(t *testing.T) {
 		t.Fatalf("project folder: %d %v", code, out)
 	}
 }
+
+// An agent can be pointed at a project folder and back; its own files stay
+// in its home.
+func TestProjectDir(t *testing.T) {
+	base, _ := start(t)
+	code, out := do(t, base, tok, "POST", "/api/agents", map[string]any{"name": "Dev"})
+	if code != 200 {
+		t.Fatal(code, out)
+	}
+	id := out["id"].(string)
+	own := out["workspace"].(string)
+	proj := t.TempDir()
+	real, _ := filepath.EvalSymlinks(proj)
+	code, out = do(t, base, tok, "PATCH", "/api/agents/"+id, map[string]any{"projectDir": proj})
+	if code != 200 || out["workspace"] != real {
+		t.Fatalf("set: %d %v", code, out)
+	}
+	if _, err := os.Stat(filepath.Join(real, "MEMORY.md")); err == nil {
+		t.Fatal("agent files written into the project")
+	}
+	_, ev := do(t, base, tok, "GET", "/api/sessions/"+out["session"].(string)+"/events", nil)
+	b, _ := json.Marshal(ev)
+	if !strings.Contains(string(b), "工作目录已更改") || !strings.Contains(string(b), real) {
+		t.Fatal("the agent was not told its folder changed")
+	}
+	if code, _ := do(t, base, tok, "PATCH", "/api/agents/"+id, map[string]any{"projectDir": "/"}); code != 400 {
+		t.Fatal("root accepted")
+	}
+	code, out = do(t, base, tok, "PATCH", "/api/agents/"+id, map[string]any{"projectDir": ""})
+	if code != 200 || out["workspace"] != own {
+		t.Fatalf("reset: %d %v", code, out)
+	}
+}

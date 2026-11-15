@@ -479,7 +479,7 @@ func (s *Store) Reindex(ctx context.Context) error {
 // refreshMemory re-indexes an agent's MEMORY.md when it changed (or always
 // when force). MEMORY.md is edited by people too, so it is checked lazily.
 func (s *Store) refreshMemory(a *agent.Agent, force bool) error {
-	path := filepath.Join(a.Workspace(), "MEMORY.md")
+	path := filepath.Join(a.Home(), "MEMORY.md")
 	fi, err := os.Stat(path)
 	var mt time.Time
 	if err == nil {
@@ -676,7 +676,7 @@ func (s *Store) Add(agentID, text string) (string, error) {
 		return "", errors.New("memory text is empty")
 	}
 	line := fmt.Sprintf("- %s: %s", time.Now().Format("2006-01-02"), text)
-	path := filepath.Join(a.Workspace(), "MEMORY.md")
+	path := filepath.Join(a.Home(), "MEMORY.md")
 	s.mu.Lock()
 	cur, err := os.ReadFile(path)
 	if err != nil && !os.IsNotExist(err) {

@@ -51,6 +51,8 @@ export interface AgentView {
   detail?: string;
   paused: boolean;
   queue: Input[];
+  /** project folder the agent works in (unset = its own workspace) */
+  sharedWorkspace?: string;
   workspace: string;
   effectiveMode: Mode;
   nativeTools?: string[] | null;
@@ -319,6 +321,8 @@ export interface CrewbaseDesktop {
   quit?: () => void;
   openExternal?: (url: string) => void;
   setBadge?: (n: number) => void;
+  /** Native folder chooser; resolves to "" when cancelled. */
+  pickFolder?: (start?: string) => Promise<string>;
 }
 
 declare global {
@@ -772,6 +776,7 @@ export interface ImGateway {
 export type Followup = { id: string; agent: string; session: string; note: string; due: string; set: string };
 
 export const API = {
+  setProjectDir: (agent: string, dir: string) => api<AgentView>("PATCH", `/api/agents/${enc(agent)}`, { projectDir: dir }),
   followups: (agent: string) => api<{ followups: Followup[] }>("GET", `/api/agents/${enc(agent)}/followups`),
   cancelFollowup: (agent: string, id: string) => api("DELETE", `/api/agents/${enc(agent)}/followups/${enc(id)}`),
   imConfig: () => api<{ platforms: ImPlatform[]; gateways: ImGateway[] }>("GET", "/api/im/config"),

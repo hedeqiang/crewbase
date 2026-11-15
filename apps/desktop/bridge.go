@@ -31,6 +31,20 @@ func (d Desktop) OpenExternal(rawURL string) error {
 	return errors.New("only http, https and mailto URLs open outside the app")
 }
 
+// PickFolder shows the system's folder chooser (a sheet on the window) and
+// returns the chosen folder, "" when cancelled. start is where it opens.
+func (d Desktop) PickFolder(start string) (string, error) {
+	paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{
+		Parent: d.s.window(), Title: "选择项目文件夹", ButtonLabel: "选择",
+		Message:     "Agent 会在这个文件夹里读写文件、运行命令（按它的运行权限）。",
+		DefaultPath: start, Directory: true, CreateDirectories: true,
+	})
+	if err != nil || len(paths) == 0 {
+		return "", err
+	}
+	return paths[0], nil
+}
+
 // SetBadge sets the page's count for the Dock badge. The badge shows the
 // larger of it and the shell's own pending count (approvals + takeovers),
 // so the page cannot hide a waiting approval by setting 0.
@@ -41,7 +55,7 @@ func (d Desktop) SetBadge(n int) {
 
 // preloadScript defines window.crewbaseDesktop in pages of origin. The
 // surface is exactly { version, platform, quit(), openExternal(url),
-// setBadge(n) }; it calls the Desktop service through window.mygo, which
+// setBadge(n), pickFolder(start) }; it calls the Desktop service through window.mygo, which
 // MyGo injects before preload scripts run.
 func preloadScript(origin, version string) string {
 	o, _ := json.Marshal(origin)
@@ -58,6 +72,7 @@ func preloadScript(origin, version string) string {
       quit: () => { call("Quit"); },
       openExternal: (url) => { call("OpenExternal", String(url)); },
       setBadge: (n) => { call("SetBadge", Math.max(0, Math.floor(Number(n) || 0))); },
+      pickFolder: (start) => window.mygo.call("Desktop.PickFolder", String(start || "")),
     }),
   });
 })();`

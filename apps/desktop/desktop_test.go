@@ -104,7 +104,7 @@ func TestClip(t *testing.T) {
 
 func TestPreloadScript(t *testing.T) {
 	js := preloadScript("http://127.0.0.1:7788", "0.1.0")
-	for _, want := range []string{`location.origin !== "http://127.0.0.1:7788"`, `version: "0.1.0"`, "quit:", "openExternal:", "setBadge:", `"Desktop." + m`} {
+	for _, want := range []string{`location.origin !== "http://127.0.0.1:7788"`, `version: "0.1.0"`, "quit:", "openExternal:", "setBadge:", "pickFolder:", `"Desktop." + m`} {
 		if !strings.Contains(js, want) {
 			t.Errorf("preload lacks %q", want)
 		}

@@ -185,6 +185,49 @@ func (a *Agent) Workspace() string {
 
 func (a *Agent) ownDir() string { return filepath.Join(a.reg.root, "workspaces", a.spec.ID) }
 
+func (a *Agent) whereLine() string {
+	if p := a.ProjectDir(); p != "" {
+		return "You work in the project folder " + p + " (the user chose it): relative paths and commands start there."
+	}
+	return "Workspace directory: " + a.Workspace()
+}
+
+// Home holds the agent's own files (INSTRUCTIONS.md, MEMORY.md, .memory/):
+// its own directory, also when it works in a project folder, so they never
+// land in someone's repository. A sub-agent sharing its parent's workspace
+// reads the parent's (as before).
+func (a *Agent) Home() string {
+	if a.spec.Ephemeral {
+		return a.Workspace()
+	}
+	return a.ownDir()
+}
+
+// ProjectDir is the project folder the agent works in, "" for its own
+// workspace.
+func (a *Agent) ProjectDir() string {
+	if a.spec.Ephemeral {
+		return ""
+	}
+	return a.spec.SharedWorkspace
+}
+
+// SetProjectDir points the agent at a project folder ("" = back to its own
+// workspace), checked as Registry.ProjectDir does.
+func (a *Agent) SetProjectDir(dir string) error {
+	if a.Spec().Ephemeral {
+		return errors.New("a sub-agent works where its parent does")
+	}
+	if dir != "" {
+		d, err := a.reg.ProjectDir(dir)
+		if err != nil {
+			return err
+		}
+		dir = d
+	}
+	return a.Update(func(s *Spec) { s.SharedWorkspace = dir })
+}
+
 // Mode returns the effective run mode (host mode expires to sandbox).
 func (a *Agent) Mode() string {
 	s := a.Spec()
@@ -199,7 +242,7 @@ func (a *Agent) Mode() string {
 
 // Instructions reads INSTRUCTIONS.md (the file is the source of truth).
 func (a *Agent) Instructions() string {
-	b, err := os.ReadFile(filepath.Join(a.Workspace(), "INSTRUCTIONS.md"))
+	b, err := os.ReadFile(filepath.Join(a.Home(), "INSTRUCTIONS.md"))
 	if err != nil {
 		return a.Spec().Instructions
 	}
@@ -235,7 +278,7 @@ func MemoryForPrompt(m string) string {
 
 // Memory reads MEMORY.md.
 func (a *Agent) Memory() string {
-	b, _ := os.ReadFile(filepath.Join(a.Workspace(), "MEMORY.md"))
+	b, _ := os.ReadFile(filepath.Join(a.Home(), "MEMORY.md"))
 	return string(b)
 }
 
@@ -841,6 +884,11 @@ func (r *Registry) Names() map[string]string {
 // file-system root, the home directory itself, nor inside Crewbase's data
 // directory. It returns the cleaned path with symlinks resolved.
 func (r *Registry) ProjectDir(dir string) (string, error) {
+	if dir == "~" || strings.HasPrefix(dir, "~/") {
+		if home, err := os.UserHomeDir(); err == nil {
+			dir = filepath.Join(home, strings.TrimPrefix(dir, "~"))
+		}
+	}
 	if !filepath.IsAbs(dir) {
 		return "", fmt.Errorf("project folder %q is not an absolute path", dir)
 	}
@@ -963,9 +1011,9 @@ var Plugin = kernel.Register(kernel.Spec{
 			}
 			s := a.Spec()
 			if s.Kind == KindChat {
-				return "Workspace directory: " + a.Workspace() // no persona, no instructions
+				return a.whereLine() // no persona, no instructions
 			}
-			return fmt.Sprintf("Your name is %s (agent id %s). Workspace directory: %s\n\n%s", s.Name, s.ID, a.Workspace(), a.Instructions())
+			return fmt.Sprintf("Your name is %s (agent id %s). %s\n\n%s", s.Name, s.ID, a.whereLine(), a.Instructions())
 		}})
 		pa.Register(c, &prompt.Fragment{Name: "agent-memory", Order: 20, Render: func(id string) string {
 			a, ok := r.Get(id)
