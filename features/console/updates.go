@@ -55,8 +55,9 @@ func (u *updates) get() UpdateInfo {
 	u.mu.Lock()
 	defer u.mu.Unlock()
 	i := u.info
-	i.Current, i.Enabled = kernel.Version, u.enabled
-	i.Available = i.Latest != "" && newer(i.Latest, i.Current)
+	i.Current, i.Enabled = kernel.Version, u.enabled && !devBuild()
+	// a development build (go run, make) is not something an update replaces
+	i.Available = i.Latest != "" && newer(i.Latest, i.Current) && !devBuild()
 	return i
 }
 
@@ -133,8 +134,11 @@ func parseVer(s string) ver {
 	return v
 }
 
+// devBuild: a build without a release version (go run, go build, make).
+func devBuild() bool { return strings.HasSuffix(kernel.Version, "-dev") }
+
 func (u *updates) run(ctx context.Context) {
-	if !u.enabled {
+	if !u.enabled || devBuild() {
 		return
 	}
 	t := time.NewTimer(30 * time.Second)

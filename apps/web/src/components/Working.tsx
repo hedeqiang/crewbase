@@ -6,6 +6,7 @@ import { ago } from "../format";
 import { t, type Key } from "../i18n";
 import { canManage, toast, useStore } from "../store";
 import { Markdown } from "./Markdown";
+import { confirmDialog } from "./Confirm";
 
 /** An agent's working memory: tasks in progress, reference notes, and what
  *  it already told you. Reloaded when a turn ends (that is when it changes). */
@@ -156,7 +157,7 @@ export function WorkNotes({ agent }: { agent: AgentView }) {
           onDelete={
             manage
               ? async () => {
-                  if (!window.confirm(t("work.deleteConfirm", { name: view.name }))) return;
+                  if (!(await confirmDialog(t("work.deleteConfirm", { name: view.name })))) return;
                   try {
                     await API.deleteNote(agent.id, view.name);
                     setView(null);
@@ -178,7 +179,12 @@ const checks = (s: string) => s.replace(/^(\s*[-*] )\[[xX]\] /gm, "$1☑ ").repl
 
 function Viewer({ agent, view, onClose, onDelete }: { agent: AgentView; view: NonNullable<Viewing>; onClose: () => void; onDelete?: () => void }) {
   useEffect(() => {
-    const k = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    const k = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        onClose();
+      }
+    };
     window.addEventListener("keydown", k);
     return () => window.removeEventListener("keydown", k);
   }, [onClose]);

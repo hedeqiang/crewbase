@@ -10,6 +10,7 @@ import { toast, useStore } from "../../store";
 import { errMsg } from "./ExtParts";
 
 import google from "@lobehub/icons-static-svg/icons/google-color.svg?raw";
+import { confirmDialog } from "../Confirm";
 
 export interface GoogleProduct {
   id: string;
@@ -139,8 +140,8 @@ export function GoogleAccount({ onChange }: { onChange: () => void }) {
                 className="btn sm"
                 type="button"
                 disabled={!!busy}
-                onClick={() => {
-                  if (window.confirm(t("gws.signOutConfirm", { email: v.email ?? "" }))) void run("out", () => googleAPI.disconnect(), t("gws.signedOut"));
+                onClick={async () => {
+                  if (await confirmDialog(t("gws.signOutConfirm", { email: v.email ?? "" }))) void run("out", () => googleAPI.disconnect(), t("gws.signedOut"));
                 }}
               >
                 {t("gws.signOut")}

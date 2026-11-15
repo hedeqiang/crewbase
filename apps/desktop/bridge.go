@@ -130,3 +130,14 @@ func preloadScript(origin, version string) string {
   });
 })();`
 }
+
+// KeepRunning reports whether closing the window keeps the app (and its
+// agents) running; Settings › 通用 shows it.
+func (d Desktop) KeepRunning() bool { return d.s.prefs.keepRunning() }
+
+// SetKeepRunning changes it (the tray menu's checkbox follows).
+func (d Desktop) SetKeepRunning(on bool) bool {
+	d.s.prefs.setKeepRunning(on)
+	d.s.updateTray()
+	return d.s.prefs.keepRunning()
+}

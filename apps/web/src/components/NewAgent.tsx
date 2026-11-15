@@ -79,7 +79,12 @@ export function NewAgent({ draft: f, setDraft }: { draft: Draft; setDraft: (d: D
   const folderM = useMenu();
   const [newFolder, setNewFolder] = useState("");
   // which start the form came from ("" = blank, null = edited by hand)
-  const [picked, setPicked] = useState<string | null>("");
+  // a template chosen before this page opened (the welcome page) is the
+  // one already in the form: recognise it by its name, colour and shape
+  const [picked, setPicked] = useState<string | null>(() => {
+    const x = TEMPLATES.find((tp) => tp.color === f.color && tp.shape === f.shape && t(`tpl.${tp.key}.name` as Key) === f.name);
+    return x ? x.key : f.name ? null : "";
+  });
   const pickTemplate = (x: (typeof TEMPLATES)[number]) => {
     setErr(false);
     setPicked(x.key);

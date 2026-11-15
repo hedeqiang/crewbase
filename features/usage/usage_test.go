@@ -49,7 +49,7 @@ func TestUsageAndSavings(t *testing.T) {
 	agentloop.WaitIdle(a, 2*time.Second)
 
 	st := kernel.Use[*usage.Service](r, usage.ServiceKey).Compute()
-	if st.Messages != 2 || st.Tokens == 0 || st.PeakDay != time.Now().UTC().Format("2006-01-02") {
+	if st.Messages != 2 || st.Tokens == 0 || st.PeakDay != time.Now().Format("2006-01-02") /* the host's own day */ {
 		t.Fatalf("%+v", st)
 	}
 	if st.Switches < 1 || st.Interventions != 1 {

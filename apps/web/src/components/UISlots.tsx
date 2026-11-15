@@ -17,6 +17,7 @@ import { useEffect, useState } from "react";
 import { API, desktop, type UIContribution, type UIField, type UIPanel } from "../api";
 import { t } from "../i18n";
 import { openSession, toast, useStore } from "../store";
+import { confirmDialog } from "./Confirm";
 
 /** Plugins name icons; only this set is rendered (others fall back). */
 const ICONS: Record<string, LucideIcon> = {
@@ -140,7 +141,7 @@ export function PanelView({ c, session = "" }: { c: UIContribution; session?: st
 
 /** Runs a palette.command / composer.action (asks first when it declares confirm). */
 export async function runCommand(c: UIContribution, session = "") {
-  if (c.confirm && !window.confirm(c.confirm)) return;
+  if (c.confirm && !(await confirmDialog({ text: c.confirm }))) return;
   try {
     const r = await API.uiRun(c.slot, c.key, session);
     if (r.toast) toast(r.toast);

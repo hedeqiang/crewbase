@@ -8,6 +8,7 @@ import { Avatar } from "../Avatar";
 import { Markdown } from "../Markdown";
 import { Head } from "../Settings";
 import { moveNode, nodeAt, removeNode, WorkflowCanvas, type NodeRef } from "./WorkflowCanvas";
+import { confirmDialog } from "../Confirm";
 
 type Tab = "routines" | "workflows";
 
@@ -123,7 +124,7 @@ function Routines() {
     }
   };
   const del = async (r: Routine) => {
-    if (!window.confirm(t("auto.deleteConfirm", { name: r.name }))) return;
+    if (!(await confirmDialog(t("auto.deleteConfirm", { name: r.name })))) return;
     try {
       await API.deleteRoutine(r.id);
       void load();
@@ -491,7 +492,7 @@ function WorkflowDetail({ wf, reload, onDeleted }: { wf: Workflow; reload: () =>
     }
   };
   const del = async () => {
-    if (!window.confirm(t("auto.deleteConfirm", { name: wf.name }))) return;
+    if (!(await confirmDialog(t("auto.deleteConfirm", { name: wf.name })))) return;
     try {
       await API.deleteWorkflow(wf.id);
       onDeleted();

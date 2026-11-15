@@ -353,6 +353,9 @@ export interface CrewbaseDesktop {
   setBadge?: (n: number) => void;
   /** Native folder chooser; resolves to "" when cancelled. */
   pickFolder?: (start?: string) => Promise<string>;
+  /** closing the window keeps the app running (Settings › 通用) */
+  keepRunning?: () => Promise<boolean>;
+  setKeepRunning?: (on: boolean) => Promise<boolean>;
   updates?: () => Promise<DesktopUpdates>;
   checkForUpdates?: () => void;
   setUpdatePrefs?: (checks: boolean, downloads: boolean) => Promise<DesktopUpdates>;

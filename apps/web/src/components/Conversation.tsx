@@ -1,4 +1,7 @@
 import { Welcome } from "./Welcome";
+import { runShortcut } from "../actions";
+import { keyLabel } from "../shortcuts";
+import { catLabel } from "./Settings";
 import type { Draft } from "./NewAgent";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
@@ -9,6 +12,7 @@ import {
   ChevronLeft,
   CornerLeftUp,
   CircleX,
+  CircleMinus,
   Folder,
   FolderOpen,
   Clock,
@@ -478,17 +482,31 @@ function Handover({ it, from, to }: { it: Extract<FeedItem, { k: "handover" }>; 
   );
 }
 
+/** How a finished step went: a declined approval or a command's non-zero
+ *  exit (grep finding nothing, cat of a missing file) is not a failure of
+ *  the tool, and is not shown as one. */
+type Outcome = "ok" | "declined" | "exit" | "error";
+function outcome(s: Step): Outcome {
+  const r = s.result;
+  if (!r || !r.isError) return "ok";
+  if (/^not approved \(/.test(r.content)) return "declined";
+  if (/^Exit code: [1-9]\d*\n/.test(r.content)) return "exit";
+  return "error";
+}
+
 function Steps({ steps }: { steps: Step[] }) {
   const [open, setOpen] = useState(false);
   const running = steps.some((s) => !s.result && !s.awaiting);
   const awaiting = steps.some((s) => s.awaiting);
-  const errors = steps.filter((s) => s.result?.isError).length;
+  const errors = steps.filter((s) => outcome(s) === "error").length;
+  const declined = steps.filter((s) => outcome(s) === "declined").length;
   return (
     <div className="stepsw">
       <button className="row-btn" type="button" aria-expanded={open} onClick={() => setOpen(!open)}>
         {running ? <span className="spin" /> : <Wrench size={14} className="muted" />}
         {running ? t("chat.stepsRunning", { n: steps.length }) : t("chat.steps", { n: steps.length })}
         {awaiting && <span className="pill amber">{t("appr.waiting")}</span>}
+        {declined > 0 && <span className="pill">{t("chat.toolDeclined")}</span>}
         {errors > 0 && <span className="pill red">{t("chat.toolError")} {errors}</span>}
         <ChevronRight size={14} className="ch" />
       </button>
@@ -509,7 +527,17 @@ function StepRow({ s }: { s: Step }) {
   return (
     <div className="step">
       <button className="stephead" type="button" aria-expanded={open} onClick={() => setOpen(!open)}>
-        {s.awaiting ? <Hand size={13} className="waitc" /> : !s.result ? <span className="spin sm" /> : s.result.isError ? <CircleX size={13} className="errc" /> : <Check size={13} className="okc" />}
+        {s.awaiting ? (
+          <Hand size={13} className="waitc" />
+        ) : !s.result ? (
+          <span className="spin sm" />
+        ) : outcome(s) === "error" ? (
+          <CircleX size={13} className="errc" />
+        ) : outcome(s) === "ok" ? (
+          <Check size={13} className="okc" />
+        ) : (
+          <CircleMinus size={13} className="muted" />
+        )}
         <b className="mono">{s.call.name}</b>
         <span className="mono pv">{pv}</span>
       </button>
@@ -520,7 +548,7 @@ function StepRow({ s }: { s: Step }) {
             (s.result.content.startsWith(PARKED) ? (
               <p className="small muted">{t("appr.parked")}</p>
             ) : (
-              <pre className={"codeblk" + (s.result.isError ? " errblk" : "")}>{clip(s.result.content)}</pre>
+              <pre className={"codeblk" + (outcome(s) === "error" ? " errblk" : "")}>{clip(s.result.content)}</pre>
             ))}
         </div>
       )}
@@ -530,6 +558,17 @@ function StepRow({ s }: { s: Step }) {
 
 /** Start of tools.ParkedResult: the call stopped waiting for its approval. */
 const PARKED = "Waiting for the user's approval";
+
+/** Why a request asks, in the UI's language: the category ("删除文件"),
+ *  and whether a rule or the default asked; the engine's own wording
+ *  ("rules: delete requires approval (default)") is only a tooltip. */
+function approvalWhy(req: { category?: string; reason?: string; asked?: string }, time: string): string {
+  const cat = req.category ? catLabel(req.category) : "";
+  const byRule = !!req.reason && !/\(default\)\s*$/.test(req.reason) && /^rules:/.test(req.reason);
+  const when = ago(req.asked || time);
+  const waited = when === t("time.justNow") ? t("appr.justAsked") : t("appr.waited", { wait: when });
+  return t(byRule ? "appr.byRule" : "appr.byDefault", { cat: cat || req.reason || "", waited });
+}
 
 function clip(s: string, n = 6000) {
   return s.length > n ? s.slice(0, n) + `\n… (${s.length - n} more)` : s;
@@ -566,7 +605,7 @@ function ApprovalCard({ it, agent }: { it: Extract<FeedItem, { k: "approval" }>;
   return (
     <div className={"qcard" + (pending ? " wait" : "")}>
       <h4>{t("appr.wants", { agent: name, summary })}</h4>
-      <div className="qs">{t("appr.rule", { reason: it.req.reason || it.req.category, wait: ago(it.req.asked || it.time) })}</div>
+      <div className="qs">{approvalWhy(it.req, it.time)}</div>
       {cmd && <code className="cmd">{cmd}</code>}
       {req.preview && (
         <details className="apreview">
@@ -741,6 +780,7 @@ function Composer({
     return MAC ? d.join("") : d.join("+");
   })();
   const canSend = (!!draft.trim() || pending.some((f) => f.state === "ok")) && !pending.some((f) => f.state === "up");
+  const busy = !channel && (agent.status === "running" || agent.status === "waiting");
 
   const attach = (files: File[]) => {
     if (!files.length) return;
@@ -1040,9 +1080,17 @@ function Composer({
           >
             {listening ? <MicOff size={15} /> : <Mic size={15} />}
           </button>
-          <button className={"send" + (canSend ? " on" : "")} type="submit" disabled={!canSend || sending} aria-label={t("chat.send", { key: sendKey })} title={t("chat.send", { key: sendKey })}>
-            <ArrowUp size={16} />
-          </button>
+          {busy && !canSend ? (
+            // the agent is working and nothing is typed: the button stops it
+            // (typed text still sends: it joins the running turn)
+            <button className="send on stop" type="button" onClick={() => runShortcut("stop")} aria-label={t("keys.stop")} title={t("keys.stop") + " · " + keyLabel("stop")}>
+              <Square size={12} fill="currentColor" />
+            </button>
+          ) : (
+            <button className={"send" + (canSend ? " on" : "")} type="submit" disabled={!canSend || sending} aria-label={t("chat.send", { key: sendKey })} title={t("chat.send", { key: sendKey })}>
+              <ArrowUp size={16} />
+            </button>
+          )}
         </div>
       </form>
       <div className="cfoot">

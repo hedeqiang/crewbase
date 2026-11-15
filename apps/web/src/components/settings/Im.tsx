@@ -9,6 +9,7 @@ import slackSvg from "../../assets/im/slack.svg?raw";
 import discordSvg from "../../assets/im/discord.svg?raw";
 import telegramSvg from "../../assets/im/telegram.svg?raw";
 import feishuSvg from "../../assets/im/feishu.svg?raw";
+import { confirmDialog } from "../Confirm";
 
 // Each platform's own mark, from its official brand assets (slack.com,
 // discord.com/branding, telegram.org, feishu.cn / larksuite.com).
@@ -264,7 +265,7 @@ function GatewayRow({ p, g, onEdit, onChanged }: { p: ImPlatform; g: ImGateway; 
   };
   const remove = async () => {
     more.close();
-    if (!window.confirm(t("imx.removeConfirm", { name: g.channel }))) return;
+    if (!(await confirmDialog(t("imx.removeConfirm", { name: g.channel })))) return;
     await API.removeIm(g.id).catch((e) => toast(e?.message ?? String(e)));
     await onChanged();
   };

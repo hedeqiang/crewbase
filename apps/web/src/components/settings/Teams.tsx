@@ -7,6 +7,7 @@ import { kfmt, modeLabel } from "../../format";
 import { Avatar } from "../Avatar";
 import { Popover, useMenu } from "../Popover";
 import { Head } from "../Settings";
+import { confirmDialog } from "../Confirm";
 
 const COLORS = ["#3b32c4", "#24b07e", "#f2b33d", "#e5484d", "#3987e5", "#d651c8", "#1fb5a8", "#ef8a45"];
 
@@ -120,10 +121,10 @@ function TeamCard({
     const n = draft.trim();
     if (n && n !== tm.name) void run(() => API.patchTeam(tm.id, { name: n }));
   };
-  const remove = () => {
+  const remove = async () => {
     more.close();
     if (tm.agents || tm.channels) return toast(t("teams.notEmpty", { name: tm.name }));
-    if (window.confirm(t("teams.deleteConfirm", { name: tm.name })))
+    if (await confirmDialog(t("teams.deleteConfirm", { name: tm.name })))
       void run(async () => {
         await API.deleteTeam(tm.id);
         if (current) switchTeam(DEFAULT_TEAM);

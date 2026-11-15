@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { ArrowDown, ArrowUp, Plus, RefreshCw, X } from "lucide-react";
 import { API, parseRef, refString, type TaskRoute } from "../../api";
 import { t, type Key } from "../../i18n";
-import { allModels, modelLabel, until } from "../../format";
+import { allModels, modelLabel, providerName, until } from "../../format";
 import { refreshModels, toast, useStore } from "../../store";
 import { ProviderMark } from "../ProviderMark";
 import { useSettingsData } from "../Settings";
@@ -163,6 +163,19 @@ function Exhausted() {
 }
 const REASONS: Record<string, true> = { "chat.reason.quota_exhausted": true, "chat.reason.rate_limited": true, "chat.reason.unavailable": true };
 
+/** The model part of "provider/model" ("magpie/deepseek/deepseek-flash" and
+ *  "deepseek/deepseek-flash" are both DeepSeek Flash). */
+const modelPart = (ref: string) => {
+  const i = ref.indexOf("/");
+  const p = ref.slice(0, i);
+  return p === "magpie" || p === "openrouter" ? ref.slice(i + 1) : ref;
+};
+const sameModel = (a: string, b: string) => modelPart(a) === modelPart(b);
+const viaOf = (ref: string) => {
+  const p = ref.slice(0, ref.indexOf("/"));
+  return p === "magpie" || p === "openrouter" ? t("rt.via", { name: providerName(p) }) : t("rt.direct");
+};
+
 function Routes() {
   const [routes, setRoutes] = useState<TaskRoute[] | null>(null);
   const [tasks, setTasks] = useState<string[]>([]);
@@ -223,6 +236,10 @@ function Routes() {
               </span>
               <span className="arrow">→</span>
               <ModelSelect value={r.model} onChange={(v) => edit(routes.map((x, j) => (j === i ? { ...x, model: v } : x)))} placeholder={t("rt.pickModel")} />
+              {/* the same model reached two ways (directly, through a gateway): say which this row is */}
+              {r.model && routes.some((x, j) => j !== i && x.task === r.task && sameModel(x.model, r.model)) && (
+                <span className="pill sm">{viaOf(r.model)}</span>
+              )}
               <button className="ix" type="button" aria-label={t("panel.remove")} onClick={() => edit(routes.filter((_, j) => j !== i))}>
                 <X size={13} />
               </button>

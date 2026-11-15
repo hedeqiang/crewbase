@@ -6,6 +6,7 @@ import { ago } from "../format";
 import { setState, toast, useStore } from "../store";
 import { Markdown } from "./Markdown";
 import { shortPath } from "./Conversation";
+import { confirmDialog } from "./Confirm";
 
 function sizeFmt(n: number): string {
   if (n < 1024) return n + " B";
@@ -138,7 +139,7 @@ function Preview({ agentId, path, onClose }: { agentId: string; path: string; on
               <Save size={12} />
               {t("common.save")}
             </button>
-            <button className="btn ghost sm" type="button" onClick={() => (!dirty || window.confirm(t("files.discard"))) && setEdit(null)}>
+            <button className="btn ghost sm" type="button" onClick={async () => (!dirty || (await confirmDialog(t("files.discard")))) && setEdit(null)}>
               {t("common.cancel")}
             </button>
           </>

@@ -234,6 +234,7 @@ export function setState(patch: Partial<State> | ((s: State) => Partial<State>))
   const p = typeof patch === "function" ? patch(state) : patch;
   state = { ...state, ...p };
   if ("current" in p) LS.set("current", state.current);
+  if ("view" in p || "settings" in p) syncSettingsHash();
   if ("panelOpen" in p && !midWidth()) LS.set("panel", state.panelOpen ? "1" : "0");
   subs.forEach((f) => f());
 }
@@ -320,9 +321,26 @@ export function applyHashRoute(hash = location.hash): boolean {
     if (m[3]) setState({ settingsTab: decodeURIComponent(m[3]) });
   }
   else return false;
-  // consume it so the same link can be followed again
-  history.replaceState(null, "", location.pathname + location.search);
+  // a session link is consumed so the same link can be followed again;
+  // a settings page stays in the address bar (see setState) so a refresh
+  // comes back to it
+  if (m[1] === "session") history.replaceState(null, "", location.pathname + location.search);
   return true;
+}
+
+/** Keeps the address bar on the settings page being shown (and clears it
+ *  when leaving settings), so reloading the page stays there. */
+function syncSettingsHash() {
+  if (typeof location === "undefined") return;
+  const onSettings = location.hash.startsWith("#/settings");
+  if (state.view === "settings") {
+    const want = "#/settings/" + encodeURIComponent(state.settings);
+    // a deeper link (#/settings/<section>/<tab>) for the same page is kept
+    if (location.hash === want || location.hash.startsWith(want + "/")) return;
+    history.replaceState(null, "", location.pathname + location.search + want);
+  } else if (onSettings) {
+    history.replaceState(null, "", location.pathname + location.search);
+  }
 }
 
 export const isChat = (a?: AgentView) => a?.kind === "chat";
@@ -381,6 +399,23 @@ export async function refreshTeams() {
 
 /** 新对话: a blank chat on the default model, opened right away. */
 export async function newChat(folder?: string) {
+  // an untouched new chat in the same place is reused: ⌘N twice does not
+  // leave a row of empty "新对话"s behind
+  const blank = Object.values(state.agents).find(
+    (a) =>
+      a.kind === "chat" &&
+      teamOf(a) === currentTeam() &&
+      (a.folder ?? "") === (folder ?? "") &&
+      a.status !== "running" &&
+      a.queue.length === 0 &&
+      state.summaries[a.session] !== undefined &&
+      !state.summaries[a.session].last,
+  );
+  if (blank) {
+    setState({ palette: false });
+    openSession(blank.session);
+    return;
+  }
   try {
     const a = await API.createAgent({ kind: "chat", team: currentTeam(), folder: folder || undefined });
     setState((s) => ({ agents: { ...s.agents, [a.id]: a }, palette: false }));

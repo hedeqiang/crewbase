@@ -13,6 +13,7 @@ import { Popover, useMenu } from "./Popover";
 import { ProviderMark } from "./ProviderMark";
 import { shortPath } from "./Conversation";
 import { PanelView, useSlot } from "./UISlots";
+import { confirmDialog } from "./Confirm";
 
 export function Panel() {
   const current = useStore((s) => s.current);
@@ -126,7 +127,7 @@ function ChannelTask({ channel }: { channel: ChannelView }) {
             className="btn ghost"
             type="button"
             disabled={busy || archived}
-            onClick={() => window.confirm(t("ch.archiveConfirm", { name: channel.title || channel.id })) && run(() => API.channelAction(channel.id, "archive"), t("ch.archivedToast"))}
+            onClick={async () => (await confirmDialog(t("ch.archiveConfirm", { name: channel.title || channel.id }))) && run(() => API.channelAction(channel.id, "archive"), t("ch.archivedToast"))}
           >
             <Archive size={12} />
             {t("ch.archive")}
@@ -485,7 +486,7 @@ function AgentTab({ agent, sessionId }: { agent: AgentView; sessionId: string })
     }
   };
   const del = async () => {
-    if (!window.confirm(t("panel.deleteConfirm", { name: agent.name }))) return;
+    if (!(await confirmDialog(t("panel.deleteConfirm", { name: agent.name })))) return;
     try {
       await API.deleteAgent(agent.id);
       toast(t("panel.deleted", { name: agent.name }));

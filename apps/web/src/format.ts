@@ -106,6 +106,11 @@ const PROVIDER_NAMES: Record<string, string> = {
   "acp-codex": "Codex",
   "gemini-cli": "Gemini CLI",
   "acp-gemini": "Gemini CLI",
+  "acp-gemini-cli": "Gemini CLI",
+  "acp-cursor": "Cursor CLI",
+  "acp-opencode": "OpenCode",
+  "acp-grok": "Grok CLI",
+  magpie: "magpie",
   grok: "Grok",
   qwen: "Qwen",
   kimi: "Kimi",
@@ -132,6 +137,8 @@ export function providerName(id: string): string {
 
 export function modelLabel(models: ModelsResponse | null, r: ModelRef): string {
   const m = findModel(models, r);
+  // a subscription CLI's "default": whatever model the CLI is set to
+  if (m?.name && r.model === "default" && findProvider(models, r.provider)?.kind === "subscription") return t("model.cliDefault", { name: m.name });
   if (m?.name) return m.name;
   return `${providerName(r.provider)} · ${r.model}`;
 }

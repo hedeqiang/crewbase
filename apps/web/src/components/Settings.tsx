@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { ChevronLeft, Info, Plus, Search, Workflow } from "lucide-react";
 import { NAV, SECTION_ICONS } from "./settings/nav";
 import { API, desktop, type DesktopUpdates, type UpdateInfo, type ApprovalHistoryItem, type ProviderView, type RememberedChoice, type Settings as SettingsData, type UserProvider } from "../api";
-import { t, type Key, type Lang } from "../i18n";
+import { getLang, t, type Key, type Lang } from "../i18n";
 import { ago, kfmt, modeLabel, providerName, until } from "../format";
 import { openSession, setLang, setState, toast, useStore, type SettingsSection, resync } from "../store";
 import { Automation } from "./settings/Automation";
@@ -38,6 +38,7 @@ import {
   type Shortcut,
 } from "../shortcuts";
 import { ThemeSeg } from "./SessionList";
+import { confirmDialog } from "./Confirm";
 
 
 
@@ -231,6 +232,24 @@ function Keys() {
   );
 }
 
+/** 关闭窗口后继续运行: the desktop app's setting (the tray menu has it too);
+ *  shown only where it applies. */
+function KeepRunning() {
+  const d = desktop();
+  const [on, setOn] = useState<boolean | null>(null);
+  useEffect(() => {
+    d?.keepRunning?.().then(setOn, () => setOn(null));
+  }, []);
+  if (!d?.keepRunning || on === null) return null;
+  const flip = () =>
+    d.setKeepRunning?.(!on).then(setOn, (e: any) => toast(e?.message ?? String(e)));
+  return (
+    <Row title={t("set.keepRunning")} desc={t("set.keepRunningDesc")}>
+      <button className="tg" type="button" role="switch" aria-checked={on} aria-label={t("set.keepRunning")} onClick={() => void flip()} />
+    </Row>
+  );
+}
+
 export function Head({ title, sub, right }: { title: string; sub?: string; right?: ReactNode }) {
   return (
     <div className="vh">
@@ -308,13 +327,11 @@ function General() {
           </Row>
           {notifySupported() && <NotifyHere />}
         </div>
-        {manage && (
+        {manage && desktop()?.keepRunning && (
           <>
             <div className="vsec">{t("set.startup")}</div>
             <div className="sbox">
-              <Row title={t("set.keepRunning")} desc={t("set.keepRunningDesc")}>
-                <span className="tg" role="switch" aria-checked="true" aria-disabled="true" />
-              </Row>
+              <KeepRunning />
             </div>
           </>
         )}
@@ -424,7 +441,8 @@ function Updates() {
           </button>
         )}
       </Row>
-      {info.available && info.notes && (
+      {/* the notes are written in Chinese (CHANGELOG.md); the release page link stands in for them in English */}
+      {info.available && info.notes && (getLang() === "zh" || !/[\u4e00-\u9fff]/.test(info.notes)) && (
         <div className="updnotes">
           <Markdown text={info.notes} />
         </div>
@@ -608,7 +626,7 @@ function Models() {
                       className="btn dng sm"
                       type="button"
                       onClick={async () => {
-                        if (!window.confirm(t("ap.removeQ", { name: up.name || up.id }))) return;
+                        if (!(await confirmDialog(t("ap.removeQ", { name: up.name || up.id })))) return;
                         try {
                           await API.removeProvider(up.id);
                           toast(t("ap.removed", { name: up.name || up.id }));
@@ -747,7 +765,7 @@ function Remembered() {
   }, [n]);
   const revoke = async (c: RememberedChoice) => {
     const name = agents[c.agent]?.name ?? c.agent;
-    if (!window.confirm(t("set.revokeConfirm", { agent: name, category: c.category }))) return;
+    if (!(await confirmDialog(t("set.revokeConfirm", { agent: name, category: c.category })))) return;
     try {
       await API.forget(c.agent, c.category);
       toast(t("set.revoked", { agent: name, category: c.category }));

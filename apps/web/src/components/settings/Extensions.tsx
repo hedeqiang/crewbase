@@ -38,6 +38,7 @@ import drivePng from "../../assets/brands/google-drive.png";
 import docsPng from "../../assets/brands/google-docs.png";
 import sheetsPng from "../../assets/brands/google-sheets.png";
 import slidesPng from "../../assets/brands/google-slides.png";
+import { confirmDialog } from "../Confirm";
 const IMG: Record<string, string> = {
   "google-gmail": gmailPng, "google-calendar": calendarPng, "google-drive": drivePng,
   "google-docs": docsPng, "google-sheets": sheetsPng, "google-slides": slidesPng,
@@ -391,8 +392,8 @@ function MarketView({ d, q, reload, reloadMarket, onApprove, onSignIn, onManage 
       mark(it.id, false);
     }
   };
-  const disconnect = (it: CatItem) => {
-    if (!window.confirm(t("mk2.disconnectConfirm", { name: it.name }))) return;
+  const disconnect = async (it: CatItem) => {
+    if (!(await confirmDialog(t("mk2.disconnectConfirm", { name: it.name })))) return;
     mark(it.id, true);
     catalogAPI
       .uninstall(it.id)
@@ -1100,8 +1101,8 @@ function InstalledView({ d, q, reload, reloadMarket, onApprove, onSignIn, onScop
                           label: t("mk2.disconnect"),
                           danger: true,
                           disabled: s.source === "config",
-                          onClick: () => {
-                            if (window.confirm(t("mk2.disconnectConfirm", { name: label }))) void run(s.name, () => API.deleteMcp(s.name), t("mk2.disconnected", { name: label }));
+                          onClick: async () => {
+                            if (await confirmDialog(t("mk2.disconnectConfirm", { name: label }))) void run(s.name, () => API.deleteMcp(s.name), t("mk2.disconnected", { name: label }));
                           },
                         },
                       ]}
@@ -1148,8 +1149,8 @@ function InstalledView({ d, q, reload, reloadMarket, onApprove, onSignIn, onScop
                           label: removable ? t("mk.remove") : t("mk.skillManaged"),
                           danger: removable,
                           disabled: !removable,
-                          onClick: () => {
-                            if (window.confirm(t("mk.removeSkill", { name: s.name }))) void run("skill:" + s.name, () => catalogAPI.removeSkill(s.name, s.agent), t("mk.removed", { name: s.name }));
+                          onClick: async () => {
+                            if (await confirmDialog(t("mk.removeSkill", { name: s.name }))) void run("skill:" + s.name, () => catalogAPI.removeSkill(s.name, s.agent), t("mk.removed", { name: s.name }));
                           },
                         },
                       ]}
@@ -1212,8 +1213,8 @@ function InstalledView({ d, q, reload, reloadMarket, onApprove, onSignIn, onScop
                         {
                           label: t("mk.remove"),
                           danger: true,
-                          onClick: () => {
-                            if (window.confirm(t("ext.removeConfirm", { name: p.name })))
+                          onClick: async () => {
+                            if (await confirmDialog(t("ext.removeConfirm", { name: p.name })))
                               void run(p.name, async () => {
                                 await API.deletePlugin(p.name);
                                 void reloadMarket();

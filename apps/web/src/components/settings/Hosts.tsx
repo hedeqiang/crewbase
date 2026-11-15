@@ -6,6 +6,7 @@ import { ago } from "../../format";
 import { t, type Key } from "../../i18n";
 import { setState, toast, useStore } from "../../store";
 import { Head } from "../Settings";
+import { confirmDialog } from "../Confirm";
 
 /** A QR code drawn as SVG rects (no HTML injection). */
 function QR({ text, size = 176 }: { text: string; size?: number }) {
@@ -113,7 +114,7 @@ export function Hosts() {
   }, [devices]);
 
   const revoke = async (d: DeviceView) => {
-    if (!window.confirm(t("dev.revokeConfirm", { name: d.name }))) return;
+    if (!(await confirmDialog(t("dev.revokeConfirm", { name: d.name })))) return;
     try {
       await API.revokeDevice(d.id);
       toast(t("dev.revoked", { name: d.name }));

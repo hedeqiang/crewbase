@@ -74,7 +74,12 @@ export function RowMenuHost() {
       if (ref.current && e.target instanceof Node && ref.current.contains(e.target)) return;
       setOpen(null);
     };
-    const esc = (e: KeyboardEvent) => e.key === "Escape" && setOpen(null);
+    const esc = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        setOpen(null);
+      }
+    };
     window.addEventListener("mousedown", close);
     window.addEventListener("keydown", esc);
     window.addEventListener("blur", close);
@@ -336,7 +341,10 @@ function RowDialog({ d, folders, onClose }: { d: { kind: DialogKind; target: Tar
               onChange={(e) => setVal(e.target.value)}
               onKeyDown={(e) => {
                 if (e.key === "Enter") void submit();
-                if (e.key === "Escape") onClose();
+                if (e.key === "Escape") {
+                  e.preventDefault();
+                  onClose();
+                }
               }}
             />
             {d.kind === "move" && (

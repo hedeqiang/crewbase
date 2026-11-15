@@ -14,6 +14,7 @@ import { TokenScreen } from "./components/TokenScreen";
 import { PairScreen, pairParams } from "./components/PairScreen";
 import { savedRelay, useRelay } from "./tunnel";
 import { NewChannel } from "./components/NewChannel";
+import { ConfirmHost } from "./components/Confirm";
 
 // Loaded when first opened: most sessions never visit settings.
 const Settings = lazy(() => import("./components/Settings").then((m) => ({ default: m.Settings })));
@@ -124,6 +125,20 @@ function Shell() {
       // while a shortcut is being recorded in settings, keys belong to it
       if (el?.closest?.("[data-recording]")) return;
       if (e.key === "Escape") {
+        // an open dialog closes first: Esc does what clicking its backdrop
+        // does (the topmost one; dialogs with their own Esc handling have
+        // already handled it, see defaultPrevented above)
+        const scrims = Array.from(document.querySelectorAll<HTMLElement>(".scrim, .ovscrim.show")).filter((x) => !x.classList.contains("list-scrim") && !x.classList.contains("panel-scrim"));
+        const top = scrims[scrims.length - 1];
+        if (top) {
+          // after the dialog's own handlers (later listeners on window): one
+          // that handled Esc marks it, and a dialog that closed is gone
+          setTimeout(() => {
+            if (e.defaultPrevented || !top.isConnected) return;
+            top.dispatchEvent(new MouseEvent(top.classList.contains("ovscrim") ? "mousedown" : "click", { bubbles: true }));
+          }, 0);
+          return;
+        }
         const s = getState();
         if (s.palette) setState({ palette: false });
         else if (s.newChannel) setState({ newChannel: false });
@@ -179,6 +194,7 @@ function Shell() {
       <ConnectModel />
       <NewChannel />
       <Toasts />
+      <ConfirmHost />
     </div>
   );
 }

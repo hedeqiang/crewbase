@@ -31,6 +31,7 @@ function Dialog() {
     const key = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         e.stopPropagation();
+        e.preventDefault(); // handled: the app's Esc leaves it alone
         close();
       }
     };

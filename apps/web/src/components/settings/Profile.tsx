@@ -8,10 +8,18 @@ import { Avatar, AvatarRaw, colorFor, MeAvatar } from "../Avatar";
 import { ProviderMark } from "../ProviderMark";
 import { Head } from "../Settings";
 
-const DAY = 86400000;
 
+/** d moved by n calendar days (local; DST-safe, unlike adding 24h). */
+function addDays(d: Date, n: number) {
+  const x = new Date(d);
+  x.setDate(x.getDate() + n);
+  return x;
+}
+
+/** The local calendar day (the daemon counts usage by the host's days). */
 function ymd(d: Date) {
-  return d.toISOString().slice(0, 10);
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
 }
 
 /** 个人资料 (docs/03 §5.4): name, and usage computed by the daemon from local logs. */
@@ -147,9 +155,9 @@ function Heatmap({ days }: { days: Record<string, number> }) {
   const summary = useMemo(() => {
     // 53 columns of weeks (Sun..Sat), ending with the current week.
     const today = new Date();
-    today.setUTCHours(0, 0, 0, 0);
-    const end = new Date(today.getTime() + (6 - today.getUTCDay()) * DAY);
-    const start = new Date(end.getTime() - (53 * 7 - 1) * DAY);
+    today.setHours(0, 0, 0, 0);
+    const end = addDays(today, 6 - today.getDay());
+    const start = addDays(end, -(53 * 7 - 1));
     const vals = Object.values(days).filter((n) => n > 0);
     // Five steps: 0 = none, then four equal bands of the busiest day.
     const max = Math.max(0, ...vals);
@@ -161,13 +169,13 @@ function Heatmap({ days }: { days: Record<string, number> }) {
     for (let w = 0; w < 53; w++) {
       const col = [];
       for (let i = 0; i < 7; i++) {
-        const dt = new Date(start.getTime() + (w * 7 + i) * DAY);
+        const dt = addDays(start, w * 7 + i);
         const d = ymd(dt);
         const n = days[d] ?? 0;
         col.push({ d, n, lv: level(n), future: dt > today });
-        if (i === 0 && dt.getUTCMonth() !== lastMonth) {
-          lastMonth = dt.getUTCMonth();
-          months.push({ col: w, label: `${dt.getUTCMonth() + 1}${t("prof.month")}` });
+        if (i === 0 && dt.getMonth() !== lastMonth) {
+          lastMonth = dt.getMonth();
+          months.push({ col: w, label: `${dt.getMonth() + 1}${t("prof.month")}` });
         }
       }
       weeks.push(col);
@@ -177,16 +185,16 @@ function Heatmap({ days }: { days: Record<string, number> }) {
     let best = 0;
     let run = 0;
     const wd = [0, 0, 0, 0, 0, 0, 0];
-    for (let dt = new Date(start); dt <= today; dt = new Date(dt.getTime() + DAY)) {
+    for (let dt = new Date(start); dt <= today; dt = addDays(dt, 1)) {
       const n = days[ymd(dt)] ?? 0;
       if (n > 0) {
         run++;
         best = Math.max(best, run);
-        wd[dt.getUTCDay()] += n;
+        wd[dt.getDay()] += n;
       } else run = 0;
     }
     // the current streak may end yesterday (today has not happened yet)
-    for (let dt = new Date(today); ; dt = new Date(dt.getTime() - DAY)) {
+    for (let dt = new Date(today); ; dt = addDays(dt, -1)) {
       const n = days[ymd(dt)] ?? 0;
       if (n > 0) cur++;
       else if (dt.getTime() !== today.getTime()) break;

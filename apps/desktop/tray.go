@@ -127,7 +127,7 @@ func (s *shell) updateTray() {
 	}
 	tip := appName
 	if len(needs) > 0 {
-		tip = fmt.Sprintf("%s · %d 项需要你", appName, len(needs))
+		tip = fmt.Sprintf(tr("needsTip"), appName, len(needs))
 	}
 	tray.SetToolTip(tip)
 }

@@ -6,6 +6,7 @@ import { openSettings, setState, toast, useStore } from "../../store";
 import { Popover, useMenu } from "../Popover";
 import { Head } from "../Settings";
 import { PersonDot } from "./Teams";
+import { confirmDialog } from "../Confirm";
 
 const ROLES = ["admin", "member", "viewer"] as const;
 type Role = (typeof ROLES)[number];
@@ -44,7 +45,7 @@ export function Team() {
     }
   };
   const remove = async (m: MemberView) => {
-    if (!window.confirm(t("team.removeConfirm", { name: m.name, n: m.devices ?? 0 }))) return;
+    if (!(await confirmDialog(t("team.removeConfirm", { name: m.name, n: m.devices ?? 0 })))) return;
     try {
       await API.removeMember(m.id);
       toast(t("team.removed", { name: m.name }));

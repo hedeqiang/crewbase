@@ -125,7 +125,7 @@ func (a *Adapter) Models(context.Context) ([]llm.ModelInfo, error) {
 	a.mu.Lock()
 	learned := append([]llm.ModelInfo(nil), a.models...)
 	a.mu.Unlock()
-	out := []llm.ModelInfo{{ID: defaultModel, Provider: a.id, Name: a.cfg.Name + " (CLI default)", ContextWindow: a.cfg.ContextWindow, Capabilities: []string{"code"}, Enabled: true}}
+	out := []llm.ModelInfo{{ID: defaultModel, Provider: a.id, Name: a.cfg.Name, ContextWindow: a.cfg.ContextWindow, Capabilities: []string{"code"}, Enabled: true}}
 	return append(out, learned...), nil
 }
 

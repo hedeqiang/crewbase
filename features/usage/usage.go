@@ -118,7 +118,7 @@ func (s *Service) Compute() Stats {
 				st.Tokens += n
 				st.InputTokens += am.Usage.InputTokens
 				st.OutputTokens += am.Usage.OutputTokens
-				st.Days[e.Time.Format("2006-01-02")] += n
+				st.Days[e.Time.Local().Format("2006-01-02")] += n // the host's own calendar day
 				byProv[am.Model.Provider] += n
 				kind := s.kindOf(am.Model.Provider)
 				st.Kinds[kind] += n

@@ -42,6 +42,7 @@ var words = map[string][2]string{ // key → {zh, en}
 	"open":          {"打开 %s", "Open %s"},
 	"needs":         {"需要你 (%d)", "Needs you (%d)"},
 	"needsNone":     {"没有等你处理的事", "Nothing needs you"},
+	"needsTip":      {"%s · %d 项需要你", "%s · %d need you"},
 	"needsMore":     {"还有 %d 项…", "%d more…"},
 	"atLogin":       {"开机时启动", "Open at login"},
 	"keepRunning":   {"关闭窗口后继续运行", "Keep running when the window is closed"},
