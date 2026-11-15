@@ -94,6 +94,25 @@ type Preset struct {
 	// Part is this preset's word in its server's "{parts}" argument.
 	Part  string `json:"part,omitempty"`
 	Group string `json:"group,omitempty"`
+	// SignIn names a built-in sign-in that obtains the token input for
+	// the person ("github": GitHub's OAuth device flow, see github.go).
+	// Without a configured client the preset falls back to its inputs.
+	SignIn string `json:"signIn,omitempty"`
+}
+
+// How a preset is installed (Preset.kind). Install, Uninstall and List
+// switch on it; a new way to connect (e.g. a built-in connector) adds a
+// kind here and a case in each.
+const (
+	kindServer = "server" // one MCP server of its own
+	kindPart   = "part"   // a part of a server several presets share
+)
+
+func (p Preset) kind() string {
+	if p.Part != "" {
+		return kindPart
+	}
+	return kindServer
 }
 
 // SkillInfo is a built-in skill as listed (its text is in skills/<name>/).
@@ -150,9 +169,13 @@ type Item struct {
 	Name     string `json:"name"`
 	Icon     string `json:"icon,omitempty"`
 	Desc     Text   `json:"desc"`
-	Auth     string `json:"auth"`
-	Docs     string `json:"docs,omitempty"`
-	Setup    Text   `json:"setup,omitzero"`
+	// Auth: none | oauth | token | setup, or "device" when a built-in
+	// sign-in (SignIn) is available: connecting starts it and Inputs are
+	// only the fallback.
+	Auth   string `json:"auth"`
+	SignIn string `json:"signIn,omitempty"`
+	Docs   string `json:"docs,omitempty"`
+	Setup  Text   `json:"setup,omitzero"`
 	// Inputs still needed: empty when installing a further part of a
 	// server that is already set up.
 	Inputs    []Input `json:"inputs,omitempty"`
@@ -180,7 +203,8 @@ var (
 
 // Service is the `catalog` service.
 type Service struct {
-	c *kernel.Context
+	c  *kernel.Context
+	gh *githubSignIn
 }
 
 func (s *Service) mcp() *mcp.Service {
@@ -227,13 +251,16 @@ func (s *Service) List() Listing {
 		for _, p := range builtin.Presets {
 			it := Item{ID: p.ID, Kind: "mcp", Category: p.Category, Name: p.Name, Icon: p.Icon, Desc: p.Desc,
 				Auth: p.Auth, Docs: p.Docs, Setup: p.Setup, Inputs: p.Inputs, Transport: p.Transport, Endpoint: p.endpoint()}
+			if p.SignIn != "" && s.signInReady(p.SignIn) {
+				it.Auth, it.SignIn = "device", p.SignIn
+			}
 			for _, v := range servers {
 				if v.Name == p.Server || (p.Part == "" && p.URL != "" && v.URL == p.URL) {
-					// a part-preset's server already holds the inputs
-					if p.Part != "" {
+					switch p.kind() {
+					case kindPart: // the shared server already holds the inputs
 						it.Inputs = nil
 						it.Installed = slices.Contains(v.Command, p.Part)
-					} else {
+					default:
 						it.Installed = true
 					}
 					if it.Installed || p.Part != "" {
@@ -311,7 +338,8 @@ func (s *Service) Install(id string, req Request) (Result, error) {
 	if svc == nil {
 		return Result{}, errors.New("the mcp service is not running")
 	}
-	if p.Part != "" {
+	switch p.kind() {
+	case kindPart:
 		if v, ok := svc.Get(p.Server); ok {
 			if slices.Contains(v.Command, p.Part) {
 				return Result{}, ErrInstalled
@@ -322,9 +350,17 @@ func (s *Service) Install(id string, req Request) (Result, error) {
 			}
 			return Result{Kind: "mcp", Server: &nv}, nil
 		}
-	} else if _, ok := svc.Get(p.Server); ok {
-		return Result{}, ErrInstalled
+	default:
+		if _, ok := svc.Get(p.Server); ok {
+			return Result{}, ErrInstalled
+		}
 	}
+	return s.addServer(svc, p, req)
+}
+
+// addServer creates p's server from the person's inputs, storing secret
+// inputs in the keychain first.
+func (s *Service) addServer(svc *mcp.Service, p Preset, req Request) (Result, error) {
 	srv, secrets, err := p.build(req.Inputs, svc.ServerDir(p.Server))
 	if err != nil {
 		return Result{}, err
@@ -497,7 +533,7 @@ func (s *Service) Uninstall(id, agentID string) error {
 	if !ok {
 		return ErrMissing
 	}
-	if p.Part != "" {
+	if p.kind() == kindPart {
 		if !slices.Contains(v.Command, p.Part) {
 			return ErrMissing
 		}
@@ -523,6 +559,13 @@ var Plugin = kernel.Register(kernel.Spec{
 	Optional:    []string{mcp.ServiceKey, skills.ServiceKey, credentials.ServiceKey},
 	Description: "Built-in catalog of MCP server presets and skills, installable in one step.",
 	Apply: func(c *kernel.Context) error {
-		return c.Provide(ServiceKey, &Service{c: c})
+		cfg, err := kernel.Decode[Config](c)
+		if err != nil {
+			return err
+		}
+		s := &Service{c: c}
+		s.gh = newGitHubSignIn(s, cfg)
+		c.Go(s.gh.refreshLoop)
+		return c.Provide(ServiceKey, s)
 	},
 })

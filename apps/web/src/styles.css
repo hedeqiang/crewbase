@@ -1631,6 +1631,21 @@ button.psec.toggle { width: 100%; background: none; border: 0; font-family: inhe
 .mknote { font-size: 12.5px; color: var(--text2); background: var(--sunken); border-radius: 10px; padding: 9px 11px; margin: 12px 0 0; line-height: 1.6; }
 .mksign { margin-top: 14px; }
 .mksign .spin { vertical-align: -1px; margin-right: 4px; }
+.mkic.brand.tile { padding: 0; overflow: hidden; box-shadow: none; background: none; outline: 1px solid var(--border); outline-offset: -1px; }
+.mkic.brand.tile svg { width: 40px; height: 40px; }
+.mkic.brand.wide svg { width: 32px; height: auto; }
+.mkrow > .g > span.mkrerr { font-size: 12px; color: var(--danger-text); }
+.mkconn { flex: none; min-width: 64px; justify-content: center; }
+.mkst { flex: none; display: inline-flex; align-items: center; gap: 5px; font-size: 12.5px; font-weight: 500; color: var(--muted); white-space: nowrap; }
+.mkst.ok { color: var(--ok-text); }
+.mkst.err { color: var(--danger-text); }
+.mkrow > .ix { flex: none; margin-left: -6px; }
+.mkcode { display: flex; align-items: center; justify-content: center; gap: 12px; margin: 14px 0 12px; padding: 14px; border-radius: 12px; background: var(--sunken); }
+.mkcode code { font: 600 24px/1.2 var(--mono, ui-monospace, monospace); letter-spacing: .12em; color: var(--text); user-select: all; }
+.mkghopen { width: 100%; justify-content: center; text-decoration: none; }
+.mkghwait { margin: 12px 0 0; text-align: center; }
+.mkghwait .spin, .mkghmsg .spin { vertical-align: -1px; margin-right: 4px; }
+.mkghmsg { margin: 12px 0 0; }
 @container (max-width: 600px) {
   .mkirow .mkerr, .mkdetail { padding-left: 12px; }
   .mkirow > .mkrow { gap: 10px; }
