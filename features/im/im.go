@@ -43,6 +43,7 @@ import (
 	"github.com/hedeqiang/crewbase/capabilities/notify"
 	"github.com/hedeqiang/crewbase/core/agent"
 	"github.com/hedeqiang/crewbase/core/agentloop"
+	"github.com/hedeqiang/crewbase/core/llm"
 	"github.com/hedeqiang/crewbase/kernel"
 )
 
@@ -317,6 +318,8 @@ type Gateway struct {
 	saveTimer *time.Timer
 	refused   map[string]time.Time
 	cardWait  *sync.Cond
+	// inputs enqueued from chat (input id → queued), for the chat norm
+	chatInputs map[string]time.Time
 }
 
 // New creates a gateway without starting it (Start does both).
@@ -469,6 +472,9 @@ func Start(c *kernel.Context, provider string, cfg Config, mk func(g *Gateway) (
 	}
 	approval.Decided.Listen(c, g.onDecided)
 	agentloop.TurnEnded.Listen(c, g.onTurnEnded)
+	if cfg.RelayReplies {
+		agentloop.Request.Use(c, g.chatNorm)
+	}
 	if err := c.Provide(ServicePrefix+g.name, g); err != nil {
 		return nil, err
 	}
@@ -1036,7 +1042,9 @@ func (g *Gateway) Message(ctx context.Context, in Inbound) {
 		return
 	}
 	from := in.User.display()
-	if _, err := a.Enqueue(agent.Input{Session: b.session, Text: rest, From: from, Tag: g.tag(b.id, in.MessageID)}); err != nil {
+	if q, err := a.Enqueue(agent.Input{Session: b.session, Text: rest, From: from, Tag: g.tag(b.id, in.MessageID)}); err == nil {
+		g.noteChatInput(q.ID)
+	} else {
 		g.log.Warn("im enqueue failed", "agent", b.agent, "err", err.Error())
 		reply.Body = "没能把消息交给 " + a.Spec().Name + "，请稍后再试。"
 		g.postLog(ctx, reply)
@@ -1198,4 +1206,57 @@ func (g *Gateway) onTurnEnded(e agentloop.TurnEndEvent) {
 			g.bind(b, b.chat, ref.ID)
 		}
 	})
+}
+
+// ChatNorm is added to the system prompt of turns that answer a chat
+// message: the reply is posted back to the chat, where people read it like
+// a colleague's message, not a terminal transcript.
+const ChatNorm = "This turn answers a message from a team chat (%s); your final reply is posted back to that chat thread. " +
+	"Write like a colleague in chat: lead with the result, or with the one question you need answered. Keep it to about 100 words, " +
+	"with no headings, no long lists and no step-by-step account of what you did. Put long detail (logs, full reports, diffs) in a workspace file " +
+	"and give its path. If nothing needs the person's attention, say so in one line."
+
+func (g *Gateway) noteChatInput(id string) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	if g.chatInputs == nil {
+		g.chatInputs = map[string]time.Time{}
+	}
+	now := g.now()
+	g.chatInputs[id] = now
+	if len(g.chatInputs) > 512 {
+		for k, t := range g.chatInputs {
+			if now.Sub(t) > 24*time.Hour {
+				delete(g.chatInputs, k)
+			}
+		}
+	}
+}
+
+func (g *Gateway) chatNorm(ctx context.Context, args agentloop.RequestArgs, next kernel.Next[agentloop.RequestArgs, *llm.Request]) (*llm.Request, error) {
+	req, err := next(ctx, args)
+	if err != nil || req == nil || args.Agent == nil {
+		return req, err
+	}
+	g.mu.Lock()
+	_, mine := g.chatInputs[args.Agent.CurrentInput()]
+	g.mu.Unlock()
+	if mine {
+		req.System = strings.TrimRight(req.System, "\n") + "\n\n" + fmt.Sprintf(ChatNorm, g.platform())
+	}
+	return req, nil
+}
+
+func (g *Gateway) platform() string {
+	switch g.provider {
+	case "slack":
+		return "Slack"
+	case "telegram":
+		return "Telegram"
+	case "discord":
+		return "Discord"
+	case "feishu":
+		return "Feishu / Lark"
+	}
+	return g.provider
 }
