@@ -1330,3 +1330,9 @@ button.tg:disabled { opacity: .5; cursor: not-allowed; }
 .teamperson .ssel select, .addperson select { font-size: 12px; }
 .addperson { align-self: flex-start; margin-top: 4px; }
 .mi .ro { font-size: 11px; color: var(--muted); border: 1px solid var(--border); border-radius: 5px; padding: 0 5px; }
+
+.teamopts { display: flex; align-items: center; gap: 10px; padding: 0 14px 10px; flex-wrap: wrap; }
+.teamopts .linkbtn { margin-left: auto; }
+.teammem { border-top: 1px solid var(--border); padding: 8px 14px 12px; display: flex; flex-direction: column; gap: 6px; }
+.teammem textarea { width: 100%; font-size: 12px; line-height: 1.5; }
+.teammem .acts { display: flex; justify-content: flex-end; }

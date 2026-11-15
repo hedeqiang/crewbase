@@ -382,6 +382,7 @@ const MCP_TONE: Record<string, string> = { ready: "ok", connecting: "blue", erro
 function Mcp() {
   const tick = useStore((s) => s.mcpTick);
   const agents = useStore((s) => s.agents);
+  const teams = useStore((s) => s.teams);
   const [list, setList] = useState<McpServer[] | null>(null);
   const [adding, setAdding] = useState(false);
   const [open, setOpen] = useState<string | null>(null);
@@ -456,7 +457,13 @@ function Mcp() {
             <div className="rmeta small">
               <span className={"pill " + (MCP_TONE[s.status?.state] ?? "")}>{t(`ext.mcpSt.${s.status?.state}` as Key) === `ext.mcpSt.${s.status?.state}` ? s.status?.state : t(`ext.mcpSt.${s.status?.state}` as Key)}</span>
               <span>{s.transport}</span>
-              <span>{s.scope === "global" || !s.scope ? t("ext.scopeGlobal") : t("ext.scopeAgent", { name: agents[s.scope]?.name ?? s.scope })}</span>
+              <span>
+                {s.scope === "global" || !s.scope
+                  ? t("ext.scopeGlobal")
+                  : s.scope.startsWith("team:")
+                    ? t("ext.scopeTeam", { name: teams.find((x) => "team:" + x.id === s.scope)?.name ?? s.scope.slice(5) })
+                    : t("ext.scopeAgent", { name: agents[s.scope]?.name ?? s.scope })}
+              </span>
               {s.transport === "stdio" && <span>{s.trust === "host" ? t("ext.trustHost") : t("ext.trustSandbox")}</span>}
               {s.status?.enforcement && <span>{t("ext.enforcement", { e: s.status.enforcement })}</span>}
               <span>{t("ext.toolsN", { n: s.status?.tools ?? 0 })}</span>
@@ -561,6 +568,7 @@ function McpTools({ name, onProbed }: { name: string; onProbed: () => void }) {
 
 function McpForm({ onCancel, onSaved }: { onCancel: () => void; onSaved: (s: McpServer) => void }) {
   const agents = useStore((s) => s.agents);
+  const teams = useStore((s) => s.teams);
   const [name, setName] = useState("");
   const [transport, setTransport] = useState<"stdio" | "http">("stdio");
   const [command, setCommand] = useState("");
@@ -653,7 +661,13 @@ function McpForm({ onCancel, onSaved }: { onCancel: () => void; onSaved: (s: Mcp
         <span className="ssel">
           <select value={scope} onChange={(e) => setScope(e.target.value)}>
             <option value="global">{t("ext.scopeGlobal")}</option>
-            {Object.values(agents).map((a) => (
+            {teams.length > 1 &&
+              teams.map((tm) => (
+                <option key={"team:" + tm.id} value={"team:" + tm.id}>
+                  {t("ext.scopeTeam", { name: tm.name })}
+                </option>
+              ))}
+            {Object.values(agents).filter((a) => a.kind !== "chat").map((a) => (
               <option key={a.id} value={a.id}>
                 {t("ext.scopeAgent", { name: a.name })}
               </option>

@@ -31,6 +31,7 @@ import (
 
 	"github.com/hedeqiang/crewbase/core/agent"
 	"github.com/hedeqiang/crewbase/core/session"
+	"github.com/hedeqiang/crewbase/core/tools"
 	"github.com/hedeqiang/crewbase/features/gateway"
 	"github.com/hedeqiang/crewbase/features/members"
 	"github.com/hedeqiang/crewbase/kernel"
@@ -69,6 +70,9 @@ type Team struct {
 	Created    time.Time `json:"created"`
 	// Seeded: the host's existing members were added (default team, once).
 	Seeded bool `json:"seeded,omitempty"`
+	// DefaultMode: the run mode new agents of the team start in
+	// (read-only | sandbox; "" = sandbox).
+	DefaultMode string `json:"defaultMode,omitempty"`
 }
 
 // View is a team with what it holds.
@@ -82,14 +86,17 @@ type View struct {
 	MyRole    string `json:"myRole"`
 	CanAct    bool   `json:"canAct"`
 	CanManage bool   `json:"canManage"`
+	// Tokens used by the team's agents in the usage period.
+	Tokens int `json:"tokens"`
 }
 
 // Input creates or edits a team (nil / "" = unchanged).
 type Input struct {
-	Name       string    `json:"name"`
-	Color      string    `json:"color"`
-	Visibility string    `json:"visibility"`
-	People     *[]Person `json:"people"`
+	Name        string    `json:"name"`
+	Color       string    `json:"color"`
+	Visibility  string    `json:"visibility"`
+	People      *[]Person `json:"people"`
+	DefaultMode *string   `json:"defaultMode"`
 }
 
 // Changed fires after every change.
@@ -103,6 +110,7 @@ type Service struct {
 
 	mu    sync.Mutex
 	items map[string]*Team
+	memMu sync.Mutex // TEAM.md writes
 }
 
 func newID() string {
@@ -275,6 +283,15 @@ func (s *Service) Update(id string, in Input) (View, error) {
 			return View{}, errors.New("可见范围只能是公开或私密")
 		}
 		nt.Visibility = in.Visibility
+	}
+	if in.DefaultMode != nil {
+		switch *in.DefaultMode {
+		case "", agent.ModeReadOnly, agent.ModeSandbox:
+			nt.DefaultMode = *in.DefaultMode
+		default:
+			s.mu.Unlock()
+			return View{}, errors.New("团队默认权限只能是只读或容器沙箱")
+		}
 	}
 	if in.People != nil {
 		ps, err := cleanPeople(*in.People)
@@ -539,6 +556,14 @@ var Plugin = kernel.Register(kernel.Spec{
 		}
 		s.seed()
 		members.Changed.Listen(c, s.onMember)
+		if tr, ok := kernel.Lookup[*tools.Registry](c, tools.ServiceKey); ok {
+			tr.SetTeamOf(func(id string) string {
+				if a, ok := s.agents.Get(id); ok {
+					return a.Spec().TeamID()
+				}
+				return ""
+			})
+		}
 		if err := c.Provide(ServiceKey, s); err != nil {
 			return err
 		}
@@ -558,12 +583,40 @@ var Plugin = kernel.Register(kernel.Spec{
 			Handle: func(_ context.Context, r *gateway.Request) (any, error) {
 				w := s.WhoIs(r.DeviceID)
 				out := []View{}
+				tok := s.tokens()
 				for _, v := range s.List() {
 					if s.TeamVisible(w, v.ID) {
-						out = append(out, s.viewFor(v.Team, w))
+						x := s.viewFor(v.Team, w)
+						x.Tokens = tok[v.ID]
+						out = append(out, x)
 					}
 				}
 				return map[string]any{"teams": out, "defaultTeam": agent.DefaultTeam, "me": w.ID}, nil
+			}})
+		s.installShared(c)
+		g.Handle(c, gateway.Route{Method: "GET", Path: "/api/teams/{id}/memory", Devices: mobile,
+			Handle: func(_ context.Context, r *gateway.Request) (any, error) {
+				if !s.Exists(r.Params["id"]) {
+					return nil, gateway.NotFound()
+				}
+				return map[string]any{"text": s.Memory(r.Params["id"])}, nil
+			}})
+		g.Handle(c, gateway.Route{Method: "PUT", Path: "/api/teams/{id}/memory", Devices: mobile, MaxBody: 1 << 20,
+			Handle: func(_ context.Context, r *gateway.Request) (any, error) {
+				var b struct {
+					Text string `json:"text"`
+				}
+				if err := r.Decode(&b); err != nil {
+					return nil, gateway.BadRequest("%v", err)
+				}
+				err := s.SetMemory(r.Params["id"], b.Text)
+				if errors.Is(err, os.ErrNotExist) {
+					return nil, gateway.NotFound()
+				}
+				if err != nil {
+					return nil, gateway.BadRequest("%v", err)
+				}
+				return map[string]any{"text": b.Text}, nil
 			}})
 		g.Handle(c, gateway.Route{Method: "POST", Path: "/api/teams/{id}/join", Devices: mobile,
 			Handle: func(_ context.Context, r *gateway.Request) (any, error) {

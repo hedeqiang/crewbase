@@ -235,6 +235,9 @@ type Config struct {
 	// Listen lets an agent follow the channel without being @'d and step
 	// in when it can help (off by default).
 	Listen *Listen `json:"listen,omitempty"`
+	// Team binds the chat to a team: only that team's agents can be
+	// addressed from it ("" = any agent).
+	Team string `json:"team,omitempty"`
 }
 
 // Listen configures listening in on the channel. Messages pass a program
@@ -982,19 +985,29 @@ func (g *Gateway) lookupBinding(chat, msg string) *binding {
 	return b
 }
 
+// reachable: agents a chat may address — not personal chats, and only the
+// bound team's when there is one.
+func (g *Gateway) reachable(a *agent.Agent) bool {
+	sp := a.Spec()
+	if sp.Kind == agent.KindChat || sp.Ephemeral {
+		return false
+	}
+	return g.cfg.Team == "" || sp.TeamID() == agent.TeamOf(g.cfg.Team)
+}
+
 func (g *Gateway) findAgent(name string) (*agent.Agent, bool) {
 	r, ok := kernel.Lookup[*agent.Registry](g.c, agent.ServiceKey)
 	if !ok {
 		return nil, false
 	}
-	if a, ok := r.Get(name); ok {
+	if a, ok := r.Get(name); ok && g.reachable(a) {
 		return a, true
 	}
-	if a, ok := r.Get(agent.Slug(name)); ok {
+	if a, ok := r.Get(agent.Slug(name)); ok && g.reachable(a) {
 		return a, true
 	}
 	for _, a := range r.List() {
-		if strings.EqualFold(a.Spec().Name, name) {
+		if strings.EqualFold(a.Spec().Name, name) && g.reachable(a) {
 			return a, true
 		}
 	}
@@ -1095,7 +1108,7 @@ func (g *Gateway) agentHelp() string {
 	}
 	var ids []string
 	for _, a := range r.List() {
-		if !a.Spec().Ephemeral {
+		if g.reachable(a) {
 			ids = append(ids, "@"+a.ID())
 		}
 	}

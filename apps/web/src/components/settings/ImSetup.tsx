@@ -49,6 +49,7 @@ export function ImSetup({ onChanged }: { onChanged: () => void }) {
   };
   const name = (id: string) => platforms.find((p) => p.id === id)?.name ?? id;
   const agents = useStore((s) => s.agents);
+  const teamsAll = useStore((s) => s.teams);
   const team = Object.values(agents).filter((a) => a.kind !== "chat");
   const setListen = async (g: ImGateway, agent: string, keywords?: string) => {
     try {
@@ -85,6 +86,30 @@ export function ImSetup({ onChanged }: { onChanged: () => void }) {
               <button className="ix dng" type="button" title={t("common.delete")} aria-label={t("common.delete")} onClick={() => void remove(g)}>
                 <Trash2 size={13} />
               </button>
+              {teamsAll.length > 1 && (
+                <div className="imlisten">
+                  <span className="small">{t("im.team")}</span>
+                  <span className="ssel">
+                    <select
+                      value={g.team || ""}
+                      aria-label={t("im.team")}
+                      onChange={(e) =>
+                        API.saveIm(g.id, { team: e.target.value }).then(
+                          () => void load(),
+                          (err) => toast(err?.message ?? String(err)),
+                        )
+                      }
+                    >
+                      <option value="">{t("im.teamAny")}</option>
+                      {teamsAll.map((tm) => (
+                        <option key={tm.id} value={tm.id}>
+                          {tm.name}
+                        </option>
+                      ))}
+                    </select>
+                  </span>
+                </div>
+              )}
               <div className="imlisten">
                 <span className="small" title={t("im.listenHelp")}>
                   {t("im.listen")}

@@ -61,7 +61,10 @@ type Access interface {
 }
 
 // TeamChecker is the `teams` service as seen by the API.
-type TeamChecker interface{ Exists(id string) bool }
+type TeamChecker interface {
+	Exists(id string) bool
+	DefaultMode(id string) string
+}
 
 // Approver is the `members` service as seen by the API: who may approve
 // what, and the name a device's messages carry.
@@ -192,6 +195,12 @@ var Plugin = kernel.Register(kernel.Spec{
 				_ = r.Decode(&b)
 				spec := b.Spec
 				spec.ID = ""
+				// a new agent starts in its team's default run mode
+				if spec.Mode == "" && spec.Kind != agent.KindChat {
+					if ts, ok := kernel.Lookup[TeamChecker](c, "teams"); ok {
+						spec.Mode = ts.DefaultMode(spec.Team)
+					}
+				}
 				// a blank chat is personal: it belongs to whoever started it
 				spec.Owner = ""
 				if spec.Kind == agent.KindChat {

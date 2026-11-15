@@ -85,6 +85,8 @@ export interface TeamView {
   default: boolean;
   agents: number;
   channels: number;
+  defaultMode?: "" | "read-only" | "sandbox";
+  tokens: number;
   /** for the person asking */
   myRole: "" | "lead" | "member" | "viewer";
   canAct: boolean;
@@ -796,6 +798,7 @@ export interface ImGateway {
   running: boolean;
   error?: string;
   listen?: { agent: string; keywords?: string[] } | null;
+  team?: string;
 }
 
 export type Followup = { id: string; agent: string; session: string; note: string; due: string; set: string };
@@ -803,7 +806,9 @@ export type Followup = { id: string; agent: string; session: string; note: strin
 export const API = {
   teams: () => api<{ teams: TeamView[] }>("GET", "/api/teams"),
   createTeam: (b: { name: string; visibility: TeamVisibility; color?: string }) => api<TeamView>("POST", "/api/teams", b),
-  patchTeam: (id: string, b: { name?: string; visibility?: TeamVisibility; color?: string; people?: { id: string; role: TeamRole }[] }) =>
+  teamMemory: (id: string) => api<{ text: string }>("GET", `/api/teams/${enc(id)}/memory`),
+  setTeamMemory: (id: string, text: string) => api<{ text: string }>("PUT", `/api/teams/${enc(id)}/memory`, { text }),
+  patchTeam: (id: string, b: { name?: string; visibility?: TeamVisibility; color?: string; people?: { id: string; role: TeamRole }[]; defaultMode?: string }) =>
     api<TeamView>("PATCH", `/api/teams/${enc(id)}`, b),
   joinTeam: (id: string) => api<TeamView>("POST", `/api/teams/${enc(id)}/join`),
   deleteTeam: (id: string) => api("DELETE", `/api/teams/${enc(id)}`),

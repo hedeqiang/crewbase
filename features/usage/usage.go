@@ -225,3 +225,12 @@ var APIPlugin = kernel.Register(kernel.Spec{
 		return nil
 	},
 })
+
+// TokensByAgent is each agent's tokens in the current period (for teams).
+func (s *Service) TokensByAgent() map[string]int {
+	out := map[string]int{}
+	for _, a := range s.Compute().ByAgent {
+		out[a.Agent] += a.Tokens
+	}
+	return out
+}

@@ -103,6 +103,9 @@ type Tool struct {
 	// "channel"); elsewhere it is invisible and indistinguishable from
 	// absent. Empty = every session.
 	SessionKinds []string
+	// Teams limits the tool to agents of these teams (e.g. an MCP server a
+	// team shares); elsewhere it is invisible. Empty = every agent.
+	Teams []string
 	// Unconfined marks tools whose work happens outside Crewbase's sandbox
 	// (e.g. a host-trusted MCP server's process): in read-only mode only
 	// their read / none categories may run, whatever sandbox is loaded.
@@ -198,6 +201,22 @@ type Registry struct {
 	// policy is the service key of the required policy plugin (rules
 	// engine). While it is missing, only read/none categories run.
 	policy string
+	// teamOf resolves an agent's team, for team-scoped tools (set by the
+	// agents plugin).
+	teamOf func(agent string) string
+}
+
+// SetTeamOf installs the agent → team resolver team-scoped tools need.
+func (r *Registry) SetTeamOf(f func(agent string) string) { r.teamOf = f }
+
+func (r *Registry) inTeam(agent string, t *Tool) bool {
+	if len(t.Teams) == 0 {
+		return true
+	}
+	if agent == "" || r.teamOf == nil {
+		return false
+	}
+	return slices.Contains(t.Teams, r.teamOf(agent))
 }
 
 func NewRegistry(h *kernel.Host) *Registry {
@@ -218,13 +237,21 @@ func (r *Registry) Register(c *kernel.Context, t *Tool) {
 func (r *Registry) Restrict(c *kernel.Context, keep scope.Filter) { r.reg.Restrict(c, keep) }
 
 // Get resolves a tool visible to agent.
-func (r *Registry) Get(agent, name string) (*Tool, bool) { return r.reg.Get(agent, name) }
+func (r *Registry) Get(agent, name string) (*Tool, bool) {
+	t, ok := r.reg.Get(agent, name)
+	if ok && !r.inTeam(agent, t) {
+		return nil, false
+	}
+	return t, ok
+}
 
 // Visible lists tools for agent.
 func (r *Registry) Visible(agent string) []*Tool {
 	var out []*Tool
 	for _, n := range r.reg.Visible(agent) {
-		out = append(out, n.Value)
+		if r.inTeam(agent, n.Value) {
+			out = append(out, n.Value)
+		}
 	}
 	return out
 }

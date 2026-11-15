@@ -37,6 +37,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -64,6 +65,23 @@ const (
 
 // ScopeGlobal makes a server's tools visible to every agent.
 const ScopeGlobal = "global"
+
+// TeamScope is the scope prefix of a server a team shares ("team:<id>"):
+// one connection, its tools visible to that team's agents only.
+const TeamScope = "team:"
+
+// AgentScope is the agent a server is scoped to ("" = global or a team).
+func (s Server) AgentScope() string {
+	if s.Scope == ScopeGlobal || strings.HasPrefix(s.Scope, TeamScope) {
+		return ""
+	}
+	return s.Scope
+}
+
+// TeamOfScope is the team a server is shared with ("" = none).
+func (s Server) TeamOfScope() string { return strings.TrimPrefix(s.Scope, TeamScope) }
+
+func (s Server) teamScoped() bool { return strings.HasPrefix(s.Scope, TeamScope) }
 
 // Connection states.
 const (
@@ -134,8 +152,8 @@ func (s Server) Normalize() (Server, error) {
 	if s.Scope == "" {
 		s.Scope = ScopeGlobal
 	}
-	if s.Scope != ScopeGlobal && !scopeRe.MatchString(s.Scope) {
-		return s, invalid("scope must be %q or an agent id", ScopeGlobal)
+	if s.Scope != ScopeGlobal && !scopeRe.MatchString(s.Scope) && !(strings.HasPrefix(s.Scope, TeamScope) && scopeRe.MatchString(strings.TrimPrefix(s.Scope, TeamScope))) {
+		return s, invalid("scope must be %q, an agent id or team:<id>", ScopeGlobal)
 	}
 	for k, v := range s.Categories {
 		if k == "" || !knownCategories[v] {
@@ -336,7 +354,7 @@ func (s *Service) agents() *agent.Registry {
 // agentReadOnly reports whether srv is scoped to an agent whose run mode is
 // read-only: its sandbox must then be read-only too.
 func (s *Service) agentReadOnly(srv Server) bool {
-	if srv.Scope == ScopeGlobal {
+	if srv.AgentScope() == "" {
 		return false
 	}
 	reg := s.agents()
@@ -738,7 +756,7 @@ func (s *Service) startLocked(e *entry, a *agent.Agent) {
 	s.mu.Unlock()
 
 	parent := s.c
-	if srv.Scope != ScopeGlobal {
+	if srv.AgentScope() != "" {
 		if a == nil {
 			if reg := s.agents(); reg != nil {
 				a, _ = reg.Get(srv.Scope)
@@ -782,7 +800,7 @@ func (s *Service) detach(e *entry, c *conn) {
 		return
 	}
 	e.conn = nil
-	if e.srv.Scope != ScopeGlobal {
+	if e.srv.AgentScope() != "" {
 		e.why = "agent " + e.srv.Scope + " is not loaded"
 	} else {
 		e.why = "connection closed"

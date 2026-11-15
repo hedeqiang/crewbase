@@ -2,6 +2,7 @@ package teams_test
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"net/http"
 	"strings"
@@ -171,3 +172,54 @@ func TestTeams(t *testing.T) {
 }
 
 func mustJSON(v any) []byte { b, _ := json.Marshal(v); return b }
+
+// What a team shares: its memory reaches every team agent's prompt (not
+// other teams'), agents add to it, new agents start in the team's default
+// run mode, and team-scoped tools are only visible inside the team.
+func TestTeamShared(t *testing.T) {
+	root := t.TempDir()
+	e := start(t, root)
+	_, shop := e.do(t, "POST", "/api/teams", map[string]any{"name": "Shop"})
+	shopID := shop["id"].(string)
+	if code, out := e.do(t, "PATCH", "/api/teams/"+shopID, map[string]any{"defaultMode": "read-only"}); code != 200 || out["defaultMode"] != "read-only" {
+		t.Fatalf("default mode: %d %v", code, out)
+	}
+	if code, _ := e.do(t, "PATCH", "/api/teams/"+shopID, map[string]any{"defaultMode": "host"}); code != 400 {
+		t.Fatal("host accepted as a team default")
+	}
+	_, a := e.do(t, "POST", "/api/agents", map[string]any{"name": "Ops", "team": shopID})
+	if a["mode"] != "read-only" {
+		t.Fatalf("new agent mode: %v", a["mode"])
+	}
+	_, other := e.do(t, "POST", "/api/agents", map[string]any{"name": "Elsewhere"})
+	ops, _ := e.agents.Get(a["id"].(string))
+
+	// memory: set by a lead, added to by an agent, in team prompts only
+	if code, _ := e.do(t, "PUT", "/api/teams/"+shopID+"/memory", map[string]any{"text": "# Team memory\n- prices include VAT\n"}); code != 200 {
+		t.Fatal("set memory")
+	}
+	reg := kernel.Use[*tools.Registry](e.h.Root(), tools.ServiceKey)
+	ss, _ := ops.Session()
+	exe := reg.Run(t.Context(), e.h.Root(), tools.Call{ID: "m", Name: "team_memory_add", Agent: ops.ID(), Session: ss, Args: json.RawMessage(`{"note":"orders ship on Mondays"}`)})
+	if exe.Result.IsError {
+		t.Fatalf("team_memory_add: %s", exe.Result.Content)
+	}
+	pa := kernel.Use[*prompt.Assembler](e.h.Root(), prompt.ServiceKey)
+	mine := pa.Assemble(ops.ID())
+	if !strings.Contains(mine, "prices include VAT") || !strings.Contains(mine, "orders ship on Mondays") {
+		t.Fatalf("team memory not in the team agent's prompt:\n%s", mine)
+	}
+	if theirs := pa.Assemble(other["id"].(string)); strings.Contains(theirs, "prices include VAT") {
+		t.Fatal("team memory leaked to another team")
+	}
+
+	// a tool shared with the team only
+	reg.Register(e.h.Root(), &tools.Tool{Name: "shop_db", Description: "x", Teams: []string{shopID},
+		Execute: func(context.Context, tools.Call) (tools.Result, error) { return tools.Text("ok"), nil }})
+	if _, ok := reg.Get(ops.ID(), "shop_db"); !ok {
+		t.Fatal("team tool hidden from the team")
+	}
+	if _, ok := reg.Get(other["id"].(string), "shop_db"); ok {
+		t.Fatal("team tool visible to another team")
+	}
+}

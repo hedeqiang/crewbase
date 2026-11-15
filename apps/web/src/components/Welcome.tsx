@@ -1,7 +1,7 @@
 import { ArrowRight, Plus, MessageSquare } from "lucide-react";
 import { useMemo, useState } from "react";
 import { t, type Key } from "../i18n";
-import { newChat, openNewAgent, openSettings, useStore } from "../store";
+import { newChat, openNewAgent, openSettings, useStore, teamMode } from "../store";
 import { AvatarRaw } from "./Avatar";
 import { Logo } from "./Logo";
 import { ShuffleButton, TEMPLATES, templatePage, type Draft } from "./NewAgent";
@@ -42,7 +42,7 @@ export function Welcome({ onTemplate }: { onTemplate: (d: Partial<Draft>) => voi
       role: t(`tpl.${key}.role` as Key),
       color: x.color,
       shape: x.shape,
-      mode: x.mode,
+      mode: teamMode(x.mode),
     });
     openNewAgent();
   };

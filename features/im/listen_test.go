@@ -67,3 +67,24 @@ func TestListenInOnTheChannel(t *testing.T) {
 	}
 	_ = agentloop.TurnEndEvent{}
 }
+
+// A chat bound to a team only reaches that team's agents; personal chats
+// are never reachable from IM.
+func TestTeamBoundChat(t *testing.T) {
+	e := imtest.New(t)
+	in := e.Agent("Kai")
+	out, _ := e.Agents.Create(agent.Spec{Name: "Max", Team: "team-x"})
+	chat, _ := e.Agents.Create(agent.Spec{Kind: agent.KindChat})
+	f, g := start(t, e, map[string]any{"relayReplies": true, "team": "default"})
+	g.Message(context.Background(), im.Inbound{User: im.User{ID: "u-ada"}, Chat: "C1", MessageID: "m1", Text: "@max hi", Direct: true})
+	g.Message(context.Background(), im.Inbound{User: im.User{ID: "u-ada"}, Chat: "C1", MessageID: "m2", Text: "@" + chat.ID() + " hi", Direct: true})
+	if len(out.Queue()) != 0 || len(chat.Queue()) != 0 {
+		t.Fatal("reached an agent outside the bound team, or a personal chat")
+	}
+	imtest.Eventually(t, func() bool { return len(f.Posts()) >= 2 })
+	if p := f.Posts()[0].Msg.Body; !strings.Contains(p, "找不到") || strings.Contains(p, "@max") || !strings.Contains(p, "@"+in.ID()) {
+		t.Fatalf("help: %q", p)
+	}
+	g.Message(context.Background(), im.Inbound{User: im.User{ID: "u-ada"}, Chat: "C1", MessageID: "m3", Text: "@kai hi", Direct: true})
+	imtest.Eventually(t, func() bool { return len(in.Queue()) == 1 || in.CurrentInput() != "" })
+}

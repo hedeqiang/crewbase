@@ -3,6 +3,7 @@ package mcp
 import (
 	"context"
 	"errors"
+	"strings"
 
 	"github.com/hedeqiang/crewbase/core/agent"
 	"github.com/hedeqiang/crewbase/features/gateway"
@@ -84,6 +85,13 @@ var APIPlugin = kernel.Register(kernel.Spec{
 		s := kernel.Use[*Service](c, ServiceKey)
 		checkScope := func(scope string) error {
 			if scope == "" || scope == ScopeGlobal {
+				return nil
+			}
+			if strings.HasPrefix(scope, TeamScope) {
+				type teams interface{ Exists(id string) bool }
+				if ts, ok := kernel.Lookup[teams](c, "teams"); ok && !ts.Exists(strings.TrimPrefix(scope, TeamScope)) {
+					return gateway.BadRequest("unknown team %q", strings.TrimPrefix(scope, TeamScope))
+				}
 				return nil
 			}
 			if reg, ok := kernel.Lookup[*agent.Registry](c, agent.ServiceKey); ok {

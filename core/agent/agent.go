@@ -20,6 +20,7 @@ import (
 	"github.com/hedeqiang/crewbase/core/llm"
 	"github.com/hedeqiang/crewbase/core/prompt"
 	"github.com/hedeqiang/crewbase/core/session"
+	"github.com/hedeqiang/crewbase/core/tools"
 	"github.com/hedeqiang/crewbase/kernel"
 )
 
@@ -1021,6 +1022,15 @@ var Plugin = kernel.Register(kernel.Spec{
 				return err
 			}
 			r.defaults = append(r.defaults, ref)
+		}
+		// team-scoped tools (a team's shared MCP servers) need the agent's team
+		if tr, ok := kernel.Lookup[*tools.Registry](c, tools.ServiceKey); ok {
+			tr.SetTeamOf(func(id string) string {
+				if a, ok := r.Get(id); ok {
+					return a.Spec().TeamID()
+				}
+				return ""
+			})
 		}
 		// Instructions and memory are prompt fragments resolved per agent.
 		pa := kernel.Use[*prompt.Assembler](c, prompt.ServiceKey)

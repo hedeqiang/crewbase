@@ -77,6 +77,8 @@ type Gateway struct {
 	Created      time.Time `json:"created"`
 	// Listen: an agent follows the channel without being @'d.
 	Listen *im.Listen `json:"listen,omitempty"`
+	// Team: only this team's agents can be addressed from the chat.
+	Team string `json:"team,omitempty"`
 }
 
 // Input creates or edits a gateway; tokens are write-only.
@@ -92,6 +94,8 @@ type Input struct {
 	AppToken     string   `json:"appToken"`
 	// Listen sets listening in; an empty agent turns it off. nil = unchanged.
 	Listen *im.Listen `json:"listen"`
+	// Team binds the chat to a team ("" = any agent). nil = unchanged.
+	Team *string `json:"team"`
 }
 
 // View is a gateway with whether its tokens are stored.
@@ -205,6 +209,9 @@ func (s *Service) mount(g Gateway) {
 	if g.Listen != nil {
 		cfg["listen"] = g.Listen
 	}
+	if g.Team != "" {
+		cfg["team"] = g.Team
+	}
 	for k, v := range s.extra {
 		cfg[k] = v
 	}
@@ -275,6 +282,9 @@ func (s *Service) Save(id string, in Input) (View, error) {
 	}
 	if in.Enabled != nil {
 		g.Enabled = *in.Enabled
+	}
+	if in.Team != nil {
+		g.Team = strings.TrimSpace(*in.Team) // "" = any agent; "default" = the default team
 	}
 	if in.Listen != nil {
 		if strings.TrimSpace(in.Listen.Agent) == "" {

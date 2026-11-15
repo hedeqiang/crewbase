@@ -27,7 +27,9 @@ var APIPlugin = kernel.Register(kernel.Spec{
 		g.Handle(c, gateway.Route{Method: "GET", Path: "/api/channels", Devices: mobile,
 			Handle: func(_ context.Context, r *gateway.Request) (any, error) {
 				l := []View{}
-				type access interface{ Session(deviceID, id string) bool }
+				type access interface {
+					Session(deviceID, id string) bool
+				}
 				acc, limited := kernel.Lookup[access](c, "access")
 				for _, v := range s.List() {
 					if !limited || acc.Session(r.DeviceID, v.Meta.ID) {

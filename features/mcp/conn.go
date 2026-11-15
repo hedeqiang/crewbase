@@ -260,6 +260,7 @@ func (c *conn) install(list []*sdk.Tool, sess *session) {
 			PathArgs:     PathArgs(params),
 			AllowedRoots: GrantedRoots(c.srv),
 			Unconfined:   c.srv.Transport == TransportStdio && c.srv.Trust == TrustHost,
+			Teams:        teamsOf(c.srv),
 			Execute:      c.execute(info.Original),
 		})
 	}
@@ -434,7 +435,7 @@ func (p *session) close() {
 
 // workdir returns (and creates) a server's working directory.
 func (s *Service) workdir(srv Server) (string, error) {
-	if srv.Scope != ScopeGlobal {
+	if srv.AgentScope() != "" {
 		reg := s.agents()
 		if reg == nil {
 			return "", fmt.Errorf("agents service not loaded (server is scoped to %s)", srv.Scope)
@@ -690,4 +691,12 @@ func (t *tailBuf) String() string {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	return string(t.b)
+}
+
+// teamsOf limits a team-shared server's tools to that team.
+func teamsOf(srv Server) []string {
+	if srv.teamScoped() {
+		return []string{srv.TeamOfScope()}
+	}
+	return nil
 }

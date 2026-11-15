@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { API, DEFAULT_TEAM, teamOf, type MemberView, type TeamRole, type TeamView, type TeamVisibility } from "../../api";
 import { t } from "../../i18n";
 import { refreshAgents, refreshTeams, switchTeam, toast, useStore } from "../../store";
+import { kfmt, modeLabel } from "../../format";
 import { Avatar } from "../Avatar";
 import { Head } from "../Settings";
 
@@ -20,6 +21,7 @@ export function Teams() {
   const [editing, setEditing] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
   const [people, setPeople] = useState<MemberView[]>([]);
+  const [memOpen, setMemOpen] = useState<string | null>(null);
   const myName = useStore((s) => s.profile.displayName);
   useEffect(() => {
     API.members().then(
@@ -130,7 +132,10 @@ export function Teams() {
                     {tm.id === current && <span className="pill sm on">{t("teams.showing")}</span>}
                   </b>
                 )}
-                <span className="small">{t("teams.counts", { agents: tm.agents, channels: tm.channels })}</span>
+                <span className="small">
+                  {t("teams.counts", { agents: tm.agents, channels: tm.channels })}
+                  {tm.tokens > 0 && " · " + t("teams.tokens", { n: kfmt(tm.tokens) })}
+                </span>
               </span>
               <div className="seg sm">
                 {(["public", "private"] as const).map((v) => (
@@ -170,6 +175,26 @@ export function Teams() {
                 </button>
               )}
             </div>
+            <div className="teamopts">
+              <span className="small">{t("teams.defaultMode")}</span>
+              <div className="seg sm">
+                {(["sandbox", "read-only"] as const).map((m) => (
+                  <button
+                    key={m}
+                    type="button"
+                    aria-pressed={(tm.defaultMode || "sandbox") === m}
+                    disabled={busy || !tm.canManage}
+                    onClick={() => void run(() => API.patchTeam(tm.id, { defaultMode: m === "sandbox" ? "" : m }))}
+                  >
+                    {modeLabel(m)}
+                  </button>
+                ))}
+              </div>
+              <button className="linkbtn" type="button" onClick={() => setMemOpen(memOpen === tm.id ? null : tm.id)}>
+                {memOpen === tm.id ? t("teams.memoryHide") : t("teams.memory")}
+              </button>
+            </div>
+            {memOpen === tm.id && <TeamMemory team={tm} />}
             <div className="teampeople">
               <div className="small muted tsub">{t("teams.people", { n: tm.people.length })}</div>
               {tm.people.map((pp) => (
@@ -264,5 +289,55 @@ export function Teams() {
         </p>
       </div>
     </>
+  );
+}
+
+/** TEAM.md: what every agent in the team knows; leads edit it, agents add
+ *  to it with team_memory_add. */
+function TeamMemory({ team }: { team: TeamView }) {
+  const [text, setText] = useState<string | null>(null);
+  const [saved, setSaved] = useState("");
+  const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    API.teamMemory(team.id).then(
+      (r) => {
+        setText(r.text);
+        setSaved(r.text);
+      },
+      () => setText(""),
+    );
+  }, [team.id]);
+  if (text === null) return null;
+  const save = async () => {
+    setBusy(true);
+    try {
+      const r = await API.setTeamMemory(team.id, text);
+      setSaved(r.text);
+      toast(t("teams.memorySaved"));
+    } catch (e: any) {
+      toast(e?.message ?? String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <div className="teammem">
+      <p className="small">{t("teams.memoryDesc")}</p>
+      <textarea
+        className="fi mono"
+        rows={8}
+        value={text}
+        readOnly={!team.canManage}
+        placeholder={t("teams.memoryPh")}
+        onChange={(e) => setText(e.target.value)}
+      />
+      {team.canManage && (
+        <div className="acts">
+          <button className="btn pri sm" type="button" disabled={busy || text === saved} onClick={() => void save()}>
+            {t("common.save")}
+          </button>
+        </div>
+      )}
+    </div>
   );
 }

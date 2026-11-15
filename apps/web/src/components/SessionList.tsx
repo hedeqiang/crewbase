@@ -594,6 +594,7 @@ export function ThemeSeg({ theme }: { theme: Theme }) {
 /** Which team the sidebar shows (only when there is more than one). */
 function TeamSwitcher({ teams, current }: { teams: TeamView[]; current: string }) {
   const m = useMenu();
+  const manage = useStore((s) => s.tier === "desktop");
   const cur = teams.find((x) => x.id === current) ?? teams[0];
   return (
     <>
@@ -649,18 +650,22 @@ function TeamSwitcher({ teams, current }: { teams: TeamView[]; current: string }
             <span className="ck">{x.id === current && <Check size={14} />}</span>
           </button>
         ))}
-        <hr />
-        <button
-          className="mi"
-          type="button"
-          onClick={() => {
-            m.close();
-            openSettings("teams");
-          }}
-        >
-          <Users size={16} />
-          <span className="g">{t("teams.manage")}</span>
-        </button>
+        {manage && (
+          <>
+            <hr />
+            <button
+              className="mi"
+              type="button"
+              onClick={() => {
+                m.close();
+                openSettings("teams");
+              }}
+            >
+              <Users size={16} />
+              <span className="g">{t("teams.manage")}</span>
+            </button>
+          </>
+        )}
       </Popover>
     </>
   );

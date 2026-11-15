@@ -1,10 +1,10 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Check, ChevronDown, FileUp, Folder, Shield, RefreshCw } from "lucide-react";
 import { API, refString, type ModelRef } from "../api";
 import { ImportRoleDialog } from "./ImportRole";
 import { t, type Key } from "../i18n";
 import { allModels, effortLabel, kfmt, modeLabel, sameRef, shortModel } from "../format";
-import { openSession, refreshAgents, refreshSessions, setState, toast, useFolders, useStore, currentTeam } from "../store";
+import { openSession, refreshAgents, refreshSessions, setState, toast, useFolders, useStore, currentTeam, teamMode } from "../store";
 import { AvatarRaw, COLORS, SHAPES } from "./Avatar";
 import { Popover, useMenu } from "./Popover";
 import { ProviderMark } from "./ProviderMark";
@@ -22,7 +22,7 @@ export interface Draft {
 }
 
 export function emptyDraft(): Draft {
-  return { name: "", role: "", desc: "", color: COLORS[0], shape: "sq", mode: "sandbox", folder: "", model: null, effort: "medium" };
+  return { name: "", role: "", desc: "", color: COLORS[0], shape: "sq", mode: teamMode("sandbox"), folder: "", model: null, effort: "medium" };
 }
 
 export type TemplateKey =
@@ -79,6 +79,13 @@ export function NewAgent({ draft: f, setDraft }: { draft: Draft; setDraft: (d: D
   const modeM = useMenu();
   const all = useMemo(() => allModels(models), [models]);
   const folders = useFolders();
+  // the team on screen may start its agents read-only (teams load after
+  // the draft was first made)
+  const teamDefault = useStore((s) => s.teams.find((x) => x.id === s.team)?.defaultMode);
+  useEffect(() => {
+    if (teamDefault === "read-only" && f.mode === "sandbox") setDraft({ ...f, mode: "read-only" });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [teamDefault]);
   // Default: the same preference the daemon uses for new agents (a strong
   // model from what is available), not simply the first listed.
   const settingsDefault = useStore((s) => s.profile.defaultModels?.[0]);
@@ -263,7 +270,7 @@ export function NewAgent({ draft: f, setDraft }: { draft: Draft; setDraft: (d: D
                     role: t(`tpl.${x.key}.role` as Key),
                     color: x.color,
                     shape: x.shape,
-                    mode: x.mode,
+                    mode: teamMode(x.mode),
                   });
                 }}
               >

@@ -345,6 +345,13 @@ export function switchTeam(id: string) {
   });
 }
 
+/** A new agent's run mode in the team on screen: read-only when the team
+ *  starts its agents read-only, else m. */
+export function teamMode<M extends string>(m: M): M | "read-only" {
+  const tm = state.teams.find((x) => x.id === state.team);
+  return tm?.defaultMode === "read-only" ? "read-only" : m;
+}
+
 /** The team new things are created in ("" = default, as the API stores it). */
 export function currentTeam(): string | undefined {
   return state.team === DEFAULT_TEAM ? undefined : state.team;
@@ -548,6 +555,9 @@ export async function patchProfile(b: { displayName?: string; dndUntil?: string 
 
 /** The name shown for the person ("你" when unset). */
 export function myName(p: Profile): string {
+  // a team member's device shows that member, not the host owner's profile
+  const me = state.me;
+  if (me && me.role !== "owner" && me.name) return me.name;
   return p.displayName.trim() || t("common.you");
 }
 
