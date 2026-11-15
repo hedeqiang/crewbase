@@ -6,16 +6,18 @@ import (
 )
 
 // snapshotJS builds a compact text outline of the page. Interactive elements
-// get numbers [n] (kept in window.__crewbaseRefs for click / type); the
+// get numbers [n] (kept in window.__crewbaseRefs for click / type) and
+// visible iframes are kept in window.__crewbaseFrames, so the caller can
+// snapshot each frame (same- or cross-origin) and splice it in; the
 // values of password, one-time-code and card fields are never read.
 const snapshotJS = `(() => {
-  const refs = [], lines = [];
+  const refs = [], lines = [], marks = [], frames = [];
   const hints = {password: false, otp: false, captcha: false};
   let seen = 0, buf = [];
   const clean = s => (s || '').replace(/\s+/g, ' ').trim();
   const cut = (s, n) => s.length > n ? s.slice(0, n) + '…' : s;
   const q = s => JSON.stringify(s);
-  const flush = () => { const t = clean(buf.join(' ')); buf = []; if (t) lines.push(cut(t, 300)); };
+  const flush = () => { const t = clean(buf.join(' ')); buf = []; if (t) { lines.push(cut(t, 300)); marks.push(0); } };
   const BLOCK = /^(ADDRESS|ARTICLE|ASIDE|BLOCKQUOTE|BR|DD|DIV|DL|DT|FIELDSET|FIGCAPTION|FIGURE|FOOTER|FORM|HEADER|HR|LI|MAIN|NAV|OL|P|PRE|SECTION|TABLE|TR|TD|TH|UL|DETAILS|DIALOG|LABEL)$/;
   const SKIP = /^(SCRIPT|STYLE|NOSCRIPT|TEMPLATE|SVG|CANVAS|HEAD|META|LINK|OBJECT|EMBED)$/;
   const ROLES = /^(button|link|checkbox|radio|tab|menuitem|menuitemcheckbox|switch|option|combobox|textbox|searchbox)$/;
@@ -87,7 +89,7 @@ const snapshotJS = `(() => {
     if (el.tagName === 'IFRAME' || el.tagName === 'FRAME') {
       const src = el.getAttribute('src') || '';
       if (/captcha|recaptcha|hcaptcha|turnstile|challenges\.cloudflare|arkoselabs|funcaptcha/i.test(src + ' ' + (el.title || ''))) hints.captcha = true;
-      if (visible(el)) { flush(); lines.push('[iframe' + (el.title ? ' ' + q(cut(clean(el.title), 60)) : '') + ']'); }
+      if (visible(el)) { flush(); frames.push(el); lines.push('[iframe' + (el.title ? ' ' + q(cut(clean(el.title), 60)) : '') + ']'); marks.push(-frames.length); }
       return;
     }
     if (el.tagName === 'INPUT' && sensitive(el)) {
@@ -95,9 +97,9 @@ const snapshotJS = `(() => {
       if (/one-time-code/i.test(el.getAttribute('autocomplete') || '')) hints.otp = true;
     }
     if (!visible(el)) return;
-    if (interactive(el)) { flush(); refs.push(el); lines.push(describe(el, refs.length)); return; }
+    if (interactive(el)) { flush(); refs.push(el); lines.push(describe(el, refs.length)); marks.push(refs.length); return; }
     const m = /^H([1-6])$/.exec(el.tagName);
-    if (m) { flush(); const t = clean(el.innerText); if (t) lines.push('#'.repeat(+m[1]) + ' ' + cut(t, 200)); return; }
+    if (m) { flush(); const t = clean(el.innerText); if (t) { lines.push('#'.repeat(+m[1]) + ' ' + cut(t, 200)); marks.push(0); } return; }
     const block = BLOCK.test(el.tagName);
     if (block) flush();
     if (el.shadowRoot) for (const c of el.shadowRoot.childNodes) walk(c);
@@ -107,19 +109,20 @@ const snapshotJS = `(() => {
   walk(document.body || document.documentElement);
   flush();
   window.__crewbaseRefs = refs;
+  window.__crewbaseFrames = frames;
   const text = (document.title + ' ' + (document.body ? document.body.innerText : '')).slice(0, 20000);
   if (/captcha|i'?m not a robot|verify (that )?you are (a )?human|are you a robot|human verification|人机验证|滑块验证|安全验证/i.test(text)) hints.captcha = true;
   if (/two-factor|two-step|\b2fa\b|verification code|authentication code|one-time (pass)?code|security code|verify (your identity|it'?s you)|验证码|动态码|二次验证|两步验证/i.test(text)) hints.otp = true;
-  return {url: location.href, title: document.title, lines: lines, refs: refs.length, hints: hints};
+  return {url: location.href, title: document.title, lines: lines, marks: marks, refs: refs.length, hints: hints};
 })()`
 
 // prepareClickJS scrolls ref n into view and returns its centre, or clicks it
 // from script when it cannot be hit with the mouse.
-const prepareClickJS = `((n) => {
+const prepareClickJS = `((n, center) => {
   const el = (window.__crewbaseRefs || [])[n - 1];
   if (!el || !el.isConnected) return {error: 'stale'};
   if (el.tagName === 'A' && el.target && el.target !== '_self') el.removeAttribute('target');
-  el.scrollIntoView({block: 'center', inline: 'center'});
+  el.scrollIntoView(center ? {block: 'center', inline: 'center'} : {block: 'nearest', inline: 'nearest'});
   const r = el.getBoundingClientRect();
   const x = r.left + r.width / 2, y = r.top + r.height / 2;
   const hit = document.elementFromPoint(x, y);
@@ -128,11 +131,11 @@ const prepareClickJS = `((n) => {
     return {clicked: true};
   }
   return {x: x, y: y};
-})(%d)`
+})(%d, %t)`
 
 // prepareTypeJS checks ref n is a text field that is safe to type into and
 // focuses it with its content selected (so typing replaces it).
-const prepareTypeJS = `((n) => {
+const prepareTypeJS = `((n, center) => {
   const el = (window.__crewbaseRefs || [])[n - 1];
   if (!el || !el.isConnected) return {error: 'stale'};
   const tag = el.tagName, t = (el.getAttribute('type') || 'text').toLowerCase();
@@ -144,7 +147,7 @@ const prepareTypeJS = `((n) => {
   const textual = (tag === 'INPUT' && !/^(submit|button|reset|image|checkbox|radio|file|hidden|range|color)$/.test(t)) || tag === 'TEXTAREA';
   if (!textual && !el.isContentEditable) return {error: 'not a text field'};
   if (el.disabled || el.readOnly) return {error: 'the field is disabled or read-only'};
-  el.scrollIntoView({block: 'center'});
+  el.scrollIntoView(center ? {block: 'center'} : {block: 'nearest'});
   el.focus();
   if (el.isContentEditable && !textual) {
     const range = document.createRange(); range.selectNodeContents(el);
@@ -153,16 +156,49 @@ const prepareTypeJS = `((n) => {
     try { el.select(); } catch (e) { el.value = ''; }
   }
   return {ok: true};
-})(%d)`
+})(%d, %t)`
 
 const readyJS = `document.readyState`
+
+// framesJS resolves after two animation frames (at most 300 ms).
+const framesJS = `new Promise(r => { const t = setTimeout(r, 300); requestAnimationFrame(() => requestAnimationFrame(() => { clearTimeout(t); r(); })); })`
+
+// frameOffsetJS returns where the content of iframe k (as kept by
+// snapshotJS) starts in the frame's viewport, and the frame's viewport size.
+const frameOffsetJS = `((k) => {
+  const el = (window.__crewbaseFrames || [])[k];
+  if (!el || !el.isConnected) return {error: 'stale'};
+  const r = el.getBoundingClientRect(), st = getComputedStyle(el);
+  return {x: r.left + el.clientLeft + (parseFloat(st.paddingLeft) || 0),
+          y: r.top + el.clientTop + (parseFloat(st.paddingTop) || 0),
+          w: innerWidth, h: innerHeight};
+})(%d)`
+
+// revealFrameJS scrolls iframe k (as kept by snapshotJS) into view.
+const revealFrameJS = `((k) => {
+  const el = (window.__crewbaseFrames || [])[k];
+  if (!el || !el.isConnected) return {error: 'stale'};
+  el.scrollIntoView({block: 'center', inline: 'nearest'});
+  return {};
+})(%d)`
+
+// scriptClickJS clicks ref n from script (when the mouse cannot reach it).
+const scriptClickJS = `((n) => {
+  const el = (window.__crewbaseRefs || [])[n - 1];
+  if (!el || !el.isConnected) return {error: 'stale'};
+  el.click();
+  return {clicked: true};
+})(%d)`
 
 // snapshot is the decoded result of snapshotJS.
 type snapshot struct {
 	URL   string   `json:"url"`
 	Title string   `json:"title"`
 	Lines []string `json:"lines"`
-	Refs  int      `json:"refs"`
+	// Marks[i] is the frame-local ref of Lines[i] (> 0), -k for the k-th
+	// iframe (window.__crewbaseFrames[k-1]), 0 for text.
+	Marks []int `json:"marks"`
+	Refs  int   `json:"refs"`
 	Hints struct {
 		Password bool `json:"password"`
 		OTP      bool `json:"otp"`

@@ -43,6 +43,13 @@ var (
 	ErrNotRunning = errors.New("the browser is not running")
 	// ErrClosed is returned after the provider has been unloaded.
 	ErrClosed = errors.New("the browser provider is closed")
+	// ErrNoFrames is returned by frame operations on a page that cannot
+	// reach into iframes.
+	ErrNoFrames = errors.New("this browser cannot reach into frames")
+	// ErrNoWindow is returned by Windower.SetWindow when no desktop
+	// window can be shown (attached or already windowed browser, no
+	// display, or the window failed to open).
+	ErrNoWindow = errors.New("the browser cannot open a window here")
 )
 
 // State is a snapshot of one agent's browser.
@@ -61,6 +68,21 @@ type State struct {
 	// frame-by-frame screenshots plus Input (headless browsers), "window"
 	// means a real browser window is visible on the desktop.
 	View string `json:"view,omitempty"`
+	// Window is true while a takeover runs in a desktop window that a
+	// headless browser was switched to (Windower); View is then "window".
+	Window bool `json:"window,omitempty"`
+	// CanWindow is true when a takeover can switch to a desktop window.
+	CanWindow bool `json:"canWindow,omitempty"`
+}
+
+// Windower is implemented by browsers whose takeover can move from the
+// frame view to a real window on the desktop and back, keeping the profile
+// and the open tabs. The agent stays paused throughout; hand-back returns
+// the browser to headless.
+type Windower interface {
+	// SetWindow moves a takeover held by `by` to a desktop window (open)
+	// or back to the frame view.
+	SetWindow(agentID, by string, open bool) error
 }
 
 // Input is one human input during a takeover.
@@ -133,6 +155,19 @@ type Page interface {
 	Scroll(ctx context.Context, x, y, dy float64) error
 	Screenshot(ctx context.Context) ([]byte, error)
 	Location(ctx context.Context) (url, title string, err error)
+}
+
+// FramePage is implemented by pages that reach into iframes, same-origin
+// and cross-origin (out-of-process) alike. A frame is an opaque id; "" is
+// the main frame. Scripts run in an isolated world of the frame, so state a
+// script leaves on window (element refs) is invisible to the page and kept
+// between calls until the frame navigates.
+type FramePage interface {
+	// EvalFrame evaluates expr in frame like Page.Eval.
+	EvalFrame(ctx context.Context, frame, expr string, out any) error
+	// ChildFrame returns the frame shown by the element
+	// window.__crewbaseFrames[index] that a script left in frame.
+	ChildFrame(ctx context.Context, frame string, index int) (string, error)
 }
 
 // TakeoverEvent is the payload of the takeover events.

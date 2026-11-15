@@ -35,7 +35,7 @@
 | CLI / ACP 子进程 | Claude Code、Codex、Gemini CLI 等，由 `llm-acp` 和 `subagent-acp` 管理 | 按需启动，空闲超时退出 |
 | MCP 服务器 | 外部工具连接 | 由 MCP 管理插件按需启动，在沙箱中运行 |
 | 进程外插件 | 第三方插件 | 随插件启用 / 停用 |
-| 浏览器池 | 每个 Agent 独立的 Chromium Profile，通过 CDP 控制 | 按需启动，空闲回收 |
+| 浏览器池 | 每个 Agent 独立的 Chromium Profile，通过 CDP 控制（含进程外 iframe：Target.setAutoAttach flatten） | 按需启动，空闲回收；接管时可在同一 Profile 上无头 ⇄ 窗口切换，带上标签页 |
 | 沙箱容器 | 执行 Agent 的命令 | 每个 Agent 或每个任务一个，复用或用完即弃 |
 
 **单实例**：桌面壳持有单实例锁，再次启动只会唤起已有窗口。更新（[交互设计 §5.1](03-ux-design.md)）只重启桌面壳与进程内的宿主：运行中的 Agent 从检查点恢复，待批准的请求保留在会话日志中。详见 [desktop.md](desktop.md)。

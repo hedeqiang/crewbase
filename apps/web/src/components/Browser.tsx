@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { ArrowDown, ArrowUp, CornerDownLeft, Globe, Hand, MousePointerClick, Undo2 } from "lucide-react";
+import { AppWindow, ArrowDown, ArrowUp, CornerDownLeft, Globe, Hand, MonitorSmartphone, MousePointerClick, Undo2 } from "lucide-react";
 import { API, ApiError, type AgentView } from "../api";
 import { t } from "../i18n";
 import { setState, toast, useStore } from "../store";
@@ -17,10 +17,16 @@ export function TakeoverCard({ agent, reason }: { agent: AgentView; reason: stri
   const st = useStore((s) => s.browser[agent.id]);
   const [busy, setBusy] = useState(false);
   const [other, setOther] = useState(false);
+  // this client runs where a desktop window would open (local desktop only)
+  const [here, setHere] = useState(false);
+  const [switching, setSwitching] = useState<"open" | "close" | null>(null);
 
   useEffect(() => {
     API.browser(agent.id)
-      .then((b) => setState((s) => ({ browser: { ...s.browser, [agent.id]: b } })))
+      .then((b) => {
+        setHere(!!b.windowHere);
+        setState((s) => ({ browser: { ...s.browser, [agent.id]: b } }));
+      })
       .catch(() => {});
   }, [agent.id]);
 
@@ -39,6 +45,24 @@ export function TakeoverCard({ agent, reason }: { agent: AgentView; reason: stri
       toast(t("br.failed", { error: e?.message ?? String(e) }));
     } finally {
       setBusy(false);
+    }
+  };
+  // Frame view ⇄ real window: the same browser (profile, logins, tabs) is
+  // relaunched in the other mode; the agent stays paused throughout.
+  const setWindow = async (open: boolean) => {
+    setBusy(true);
+    setSwitching(open ? "open" : "close");
+    try {
+      const b = await API.browserWindow(agent.id, open);
+      setState((s) => ({ browser: { ...s.browser, [agent.id]: b } }));
+    } catch (e: any) {
+      toast(open ? t("brx.noWindow", { error: e?.message ?? String(e) }) : t("br.failed", { error: e?.message ?? String(e) }));
+      API.browser(agent.id)
+        .then((b) => setState((s) => ({ browser: { ...s.browser, [agent.id]: b } })))
+        .catch(() => {});
+    } finally {
+      setBusy(false);
+      setSwitching(null);
     }
   };
   const handback = async () => {
@@ -63,7 +87,18 @@ export function TakeoverCard({ agent, reason }: { agent: AgentView; reason: stri
       <div className="qs">{t("br.reason", { reason, name: agent.name })}</div>
       {st?.url && !active && <code className="cmd">{st.url}</code>}
       {active ? (
-        st?.view === "window" ? (
+        switching ? (
+          <div className="screen brswitch">
+            <div className="screenph">{switching === "open" ? t("brx.opening") : t("brx.closing")}</div>
+          </div>
+        ) : st?.window ? (
+          <div className="brwin">
+            <AppWindow size={18} className="muted" />
+            <p className="small">
+              {!here ? t("brx.elsewhere") : st.running ? t("brx.window", { name: agent.name }) : t("brx.windowClosed")}
+            </p>
+          </div>
+        ) : st?.view === "window" ? (
           <p className="small" style={{ margin: "10px 0 0" }}>
             {t("br.window")}
           </p>
@@ -77,10 +112,35 @@ export function TakeoverCard({ agent, reason }: { agent: AgentView; reason: stri
       )}
       <div className="acts">
         {active ? (
-          <button className="btn pri" type="button" disabled={busy} onClick={handback}>
-            <Undo2 size={13} />
-            {t("br.handback")}
-          </button>
+          <>
+            {st?.window ? (
+              <>
+                {here && !st.running && (
+                  <button className="btn ghost" type="button" disabled={busy} onClick={() => setWindow(true)}>
+                    <AppWindow size={13} />
+                    {t("brx.reopen")}
+                  </button>
+                )}
+                <button className="btn ghost" type="button" disabled={busy} onClick={() => setWindow(false)} title={t("brx.backHint")}>
+                  <MonitorSmartphone size={13} />
+                  {t("brx.backToFrames")}
+                </button>
+              </>
+            ) : (
+              here &&
+              st?.canWindow &&
+              st.view === "frames" && (
+                <button className="btn ghost" type="button" disabled={busy} onClick={() => setWindow(true)} title={t("brx.openHint")}>
+                  <AppWindow size={13} />
+                  {t("brx.openWindow")}
+                </button>
+              )
+            )}
+            <button className="btn pri" type="button" disabled={busy} onClick={handback}>
+              <Undo2 size={13} />
+              {t("br.handback")}
+            </button>
+          </>
         ) : (
           <button className="btn blue" type="button" disabled={busy} onClick={takeover}>
             <Hand size={13} />

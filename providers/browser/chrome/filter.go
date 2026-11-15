@@ -63,6 +63,10 @@ func (c *Chrome) filterFor(agentID string) func(string) bool {
 func (c *Chrome) applyFilter(in *instance) {
 	fs := c.filters()
 	want := c.filterFor(in.agent) != nil
+	if in.frames != nil {
+		// cross-site iframes are targets of their own (frames.go)
+		in.frames.setFilter(want)
+	}
 	fs.mu.Lock()
 	cancel, have := fs.on[in]
 	fs.mu.Unlock()

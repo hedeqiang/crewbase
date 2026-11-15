@@ -253,3 +253,40 @@ func (s *Session) Location(ctx context.Context) (url, title string, err error) {
 	}
 	return u, t, nil
 }
+
+// EvalFrame evaluates expr in frame ("" = the main frame) and decodes the
+// result into out only when no takeover happened meanwhile. Pages without
+// frame support evaluate the main frame with Eval.
+func (s *Session) EvalFrame(ctx context.Context, frame, expr string, out any) error {
+	fp, ok := s.page.(FramePage)
+	if !ok {
+		if frame != "" {
+			return ErrNoFrames
+		}
+		return s.Eval(ctx, expr, out)
+	}
+	var raw json.RawMessage
+	if err := s.do(ctx, func(ctx context.Context) error { return fp.EvalFrame(ctx, frame, expr, &raw) }); err != nil {
+		return err
+	}
+	if out == nil || len(raw) == 0 {
+		return nil
+	}
+	return json.Unmarshal(raw, out)
+}
+
+// ChildFrame returns the frame shown by the iframe element
+// window.__crewbaseFrames[index] of frame (see FramePage).
+func (s *Session) ChildFrame(ctx context.Context, frame string, index int) (string, error) {
+	fp, ok := s.page.(FramePage)
+	if !ok {
+		return "", ErrNoFrames
+	}
+	var id string
+	err := s.do(ctx, func(ctx context.Context) error {
+		var e error
+		id, e = fp.ChildFrame(ctx, frame, index)
+		return e
+	})
+	return id, err
+}

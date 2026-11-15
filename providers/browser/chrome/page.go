@@ -31,7 +31,8 @@ func IsKeyName(s string) bool { _, ok := keys[s]; return ok }
 // cdpPage drives one tab through chromedp. Calls take the caller's context
 // for cancellation, but run on the tab context (the tab outlives the call).
 type cdpPage struct {
-	tab context.Context
+	tab    context.Context
+	frames *frameConn // nil when frames are out of reach
 }
 
 func (p *cdpPage) run(ctx context.Context, fn func(rctx context.Context) error) error {
@@ -139,5 +140,29 @@ func (p *cdpPage) Location(ctx context.Context) (string, string, error) {
 	}
 	return v[0], v[1], nil
 }
+
+// EvalFrame implements browser.FramePage.
+func (p *cdpPage) EvalFrame(ctx context.Context, frame, expr string, out any) error {
+	if p.frames == nil {
+		return browser.ErrNoFrames
+	}
+	return p.run(ctx, func(rctx context.Context) error { return p.frames.eval(rctx, frame, expr, out) })
+}
+
+// ChildFrame implements browser.FramePage.
+func (p *cdpPage) ChildFrame(ctx context.Context, frame string, index int) (string, error) {
+	if p.frames == nil {
+		return "", browser.ErrNoFrames
+	}
+	var id string
+	err := p.run(ctx, func(rctx context.Context) error {
+		var err error
+		id, err = p.frames.child(rctx, frame, index)
+		return err
+	})
+	return id, err
+}
+
+var _ browser.FramePage = (*cdpPage)(nil)
 
 var _ browser.Page = (*cdpPage)(nil)
