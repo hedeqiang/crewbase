@@ -189,7 +189,6 @@ export const en: Partial<Record<Key, string>> = {
   "set.about": "About",
   "set.license": "Open source",
   "set.licenseDesc": "Crewbase is licensed under the MIT License and builds on many open-source components",
-  "set.notices": "Third-party notices",
   "voice.cloud": "Voice input (DeepSeek speech recognition; click again when done, up to 2 minutes)",
   "voice.unsupported": "This browser has no voice input (try Chrome, Edge or Safari)",
   "voice.denied": "Microphone access was denied; allow it in browser or system settings",

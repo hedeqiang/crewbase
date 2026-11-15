@@ -166,6 +166,10 @@ func (e *env) run(t *testing.T, name string, args any) (tools.Result, string) {
 func TestNotConfiguredNeverCrashes(t *testing.T) {
 	t.Setenv(EnvClientID, "")
 	t.Setenv(EnvClientSecret, "")
+	// a build without the embedded secret (CI builds have none)
+	old := DefaultClientSecret
+	DefaultClientSecret = ""
+	t.Cleanup(func() { DefaultClientSecret = old })
 	s := New(Config{}, credentials.New(), nil, nil)
 	s.SetRedirectBase("127.0.0.1:7788")
 	v := s.Status()

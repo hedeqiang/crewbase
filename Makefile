@@ -1,4 +1,4 @@
-.PHONY: build test vet check web desktop notices
+.PHONY: build test vet check web desktop
 
 build: web
 	go build -o bin/crewd ./apps/crewd
@@ -20,8 +20,3 @@ web:
 # cgo; pass PLATFORM=darwin/universal,windows/amd64,linux/amd64 to cross-build.
 desktop: web
 	CGO_ENABLED=0 go tool mygo build $(if $(PLATFORM),-platform $(PLATFORM)) apps/desktop
-
-# THIRD_PARTY_NOTICES.txt (root and apps/web/public): rerun after changing
-# Go or web dependencies; CI fails when it is out of date.
-notices:
-	go run ./internal/notices

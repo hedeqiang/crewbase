@@ -14,8 +14,8 @@ import { builtinNote, connectBuiltin, GoogleAccount, type BuiltinItem } from "./
 
 // Brand icons from LobeHub Icons (@lobehub/icons-static-svg, MIT), as in
 // ProviderMark, where the package has the mark; the others are the
-// companies' own marks from their brand pages or sites (src/assets/brands,
-// credited in THIRD_PARTY_NOTICES.txt). Anything else gets a letter tile.
+// companies' own marks from their brand pages or sites (src/assets/brands).
+// Anything else gets a letter tile.
 import github from "@lobehub/icons-static-svg/icons/github.svg?raw";
 import notion from "@lobehub/icons-static-svg/icons/notion.svg?raw";
 import cloudflare from "@lobehub/icons-static-svg/icons/cloudflare-color.svg?raw";
@@ -31,6 +31,17 @@ import linear from "../../assets/brands/linear.svg?raw";
 import stripe from "../../assets/brands/stripe.svg?raw";
 import atlassian from "../../assets/brands/atlassian.svg?raw";
 import canva from "../../assets/brands/canva.svg?raw";
+// Google's own product icons (gstatic.com product logos, 192px)
+import gmailPng from "../../assets/brands/google-gmail.png";
+import calendarPng from "../../assets/brands/google-calendar.png";
+import drivePng from "../../assets/brands/google-drive.png";
+import docsPng from "../../assets/brands/google-docs.png";
+import sheetsPng from "../../assets/brands/google-sheets.png";
+import slidesPng from "../../assets/brands/google-slides.png";
+const IMG: Record<string, string> = {
+  "google-gmail": gmailPng, "google-calendar": calendarPng, "google-drive": drivePng,
+  "google-docs": docsPng, "google-sheets": sheetsPng, "google-slides": slidesPng,
+};
 
 /** A mark and how it sits in the 40px tile: "tile" = the mark is its own
  *  rounded square and fills the tile; "wide" = a wordmark. */
@@ -291,6 +302,7 @@ function matches(q: string, ...xs: (string | undefined)[]) {
 
 /** The 40px tile in front of a row. */
 function ItemIcon({ icon, id, label, kind }: { icon?: string; id: string; label: string; kind?: string }) {
+  if (icon && IMG[icon]) return <span className="mkic brand img" aria-hidden><img src={IMG[icon]} alt="" /></span>;
   const b = icon ? BRAND[icon] : undefined;
   if (b) return <span className={"mkic brand" + (b.fit ? " " + b.fit : "")} aria-hidden dangerouslySetInnerHTML={{ __html: b.svg }} />;
   if (kind === "skill") return <span className="mkic">{(icon && SKILL_ICONS[icon]) || <Sparkles size={19} />}</span>;

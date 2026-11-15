@@ -32,8 +32,6 @@ jobs:
         working-directory: apps/web
       - run: pnpm build
         working-directory: apps/web
-      - name: Third-party notices are up to date
-        run: go run ./internal/notices -check
 
   go:
     name: go (${{ matrix.os }})

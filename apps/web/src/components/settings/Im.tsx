@@ -11,8 +11,8 @@ import telegramSvg from "../../assets/im/telegram.svg?raw";
 import feishuSvg from "../../assets/im/feishu.svg?raw";
 
 // Each platform's own mark, from its official brand assets (slack.com,
-// discord.com/branding, telegram.org, feishu.cn / larksuite.com; see
-// THIRD_PARTY_NOTICES.txt). Discord's symbol is white on its blurple tile.
+// discord.com/branding, telegram.org, feishu.cn / larksuite.com).
+// Discord's symbol is white on its blurple tile.
 
 const MARKS: Record<string, { svg: string; tile?: string; pad: number }> = {
   slack: { svg: slackSvg, pad: 0.2 },

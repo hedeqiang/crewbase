@@ -334,9 +334,7 @@ function General() {
         <div className="sbox">
           <Updates />
           <Row title={t("set.license")} desc={t("set.licenseDesc")}>
-            <a className="linkbtn" href="/THIRD_PARTY_NOTICES.txt" target="_blank" rel="noreferrer noopener">
-              {t("set.notices")}
-            </a>
+            <span className="small muted">MIT</span>
           </Row>
         </div>
       </div>

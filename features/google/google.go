@@ -48,16 +48,16 @@ import (
 	"github.com/hedeqiang/crewbase/kernel"
 )
 
-// Build-time defaults for Crewbase's own OAuth client, e.g.
-//
-//	go build -ldflags "-X github.com/hedeqiang/crewbase/features/google.DefaultClientID=… \
-//	  -X github.com/hedeqiang/crewbase/features/google.DefaultClientSecret=…"
-//
-// The client id is public; the default is Crewbase's own "Desktop app"
-// client. The secret has no default yet.
+// Build-time defaults for Crewbase's own OAuth client. The client id is
+// public; the default is Crewbase's own "Desktop app" client. Its secret
+// (not confidential for a desktop client, but kept out of the repository)
+// is embedded from client_secret.txt next to this file, which builds write
+// from the GOOGLE_CLIENT_SECRET repository secret and git ignores; -ldflags
+// "-X github.com/hedeqiang/crewbase/features/google.DefaultClientSecret=…"
+// also works.
 var (
 	DefaultClientID     = "609097189154-sj7spdlk0b5hjupgfjooeglso78rnega.apps.googleusercontent.com"
-	DefaultClientSecret = ""
+	DefaultClientSecret = strings.TrimSpace(embeddedSecret)
 )
 
 // Environment variables naming the OAuth client (between config and the

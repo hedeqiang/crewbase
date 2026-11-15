@@ -572,7 +572,6 @@ const zh = {
   "set.about": "关于",
   "set.license": "开源许可",
   "set.licenseDesc": "Crewbase 以 MIT 许可开源，并使用了许多第三方开源组件",
-  "set.notices": "第三方许可声明",
   "voice.cloud": "语音输入（DeepSeek 语音识别，说完再点一次，最长 2 分钟）",
   "voice.unsupported": "这个浏览器不支持语音输入（可用 Chrome、Edge 或 Safari）",
   "voice.denied": "麦克风权限被拒绝，请在浏览器或系统设置里允许",
