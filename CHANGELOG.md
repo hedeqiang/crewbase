@@ -3,6 +3,10 @@
 Each `## <version>` section becomes the release notes of that version,
 shown in the desktop app's update window.
 
+## 0.4.2
+
+- 修复：从「访达」或程序坞打开应用时找不到本机装好的 Claude Code、Codex、Gemini CLI 等订阅（应用只拿到系统最小的 PATH）。现在启动时读取登录 shell 的 PATH，并补上 Homebrew、npm、~/.local/bin 等常见安装目录，和在终端里看到的一致
+
 ## 0.4.1
 
 - 修复：删除频道后它仍留在侧边栏，再删提示 not found；团队里也还算着这个频道（无法删除团队、无法把成员 Agent 移到别的团队）。之前删过的频道升级后自动消失
