@@ -1,0 +1,128 @@
+<p align="center">
+  <img src="docs/brand/crewbase-mark.svg" width="72" height="72" alt="Crewbase">
+</p>
+
+<h1 align="center">Crewbase</h1>
+
+<p align="center">
+  A local-first, model-agnostic workspace for a crew of AI agents.<br>
+  Bring the subscriptions and models you already have; keep every action auditable.
+</p>
+
+<p align="center">
+  <a href="https://github.com/hedeqiang/crewbase/releases/latest"><img alt="Release" src="https://img.shields.io/github/v/release/hedeqiang/crewbase?include_prereleases&sort=semver"></a>
+  <a href="https://github.com/hedeqiang/crewbase/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/hedeqiang/crewbase/actions/workflows/ci.yml/badge.svg"></a>
+  <a href="LICENSE"><img alt="License" src="https://img.shields.io/badge/license-Apache--2.0-blue"></a>
+</p>
+
+<p align="center"><b>English</b> · <a href="README.zh-CN.md">简体中文</a></p>
+
+---
+
+Crewbase runs a team of agents on your own machine or server. Each agent has its own workspace, models and permissions; they hand work to each other in channels, delegate to sub-agents, and stop to ask you before anything risky. Everything they do is written to a local, append-only log.
+
+> **Status:** early preview (0.1). Interfaces and storage formats may still change between minor versions.
+
+## Highlights
+
+- **Any model, your subscriptions.** Native Anthropic, OpenAI, Gemini, DeepSeek, xAI, Kimi, Zhipu, MiniMax, Qwen and Volcengine providers, any OpenAI-compatible endpoint, local models (Ollama, LM Studio), and logged-in **Claude Code / Codex / Gemini CLI** subscriptions over ACP. Routes by task type and fails over to the next model.
+- **A crew, not a chatbot.** Channels with a single owner and explicit handover, sub-agent delegation, workflows on a visual canvas, and a shared task board (dependency graph) per delegation tree. A blank **New chat** (⌘N) still has every tool.
+- **Safe by default.** Three run modes — read-only, sandbox (Seatbelt on macOS, bubblewrap on Linux, Docker elsewhere) and host. A rules engine and approvals gate pushes, deletes, publishing and payments; secrets live in the system keychain and are redacted from logs; a hash-chained audit log records who approved what.
+- **Tools that do real work.** Shell and files in the workspace, a per-agent Chrome you can take over at any time, MCP servers (including OAuth and resources/prompts), skills, long-term memory, and attachments (images, PDF, Office) loaded natively for models that can read them.
+- **DeepSeek tool APIs for any model.** With a DeepSeek key, every agent gets `web_search`, `web_fetch` and `ocr_file`; scanned PDFs and images are OCR'd for text-only models; dictation and read-aloud use DeepSeek ASR / TTS.
+- **Plugins all the way down.** The kernel is a plugin host: built-in Go plugins, out-of-process plugins in Go, TypeScript or Python, sandboxed **WebAssembly** hooks, and declarative UI slots. Marketplace packages are checksum-pinned and publisher-signed.
+- **Reach it from anywhere — with zero inbound ports.** Pair a phone through an end-to-end encrypted relay (installable PWA for approvals and chat), or talk to your crew from Slack, Telegram, Discord, Feishu and Lark.
+- **Desktop and server.** A native desktop app for macOS, Windows and Linux with automatic updates, or a hardened headless server (systemd or Docker).
+
+## Install
+
+### Desktop app
+
+**macOS** (recommended — installs to `/Applications` after checking the update signature):
+
+```sh
+curl -fsSL https://github.com/hedeqiang/crewbase/releases/latest/download/install.sh | sh
+```
+
+You can also download the `.dmg` from [Releases](https://github.com/hedeqiang/crewbase/releases/latest). The app is not notarized by Apple yet, so the first launch of a browser-downloaded copy has to be allowed in **System Settings › Privacy & Security › Open Anyway**. The install script above avoids this.
+
+**Windows:** download `crewbase-setup-<version>-amd64.exe` (or `arm64`) from [Releases](https://github.com/hedeqiang/crewbase/releases/latest). The installer is unsigned for now; choose *More info › Run anyway* in SmartScreen.
+
+**Linux:** use the same `install.sh` (installs to `~/.local`), or the `.deb` / `.rpm` packages. Requires WebKitGTK 4.1.
+
+Installed apps update themselves (or check from the app menu: **检查更新…**). The interface is currently in Chinese; English is available in Settings.
+
+### Server
+
+```sh
+docker pull ghcr.io/hedeqiang/crewbase          # distroless; :chromium includes a browser
+```
+
+For a hardened setup use [`deploy/docker-compose.yml`](deploy/docker-compose.yml) or the systemd installer [`deploy/install-server.sh`](deploy/install-server.sh) — see the [deployment guide](docs/deploy.md). The gateway only listens on `127.0.0.1`; reach it over SSH, Tailscale or the relay.
+
+Standalone `crewd`, `crew` and `crew-relay` binaries for macOS, Linux and Windows are attached to every release as `crewbase-cli-<version>-<os>-<arch>`.
+
+## Getting started
+
+1. Open Crewbase. If you are logged in to Claude Code, Codex or Gemini CLI, those subscriptions are picked up automatically; otherwise add a provider in **Settings › Models** (keys go to the system keychain).
+2. Press **⌘N** for a blank chat, or **⇧⌘N** to create an agent from a template with its own instructions, workspace and run mode.
+3. Give it work. Risky steps show up as approval cards; the right panel shows its task board and files.
+
+The `crew` CLI talks to the same daemon:
+
+```sh
+crew agents                     # list agents
+crew chat <agent> "fix the failing test"   # send and stream the turn
+crew approvals                  # pending approvals; crew approve|reject <callId>
+crew plugin market              # browse plugins; crew plugin install <name>
+crew plugin new my-tool --lang ts   # scaffold a plugin; crew dev <dir> hot-reloads it
+crew doctor                     # check the installation
+```
+
+## Build from source
+
+Requires Go 1.27, Node 22 and pnpm 10.
+
+```sh
+git clone https://github.com/hedeqiang/crewbase.git && cd crewbase
+make build          # web UI + bin/crewd + bin/crew
+make desktop        # Crewbase.app / installer in apps/desktop/build
+make check          # go vet + race tests
+./bin/crewd         # daemon on 127.0.0.1:7788 (token in ~/.crewbase/token)
+```
+
+`go run ./apps/desktop` starts the desktop shell in development mode. Live tests against real models are behind a build tag: `go test -tags live ./test/live`.
+
+## Repository layout
+
+| Path | Contents |
+|---|---|
+| `kernel/` | Plugin host: services, events, scopes, effects, profiles |
+| `core/` | Agents, agent loop, sessions, tools, model interfaces |
+| `capabilities/` | Interfaces with swappable providers (approval, browser, credentials, sandbox, …) |
+| `providers/` | Implementations: model adapters, sandboxes, browser, IM gateways |
+| `features/` | Product features as plugins (channels, workflows, MCP, relay, members, …) |
+| `bridge/` | Out-of-process and WebAssembly plugin runtimes |
+| `apps/` | `crewd`, `crew`, `crew-relay`, the desktop shell and the web UI |
+| `sdk/`, `examples/plugins/` | Plugin SDKs (Go, TypeScript, Python) and examples |
+| `deploy/` | Docker Compose, systemd installer, cloud templates |
+
+## Documentation
+
+The design documents are written in Chinese; English versions will follow.
+
+- [Product requirements](docs/01-product-requirements.md) · [UX design](docs/03-ux-design.md) · [Roadmap](docs/07-roadmap.md)
+- [Architecture](docs/04-architecture.md) · [Plugin system](docs/05-plugin-system.md) · [Security model](docs/06-security-model.md)
+- [Desktop app](docs/desktop.md) · [Deployment](docs/deploy.md) · [Releasing](docs/release.md)
+
+## Security
+
+Crewbase runs code and calls services on your behalf, so its defaults are conservative: agents start in the sandbox, nothing listens beyond loopback, and payments can never be approved remotely. Please report vulnerabilities privately through [GitHub security advisories](https://github.com/hedeqiang/crewbase/security/advisories/new) rather than public issues. See the [security model](docs/06-security-model.md).
+
+## Contributing
+
+Issues and pull requests are welcome. Run `make check` and `pnpm build` in `apps/web` before sending a change; CI runs the same checks on Linux and macOS.
+
+## License
+
+[Apache License 2.0](LICENSE). Model vendor icons come from [LobeHub Icons](https://github.com/lobehub/lobe-icons) (MIT); trademarks belong to their owners.

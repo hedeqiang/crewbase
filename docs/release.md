@@ -5,7 +5,7 @@
 | 产物 | 内容 |
 |---|---|
 | 桌面客户端 | macOS `.dmg`（arm64 / x64）、Windows 安装程序（x64 / arm64）、Linux `.deb` / `.rpm` / `.tar.gz` + `install.sh`；每个平台带签名的自动更新清单 `update-<platform>.json` 与增量包 |
-| 命令行 | `crewd` / `crew` / `crew-relay`，macOS / Linux / Windows × amd64 / arm64，附校验和 |
+| 命令行 | `crewd` / `crew` / `crew-relay`，macOS / Linux / Windows × amd64 / arm64，名为 `crewbase-cli-<版本>-<系统>-<架构>`，附校验和（不可与桌面更新包 `crewbase-<版本>-<系统>-<架构>.tar.gz` 同名） |
 | 服务端镜像 | `ghcr.io/hedeqiang/crewbase:<version>`（distroless）与 `:<version>-chromium` |
 
 `.github/workflows/ci.yml` 在每次推送 main 与 PR 时跑 `go vet`、带 race 的全量测试（Linux + macOS）、Windows 交叉编译与网页构建。
@@ -36,7 +36,7 @@ gh secret set MYGO_UPDATER_PRIVATE_KEY < ~/Library/Application\ Support/mygo/upd
 git tag v0.2.0 && git push origin v0.2.0
 ```
 
-标签与 `mygo.json` 版本、CHANGELOG 小节、密钥三者任一不对，流水线在第一步就停下。各平台并行构建、上传到草稿 Release，全部成功后自动发布；已安装的客户端随即检查到更新（启动 10 秒后、之后每天一次，或菜单「检查更新…」）。带 `-` 的标签（`v0.2.0-beta.1`）发布为预发布版，普通用户不会收到。
+标签与 `mygo.json` 版本、CHANGELOG 小节、密钥三者任一不对，流水线在第一步就停下；发布前还会核对每个更新清单里的归档与 Release 中的文件一致，不一致则不发布。各平台并行构建、上传到草稿 Release，全部成功后自动发布；已安装的客户端随即检查到更新（启动 10 秒后、之后每天一次，或菜单「检查更新…」）。带 `-` 的标签（`v0.2.0-beta.1`）发布为预发布版，普通用户不会收到。
 
 ## 没有 Apple 开发者证书时
 

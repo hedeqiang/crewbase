@@ -130,7 +130,8 @@ jobs:
           for target in darwin/arm64 darwin/amd64 linux/amd64 linux/arm64 windows/amd64 windows/arm64; do
             os="${target%/*}"; arch="${target#*/}"; ext=""
             [ "$os" = windows ] && ext=".exe"
-            dir="crewbase-$v-$os-$arch"
+            # not crewbase-<v>-<os>-<arch>: that name is the desktop app's signed update archive
+            dir="crewbase-cli-$v-$os-$arch"
             mkdir -p "out/$dir"
             for app in crewd:apps/crewd crew:apps/cli crew-relay:apps/relayd; do
               GOOS=$os GOARCH=$arch go build -trimpath -ldflags "-s -w" -o "out/$dir/${app%%:*}$ext" "./${app#*:}"
@@ -142,11 +143,11 @@ jobs:
               tar -C out -czf "out/$dir.tar.gz" "$dir"
             fi
           done
-          (cd out && sha256sum crewbase-*.tar.gz crewbase-*.zip > crewbase-$v-checksums.txt)
+          (cd out && sha256sum crewbase-cli-*.tar.gz crewbase-cli-*.zip > crewbase-cli-$v-checksums.txt)
       - name: Upload
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release upload "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --clobber out/crewbase-*.tar.gz out/crewbase-*.zip out/crewbase-*-checksums.txt
+        run: gh release upload "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --clobber out/crewbase-cli-*.tar.gz out/crewbase-cli-*.zip out/crewbase-cli-*-checksums.txt
 
   image:
     needs: draft-release
@@ -188,6 +189,23 @@ jobs:
     needs: [desktop, binaries, image]
     runs-on: ubuntu-latest
     steps:
-      - env:
+      - name: Check the update archives
+        env:
+          GH_TOKEN: ${{ github.token }}
+        # every manifest's archive must be the file it signed (an asset
+        # overwritten after the desktop build would break updates)
+        run: |
+          set -eu
+          gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --json assets -q '.assets[]|.name+" "+(.size|tostring)' > assets.txt
+          mkdir m && gh release download "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --pattern 'update-*.json' --dir m
+          n=0
+          for f in m/update-*.json; do
+            name="$(jq -r .url "$f" | sed 's#.*/##')"; size="$(jq -r .size "$f")"
+            grep -qx "$name $size" assets.txt || { echo "::error::$name does not match $(basename "$f") (size $size)"; exit 1; }
+            n=$((n+1))
+          done
+          test "$n" -ge 6
+      - name: Publish
+        env:
           GH_TOKEN: ${{ github.token }}
         run: gh release edit "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --draft=false
