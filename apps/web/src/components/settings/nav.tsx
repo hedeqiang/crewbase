@@ -1,4 +1,4 @@
-import { Bell, Boxes, Cpu, Keyboard, ListChecks, MousePointer2, Puzzle, Server, Settings as Gear, User, Workflow, Users } from "lucide-react";
+import { Bell, Boxes, Cpu, Keyboard, ListChecks, MessagesSquare, MousePointer2, Puzzle, Server, Settings as Gear, User, Workflow, Users } from "lucide-react";
 import type { ReactNode } from "react";
 import type { Key } from "../../i18n";
 import type { SettingsSection } from "../../store";
@@ -30,6 +30,7 @@ export const NAV: { group: Key; items: { id: SettingsSection; icon: ReactNode }[
     items: [
       { id: "teams", icon: <Boxes size={16} /> },
       { id: "team", icon: <Users size={16} /> },
+      { id: "im", icon: <MessagesSquare size={16} /> },
       { id: "hosts", icon: <Server size={16} /> },
     ],
   },

@@ -1226,15 +1226,6 @@ button.tg:disabled { opacity: .5; cursor: not-allowed; }
 .mcplogin { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 8px 10px; border-radius: 10px; background: var(--amber-soft); margin-top: 6px; }
 .mcplogin .small { color: var(--amber-text); flex: 1; min-width: 160px; }
 .chk { display: flex; align-items: center; gap: 8px; }
-.impick { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 8px; margin-top: 8px; }
-.imform { margin-top: 8px; }
-.imfh { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
-.imfh .sp { flex: 1; }
-.imkey { display: flex; align-items: center; gap: 5px; color: var(--ok-text); margin: 8px 0 0; }
-.imrow { grid-template-columns: auto minmax(0, 1fr) auto auto auto; }
-.imlisten { grid-column: 2 / -1; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.imlisten .ssel select { font-size: 12.5px; }
-.imlisten .fi.sm { flex: 1; min-width: 180px; height: 28px; font-size: 12.5px; }
 
 /* ---- workflow canvas */
 .wfboard { display: flex; gap: 12px; align-items: flex-start; margin-bottom: 10px; }
@@ -1515,3 +1506,65 @@ button.psec.toggle { width: 100%; background: none; border: 0; font-family: inhe
 .toldi { display: flex; flex-direction: column; gap: 2px; font-size: 12.5px; padding: 8px 10px; border-radius: 10px; background: var(--sunken); }
 .modal.wide { width: min(720px, calc(100vw - 32px)); }
 .wview { max-height: min(70vh, 640px); overflow: auto; }
+
+/* ---- settings › chat apps (即时通讯) */
+.immark { border-radius: 9px; font-weight: 650; }
+.imintro { display: flex; align-items: flex-start; gap: 12px; padding: 14px 16px; margin-bottom: 12px; border-radius: 14px; background: var(--accent-soft); color: var(--text); }
+.imintro-i { display: inline-grid; place-items: center; width: 32px; height: 32px; border-radius: 9px; background: var(--surface); color: var(--accent-text); flex: none; }
+.imintro .g { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.imintro .g b { font-size: 13.5px; }
+.imintro .g span { font-size: 12.5px; color: var(--text2); line-height: 1.5; }
+.imst { display: flex; align-items: center; gap: 6px; color: var(--muted); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.imst.ok { color: var(--ok-text); } .imst.red { color: var(--danger-text); } .imst.amber { color: var(--amber-text); }
+.imst .sdot.amber { background: var(--amber); }
+.imcard .tcardh .btn { flex: none; }
+.imgw .sd { width: 8px; height: 8px; border-radius: 50%; flex: none; margin: 0 2px 0 6px; }
+.imgw .g b { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.imgw.off .imch { color: var(--muted); }
+.imch { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; font-size: 12.5px; }
+.imerr { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.modal.imdlg { width: min(540px, calc(100% - 24px)); }
+.imdlg .mhd { gap: 10px; }
+.imsteps { list-style: none; display: flex; gap: 4px; padding: 0; margin: 8px 0 14px; }
+.imsteps li { flex: 1; min-width: 0; }
+.imsteps button { width: 100%; display: flex; align-items: center; gap: 7px; padding: 6px 4px 8px; border-bottom: 2px solid var(--border); color: var(--muted); font-size: 12.5px; text-align: left; background: none; }
+.imsteps button:disabled { cursor: default; }
+.imsteps .wnum { width: 20px; height: 20px; font-size: 11px; background: var(--border); color: var(--muted); }
+.imsteps li.on button { border-color: var(--accent); color: var(--text); font-weight: 500; }
+.imsteps li.on .wnum { background: var(--text); color: var(--surface); }
+.imsteps li.done button { color: var(--text2); }
+.imsteps li.done .wnum { background: var(--ok); color: #fff; }
+.imstep-l { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.imregion { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
+.impane { display: flex; flex-direction: column; }
+.impane .fl:first-child { margin-top: 0; }
+.imhow { margin: 0 0 12px; padding-left: 20px; display: flex; flex-direction: column; gap: 7px; font-size: 13px; line-height: 1.5; color: var(--text); }
+.imhow li::marker { color: var(--muted); font-size: 12px; }
+.imdoc { align-self: flex-start; display: inline-flex; align-items: center; gap: 5px; text-decoration: none; }
+.imcheck { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 12px; }
+.imcheck .btn { display: inline-flex; align-items: center; gap: 6px; }
+.imcheck .errt { display: inline-flex; align-items: center; gap: 5px; overflow-wrap: anywhere; }
+.imkeynote { margin: 10px 0 0; }
+.imhint { margin-top: 5px; line-height: 1.45; }
+.imtwo { display: grid; align-items: start; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 0 12px; }
+.imtwo .ssel, .imtwo .ssel select { width: 100%; }
+.imkw { margin-top: 8px; }
+.imtoggles { display: flex; flex-direction: column; gap: 10px; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--border); }
+.imtg { display: flex; align-items: center; gap: 12px; cursor: pointer; }
+.imtg .g { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.imtg .g b { font-size: 13px; font-weight: 500; }
+.imtg .g span { font-size: 12px; color: var(--muted); }
+.imdlg .mft { align-items: center; }
+.imdlg .mft .sp { flex: 1; }
+.ntim { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; padding: 10px 14px; margin-top: 8px; border-radius: 12px; border: 1px dashed var(--border2); background: none; color: var(--text2); }
+.ntim:hover { background: var(--hover); }
+.ntim .g { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.ntim .g b { font-size: 13px; color: var(--text); font-weight: 500; }
+.ntim .g span { font-size: 12px; color: var(--muted); }
+@media (max-width: 560px) {
+  .imstep-l { display: none; }
+  .imsteps li.on .imstep-l { display: inline; }
+  .imdlg .mft { flex-wrap: wrap; }
+  .ntim .linkbtn { display: none; }
+}
+.imtwo .fl:first-child { margin-top: 12px; }

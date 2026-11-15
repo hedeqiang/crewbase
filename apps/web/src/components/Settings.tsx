@@ -14,6 +14,7 @@ import { Team } from "./settings/Team";
 import { Teams } from "./settings/Teams";
 import { askNotify, notifyPermission, notifySupported } from "../companion";
 import { Notify } from "./settings/Notify";
+import { Im } from "./settings/Im";
 import { Routing } from "./settings/Routing";
 import { Avatar } from "./Avatar";
 import { ApprovalActions } from "./Approval";
@@ -90,7 +91,8 @@ export function Settings() {
         {manage && sec === "hosts" && <Hosts />}
         {manage && sec === "team" && <Team />}
         {manage && sec === "teams" && <Teams />}
-        {manage && !["general", "models", "approvals", "auto", "market", "profile", "keys", "notify", "hosts", "team", "teams"].includes(sec) && <Soon sec={sec} />}
+        {manage && sec === "im" && <Im />}
+        {manage && !["general", "models", "approvals", "auto", "market", "profile", "keys", "notify", "hosts", "team", "teams", "im"].includes(sec) && <Soon sec={sec} />}
       </div>
     </div>
   );
