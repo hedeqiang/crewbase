@@ -79,7 +79,9 @@ type Meta struct {
 	Kind   string   `json:"kind"` // agent | channel
 	Agents []string `json:"agents,omitempty"`
 	Folder string   `json:"folder,omitempty"`
-	Parent string   `json:"parent,omitempty"` // forked from
+	// Team of a channel ("" = the default team).
+	Team   string `json:"team,omitempty"`
+	Parent string `json:"parent,omitempty"` // forked from
 	// Topic is a short generated description of what the session is about.
 	Topic   string    `json:"topic,omitempty"`
 	Created time.Time `json:"created"`

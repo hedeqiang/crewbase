@@ -4,7 +4,7 @@ import { API, refString, type ModelRef } from "../api";
 import { ImportRoleDialog } from "./ImportRole";
 import { t, type Key } from "../i18n";
 import { allModels, effortLabel, kfmt, modeLabel, sameRef, shortModel } from "../format";
-import { openSession, refreshAgents, refreshSessions, setState, toast, useFolders, useStore } from "../store";
+import { openSession, refreshAgents, refreshSessions, setState, toast, useFolders, useStore, currentTeam } from "../store";
 import { AvatarRaw, COLORS, SHAPES } from "./Avatar";
 import { Popover, useMenu } from "./Popover";
 import { ProviderMark } from "./ProviderMark";
@@ -123,6 +123,7 @@ export function NewAgent({ draft: f, setDraft }: { draft: Draft; setDraft: (d: D
         color: f.color,
         shape: f.shape,
         folder: f.folder.trim() || undefined,
+        team: currentTeam(),
         modelRefs: refs.length ? refs : undefined,
       });
       toast(t("na.created", { name }));

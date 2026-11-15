@@ -354,6 +354,9 @@ func (s *Service) SenderName(deviceID string) string {
 	return p.Name
 }
 
+// MemberIDOf is the member behind deviceID ("" = the owner).
+func (s *Service) MemberIDOf(deviceID string) string { return s.PersonOf(deviceID).ID }
+
 // PersonFor implements taskboard.PersonFunc.
 func (s *Service) PersonFor(deviceID string) (string, bool) {
 	p := s.PersonOf(deviceID)

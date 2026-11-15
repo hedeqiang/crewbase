@@ -193,6 +193,7 @@ func (r *runner) createEphemeral(parent *agent.Agent, mode string, models []llm.
 		spec.Parent = ps.ID
 		spec.Models = ps.Models
 		spec.Folder = ps.Folder
+		spec.Team = ps.Team
 		mode = agent.Stricter(parent.Mode(), mode)
 	}
 	if len(models) > 0 {
@@ -596,6 +597,14 @@ var DelegatePlugin = kernel.Register(kernel.Spec{
 				default:
 					return tools.Errorf("unknown provider %q (use local, fork or acp)", a.Provider), nil
 				}
+				// teammates only: a named agent must be in the caller's team
+				if a.Agent != "" && a.Provider != "acp" {
+					if to, ok := agents.Get(a.Agent); ok {
+						if me, ok := agents.Get(call.Agent); ok && !to.Spec().Ephemeral && to.Spec().TeamID() != me.Spec().TeamID() {
+							return tools.Errorf("%s is in another team; you can only hand work to your own team's agents", to.Spec().Name), nil
+						}
+					}
+				}
 				req := subagent.Request{
 					Parent: call.Agent, Task: a.Task, Agent: a.Agent,
 					Mode: agent.Stricter(call.Mode, a.Mode), Depth: 1,
@@ -691,10 +700,14 @@ func clipText(s string, n int) string {
 // Team renders the roster an agent can delegate to: the other agents with
 // their role (not blank chats or sub-agents). Empty when there are none.
 func Team(agents *agent.Registry, self string) string {
+	team := agent.DefaultTeam
+	if me, ok := agents.Get(self); ok {
+		team = me.Spec().TeamID()
+	}
 	var lines []string
 	for _, a := range agents.List() {
 		s := a.Spec()
-		if s.ID == self || s.Kind == agent.KindChat || s.Ephemeral {
+		if s.ID == self || s.Kind == agent.KindChat || s.Ephemeral || s.TeamID() != team {
 			continue
 		}
 		line := fmt.Sprintf("- %s (id %s)", s.Name, s.ID)

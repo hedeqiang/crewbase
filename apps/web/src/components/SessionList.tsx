@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Bot, Check, ChevronRight, Workflow, FolderPlus, Hash, LifeBuoy, LogOut, Moon, Plus, Power, Search, Settings, Keyboard, MessageSquare } from "lucide-react";
+import { Bot, Check, ChevronDown, ChevronRight, Lock, Users, Workflow, FolderPlus, Hash, LifeBuoy, LogOut, Moon, Plus, Power, Search, Settings, Keyboard, MessageSquare } from "lucide-react";
 import type { AgentView, SessionMeta, UsageStats } from "../api";
-import { API, desktop, openExternal, setToken } from "../api";
+import { API, desktop, openExternal, setToken, teamOf, type TeamView } from "../api";
 import { t } from "../i18n";
 import { hhmm, kfmt, listTime, nextMorning, sinceLabel } from "../format";
 import { takeoverReason } from "./Browser";
@@ -20,6 +20,7 @@ import {
   refreshProfile,
   setState,
   setTheme,
+  switchTeam,
   useStore,
   type Profile,
   type Theme,
@@ -50,6 +51,8 @@ export function SessionList() {
   const summaries = useStore((s) => s.summaries);
   const channels = useStore((s) => s.channels);
   const savedFolders = useStore((s) => s.savedFolders);
+  const team = useStore((s) => s.team);
+  const teams = useStore((s) => s.teams);
   const groups = useMemo(() => {
     const ql = q.trim().toLowerCase();
     const match = (...xs: (string | undefined)[]) => !ql || xs.some((x) => x?.toLowerCase().includes(ql));
@@ -61,9 +64,9 @@ export function SessionList() {
     // Most recently active first; fall back to creation order.
     const upd = (sid: string, created: string) => summaries[sid]?.updated ?? created;
     const list = Object.values(agents).sort((a, b) => upd(b.session, b.created).localeCompare(upd(a.session, a.created)));
-    for (const a of list) if (match(a.name, a.role, a.folder, summaries[a.session]?.topic)) get(a.folder ?? "").agents.push(a);
+    for (const a of list) if (teamOf(a) === team && match(a.name, a.role, a.folder, summaries[a.session]?.topic)) get(a.folder ?? "").agents.push(a);
     const chs = Object.values(sessions)
-      .filter((m) => m.kind === "channel")
+      .filter((m) => m.kind === "channel" && teamOf(m) === team)
       .sort((a, b) => {
         const ar = channels[a.id]?.state === "archived" ? 1 : 0;
         const br = channels[b.id]?.state === "archived" ? 1 : 0;
@@ -74,7 +77,7 @@ export function SessionList() {
     if (!ql) for (const f of savedFolders) get(f);
     // ungrouped first, then folders alphabetically
     return [...g.entries()].sort(([a], [b]) => (a === "" ? -1 : b === "" ? 1 : a.localeCompare(b)));
-  }, [agents, sessions, summaries, channels, savedFolders, q]);
+  }, [agents, sessions, summaries, channels, savedFolders, q, team]);
 
   const snippet = (sid: string): { text: string; time: string; agent?: string } | null => {
     const sm = summaries[sid];
@@ -168,6 +171,7 @@ export function SessionList() {
         )}
         <ListToggle />
       </div>
+      {teams.length > 1 && <TeamSwitcher teams={teams} current={team} />}
       <div className="lhead">
         <label className="search">
           <Search size={14} />
@@ -582,5 +586,58 @@ export function ThemeSeg({ theme }: { theme: Theme }) {
         </button>
       ))}
     </div>
+  );
+}
+
+/** Which team the sidebar shows (only when there is more than one). */
+function TeamSwitcher({ teams, current }: { teams: TeamView[]; current: string }) {
+  const m = useMenu();
+  const cur = teams.find((x) => x.id === current) ?? teams[0];
+  return (
+    <>
+      <button className="teamsw" type="button" ref={m.ref} onClick={m.toggle} aria-haspopup="menu" title={t("teams.switch")}>
+        <span className="tdot" style={{ background: cur.color || "var(--accent)" }}>
+          {cur.name.slice(0, 1)}
+        </span>
+        <b>{cur.name}</b>
+        {cur.visibility === "private" && <Lock size={12} />}
+        <ChevronDown size={14} />
+      </button>
+      <Popover anchor={m.anchor} open={m.open} onClose={m.close} width={260}>
+        <div className="mlbl">{t("teams.title")}</div>
+        {teams.map((x) => (
+          <button
+            key={x.id}
+            className="mi"
+            type="button"
+            onClick={() => {
+              switchTeam(x.id);
+              m.close();
+            }}
+          >
+            <span className="tdot" style={{ background: x.color || "var(--accent)" }}>
+              {x.name.slice(0, 1)}
+            </span>
+            <span className="g">
+              {x.name}
+              <span>{t("teams.counts", { agents: x.agents, channels: x.channels })}</span>
+            </span>
+            <span className="ck">{x.id === current && <Check size={14} />}</span>
+          </button>
+        ))}
+        <hr />
+        <button
+          className="mi"
+          type="button"
+          onClick={() => {
+            m.close();
+            openSettings("teams");
+          }}
+        >
+          <Users size={16} />
+          <span className="g">{t("teams.manage")}</span>
+        </button>
+      </Popover>
+    </>
   );
 }

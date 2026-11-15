@@ -1,6 +1,6 @@
 import { AddProviderDialog } from "./settings/AddProvider";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { Bell, ChevronLeft, Cpu, Info, Keyboard, ListChecks, MousePointer2, Plus, Puzzle, Search, Server, Settings as Gear, User, Workflow, Users } from "lucide-react";
+import { Bell, Boxes, ChevronLeft, Cpu, Info, Keyboard, ListChecks, MousePointer2, Plus, Puzzle, Search, Server, Settings as Gear, User, Workflow, Users } from "lucide-react";
 import { API, type ApprovalHistoryItem, type ProviderView, type RememberedChoice, type Settings as SettingsData, type UserProvider } from "../api";
 import { t, type Key, type Lang } from "../i18n";
 import { ago, kfmt, modeLabel, providerName, until } from "../format";
@@ -10,6 +10,7 @@ import { Extensions } from "./settings/Extensions";
 import { Profile } from "./settings/Profile";
 import { Hosts } from "./settings/Hosts";
 import { Team } from "./settings/Team";
+import { Teams } from "./settings/Teams";
 import { askNotify, notifyPermission, notifySupported } from "../companion";
 import { Notify } from "./settings/Notify";
 import { Routing } from "./settings/Routing";
@@ -38,7 +39,14 @@ const NAV: { group: Key; items: { id: SettingsSection; icon: ReactNode }[] }[] =
       { id: "approvals", icon: <ListChecks size={16} /> },
     ],
   },
-  { group: "set.group.device", items: [{ id: "hosts", icon: <Server size={16} /> }, { id: "team", icon: <Users size={16} /> }] },
+  {
+    group: "set.group.device",
+    items: [
+      { id: "teams", icon: <Boxes size={16} /> },
+      { id: "team", icon: <Users size={16} /> },
+      { id: "hosts", icon: <Server size={16} /> },
+    ],
+  },
 ];
 
 export const SECTION_ICONS: Record<SettingsSection, ReactNode> = Object.fromEntries(NAV.flatMap((g) => g.items.map((i) => [i.id, i.icon]))) as any;
@@ -93,7 +101,8 @@ export function Settings() {
         {manage && sec === "notify" && <Notify />}
         {manage && sec === "hosts" && <Hosts />}
         {manage && sec === "team" && <Team />}
-        {manage && !["general", "models", "approvals", "auto", "market", "profile", "keys", "notify", "hosts", "team"].includes(sec) && <Soon sec={sec} />}
+        {manage && sec === "teams" && <Teams />}
+        {manage && !["general", "models", "approvals", "auto", "market", "profile", "keys", "notify", "hosts", "team", "teams"].includes(sec) && <Soon sec={sec} />}
       </div>
     </div>
   );

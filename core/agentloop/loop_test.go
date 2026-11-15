@@ -526,7 +526,10 @@ func TestReplyInsteadOfApproval(t *testing.T) {
 	reg := kernel.Use[*tools.Registry](e.h.Root(), tools.ServiceKey)
 	ran := false
 	reg.Register(e.h.Root(), &tools.Tool{Name: "deploy", Category: tools.CategoryPublish, Description: "deploy",
-		Execute: func(context.Context, tools.Call) (tools.Result, error) { ran = true; return tools.Text("deployed"), nil }})
+		Execute: func(context.Context, tools.Call) (tools.Result, error) {
+			ran = true
+			return tools.Text("deployed"), nil
+		}})
 	tools.PreExecute.Use(e.h.Root(), func(ctx context.Context, d *tools.Decision, next kernel.Next[*tools.Decision, *tools.Decision]) (*tools.Decision, error) {
 		if d.Call.Name == "deploy" {
 			d.RequireApproval("deploys need approval")

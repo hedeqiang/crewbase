@@ -45,8 +45,10 @@ type Spec struct {
 	Color     string    `json:"color,omitempty"`
 	Shape     string    `json:"shape,omitempty"`
 	Folder    string    `json:"folder,omitempty"`
-	Host      string    `json:"host,omitempty"`
-	Created   time.Time `json:"created"`
+	// Team the agent belongs to ("" = the default team, DefaultTeam).
+	Team    string    `json:"team,omitempty"`
+	Host    string    `json:"host,omitempty"`
+	Created time.Time `json:"created"`
 	// Session is the agent's direct-conversation session.
 	Session string `json:"session"`
 	// NativeTools enables provider-hosted tools (llm.NativeWebSearch,
@@ -191,6 +193,21 @@ func (a *Agent) whereLine() string {
 	}
 	return "Workspace directory: " + a.Workspace()
 }
+
+// DefaultTeam holds agents and channels with no team (everything created
+// before teams existed).
+const DefaultTeam = "default"
+
+// TeamOf normalizes a team id ("" = DefaultTeam).
+func TeamOf(id string) string {
+	if id == "" {
+		return DefaultTeam
+	}
+	return id
+}
+
+// TeamID is the agent's team.
+func (s Spec) TeamID() string { return TeamOf(s.Team) }
 
 // Home holds the agent's own files (INSTRUCTIONS.md, MEMORY.md, .memory/):
 // its own directory, also when it works in a project folder, so they never

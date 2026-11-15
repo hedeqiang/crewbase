@@ -50,6 +50,7 @@ import (
 	_ "github.com/hedeqiang/crewbase/features/skills"
 	_ "github.com/hedeqiang/crewbase/features/subagent"
 	_ "github.com/hedeqiang/crewbase/features/taskboard"
+	_ "github.com/hedeqiang/crewbase/features/teams"
 	_ "github.com/hedeqiang/crewbase/features/telemetry"
 	_ "github.com/hedeqiang/crewbase/features/toolsbasic"
 	_ "github.com/hedeqiang/crewbase/features/topics"
@@ -177,6 +178,7 @@ var Desktop = kernel.Bundle{Name: "desktop", Entries: []kernel.Entry{
 	{ID: "voice-api", Name: "@crewbase/voice-api"},
 	{ID: "devices", Name: "@crewbase/devices", Config: map[string]any{"dir": "${root}"}},
 	{ID: "members", Name: "@crewbase/members", Config: map[string]any{"dir": "${root}"}},
+	{ID: "teams", Name: "@crewbase/teams", Config: map[string]any{"dir": "${root}"}},
 	{ID: "taskboard-api", Name: "@crewbase/taskboard-api"},
 	// Outbound relay link (zero inbound ports); set config.url to enable.
 	{ID: "relay", Name: "@crewbase/relay", Config: map[string]any{"dir": "${root}"}, Disabled: true},

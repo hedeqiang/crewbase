@@ -7,6 +7,9 @@
 import { useMemo, useSyncExternalStore } from "react";
 import {
   API,
+  DEFAULT_TEAM,
+  teamOf,
+  type TeamView,
   type AgentView,
   type Attachment,
   type ApprovalRequest,
@@ -41,6 +44,7 @@ export type SettingsSection =
   | "auto"
   | "approvals"
   | "hosts"
+  | "teams"
   | "team";
 
 export interface StreamBuf {
@@ -98,6 +102,9 @@ export interface State {
   filesTick: Record<string, number>;
   /** Folders created from the list; kept even while empty (settings.json). */
   savedFolders: string[];
+  /** teams on this host, and the one the sidebar shows */
+  teams: TeamView[];
+  team: string;
   /** Interface slot contributions from plugins (GET /api/ui). */
   ui: UIContribution[];
   connected: boolean;
@@ -190,6 +197,8 @@ let state: State = {
   histPos: LS.get("current") ? 0 : -1,
   profile: { displayName: "", dndUntil: "", system: null },
   savedFolders: [],
+  teams: [],
+  team: loadTeam(),
   ui: [],
   settings: "general",
   listOpen: !narrow() || !LS.get("current"),
@@ -307,10 +316,53 @@ export function applyHashRoute(hash = location.hash): boolean {
 
 export const isChat = (a?: AgentView) => a?.kind === "chat";
 
+// a function declaration (hoisted): the initial state reads it at load
+function teamKey() {
+  return "crewbase.team";
+}
+
+function loadTeam(): string {
+  try {
+    return localStorage.getItem(teamKey()) || DEFAULT_TEAM;
+  } catch {
+    return DEFAULT_TEAM;
+  }
+}
+
+/** Shows another team in the sidebar (new agents, chats and channels go there). */
+export function switchTeam(id: string) {
+  try {
+    localStorage.setItem(teamKey(), id);
+  } catch {
+    /* private mode */
+  }
+  setState((s) => {
+    // a conversation of another team closes
+    const meta = s.current ? s.sessions[s.current] : undefined;
+    const owner = meta?.kind === "channel" ? meta : Object.values(s.agents).find((a) => a.session === s.current);
+    const keep = !!owner && teamOf(owner) === id;
+    return { team: id, current: keep ? s.current : null, view: s.view === "settings" ? s.view : "chat" };
+  });
+}
+
+/** The team new things are created in ("" = default, as the API stores it). */
+export function currentTeam(): string | undefined {
+  return state.team === DEFAULT_TEAM ? undefined : state.team;
+}
+
+export async function refreshTeams() {
+  try {
+    const r = await API.teams();
+    setState((s) => ({ teams: r.teams, team: r.teams.some((x) => x.id === s.team) ? s.team : DEFAULT_TEAM }));
+  } catch {
+    /* an older daemon: no teams */
+  }
+}
+
 /** 新对话: a blank chat on the default model, opened right away. */
 export async function newChat() {
   try {
-    const a = await API.createAgent({ kind: "chat" });
+    const a = await API.createAgent({ kind: "chat", team: currentTeam() });
     setState((s) => ({ agents: { ...s.agents, [a.id]: a }, palette: false }));
     await refreshSessions();
     openSession(a.session);
@@ -543,6 +595,7 @@ export async function resync() {
     refreshChannels(),
     refreshProfile(),
     refreshUI(),
+    refreshTeams(),
   ]);
   for (const id of Object.keys(state.events)) void loadSession(id);
   if (state.current && !state.events[state.current]) void loadSession(state.current);
@@ -660,6 +713,7 @@ export function connectEvents() {
   on("models.changed", () => void refreshModels());
   on("ui.changed", () => void refreshUI());
   on("members.changed", () => void refreshTier());
+  on("teams.changed", () => void refreshTeams());
   on("files.changed", (d: { agent: string }) => setState((s) => ({ filesTick: { ...s.filesTick, [d.agent]: (s.filesTick[d.agent] ?? 0) + 1 } })));
   on("board.changed", (d: { root: string }) => setState((s) => ({ boardTick: { ...s.boardTick, [d.root]: (s.boardTick[d.root] ?? 0) + 1 } })));
   if (!src) return;

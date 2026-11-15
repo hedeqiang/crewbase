@@ -1303,3 +1303,22 @@ button.tg:disabled { opacity: .5; cursor: not-allowed; }
 .mi .g .mono { font-family: var(--mono); font-size: 11.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .dirtype { display: flex; gap: 6px; padding: 4px 8px 6px; }
 .dirtype .fi { flex: 1; min-width: 0; height: 30px; font-size: 12px; }
+
+.teamsw { display: flex; align-items: center; gap: 8px; margin: 0 12px 8px; padding: 6px 8px; border-radius: 8px; border: 1px solid var(--border); background: var(--panel); font-size: 13px; text-align: left; }
+.teamsw b { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+.teamsw:hover { background: var(--hover); }
+.tdot { display: inline-grid; place-items: center; width: 20px; height: 20px; border-radius: 6px; color: #fff; font-size: 11px; font-weight: 600; flex: none; }
+.tdot.lg { width: 32px; height: 32px; border-radius: 9px; font-size: 14px; }
+.teamnew { display: flex; gap: 8px; align-items: center; padding: 12px 14px 8px; flex-wrap: wrap; }
+.teamnew .fi { flex: 1; min-width: 200px; }
+.teamcard { margin-bottom: 10px; }
+.teamh { display: flex; align-items: center; gap: 10px; padding: 12px 14px; flex-wrap: wrap; }
+.teamh .g { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 160px; }
+.teamh .g b { display: flex; align-items: center; gap: 6px; }
+.teamh .pill.on { color: var(--accent-text); }
+.seg.sm button { font-size: 12px; padding: 3px 8px; }
+.seg button { display: inline-flex; align-items: center; gap: 4px; }
+.teamagents { border-top: 1px solid var(--border); padding: 6px 14px 10px; display: flex; flex-direction: column; }
+.teamagent { display: flex; align-items: center; gap: 10px; padding: 5px 0; }
+.teamagent .g { flex: 1; min-width: 0; display: flex; gap: 8px; align-items: baseline; }
+.teamagent .ssel select { font-size: 12px; }

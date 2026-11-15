@@ -53,6 +53,7 @@ export interface AgentView {
   queue: Input[];
   /** project folder the agent works in (unset = its own workspace) */
   sharedWorkspace?: string;
+  team?: string;
   workspace: string;
   effectiveMode: Mode;
   nativeTools?: string[] | null;
@@ -66,10 +67,29 @@ export interface SessionMeta {
   kind: "agent" | "channel" | string;
   agents?: string[];
   folder?: string;
+  /** channel's team ("" / unset = the default team) */
+  team?: string;
   parent?: string;
   topic?: string;
   created: string;
 }
+
+export type TeamVisibility = "public" | "private";
+export interface TeamView {
+  id: string;
+  name: string;
+  color?: string;
+  visibility: TeamVisibility;
+  people: { id: string; role: "lead" | "member" | "viewer" }[];
+  created: string;
+  default: boolean;
+  agents: number;
+  channels: number;
+}
+
+export const DEFAULT_TEAM = "default";
+/** The team an agent or channel belongs to. */
+export const teamOf = (x?: { team?: string }) => x?.team || DEFAULT_TEAM;
 
 export interface LastLine {
   type: string;
@@ -776,6 +796,11 @@ export interface ImGateway {
 export type Followup = { id: string; agent: string; session: string; note: string; due: string; set: string };
 
 export const API = {
+  teams: () => api<{ teams: TeamView[] }>("GET", "/api/teams"),
+  createTeam: (b: { name: string; visibility: TeamVisibility; color?: string }) => api<TeamView>("POST", "/api/teams", b),
+  patchTeam: (id: string, b: { name?: string; visibility?: TeamVisibility; color?: string }) => api<TeamView>("PATCH", `/api/teams/${enc(id)}`, b),
+  deleteTeam: (id: string) => api("DELETE", `/api/teams/${enc(id)}`),
+  moveToTeam: (team: string, agent: string) => api<{ id: string; team: string }>("POST", `/api/teams/${enc(team)}/agents`, { agent }),
   setProjectDir: (agent: string, dir: string) => api<AgentView>("PATCH", `/api/agents/${enc(agent)}`, { projectDir: dir }),
   followups: (agent: string) => api<{ followups: Followup[] }>("GET", `/api/agents/${enc(agent)}/followups`),
   cancelFollowup: (agent: string, id: string) => api("DELETE", `/api/agents/${enc(agent)}/followups/${enc(id)}`),

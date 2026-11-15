@@ -124,14 +124,25 @@ func (s *Service) Create(name string, members []string, folder, by string) (View
 	if len(members) == 0 {
 		return View{}, errors.New("a channel needs at least one agent")
 	}
-	for _, m := range members {
-		if a, ok := s.agents.Get(m); !ok {
+	team := ""
+	for i, m := range members {
+		a, ok := s.agents.Get(m)
+		if !ok {
 			return View{}, fmt.Errorf("unknown agent %q", m)
 		} else if a.IsChat() {
 			return View{}, fmt.Errorf("%q is a chat, not an agent; chats cannot join channels", m)
 		}
+		// a channel lives in one team: its members' team
+		if t := a.Spec().TeamID(); i == 0 {
+			team = t
+		} else if t != team {
+			return View{}, fmt.Errorf("%s is in another team; a channel's agents must all be in the same team", a.Spec().Name)
+		}
 	}
-	ss, err := s.sessions.Create(session.Meta{Kind: "channel", Title: name, Agents: members, Folder: folder})
+	if team == agent.DefaultTeam {
+		team = ""
+	}
+	ss, err := s.sessions.Create(session.Meta{Kind: "channel", Title: name, Agents: members, Folder: folder, Team: team})
 	if err != nil {
 		return View{}, err
 	}
@@ -487,6 +498,8 @@ func (s *Service) AddMember(id, agentID string) error {
 		return fmt.Errorf("unknown agent %q", agentID)
 	} else if a.IsChat() {
 		return fmt.Errorf("%q is a chat, not an agent; chats cannot join channels", agentID)
+	} else if a.Spec().TeamID() != agent.TeamOf(ss.Meta().Team) {
+		return fmt.Errorf("%s is in another team; move it to this channel's team first", a.Spec().Name)
 	}
 	return ss.UpdateMeta(func(m *session.Meta) {
 		for _, x := range m.Agents {

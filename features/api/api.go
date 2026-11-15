@@ -52,6 +52,9 @@ type ProviderView struct {
 	Error  string          `json:"error,omitempty"`
 }
 
+// TeamChecker is the `teams` service as seen by the API.
+type TeamChecker interface{ Exists(id string) bool }
+
 // Approver is the `members` service as seen by the API: who may approve
 // what, and the name a device's messages carry.
 type Approver interface {
@@ -150,6 +153,11 @@ var Plugin = kernel.Register(kernel.Spec{
 				// subagents only; a project folder is checked by the registry
 				if b.Ephemeral || b.Parent != "" {
 					return gateway.BadRequest("ephemeral agents are created by delegation only")
+				}
+				if b.Team != "" {
+					if ts, ok := kernel.Lookup[TeamChecker](c, "teams"); ok && !ts.Exists(b.Team) {
+						return gateway.BadRequest("no team %q", b.Team)
+					}
 				}
 				if b.Mode == agent.ModeHost {
 					return gateway.BadRequest("host mode cannot be enabled at creation")

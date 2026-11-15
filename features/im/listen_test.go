@@ -22,8 +22,8 @@ func TestListenInOnTheChannel(t *testing.T) {
 	msg := func(id, user, chat, text string) {
 		g.Message(context.Background(), im.Inbound{User: im.User{ID: user}, Chat: chat, MessageID: id, Text: text})
 	}
-	msg("m1", "u-ada", "C1", "午饭吃什么好呢大家")        // no keyword
-	msg("m2", "u-ada", "C1", "bug")                    // too short
+	msg("m1", "u-ada", "C1", "午饭吃什么好呢大家")          // no keyword
+	msg("m2", "u-ada", "C1", "bug")                // too short
 	msg("m3", "stranger", "C1", "登录页有个 bug 一直报错啊") // not an allowed user
 	msg("m4", "u-ada", "C9", "登录页有个 bug 一直报错啊")    // another chat
 	if q := a.Queue(); len(q) != 0 {
