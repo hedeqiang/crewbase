@@ -1,20 +1,26 @@
-import { Moon } from "lucide-react";
+import { MessagesSquare, Moon } from "lucide-react";
 import { useEffect, useState } from "react";
-import { API, type NotifyPrefs, type NotifyState, type QuietHours } from "../../api";
+import { API, type ImGateway, type ImPlatform, type NotifyPrefs, type NotifyState, type QuietHours } from "../../api";
 import { hhmm, nextMorning } from "../../format";
 import { t, type Key } from "../../i18n";
-import { dndActive, patchProfile, toast, useStore } from "../../store";
+import { dndActive, patchProfile, setState, toast, useStore } from "../../store";
 import { Head, Row } from "../Settings";
-import { ImSetup } from "./ImSetup";
+import { imGatewayName } from "./Im";
 
 const DEFAULT_QUIET: QuietHours = { on: false, start: "22:00", end: "08:00" };
 
-const CHANNEL_NAMES: Record<string, string> = { telegram: "Telegram", slack: "Slack", discord: "Discord", lark: "Lark" };
+const FIXED: Record<string, string> = { telegram: "Telegram", slack: "Slack", discord: "Discord", lark: "Lark" };
 
-function channelName(ch: string) {
+type ImInfo = { platforms: ImPlatform[]; gateways: ImGateway[] };
+
+/** A column's name: 桌面, or the chat app of an IM gateway (with its group
+ *  when that app has more than one). */
+function channelName(ch: string, im?: ImInfo) {
   if (ch === "desktop") return t("nt.ch.desktop");
-  if (ch === "feishu") return t("nt.ch.feishu");
-  return CHANNEL_NAMES[ch] ?? ch;
+  const g = im?.gateways.find((x) => x.id === ch);
+  if (!g) return ch === "feishu" ? t("imx.feishu") : (FIXED[ch] ?? ch); // gateways from the config file
+  const name = imGatewayName(g, im!.platforms);
+  return im!.gateways.filter((x) => imGatewayName(x, im!.platforms) === name).length > 1 ? `${name} · ${g.channel}` : name;
 }
 
 /** Settings › 通知: what to tell you, where, and when to stay quiet. */
@@ -22,6 +28,7 @@ export function Notify() {
   const [st, setSt] = useState<NotifyState | null>(null);
   const [prefs, setPrefs] = useState<NotifyPrefs>({ matrix: {}, quiet: DEFAULT_QUIET });
   const [testing, setTesting] = useState("");
+  const [im, setIm] = useState<ImInfo>();
   const profile = useStore((s) => s.profile);
   const dnd = dndActive(profile);
 
@@ -32,6 +39,7 @@ export function Notify() {
         setPrefs({ matrix: s.notify?.matrix ?? {}, quiet: s.notify?.quiet?.start ? s.notify.quiet : DEFAULT_QUIET });
       })
       .catch((e) => toast(t("nt.failed", { error: e?.message ?? String(e) })));
+    API.imConfig().then(setIm, () => {});
   }, []);
 
   const save = async (p: NotifyPrefs) => {
@@ -58,7 +66,7 @@ export function Notify() {
     setTesting(ch);
     try {
       await API.testNotify(ch);
-      toast(t("nt.testSent", { channel: channelName(ch) }));
+      toast(t("nt.testSent", { channel: channelName(ch, im) }));
     } catch (e: any) {
       toast(t("nt.failed", { error: e?.message ?? String(e) }));
     } finally {
@@ -97,7 +105,7 @@ export function Notify() {
               <span className="g" />
               {channels.map((ch) => (
                 <span key={ch} className="ntc">
-                  <b>{channelName(ch)}</b>
+                  <b>{channelName(ch, im)}</b>
                   <button type="button" className="linkbtn" disabled={testing !== ""} onClick={() => void test(ch)}>
                     {testing === ch ? t("nt.testing") : t("nt.test")}
                   </button>
@@ -122,7 +130,7 @@ export function Notify() {
                         className="tg"
                         role="switch"
                         aria-checked={on}
-                        aria-label={`${t(`nt.k.${k}` as Key)} · ${channelName(ch)}`}
+                        aria-label={`${t(`nt.k.${k}` as Key)} · ${channelName(ch, im)}`}
                         onClick={() => toggle(k, ch)}
                       />
                     </span>
@@ -132,7 +140,14 @@ export function Notify() {
             ))}
           </div>
         )}
-        <ImSetup onChanged={() => void API.notify().then(setSt, () => {})} />
+        <button type="button" className="ntim" onClick={() => setState({ settings: "im" })}>
+          <MessagesSquare size={15} />
+          <span className="g">
+            <b>{t(im?.gateways.length ? "imx.ntHave" : "imx.ntNone")}</b>
+            <span>{t("imx.ntDesc")}</span>
+          </span>
+          <span className="linkbtn">{t("imx.ntGo")}</span>
+        </button>
 
         <div className="vsec">{t("nt.when")}</div>
         <div className="sbox">

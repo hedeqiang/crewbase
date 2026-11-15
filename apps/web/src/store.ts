@@ -45,6 +45,7 @@ export type SettingsSection =
   | "approvals"
   | "hosts"
   | "teams"
+  | "im"
   | "team";
 
 export interface StreamBuf {
