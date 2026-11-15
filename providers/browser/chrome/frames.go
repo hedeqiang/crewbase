@@ -189,7 +189,15 @@ func (f *frameConn) attached(ev target.EventAttachedToTarget) {
 		f.mu.Unlock()
 		_ = f.autoAttach(ctx, s)
 		if f.allow() != nil {
-			f.setFetch(ctx, s, true)
+			// the host allowlist must hold inside the iframe too: when its
+			// requests cannot be filtered it stays paused (blank) rather
+			// than loading unfiltered
+			fctx, fcancel := context.WithTimeout(context.Background(), 10*time.Second)
+			err := f.setFetch(fctx, s, true)
+			fcancel()
+			if err != nil {
+				return
+			}
 		}
 	}
 	if ev.WaitingForDebugger {
@@ -218,12 +226,12 @@ func (f *frameConn) detached(s target.SessionID) {
 	}
 }
 
-func (f *frameConn) setFetch(ctx context.Context, s target.SessionID, on bool) {
+func (f *frameConn) setFetch(ctx context.Context, s target.SessionID, on bool) error {
 	f.mu.Lock()
 	have := f.filtered[s]
 	f.mu.Unlock()
 	if have == on {
-		return
+		return nil
 	}
 	var err error
 	if on {
@@ -236,6 +244,7 @@ func (f *frameConn) setFetch(ctx context.Context, s target.SessionID, on bool) {
 		f.filtered[s] = on
 		f.mu.Unlock()
 	}
+	return err
 }
 
 // setFilter turns interception in the iframe targets on or off.
@@ -249,7 +258,11 @@ func (f *frameConn) setFilter(on bool) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	for _, s := range ss {
-		f.setFetch(ctx, s, on)
+		if err := f.setFetch(ctx, s, on); err != nil && on {
+			// an iframe that is already running cannot be filtered: blank
+			// it rather than let it go on loading unfiltered
+			_ = f.call(ctx, s, "Runtime.evaluate", map[string]any{"expression": "location.replace('about:blank')"}, nil)
+		}
 	}
 }
 

@@ -143,3 +143,43 @@ func TestWorkingMemoryNotForChats(t *testing.T) {
 		t.Fatal(s)
 	}
 }
+
+// Notes put in notes/ by hand (or by the agent's file tools) keep their
+// names: as listed, they can be read and removed.
+func TestNotesWithAnyName(t *testing.T) {
+	e, w, _ := workingEnv(t)
+	a, _ := e.agents.Create(agent.Spec{Name: "Ops"})
+	dir := filepath.Join(a.Home(), "notes")
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	names := []string{"Q3 plan.md", "README.MD", "价格(2026).txt"}
+	for _, n := range names {
+		if err := os.WriteFile(filepath.Join(dir, n), []byte("# "+n+"\nbody"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	listed := map[string]bool{}
+	for _, n := range w.Notes(a) {
+		listed[n.Name] = true
+	}
+	for _, n := range names {
+		if !listed[n] {
+			t.Fatalf("%q not listed: %v", n, listed)
+		}
+		if s, err := w.ReadNote(a, n, 0); err != nil || !strings.Contains(s, "body") {
+			t.Fatalf("read %q: %q %v", n, s, err)
+		}
+	}
+	if _, err := w.WriteNote(a, "Q3 plan.md", ""); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "Q3 plan.md")); !os.IsNotExist(err) {
+		t.Fatal("not removed")
+	}
+	// still confined to notes/
+	_ = os.WriteFile(filepath.Join(a.Home(), "secret.md"), []byte("x"), 0o600)
+	if _, err := w.ReadNote(a, "../secret.md", 0); err == nil {
+		t.Fatal("read outside notes/")
+	}
+}

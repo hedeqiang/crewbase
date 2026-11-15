@@ -452,6 +452,13 @@ func (g *githubSignIn) refreshLoop(ctx context.Context) {
 
 // refreshDue refreshes the token of every signed-in GitHub server that
 // expires within refreshBefore, and reconnects it.
+// refreshRevoked are the OAuth errors after which a refresh token is no use
+// (GitHub's docs, "Refreshing user access tokens"); others are retried.
+var refreshRevoked = map[string]bool{
+	"bad_refresh_token": true, "incorrect_client_credentials": true,
+	"unauthorized_client": true, "invalid_grant": true, "access_denied": true,
+}
+
 func (g *githubSignIn) refreshDue(ctx context.Context) {
 	svc, cs := g.s.mcp(), g.s.creds()
 	if svc == nil || cs == nil {
@@ -482,9 +489,13 @@ func (g *githubSignIn) refreshDue(ctx context.Context) {
 			continue // offline: next tick
 		}
 		if a.Error != "" || a.AccessToken == "" {
-			// revoked or expired: the server answers 401 and the person signs in again
 			g.s.c.Log().Warn("catalog: GitHub token refresh failed", "server", p.Server, "err", a.err())
-			_ = cs.Delete(ref)
+			if refreshRevoked[a.Error] {
+				// revoked or expired: the server answers 401 and the person signs in again
+				_ = cs.Delete(ref)
+			}
+			// anything else (rate limit, a 5xx, an empty answer) keeps the
+			// refresh token and tries again at the next tick
 			continue
 		}
 		if err := cs.Set(mcp.SecretRef(p.Server, strings.ToLower(tokenInput(p))), a.AccessToken); err != nil {

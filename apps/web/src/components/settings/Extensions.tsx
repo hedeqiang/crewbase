@@ -207,11 +207,28 @@ export function Extensions() {
       setState({ settingsTab: null });
     }
   }, [want]);
+  // events can trigger reloads in quick succession: only the newest answer
+  // counts, and a failed reload keeps what is shown (empty only at first)
+  const seq = useRef(0);
   const reload = () => {
-    catalogAPI.list().then((catalog) => setD((x) => ({ ...x, catalog })), () => setD((x) => ({ ...x, catalog: { categories: [], items: [] } })));
-    API.mcp().then((r) => setD((x) => ({ ...x, servers: r.servers ?? [] })), () => setD((x) => ({ ...x, servers: [] })));
-    catalogAPI.skills().then((r) => setD((x) => ({ ...x, skills: r.skills ?? [] })), () => setD((x) => ({ ...x, skills: [] })));
-    API.plugins().then((r) => setD((x) => ({ ...x, plugins: r.plugins ?? [] })), () => setD((x) => ({ ...x, plugins: [] })));
+    const n = ++seq.current;
+    const ok = () => n === seq.current;
+    catalogAPI.list().then(
+      (catalog) => ok() && setD((x) => ({ ...x, catalog })),
+      () => ok() && setD((x) => ({ ...x, catalog: x.catalog ?? { categories: [], items: [] } })),
+    );
+    API.mcp().then(
+      (r) => ok() && setD((x) => ({ ...x, servers: r.servers ?? [] })),
+      () => ok() && setD((x) => ({ ...x, servers: x.servers ?? [] })),
+    );
+    catalogAPI.skills().then(
+      (r) => ok() && setD((x) => ({ ...x, skills: r.skills ?? [] })),
+      () => ok() && setD((x) => ({ ...x, skills: x.skills ?? [] })),
+    );
+    API.plugins().then(
+      (r) => ok() && setD((x) => ({ ...x, plugins: r.plugins ?? [] })),
+      () => ok() && setD((x) => ({ ...x, plugins: x.plugins ?? [] })),
+    );
   };
   const reloadMarket = () =>
     API.market().then(
@@ -277,7 +294,7 @@ export function Extensions() {
           }}
         />
       )}
-      {gh && <GitHubDialog item={gh} onClose={() => setGh(null)} onChanged={reload} />}
+      {gh && <GitHubDialog item={gh} servers={d.servers ?? []} onClose={() => setGh(null)} onChanged={reload} />}
       {scopeOf && <ScopeDialog server={scopeOf} label={d.catalog?.items.find((it) => it.server === scopeOf.name)?.name ?? scopeOf.name} onClose={() => setScopeOf(null)} onSaved={reload} />}
     </>
   );
@@ -688,7 +705,7 @@ function ConnectDialog({ item, servers, onClose, onChanged, onSignIn }: { item: 
  *  and waits for the person to approve; Crewbase then keeps the token in the
  *  keychain and connects GitHub's MCP server. A personal access token is
  *  the fallback. */
-function GitHubDialog({ item, onClose, onChanged }: { item: CatItem; onClose: () => void; onChanged: () => void }) {
+function GitHubDialog({ item, servers, onClose, onChanged }: { item: CatItem; servers: McpServer[]; onClose: () => void; onChanged: () => void }) {
   const [v, setV] = useState<SignInView | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [pat, setPat] = useState(false);
@@ -733,7 +750,8 @@ function GitHubDialog({ item, onClose, onChanged }: { item: CatItem; onClose: ()
     if (!done.current) void catalogAPI.cancelSignIn(item.id).catch(() => {});
     onClose();
   };
-  if (pat) return <ConnectDialog item={{ ...item, auth: "token" }} servers={[]} onClose={onClose} onChanged={onChanged} />;
+  // the live server list: the dialog follows the server's state after the token is saved
+  if (pat) return <ConnectDialog item={{ ...item, auth: "token" }} servers={servers} onClose={onClose} onChanged={onChanged} />;
   const mins = v?.expiresAt ? Math.max(1, Math.round((Date.parse(v.expiresAt) - Date.now()) / 60000)) : 15;
   const copy = () =>
     void navigator.clipboard?.writeText(v?.userCode ?? "").then(

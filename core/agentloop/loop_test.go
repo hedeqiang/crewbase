@@ -648,6 +648,19 @@ func TestParkedApproval(t *testing.T) {
 		t.Fatal("parked call not recorded")
 	}
 
+	// an unrelated chat in the same conversation, with a follow-up sent
+	// while that turn runs, does not answer the parked request
+	m.SetDelay(300 * time.Millisecond)
+	send(t, a, "what's the weather?")
+	deadline0 := time.Now().Add(3 * time.Second)
+	for st, _ := a.Status(); st != agent.StatusRunning && time.Now().Before(deadline0); st, _ = a.Status() {
+		time.Sleep(5 * time.Millisecond)
+	}
+	send(t, a, "and tomorrow?")
+	agentloop.WaitIdle(a, 5*time.Second)
+	m.SetDelay(0)
+	waitPending(1)
+
 	e.inbox.Decide(e.inbox.Pending()[0].CallID, approval.Decision{Outcome: approval.OutcomeAllowedOnce})
 	deadline := time.Now().Add(3 * time.Second)
 	for len(got()) == 0 && time.Now().Before(deadline) {

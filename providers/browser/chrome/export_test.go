@@ -61,3 +61,12 @@ func KillBrowser(c *Chrome, agent string) {
 		<-in.exited
 	}
 }
+
+// DropFrames forgets the agent's frame connection, as when it failed to
+// open (attach mode, a timeout).
+func DropFrames(c *Chrome, agent string) {
+	in := c.peek(agent)
+	if in.alive() {
+		in.page.frames = nil
+	}
+}

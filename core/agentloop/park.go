@@ -18,6 +18,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"sync"
 
 	"github.com/hedeqiang/crewbase/capabilities/approval"
@@ -54,6 +55,9 @@ type parkBook struct {
 	mu   sync.Mutex
 	path string
 	m    map[string]parkedCall // call id →
+	// decided: calls whose decision came before they were recorded (the
+	// decision runs on its own goroutine); add skips them
+	decided map[string]bool
 }
 
 func (b *parkBook) load() []parkedCall {
@@ -86,6 +90,11 @@ func (b *parkBook) saveLocked() {
 
 func (b *parkBook) add(p parkedCall) {
 	b.mu.Lock()
+	if b.decided[p.CallID] {
+		delete(b.decided, p.CallID)
+		b.mu.Unlock()
+		return
+	}
 	if b.m == nil {
 		b.m = map[string]parkedCall{}
 	}
@@ -99,6 +108,11 @@ func (b *parkBook) remove(callID string) {
 	if _, ok := b.m[callID]; ok {
 		delete(b.m, callID)
 		b.saveLocked()
+	} else {
+		if b.decided == nil {
+			b.decided = map[string]bool{}
+		}
+		b.decided[callID] = true
 	}
 	b.mu.Unlock()
 }
@@ -171,12 +185,18 @@ func (l *loop) replyInsteadOfApproval(agentID string) {
 		return
 	}
 	if q[0].Tag == "" && agent.Joinable(cur, q[0]) {
+		// only the calls this turn is waiting on now: a parked request from
+		// an earlier turn stays open until the person answers it
+		waiting := l.toolsReg.WaitingCalls(agentID)
+		if len(waiting) == 0 {
+			return
+		}
 		in, ok := kernel.Lookup[*approval.Inbox](l.c, approval.InboxKey)
 		if !ok {
 			return
 		}
 		for _, r := range in.Pending() {
-			if r.Agent == agentID && r.Session == cur.Session {
+			if r.Agent == agentID && r.Session == cur.Session && slices.Contains(waiting, r.CallID) {
 				in.Decide(r.CallID, approval.Decision{Outcome: approval.OutcomeRejected, Message: RejectForReply, By: "reply"})
 			}
 		}

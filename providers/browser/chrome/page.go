@@ -144,6 +144,12 @@ func (p *cdpPage) Location(ctx context.Context) (string, string, error) {
 // EvalFrame implements browser.FramePage.
 func (p *cdpPage) EvalFrame(ctx context.Context, frame, expr string, out any) error {
 	if p.frames == nil {
+		// no frame connection (it failed to open, or attach mode without
+		// one): the main frame still works through the page's own session;
+		// only iframes are out of reach
+		if frame == "" {
+			return p.Eval(ctx, expr, out)
+		}
 		return browser.ErrNoFrames
 	}
 	return p.run(ctx, func(rctx context.Context) error { return p.frames.eval(rctx, frame, expr, out) })

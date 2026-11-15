@@ -29,6 +29,7 @@ type fakeGitHub struct {
 	expires  int // expires_in in answers (0 = token does not expire)
 	gotScope []string
 	slowAt   map[int]bool
+	busy     int // answer this many refreshes with 503
 }
 
 // firstToken is the access token the fake hands out first.
@@ -89,6 +90,13 @@ func newFakeGitHub(t *testing.T) *fakeGitHub {
 				answer(w, v)
 			}
 		case "refresh_token":
+			if f.busy > 0 {
+				f.busy--
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusServiceUnavailable)
+				_, _ = w.Write([]byte(`{"message":"try later"}`))
+				return
+			}
 			if r.Form.Get("refresh_token") != f.refresh {
 				answer(w, map[string]any{"error": "bad_refresh_token"})
 				return
@@ -213,8 +221,16 @@ func TestGitHubDeviceFlow(t *testing.T) {
 	if f.current() != firstToken {
 		t.Fatal("refreshed too early")
 	}
-	// due: refreshed without a client secret, stored, reconnected
+	// due, but GitHub is busy: the refresh token is kept for the next tick
 	g.refreshBefore = 9 * time.Hour
+	f.mu.Lock()
+	f.busy = 1
+	f.mu.Unlock()
+	g.refreshDue(context.Background())
+	if raw, _ := e.creds.Resolve(context.Background(), mcp.SignInRef("github")); !strings.Contains(raw, "ghr_first") {
+		t.Fatalf("refresh token dropped after a 503: %q", raw)
+	}
+	// due: refreshed without a client secret, stored, reconnected
 	g.refreshDue(context.Background())
 	if tok, _ := e.creds.Resolve(context.Background(), ref); tok != "ghu_second" {
 		t.Fatal(tok)

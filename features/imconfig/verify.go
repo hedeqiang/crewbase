@@ -48,7 +48,8 @@ func (s *Service) Verify(ctx context.Context, in Check) (CheckResult, error) {
 		s.mu.Lock()
 		g, ok := s.items[in.ID]
 		s.mu.Unlock()
-		if ok {
+		// a saved gateway's tokens only go to its own platform
+		if ok && (in.Platform == "" || in.Platform == g.Platform) {
 			if in.Platform == "" {
 				in.Platform = g.Platform
 			}

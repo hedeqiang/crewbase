@@ -201,6 +201,10 @@ type Service struct {
 	subScope     map[string]string
 
 	refreshMu sync.Mutex
+	// gen changes on every sign-in and sign-out (under mu): a refresh that
+	// started before keeps its answer to itself, so it cannot put the old
+	// account's token back
+	gen uint64
 }
 
 // ---------------------------------------------------------------- client config
@@ -637,6 +641,7 @@ func (s *Service) Finish(ctx context.Context, stateParam, code, errParam string)
 		s.st.Products = nil
 	}
 	s.st.Email, s.st.Scopes, s.st.NeedsLogin = email, granted, false
+	s.gen++
 	s.access, s.expiry = tr.AccessToken, time.Now().Add(time.Duration(max(tr.ExpiresIn, 60))*time.Second)
 	if s.st.Products == nil {
 		s.st.Products = map[string]productState{}
@@ -719,6 +724,7 @@ func (s *Service) Token(ctx context.Context) (string, error) {
 		s.mu.Unlock()
 		return a, nil
 	}
+	gen := s.gen
 	s.mu.Unlock()
 	c, err := s.client(ctx)
 	if err != nil {
@@ -746,10 +752,20 @@ func (s *Service) Token(ctx context.Context) (string, error) {
 		}
 		return "", err
 	}
+	s.mu.Lock()
+	if s.gen != gen {
+		// signed in again (or out) meanwhile: this answer is for the old
+		// sign-in; the new one brought its own access token
+		a := s.access
+		s.mu.Unlock()
+		if a == "" {
+			return "", ErrNeedsLogin
+		}
+		return a, nil
+	}
 	if tr.RefreshToken != "" && tr.RefreshToken != rt {
 		_ = cs.Set(s.tokenRef, tr.RefreshToken)
 	}
-	s.mu.Lock()
 	s.access, s.expiry = tr.AccessToken, time.Now().Add(time.Duration(max(tr.ExpiresIn, 60))*time.Second)
 	s.mu.Unlock()
 	return tr.AccessToken, nil
@@ -812,6 +828,7 @@ func (s *Service) SignOut(ctx context.Context) error {
 	}
 	s.mu.Lock()
 	s.st, s.access, s.expiry, s.lastErr = state{}, "", time.Time{}, ""
+	s.gen++
 	err := s.saveLocked()
 	s.mu.Unlock()
 	s.syncTools()

@@ -238,3 +238,29 @@ func TestUnloadKillsChrome(t *testing.T) {
 		t.Fatalf("changed events %v", events)
 	}
 }
+
+// Without a frame connection the main frame still works (snapshot, click
+// and type go through EvalFrame with frame ""); only iframes are out of
+// reach.
+func TestMainFrameWithoutFrameConnection(t *testing.T) {
+	needChrome(t)
+	srv := server(t)
+	ch := newChrome(t, chrome.Config{})
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	s, err := ch.Session(ctx, "kai")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Navigate(ctx, srv.URL+"/who"); err != nil {
+		t.Fatal(err)
+	}
+	chrome.DropFrames(ch, "kai")
+	var n int
+	if err := s.EvalFrame(ctx, "", "40 + 2", &n); err != nil || n != 42 {
+		t.Fatalf("main frame: %d, %v", n, err)
+	}
+	if _, err := s.ChildFrame(ctx, "", 0); err == nil {
+		t.Fatal("an iframe without a frame connection")
+	}
+}

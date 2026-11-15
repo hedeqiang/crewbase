@@ -1407,14 +1407,23 @@ function tailPath(p: string, n = 34): string {
 function DirBrowser({ start, busy, onPick, onBack }: { start: string; busy: boolean; onPick: (dir: string) => void; onBack: () => void }) {
   const [at, setAt] = useState<{ path: string; parent: string; home: string; dirs: { name: string; path: string }[] } | null>(null);
   const [err, setErr] = useState("");
-  const go = (p?: string) =>
-    API.browseDirs(p).then(
+  const seq = useRef(0);
+  // fast clicks: only the newest folder counts
+  const go = (p?: string) => {
+    const n = ++seq.current;
+    return API.browseDirs(p).then(
       (r) => {
+        if (n !== seq.current) return;
         setAt(r);
         setErr("");
       },
-      (e: any) => setErr(e?.status === 403 ? t("dir.browseOwner") : e?.message ?? String(e)),
+      (e: any) => {
+        if (n !== seq.current) return;
+        if (e?.status === 404 && p) return void go(); // the folder is gone: start at home
+        setErr(e?.status === 403 ? t("dir.browseOwner") : e?.message ?? String(e));
+      },
     );
+  };
   useEffect(() => {
     void go(start || undefined);
   }, []);

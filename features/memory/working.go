@@ -302,8 +302,16 @@ func (w *Working) Notes(a *agent.Agent) []NoteInfo {
 	return out
 }
 
-// notePath resolves a note name inside notes/ (no other directory).
+// notePath resolves a note name inside notes/ (no other directory). A
+// name exactly as listed (Notes: files put there by hand or by the agent's
+// file tools may have spaces, brackets or ".MD") is used as it is; other
+// names are cleaned, as new notes are saved under.
 func notePath(a *agent.Agent, name string) (string, error) {
+	if name != "" && name == filepath.Base(name) && name != "." && name != ".." && !strings.ContainsAny(name, `/\`) {
+		if st, err := os.Stat(filepath.Join(notesDir(a), name)); err == nil && st.Mode().IsRegular() && noteExt(name) {
+			return filepath.Join(notesDir(a), name), nil
+		}
+	}
 	ext := ".md"
 	if strings.HasSuffix(strings.ToLower(name), ".txt") {
 		ext = ".txt"
@@ -313,6 +321,11 @@ func notePath(a *agent.Agent, name string) (string, error) {
 		return "", errors.New("note name is empty")
 	}
 	return filepath.Join(notesDir(a), n+ext), nil
+}
+
+func noteExt(name string) bool {
+	l := strings.ToLower(name)
+	return strings.HasSuffix(l, ".md") || strings.HasSuffix(l, ".txt")
 }
 
 // ReadNote returns part of a note, from rune offset from.

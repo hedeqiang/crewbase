@@ -352,7 +352,7 @@ func (r *Registry) Run(ctx context.Context, c *kernel.Context, call Call) Execut
 					Rememberable: dec.Rememberable, ConfirmRemember: dec.ConfirmRemember,
 				}
 				var parked bool
-				dd, parked = r.ask(ctx, call.Agent,
+				dd, parked = r.ask(ctx, call.Agent, call.ID,
 					func(actx context.Context) approval.Decision { return svc.Ask(actx, ss, req) },
 					func(late approval.Decision) {
 						if late.Outcome == approval.OutcomeAllowedOnce {

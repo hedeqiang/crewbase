@@ -276,11 +276,30 @@ func (c *Chrome) SetWindow(agentID, by string, open bool) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*c.start+30*time.Second)
 	defer cancel()
 	s.mu.Lock()
+	// a hand-back or Close may have run while this call waited for the lock
+	if h, _ := c.ctl.Holder(agentID); h != by {
+		s.mu.Unlock()
+		if h == "" {
+			return browser.ErrNotTakenOver
+		}
+		return browser.ErrNotController
+	}
+	c.mu.Lock()
+	closed := c.closed
+	c.mu.Unlock()
+	if closed {
+		s.mu.Unlock()
+		return browser.ErrClosed
+	}
+	was := s.window.Load() && s.inst.Load().alive()
 	err = c.switchLocked(ctx, s, agentID, open)
 	s.mu.Unlock()
 	c.changed(c.State(agentID))
-	if err == nil && open {
-		go c.watch(agentID, s)
+	if err == nil && open && !was {
+		s.mu.Lock()
+		in := s.inst.Load()
+		s.mu.Unlock()
+		go c.watch(agentID, s, in) // one watcher per window, not per request
 	}
 	return err
 }
@@ -341,15 +360,15 @@ func (c *Chrome) switchLocked(ctx context.Context, s *slot, agentID string, open
 
 // watch follows a window takeover: it keeps the last known tabs (so they
 // survive the person closing the window) and reports the window closing.
-func (c *Chrome) watch(agentID string, s *slot) {
+func (c *Chrome) watch(agentID string, s *slot, in *instance) {
 	t := time.NewTicker(2 * time.Second)
 	defer t.Stop()
 	for range t.C {
 		s.mu.Lock()
-		in, window := s.inst.Load(), s.window.Load()
+		cur, window := s.inst.Load(), s.window.Load()
 		s.mu.Unlock()
-		if !window || in == nil {
-			return
+		if !window || in == nil || cur != in {
+			return // back to headless, or a newer window has its own watcher
 		}
 		if !in.alive() {
 			c.changed(c.State(agentID)) // the person closed the window

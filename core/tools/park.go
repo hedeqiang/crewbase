@@ -44,9 +44,9 @@ var ParkedDecided = kernel.NewEmit[ParkedDecision]("tools/parked-decided")
 
 type parking struct {
 	mu      sync.Mutex
-	waiting map[string]map[chan struct{}]struct{} // agent → park signals of calls waiting for approval
-	sticky  map[string]bool                       // agent parked: later waits in the same turn park at once
-	grants  map[string]time.Time                  // grantKey → expiry
+	waiting map[string]map[chan struct{}]string // agent → park signal → id of the call waiting for approval
+	sticky  map[string]bool                     // agent parked: later waits in the same turn park at once
+	grants  map[string]time.Time                // grantKey → expiry
 }
 
 func grantKey(agent, session, tool string, args []byte) string {
@@ -54,7 +54,7 @@ func grantKey(agent, session, tool string, args []byte) string {
 	return agent + "\x00" + session + "\x00" + tool + "\x00" + hex.EncodeToString(h[:])
 }
 
-func (p *parking) wait(agent string) chan struct{} {
+func (p *parking) wait(agent, callID string) chan struct{} {
 	ch := make(chan struct{})
 	p.mu.Lock()
 	if p.sticky[agent] {
@@ -63,12 +63,12 @@ func (p *parking) wait(agent string) chan struct{} {
 		return ch
 	}
 	if p.waiting == nil {
-		p.waiting = map[string]map[chan struct{}]struct{}{}
+		p.waiting = map[string]map[chan struct{}]string{}
 	}
 	if p.waiting[agent] == nil {
-		p.waiting[agent] = map[chan struct{}]struct{}{}
+		p.waiting[agent] = map[chan struct{}]string{}
 	}
-	p.waiting[agent][ch] = struct{}{}
+	p.waiting[agent][ch] = callID
 	p.mu.Unlock()
 	return ch
 }
@@ -122,6 +122,18 @@ func (r *Registry) Waiting(agent string) bool {
 	return len(r.park.waiting[agent]) > 0
 }
 
+// WaitingCalls lists the ids of agent's calls waiting for an approval now
+// (not parked ones, whose requests stay open after their turn ended).
+func (r *Registry) WaitingCalls(agent string) []string {
+	r.park.mu.Lock()
+	defer r.park.mu.Unlock()
+	out := make([]string, 0, len(r.park.waiting[agent]))
+	for _, id := range r.park.waiting[agent] {
+		out = append(out, id)
+	}
+	return out
+}
+
 func (p *parking) grant(key string) {
 	p.mu.Lock()
 	if p.grants == nil {
@@ -152,13 +164,13 @@ func (p *parking) take(key string) bool {
 // ask runs the approval and waits for it, unless the call is parked first:
 // then parked is true and the decision is handled when it comes (emitted
 // as ParkedDecided; an allowed call is granted one rerun).
-func (r *Registry) ask(ctx context.Context, agent string, run func(context.Context) approval.Decision, onLate func(approval.Decision)) (dd approval.Decision, parked bool) {
+func (r *Registry) ask(ctx context.Context, agent, callID string, run func(context.Context) approval.Decision, onLate func(approval.Decision)) (dd approval.Decision, parked bool) {
 	// The request outlives the turn if the call is parked, so it does not
 	// use the turn's context; cancelling the turn still cancels it.
 	actx, cancel := context.WithCancel(context.WithoutCancel(ctx))
 	res := make(chan approval.Decision, 1)
 	go func() { res <- run(actx) }()
-	park := r.park.wait(agent)
+	park := r.park.wait(agent, callID)
 	defer r.park.done(agent, park)
 	select {
 	case dd = <-res:

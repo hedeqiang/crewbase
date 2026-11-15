@@ -11,11 +11,15 @@ import { Markdown } from "./Markdown";
  *  it already told you. Reloaded when a turn ends (that is when it changes). */
 export function useWorking(agent: AgentView) {
   const [w, setW] = useState<WorkingData | null>(null);
-  const load = () =>
-    API.working(agent.id).then(
-      (r) => setW(r),
-      () => setW(null),
+  const seq = useRef(0);
+  // only the newest answer counts (switching agents, a turn ending)
+  const load = () => {
+    const n = ++seq.current;
+    return API.working(agent.id).then(
+      (r) => n === seq.current && setW(r),
+      () => n === seq.current && setW(null),
     );
+  };
   useEffect(() => {
     if (agent.kind === "chat") return;
     void load();

@@ -714,7 +714,7 @@ var Plugin = kernel.Register(kernel.Spec{
 					}
 				}
 				for _, m := range sessions.List() {
-					if m.Folder != "" && m.Kind != "agent" {
+					if m.Folder != "" && m.Kind != "agent" && !m.Deleted {
 						counts[m.Folder]++
 					}
 				}

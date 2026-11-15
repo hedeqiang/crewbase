@@ -2,7 +2,7 @@
 // Gmail, Calendar, Drive, Docs, Sheets and Slides. Extensions.tsx calls
 // connectBuiltin for catalog rows with kind "builtin" and shows
 // <GoogleAccount /> on its 已安装 tab.
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { LogIn } from "lucide-react";
 import { api, openExternal } from "../../api";
 import { t } from "../../i18n";
@@ -81,7 +81,14 @@ export function GoogleAccount({ onChange }: { onChange: () => void }) {
   const [v, setV] = useState<GoogleView | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [paste, setPaste] = useState("");
-  const load = () => googleAPI.status().then(setV, () => setV(null));
+  const seq = useRef(0);
+  const load = () => {
+    const n = ++seq.current; // only the newest answer counts
+    return googleAPI.status().then(
+      (r) => n === seq.current && setV(r),
+      () => n === seq.current && setV((x) => x),
+    );
+  };
   useEffect(() => {
     void load();
   }, [tick]);
