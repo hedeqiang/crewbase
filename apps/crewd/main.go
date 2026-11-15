@@ -13,6 +13,7 @@ import (
 	"github.com/hedeqiang/crewbase/apps/launch"
 	"github.com/hedeqiang/crewbase/apps/web"
 	"github.com/hedeqiang/crewbase/features/gateway"
+	"github.com/hedeqiang/crewbase/internal/loginpath"
 	"github.com/hedeqiang/crewbase/kernel"
 )
 
@@ -31,6 +32,9 @@ func main() {
 	flag.Var(&patches, "patch", "extra patch file (repeatable)")
 	flag.Parse()
 	o.Patches = patches
+	// started by launchd, systemd or a GUI, PATH may lack where the agent
+	// CLIs live; the login shell's PATH is added (a terminal's is kept)
+	loginpath.Fix()
 
 	if *dump {
 		entries, err := launch.Resolve(o)

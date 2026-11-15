@@ -29,6 +29,7 @@ import (
 
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/plugins/updater"
+	"github.com/hedeqiang/crewbase/internal/loginpath"
 	"github.com/hedeqiang/crewbase/kernel"
 	// The UI is written in Chinese: MyGo's own menus, dialogs and roles
 	// follow it (App.SetLanguages below).
@@ -68,6 +69,10 @@ func main() {
 	if !mygo.App.RequestSingleInstanceLock() {
 		return
 	}
+	// Opened from Finder or the Dock, the app has the system's minimal PATH;
+	// take the login shell's so Claude Code, Codex, Gemini CLI, npx… are
+	// found (by the host in this process and everything it starts).
+	loginpath.Fix()
 	if mygo.App.Version() == "" { // go run / go build: no mygo.json linked in
 		mygo.App.SetName(appName)
 		mygo.App.SetVersion(devVersion)
