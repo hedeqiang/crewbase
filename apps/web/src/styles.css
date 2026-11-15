@@ -1577,3 +1577,55 @@ button.psec.toggle { width: 100%; background: none; border: 0; font-family: inhe
 .brwin p { margin: 0; line-height: 1.55; }
 .brwin svg { flex: none; margin-top: 1px; }
 .brcard .acts { flex-wrap: wrap; }
+/* ===== 设置 › 插件与技能 (marketplace) =====
+   Two-column rows (40px icon, name, one-line description, + button);
+   the grid follows the pane's width, not the window's. */
+.mkwrap { container-type: inline-size; }
+.mkwrap > * { max-width: 1040px; }
+.search.mksearch { height: 38px; border-radius: 10px; padding: 0 12px; margin-bottom: 22px; background: var(--raised); }
+.search.mksearch input { font-size: 13.5px; }
+.search.mksearch input::-webkit-search-cancel-button { display: none; }
+.mksec { margin-bottom: 26px; }
+.mksec h3 { margin: 0; font-size: 14px; font-weight: 600; }
+.mksec > .small { margin: 2px 0 8px; }
+.mksh { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; min-height: 26px; }
+.mksh .sp { flex: 1; }
+.mkgrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 20px; row-gap: 2px; margin: 0 -8px; }
+@container (max-width: 600px) { .mkgrid { grid-template-columns: minmax(0, 1fr); } }
+.mkrow { display: flex; align-items: center; gap: 12px; padding: 9px 8px; border-radius: 12px; min-width: 0; }
+.mkgrid .mkrow:hover { background: var(--hover); }
+.mkrow > .g { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.mkrow > .g > b { font-size: 13.5px; font-weight: 600; display: flex; align-items: center; gap: 7px; min-width: 0; white-space: nowrap; overflow: hidden; }
+.mkrow > .g > b .pill { flex: none; }
+.mkrow a.btn, .mksign a.btn, .mkdlg .mft a.btn { text-decoration: none; }
+.mkrow > .g > span { font-size: 12.5px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mkrow > .g > span.mono { font-size: 11.5px; }
+.mkic { width: 40px; height: 40px; border-radius: 10px; flex: none; display: grid; place-items: center; background: var(--raised); box-shadow: inset 0 0 0 1px var(--border); color: var(--text2); }
+.mkic.brand { color: var(--text); }
+.mkic.brand svg { width: 22px; height: 22px; display: block; }
+.mkrow .pmark.mono-tile, .mkdlg .pmark.mono-tile { border-radius: 10px; font-size: 17px !important; }
+.mkadd { width: 30px; height: 30px; border-radius: 50%; flex: none; display: grid; place-items: center; border: 1px solid var(--border2); color: var(--text2); background: var(--surface); }
+.mkadd:hover:not(:disabled) { background: var(--hover); color: var(--text); }
+.mkadd.done { border-color: transparent; background: var(--ok-soft); color: var(--ok-text); }
+.mkmore { margin-top: 6px; font-size: 12.5px; font-weight: 500; color: var(--accent-text); padding: 3px 0; }
+.mkmore:hover { text-decoration: underline; }
+.mklist { border: 1px solid var(--border); border-radius: 14px; background: var(--surface); }
+.mkirow + .mkirow { border-top: 1px solid var(--border); }
+.mkirow > .mkrow { padding: 10px 12px; }
+.mkirow.off .mkic, .mkirow.off .mkrow > .g > b { opacity: .6; }
+.mkirow .mkerr { padding: 0 12px 10px 64px; overflow-wrap: anywhere; }
+.mkdetail { padding: 0 12px 10px 64px; }
+.mkpath { margin-top: 12px; }
+.mkdlg .mhd { gap: 12px; padding-top: 16px; }
+.mkdlg .mkdesc { margin: 8px 0 0; }
+.mkep { display: flex; gap: 8px; align-items: baseline; margin-top: 6px; min-width: 0; }
+.mkep span { flex: none; }
+.mkep code { min-width: 0; color: var(--text2); }
+.mknote { font-size: 12.5px; color: var(--text2); background: var(--sunken); border-radius: 10px; padding: 9px 11px; margin: 12px 0 0; line-height: 1.6; }
+.mksign { margin-top: 14px; }
+.mksign .spin { vertical-align: -1px; margin-right: 4px; }
+@container (max-width: 600px) {
+  .mkirow .mkerr, .mkdetail { padding-left: 12px; }
+  .mkirow > .mkrow { gap: 10px; }
+  .mkirow > .mkrow .btn.sm { padding: 0 8px; }
+}

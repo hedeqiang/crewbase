@@ -24,6 +24,7 @@ import (
 	_ "github.com/hedeqiang/crewbase/features/attachments"
 	_ "github.com/hedeqiang/crewbase/features/audit"
 	_ "github.com/hedeqiang/crewbase/features/browsertools"
+	_ "github.com/hedeqiang/crewbase/features/catalog"
 	_ "github.com/hedeqiang/crewbase/features/channel"
 	_ "github.com/hedeqiang/crewbase/features/compaction"
 	_ "github.com/hedeqiang/crewbase/features/console"
@@ -144,6 +145,7 @@ var Base = kernel.Bundle{Name: "base", Entries: []kernel.Entry{
 	{ID: "browser-tools", Name: "@crewbase/browser-tools"},
 	{ID: "mcp", Name: "@crewbase/mcp", Config: map[string]any{"dir": "${root}"}},
 	{ID: "skills", Name: "@crewbase/skills", Config: map[string]any{"dirs": []string{"${root}/skills"}}},
+	{ID: "catalog", Name: "@crewbase/catalog"},
 	{ID: "compaction", Name: "@crewbase/compaction-summary"},
 	{ID: "memory", Name: "@crewbase/memory-markdown-sqlite", Config: map[string]any{"root": "${root}"}},
 	// Nightly: agents curate an overgrown MEMORY.md (backed up first).
@@ -164,6 +166,8 @@ var Desktop = kernel.Bundle{Name: "desktop", Entries: []kernel.Entry{
 	{ID: "usage", Name: "@crewbase/usage"},
 	{ID: "workflows-api", Name: "@crewbase/workflows-api"},
 	{ID: "mcp-api", Name: "@crewbase/mcp-api"},
+	{ID: "catalog-api", Name: "@crewbase/catalog-api"},
+	{ID: "skills-api", Name: "@crewbase/skills-api"},
 	{ID: "browser-api", Name: "@crewbase/browser-api"},
 	{ID: "im-api", Name: "@crewbase/im-api"},
 	{ID: "im-config", Name: "@crewbase/im-config", Config: map[string]any{"dir": "${root}"}},

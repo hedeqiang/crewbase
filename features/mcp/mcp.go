@@ -417,6 +417,11 @@ func (s *Service) serverDir(name string) string {
 	return filepath.Join(s.dir, "mcp", name)
 }
 
+// ServerDir is the server's own directory: writable inside its sandbox
+// whatever its scope, and never an agent's workspace, so it is where a
+// server should keep its sign-in state (catalog presets point it there).
+func (s *Service) ServerDir(name string) string { return s.serverDir(name) }
+
 type fileFormat struct {
 	Servers []Server `json:"servers"`
 }
@@ -668,8 +673,39 @@ func (s *Service) Remove(name string) error {
 		return err
 	}
 	_ = s.SignOut(name) // a removed server's sign-in token goes too
+	s.dropOwnSecrets(e.srv)
 	s.emit(name)
 	return nil
+}
+
+// SecretRef is the keychain reference of a secret that belongs to one
+// server (e.g. a token pasted when installing a catalog preset). Secrets
+// stored under it are deleted with the server; refs the person typed
+// themselves (keychain:crewbase/github) are shared and left alone.
+func SecretRef(server, key string) string {
+	return "keychain:crewbase/mcp-" + server + "-" + key
+}
+
+// dropOwnSecrets deletes the SecretRef values srv's env and headers name.
+func (s *Service) dropOwnSecrets(srv Server) {
+	cs := s.creds()
+	if cs == nil {
+		return
+	}
+	prefix := SecretRef(srv.Name, "")
+	for _, m := range []map[string]string{srv.Env, srv.Headers} {
+		for _, v := range m {
+			refs := inlineRef.FindAllStringSubmatch(v, -1)
+			if IsRef(v) {
+				refs = append(refs, []string{v, v})
+			}
+			for _, r := range refs {
+				if strings.HasPrefix(r[1], prefix) {
+					_ = cs.Delete(r[1])
+				}
+			}
+		}
+	}
 }
 
 // Probe connects to srv without registering anything and returns the
