@@ -50,7 +50,8 @@ export interface Citation {
 }
 
 /** Inputs the daemon writes on a person's or agent's behalf in channels. */
-const INJECTED = /^\[(handover|reassigned|resumed)\]/;
+// notes Crewbase writes to an agent as if from the user (handover, approvals decided while parked, …)
+const INJECTED = /^\[(handover|reassigned|resumed|Approved|Not approved|Approval not given|Crewbase restarted)\]/;
 
 export interface Projection {
   items: FeedItem[];
@@ -240,7 +241,7 @@ export function lastSnippet(events: SessionEvent[] | undefined): { text: string;
   if (!events) return null;
   for (let i = events.length - 1; i >= 0; i--) {
     const e = events[i];
-    if (e.type === "message/user") return { text: e.data?.text ?? "", time: e.time };
+    if (e.type === "message/user" && !INJECTED.test(e.data?.text ?? "")) return { text: e.data?.text ?? "", time: e.time };
     if (e.type === "message/assistant") {
       const t = textOf(e.data?.message?.parts, "text");
       if (t) return { text: t, time: e.time };

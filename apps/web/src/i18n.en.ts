@@ -591,6 +591,7 @@ export const en: Partial<Record<Key, string>> = {
   "appr.toastOk": "Approved; {agent} picks up where it stopped",
   "appr.unavailable": "Not approved: {summary} · {message}",
   "appr.waiting": "Waiting for your approval",
+  "appr.parked": "Still waiting for your approval; the agent moved on to other work and picks this up once you decide.",
   "appr.wants": "{agent} wants to {summary}",
   "appr.workflow": "Workflow",
   "att.screenshot": "Screenshot",

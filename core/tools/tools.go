@@ -171,6 +171,8 @@ type Execution struct {
 	Result   Result
 	Denied   bool
 	Outcome  approval.Outcome `json:",omitempty"`
+	// Parked: the call stopped waiting for its approval (see Park).
+	Parked bool `json:",omitempty"`
 }
 
 // Remembered is emitted when a person chose "always allow" on an approval
@@ -204,6 +206,7 @@ type Registry struct {
 	// teamOf resolves an agent's team, for team-scoped tools (set by the
 	// agents plugin).
 	teamOf func(agent string) string
+	park   parking
 }
 
 // SetTeamOf installs the agent → team resolver team-scoped tools need.
@@ -337,11 +340,34 @@ func (r *Registry) Run(ctx context.Context, c *kernel.Context, call Call) Execut
 		svc, ok := kernel.Lookup[*approval.Service](c, approval.ServiceKey)
 		dd := approval.Decision{Outcome: approval.OutcomeUnavailable, Message: "approval service unavailable"}
 		if ok && ss != nil {
-			dd = svc.Ask(ctx, ss, approval.Request{
-				CallID: call.ID, Session: ss.ID(), Agent: call.Agent, Tool: call.Name,
-				Category: dec.Category, Summary: dec.Summary, Reason: dec.Reason,
-				Rememberable: dec.Rememberable, ConfirmRemember: dec.ConfirmRemember,
-			})
+			key := grantKey(call.Agent, ss.ID(), call.Name, call.Args)
+			if r.park.take(key) {
+				// the person approved this exact call while it was parked
+				dd = approval.Decision{Outcome: approval.OutcomeAllowedOnce, By: "earlier approval"}
+				_, _ = ss.Append(session.TypeApprovalDecided, call.Agent, approval.DecidedData{CallID: call.ID, Decision: dd})
+			} else {
+				req := approval.Request{
+					CallID: call.ID, Session: ss.ID(), Agent: call.Agent, Tool: call.Name,
+					Category: dec.Category, Summary: dec.Summary, Reason: dec.Reason,
+					Rememberable: dec.Rememberable, ConfirmRemember: dec.ConfirmRemember,
+				}
+				var parked bool
+				dd, parked = r.ask(ctx, call.Agent,
+					func(actx context.Context) approval.Decision { return svc.Ask(actx, ss, req) },
+					func(late approval.Decision) {
+						if late.Outcome == approval.OutcomeAllowedOnce {
+							r.park.grant(key)
+							if late.Remember {
+								OnRemember.Emit(d, Remembered{Agent: call.Agent, Category: dec.Category, Confirmed: late.Confirmed || !dec.ConfirmRemember})
+							}
+						}
+						ParkedDecided.Emit(d, ParkedDecision{Agent: call.Agent, Session: ss.ID(), CallID: call.ID, Tool: call.Name, Summary: dec.Summary, Decision: late})
+					})
+				if parked {
+					exe.Result, exe.Parked = Text(ParkedResult), true
+					return r.finish(ctx, d, exe)
+				}
+			}
 		}
 		exe.Outcome = dd.Outcome
 		if dd.Outcome != approval.OutcomeAllowedOnce {

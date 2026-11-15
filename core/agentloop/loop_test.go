@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -569,4 +570,137 @@ func TestReplyInsteadOfApproval(t *testing.T) {
 	if _, text := lastAssistant(t, ss); !strings.Contains(text, "staging first") {
 		t.Fatalf("reply not read next: %q", text)
 	}
+}
+
+// A turn waiting for an approval does not hold the agent up: a background
+// result arriving parks it (the request stays open), the agent moves on,
+// and once the person approves, the same call runs without asking again.
+func TestParkedApproval(t *testing.T) {
+	root := t.TempDir()
+	e := newEnv(t, root)
+	ad, _ := e.llms.Get("claude-code")
+	m := ad.(*mock.Adapter)
+	reg := kernel.Use[*tools.Registry](e.h.Root(), tools.ServiceKey)
+	var mu sync.Mutex
+	var ran []string
+	got := func() []string {
+		mu.Lock()
+		defer mu.Unlock()
+		return append([]string(nil), ran...)
+	}
+	reg.Register(e.h.Root(), &tools.Tool{Name: "deploy", Category: tools.CategoryPublish, Description: "deploy",
+		Execute: func(_ context.Context, c tools.Call) (tools.Result, error) {
+			mu.Lock()
+			ran = append(ran, string(c.Args))
+			mu.Unlock()
+			return tools.Text("deployed"), nil
+		}})
+	tools.PreExecute.Use(e.h.Root(), func(ctx context.Context, d *tools.Decision, next kernel.Next[*tools.Decision, *tools.Decision]) (*tools.Decision, error) {
+		if d.Call.Name == "deploy" {
+			d.RequireApproval("deploys need approval")
+		}
+		return next(ctx, d)
+	})
+	a, _ := e.agents.Create(agent.Spec{Name: "Dee"})
+	ss, _ := a.Session()
+	calls := 0
+	m.Script = func(req llm.Request) (llm.Response, error) {
+		last := req.Messages[len(req.Messages)-1]
+		text := last.Text()
+		if last.Role != llm.RoleTool && (strings.Contains(text, "deploy to prod") || strings.Contains(text, "[Approved]")) {
+			calls++
+			return llm.Response{StopReason: "tool_use", Message: llm.Message{Role: llm.RoleAssistant, Parts: []llm.Part{
+				{Type: "tool_call", ToolCall: &llm.ToolCall{ID: fmt.Sprintf("d%d", calls), Name: "deploy", Args: json.RawMessage(`{"env":"prod"}`)}}}}}, nil
+		}
+		return llm.Response{StopReason: "end", Message: llm.TextMessage(llm.RoleAssistant, "noted")}, nil
+	}
+	waitPending := func(n int) {
+		t.Helper()
+		deadline := time.Now().Add(3 * time.Second)
+		for len(e.inbox.Pending()) != n && time.Now().Before(deadline) {
+			time.Sleep(10 * time.Millisecond)
+		}
+		if got := len(e.inbox.Pending()); got != n {
+			t.Fatalf("pending approvals = %d, want %d", got, n)
+		}
+	}
+
+	send(t, a, "deploy to prod")
+	waitPending(1)
+	// a background result is not the person answering: it parks the call
+	if _, err := a.Enqueue(agent.Input{Session: ss.ID(), Tag: "job:build", Text: "build finished"}); err != nil {
+		t.Fatal(err)
+	}
+	if !agentloop.WaitIdle(a, 3*time.Second) {
+		t.Fatal("agent still held up by the approval")
+	}
+	waitPending(1) // the request is still open
+	if len(got()) != 0 {
+		t.Fatal("ran before approval")
+	}
+	if r := lastToolResult(t, ss); r.Content != tools.ParkedResult {
+		t.Fatalf("parked call result: %q", r.Content)
+	}
+	if _, err := os.Stat(root + "/parked.json"); err != nil {
+		t.Fatal("parked call not recorded")
+	}
+
+	e.inbox.Decide(e.inbox.Pending()[0].CallID, approval.Decision{Outcome: approval.OutcomeAllowedOnce})
+	deadline := time.Now().Add(3 * time.Second)
+	for len(got()) == 0 && time.Now().Before(deadline) {
+		time.Sleep(10 * time.Millisecond)
+	}
+	agentloop.WaitIdle(a, 3*time.Second)
+	if r := got(); len(r) != 1 || r[0] != `{"env":"prod"}` {
+		t.Fatalf("approved call ran %v", r)
+	}
+	if len(e.inbox.Pending()) != 0 {
+		t.Fatal("asked again after approval")
+	}
+	if _, err := os.Stat(root + "/parked.json"); !os.IsNotExist(err) {
+		t.Fatal("parked record not cleared")
+	}
+	// the grant was used up: the same call asks again
+	send(t, a, "deploy to prod")
+	waitPending(1)
+}
+
+// A parked approval lost in a restart: the agent is told to ask again.
+func TestParkedApprovalLostInRestart(t *testing.T) {
+	root := t.TempDir()
+	e := newEnv(t, root)
+	a, _ := e.agents.Create(agent.Spec{Name: "Dee"})
+	ss, _ := a.Session()
+	id, sid := a.ID(), ss.ID()
+	e.h.Close()
+	if err := os.WriteFile(root+"/parked.json", []byte(`[{"agent":"`+id+`","session":"`+sid+`","callId":"d1","tool":"deploy"}]`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	e2 := newEnv(t, root)
+	a2, _ := e2.agents.Get(id)
+	agentloop.WaitIdle(a2, 3*time.Second)
+	ss2, _ := a2.Session()
+	found := false
+	for _, ev := range ss2.Events() {
+		if ev.Type == session.TypeUserMessage && strings.Contains(string(ev.Data), "lost in the restart") {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatal("agent not told the approval was lost")
+	}
+	if _, err := os.Stat(root + "/parked.json"); !os.IsNotExist(err) {
+		t.Fatal("record not cleared")
+	}
+}
+
+func lastToolResult(t *testing.T, ss *session.Session) llm.ToolResult {
+	t.Helper()
+	e, ok := ss.Last(session.TypeToolResult)
+	if !ok {
+		t.Fatal("no tool result")
+	}
+	var r llm.ToolResult
+	e.Decode(&r)
+	return r
 }

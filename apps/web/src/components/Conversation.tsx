@@ -514,12 +514,20 @@ function StepRow({ s }: { s: Step }) {
       {open && (
         <div className="stepbody">
           <pre className="codeblk">{argsFull(s.call.args)}</pre>
-          {s.result && <pre className={"codeblk" + (s.result.isError ? " errblk" : "")}>{clip(s.result.content)}</pre>}
+          {s.result &&
+            (s.result.content.startsWith(PARKED) ? (
+              <p className="small muted">{t("appr.parked")}</p>
+            ) : (
+              <pre className={"codeblk" + (s.result.isError ? " errblk" : "")}>{clip(s.result.content)}</pre>
+            ))}
         </div>
       )}
     </div>
   );
 }
+
+/** Start of tools.ParkedResult: the call stopped waiting for its approval. */
+const PARKED = "Waiting for the user's approval";
 
 function clip(s: string, n = 6000) {
   return s.length > n ? s.slice(0, n) + `\n… (${s.length - n} more)` : s;

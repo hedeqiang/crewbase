@@ -118,7 +118,7 @@ type Input struct {
 }
 
 // background-work result tags: nobody waits for their turn end
-var resultTags = []string{"job:", "delegation:", "followup:"}
+var resultTags = []string{"job:", "delegation:", "followup:", "approval:"}
 
 func plain(in Input) bool {
 	if in.Tag == "" {

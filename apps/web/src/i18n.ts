@@ -655,6 +655,7 @@ const zh = {
   "appr.failed": "操作失败：{error}",
   "appr.open": "打开对话",
   "appr.waiting": "等你批准",
+  "appr.parked": "还在等你批准，Agent 先去处理别的事了；你批准后它会接着做。",
   "appr.none": "没有等你处理的事。",
   "appr.workflow": "工作流",
 
