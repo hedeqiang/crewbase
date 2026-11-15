@@ -44,7 +44,25 @@ jobs:
             prerelease=""
             case "$GITHUB_REF_NAME" in *-*) prerelease="--prerelease" ;; esac
             gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" \
-              --draft --verify-tag --title "Crewbase $GITHUB_REF_NAME" --generate-notes $prerelease
+              --draft --verify-tag --title "Crewbase $GITHUB_REF_NAME" --generate-notes $prerelease \
+              --notes "$(cat <<'NOTES'
+          ## 安装
+
+          **macOS**（推荐，无需处理 Gatekeeper）：
+
+          ```sh
+          curl -fsSL https://github.com/hedeqiang/crewbase/releases/latest/download/install.sh | sh
+          ```
+
+          也可以下载 `.dmg`；应用暂未经 Apple 公证，首次打开需在「系统设置 › 隐私与安全性」点「仍要打开」。
+
+          **Windows**：下载 `crewbase-setup-*.exe`（未签名，SmartScreen 选「更多信息 → 仍要运行」）。
+          **Linux**：同上 `install.sh`，或 `.deb` / `.rpm`。
+          **服务端**：`docker pull ghcr.io/hedeqiang/crewbase`；命令行压缩包见下方附件。
+
+          已安装的客户端会自动更新。
+          NOTES
+          )"
           fi
 
   desktop:

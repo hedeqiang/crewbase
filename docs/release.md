@@ -40,15 +40,22 @@ git tag v0.2.0 && git push origin v0.2.0
 
 ## 没有 Apple 开发者证书时
 
-macOS 应用使用**临时签名（ad hoc）**。它能正常运行、正常自动更新（更新的完整性由上面的 Ed25519 密钥保证，不依赖 Apple 签名），但 Gatekeeper 会拦截从网上下载的首次启动。用户第一次打开时：
+macOS 应用使用**临时签名（ad hoc）**：能运行、能自动更新（更新包的完整性由上面的 Ed25519 密钥保证，不依赖 Apple 签名），但**浏览器下载**的 `.dmg` 带隔离标记，Gatekeeper 会拦截首次打开。macOS 15 起不能再右键「打开」绕过，只能走系统设置。
 
-- 在「应用程序」里右键 Crewbase → 打开 → 再点「打开」；或
-- 系统设置 › 隐私与安全性 → 「仍要打开」；或
+**推荐的安装方式（不经过 Gatekeeper 拦截）**：用终端安装脚本。curl 下载的文件没有隔离标记，脚本会先校验更新签名再装到 `/Applications`（不可写时装到 `~/Applications`）：
+
+```sh
+curl -fsSL https://github.com/hedeqiang/crewbase/releases/latest/download/install.sh | sh
+```
+
+**用 `.dmg` 安装时**，首次打开被拦截后任选其一：
+
+- 系统设置 › 隐私与安全性 → 底部「仍要打开」→ 输入密码（macOS 15 及以后只有这条路）；macOS 14 及以前也可以在「应用程序」里右键 Crewbase → 打开
 - 终端：`xattr -dr com.apple.quarantine /Applications/Crewbase.app`
 
-通过 `install.sh` 或 Homebrew 之类不带隔离标记的方式安装则不受影响。之后的自动更新由应用自己下载，不带隔离标记，不会再被拦。
+之后的自动更新由应用自己下载，没有隔离标记，不会再被拦。
 
-Windows 安装程序未签名，SmartScreen 会提示「更多信息 → 仍要运行」。
+Windows 安装程序未签名，SmartScreen 会提示「更多信息 → 仍要运行」。Linux 不受影响。
 
 ## 以后有了证书
 
