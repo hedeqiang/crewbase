@@ -136,7 +136,7 @@ jobs:
             for app in crewd:apps/crewd crew:apps/cli crew-relay:apps/relayd; do
               GOOS=$os GOARCH=$arch go build -trimpath -ldflags "-s -w" -o "out/$dir/${app%%:*}$ext" "./${app#*:}"
             done
-            cp LICENSE "out/$dir/"
+            cp LICENSE THIRD_PARTY_NOTICES.txt "out/$dir/"
             if [ "$os" = windows ]; then
               (cd out && zip -qr "$dir.zip" "$dir")
             else

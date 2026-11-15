@@ -243,6 +243,14 @@ function General() {
             <i className={"hdot" + (connected ? " on" : "")} />
           </Row>
         </div>
+        <div className="vsec">{t("set.about")}</div>
+        <div className="sbox">
+          <Row title={t("set.license")} desc={t("set.licenseDesc")}>
+            <a className="linkbtn" href="/THIRD_PARTY_NOTICES.txt" target="_blank" rel="noreferrer noopener">
+              {t("set.notices")}
+            </a>
+          </Row>
+        </div>
       </div>
     </>
   );

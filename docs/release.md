@@ -10,6 +10,10 @@
 
 `.github/workflows/ci.yml` 在每次推送 main 与 PR 时跑 `go vet`、带 race 的全量测试（Linux + macOS）、Windows 交叉编译与网页构建。
 
+## 第三方许可声明
+
+`THIRD_PARTY_NOTICES.txt` 列出编进 Crewbase 的所有第三方组件及其许可（三个平台链接的 Go 模块、Go 标准库、网页打包的 npm 包），由 `make notices`（`go run ./internal/notices`）生成，同时写到 `apps/web/public/`：每个带界面的构建（crewd、桌面应用）都在 `/THIRD_PARTY_NOTICES.txt` 提供它，设置 › 通用 › 关于里有链接；命令行压缩包附带根目录这份。改了 Go 或网页依赖后重新生成，过期时 CI 会失败。
+
 ## 一次性设置
 
 更新签名密钥已在维护者的 Mac 上用 `go tool mygo keygen` 生成，公钥写在 `apps/desktop/mygo.json` 的 `updates.publicKey`。私钥在：
