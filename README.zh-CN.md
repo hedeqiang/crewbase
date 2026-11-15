@@ -125,4 +125,4 @@ Crewbase 会代你执行代码、调用服务，所以默认设置很保守：Ag
 
 ## 许可证
 
-[Apache License 2.0](LICENSE)。模型厂商图标来自 [LobeHub Icons](https://github.com/lobehub/lobe-icons)（MIT）；商标归各自所有者。
+[Apache License 2.0](LICENSE)。

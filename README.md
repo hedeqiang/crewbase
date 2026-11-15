@@ -125,4 +125,4 @@ Issues and pull requests are welcome. Run `make check` and `pnpm build` in `apps
 
 ## License
 
-[Apache License 2.0](LICENSE). Model vendor icons come from [LobeHub Icons](https://github.com/lobehub/lobe-icons) (MIT); trademarks belong to their owners.
+[Apache License 2.0](LICENSE).
