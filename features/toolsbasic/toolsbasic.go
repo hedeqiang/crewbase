@@ -44,6 +44,7 @@ type basic struct {
 	maxTime time.Duration
 	lines   int
 	maxRes  int
+	jobs    *jobs
 }
 
 // EffectiveMode normalizes a call's run mode: "" is the default (sandbox);
@@ -101,11 +102,14 @@ func (b *basic) bashTool() *tools.Tool {
 		Name: "bash",
 		Description: "Run a shell command (/bin/sh -c) in the agent workspace and return its exit code and output. " +
 			"In read-only and sandbox modes the command runs inside a sandbox: writes outside the workspace and network access are blocked. " +
-			"If the result says the sandbox blocked the command, do not retry; ask the user for a wider run mode.",
+			"If the result says the sandbox blocked the command, do not retry; ask the user for a wider run mode. " +
+			"For anything long-running (builds, test suites, dev servers, downloads) pass background: true: it returns at once, " +
+			"you keep working, and you get a message when it ends (job_output / job_stop / job_list).",
 		Params: tools.Schema(map[string]any{
 			"command":         tools.Prop("string", "The command line to run."),
 			"cwd":             tools.Prop("string", "Working directory (relative to the workspace). Default: the workspace."),
-			"timeout_seconds": tools.Prop("integer", "Timeout in seconds (default 120)."),
+			"timeout_seconds": tools.Prop("integer", "Timeout in seconds (default 120; background jobs 1800, at most 7200)."),
+			"background":      tools.Prop("boolean", "Run in the background and return at once (default false)."),
 		}, "command"),
 		Category: tools.CategoryExec,
 		PathArgs: []string{"cwd"},
@@ -127,9 +131,10 @@ func oneLine(s string, n int) string {
 
 func (b *basic) bash(ctx context.Context, call tools.Call) (tools.Result, error) {
 	var args struct {
-		Command string  `json:"command"`
-		Cwd     string  `json:"cwd"`
-		Timeout float64 `json:"timeout_seconds"`
+		Command    string  `json:"command"`
+		Cwd        string  `json:"cwd"`
+		Timeout    float64 `json:"timeout_seconds"`
+		Background bool    `json:"background"`
 	}
 	if err := call.Decode(&args); err != nil {
 		return tools.Errorf("invalid arguments: %v", err), nil
@@ -151,6 +156,15 @@ func (b *basic) bash(ctx context.Context, call tools.Call) (tools.Result, error)
 	}
 	if mode != agent.ModeHost && call.Workspace == "" {
 		return tools.Errorf("no workspace is set for this agent; commands are not allowed in %s mode", mode), nil
+	}
+	if args.Background {
+		timeout := DefaultJobTimeout
+		if args.Timeout > 0 {
+			timeout = min(time.Duration(args.Timeout*float64(time.Second)), MaxJobTimeout)
+		}
+		return b.jobs.start(call, args.Command, shell.ExecRequest{
+			Command: args.Command, Cwd: cwd, Timeout: timeout, Policy: PolicyFor(call, b.hosts),
+		})
 	}
 	timeout := b.timeout
 	if args.Timeout > 0 {
@@ -480,10 +494,12 @@ var Plugin = kernel.Register(kernel.Spec{
 		if b.maxRes <= 0 {
 			b.maxRes = 100 << 10
 		}
+		b.jobs = &jobs{b: b, c: c, all: map[string]*job{}}
 		reg := kernel.Use[*tools.Registry](c, tools.ServiceKey)
-		for _, t := range []*tools.Tool{b.bashTool(), b.readTool(), b.writeTool(), b.editTool(), b.listTool(), b.deleteTool()} {
+		for _, t := range append([]*tools.Tool{b.bashTool(), b.readTool(), b.writeTool(), b.editTool(), b.listTool(), b.deleteTool()}, b.jobs.tools()...) {
 			reg.Register(c, t)
 		}
+		agent.Deleted.Listen(c, b.jobs.stopAll)
 		return nil
 	},
 })

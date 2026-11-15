@@ -8,9 +8,12 @@ import (
 	"runtime"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/hedeqiang/crewbase/capabilities/approval"
 	"github.com/hedeqiang/crewbase/capabilities/sandbox"
+	"github.com/hedeqiang/crewbase/core/agent"
+	"github.com/hedeqiang/crewbase/core/prompt"
 	"github.com/hedeqiang/crewbase/core/session"
 	"github.com/hedeqiang/crewbase/core/tools"
 	"github.com/hedeqiang/crewbase/features/toolsbasic"
@@ -303,5 +306,79 @@ func TestPathArgsDeclared(t *testing.T) {
 		if !ok || len(tl.PathArgs) != 1 || tl.PathArgs[0] != want {
 			t.Errorf("%s: %v", name, tl)
 		}
+	}
+}
+
+// bash {background: true} returns at once; job_output shows live output;
+// the result comes back to the agent's conversation when the job ends;
+// job_stop ends a job without a report.
+func TestBackgroundJobs(t *testing.T) {
+	h := kernel.NewHost(nil)
+	t.Cleanup(h.Close)
+	root := t.TempDir()
+	for _, x := range []struct {
+		s   kernel.Spec
+		cfg map[string]any
+	}{
+		{session.Plugin, map[string]any{"dir": root + "/sessions"}}, {prompt.Plugin, nil}, {tools.Plugin, nil},
+		{approval.Plugin, nil}, {sandboxnone.Plugin, nil}, {fslocal.Plugin, nil}, {shelllocal.Plugin, nil},
+		{agent.Plugin, map[string]any{"root": root}}, {toolsbasic.Plugin, nil},
+	} {
+		if _, err := h.Load(x.s, kernel.LoadOptions{Config: x.cfg}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	reg := kernel.Use[*tools.Registry](h.Root(), tools.ServiceKey)
+	agents := kernel.Use[*agent.Registry](h.Root(), agent.ServiceKey)
+	a, err := agents.Create(agent.Spec{Name: "Builder"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ss, _ := a.Session()
+	a.Pause() // keep reports in the queue
+	run := func(name string, args any) tools.Result {
+		b, _ := json.Marshal(args)
+		return reg.Run(context.Background(), h.Root(), tools.Call{ID: session.NewID("call"), Name: name, Args: b, Agent: a.ID(), Session: ss, Mode: "host", Workspace: a.Workspace()}).Result
+	}
+
+	start := time.Now()
+	r := run("bash", map[string]any{"command": "echo compiling; sleep 1; echo 'FAIL: TestLogin'; exit 3", "background": true})
+	if r.IsError || !strings.Contains(r.Content, "Started job1") || time.Since(start) > 500*time.Millisecond {
+		t.Fatalf("start: %v %+v", time.Since(start), r)
+	}
+	time.Sleep(300 * time.Millisecond)
+	if r := run("job_output", map[string]any{"id": "job1"}); !strings.Contains(r.Content, "running") || !strings.Contains(r.Content, "compiling") {
+		t.Fatalf("live output: %s", r.Content)
+	}
+	// another agent cannot see it
+	b, _ := json.Marshal(map[string]any{"id": "job1"})
+	if r := reg.Run(context.Background(), h.Root(), tools.Call{ID: "x", Name: "job_output", Args: b, Agent: "someone-else", Mode: "host"}).Result; !r.IsError {
+		t.Fatal("another agent read the job")
+	}
+	deadline := time.Now().Add(5 * time.Second)
+	for len(a.Queue()) == 0 && time.Now().Before(deadline) {
+		time.Sleep(50 * time.Millisecond)
+	}
+	q := a.Queue()
+	if len(q) != 1 || q[0].Session != ss.ID() || q[0].Tag != "job:job1" || !strings.Contains(q[0].Text, "exited 3") || !strings.Contains(q[0].Text, "FAIL: TestLogin") {
+		t.Fatalf("report: %+v", q)
+	}
+	if r := run("job_list", map[string]any{}); !strings.Contains(r.Content, "job1  exited 3") {
+		t.Fatalf("list: %s", r.Content)
+	}
+
+	// stopped jobs end at once and are not reported
+	run("bash", map[string]any{"command": "sleep 30", "background": true})
+	time.Sleep(200 * time.Millisecond)
+	if r := run("job_stop", map[string]any{"id": "job2"}); r.IsError {
+		t.Fatalf("stop: %s", r.Content)
+	}
+	deadline = time.Now().Add(3 * time.Second)
+	for !strings.Contains(run("job_output", map[string]any{"id": "job2"}).Content, "stopped") && time.Now().Before(deadline) {
+		time.Sleep(50 * time.Millisecond)
+	}
+	time.Sleep(200 * time.Millisecond)
+	if len(a.Queue()) != 1 {
+		t.Fatalf("a stopped job was reported: %+v", a.Queue())
 	}
 }

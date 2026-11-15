@@ -29,7 +29,7 @@ import (
 const (
 	DefaultMaxOutput = 64 << 10
 	DefaultTimeout   = 2 * time.Minute
-	DefaultMaxTime   = 30 * time.Minute
+	DefaultMaxTime   = 2 * time.Hour // background jobs; tools-basic caps foreground commands lower
 	DefaultShell     = "/bin/sh"
 )
 
@@ -165,10 +165,22 @@ func (l *Local) Exec(ctx context.Context, req shell.ExecRequest) (shell.RunResul
 	if max <= 0 || max > l.maxOutput {
 		max = l.maxOutput
 	}
-	return l.run(ctx, conf, req.Cwd, timeout, max)
+	return l.run(ctx, conf, req.Cwd, timeout, max, req.Output)
 }
 
-func (l *Local) run(ctx context.Context, conf sandbox.Confined, cwd string, timeout time.Duration, max int) (shell.RunResult, error) {
+// tee forwards writes to a live-output callback.
+type tee struct {
+	w      io.Writer
+	stream string
+	fn     func(string, []byte)
+}
+
+func (t tee) Write(p []byte) (int, error) {
+	t.fn(t.stream, append([]byte(nil), p...))
+	return t.w.Write(p)
+}
+
+func (l *Local) run(ctx context.Context, conf sandbox.Confined, cwd string, timeout time.Duration, max int, live func(string, []byte)) (shell.RunResult, error) {
 	res := shell.RunResult{Enforcement: conf.Enforcement, Limits: conf.Limits, ExitCode: -1}
 	if ctx.Err() != nil {
 		res.Cancelled = true
@@ -213,8 +225,12 @@ func (l *Local) run(ctx context.Context, conf sandbox.Confined, cwd string, time
 
 	var readers sync.WaitGroup
 	readers.Add(2)
-	go func() { defer readers.Done(); _, _ = io.Copy(stdout, outR) }()
-	go func() { defer readers.Done(); _, _ = io.Copy(stderr, errR) }()
+	var so, se io.Writer = stdout, stderr
+	if live != nil {
+		so, se = tee{stdout, "stdout", live}, tee{stderr, "stderr", live}
+	}
+	go func() { defer readers.Done(); _, _ = io.Copy(so, outR) }()
+	go func() { defer readers.Done(); _, _ = io.Copy(se, errR) }()
 
 	waited := make(chan error, 1)
 	go func() { waited <- cmd.Wait() }()

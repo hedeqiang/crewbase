@@ -27,6 +27,10 @@ type ExecRequest struct {
 	Policy  sandbox.Policy `json:"policy"`
 	// MaxOutput caps each of stdout/stderr in bytes (0 = provider default).
 	MaxOutput int `json:"maxOutput,omitempty"`
+	// Output, when set, also receives the output as it is produced
+	// (stream "stdout" or "stderr"), e.g. for background jobs. It must not
+	// block; RunResult still carries the capped output.
+	Output func(stream string, p []byte) `json:"-"`
 }
 
 // RunResult is the outcome of a command that ran (possibly unsuccessfully).
