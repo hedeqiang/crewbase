@@ -35,6 +35,7 @@ import (
 	"github.com/hedeqiang/crewbase/core/agent"
 	"github.com/hedeqiang/crewbase/core/agentloop"
 	"github.com/hedeqiang/crewbase/core/llm"
+	"github.com/hedeqiang/crewbase/core/prompt"
 	"github.com/hedeqiang/crewbase/core/session"
 	"github.com/hedeqiang/crewbase/core/tools"
 	"github.com/hedeqiang/crewbase/kernel"
@@ -522,10 +523,29 @@ var ACPPlugin = kernel.Register(kernel.Spec{
 
 // DelegateArgs are the `delegate` tool arguments.
 type DelegateArgs struct {
-	Task     string `json:"task"`
-	Agent    string `json:"agent,omitempty"`
-	Mode     string `json:"mode,omitempty"`
-	Provider string `json:"provider,omitempty"`
+	Task       string `json:"task"`
+	Agent      string `json:"agent,omitempty"`
+	Mode       string `json:"mode,omitempty"`
+	Provider   string `json:"provider,omitempty"`
+	Background bool   `json:"background,omitempty"`
+}
+
+// formatResult renders a sub-agent's result for the model.
+func formatResult(res subagent.Result, err error) tools.Result {
+	if err != nil {
+		return tools.Result{Content: "delegation failed: " + err.Error(), IsError: true, Data: res}
+	}
+	if res.StopReason != subagent.StopCompleted {
+		msg := "sub-agent " + res.StopReason
+		if res.Diagnostic != "" {
+			msg += ": " + res.Diagnostic
+		}
+		if res.Output != "" {
+			msg += "\npartial output:\n" + res.Output
+		}
+		return tools.Result{Content: msg, IsError: true, Data: res}
+	}
+	return tools.Result{Content: res.Output, Data: res}
 }
 
 // DelegatePlugin registers the global `delegate` model tool.
@@ -536,16 +556,24 @@ var DelegatePlugin = kernel.Register(kernel.Spec{
 	Apply: func(c *kernel.Context) error {
 		svc := kernel.Use[*subagent.Service](c, subagent.ServiceKey)
 		agents := kernel.Use[*agent.Registry](c, agent.ServiceKey)
+		bg := &background{c: c, svc: svc, agents: agents, running: map[string]context.CancelFunc{}}
+		agent.Deleted.Listen(c, bg.cancelFor)
+		if pa, ok := kernel.Lookup[*prompt.Assembler](c, prompt.ServiceKey); ok {
+			pa.Register(c, &prompt.Fragment{Name: "team", Order: 15, Render: func(id string) string { return Team(agents, id) }})
+		}
 		kernel.Use[*tools.Registry](c, tools.ServiceKey).Register(c, &tools.Tool{
 			Name: "delegate",
-			Description: "Delegate a self-contained task to a sub-agent and wait for its result. " +
+			Description: "Delegate a self-contained task to a sub-agent (or a teammate: agent = its id) and get its result. " +
 				"The sub-agent does not see your private tools. Use provider \"fork\" to give it this conversation's context, " +
-				"or provider \"acp\" to hand the task to an external coding CLI (agent = the CLI, e.g. claude-code).",
+				"or provider \"acp\" to hand the task to an external coding CLI (agent = the CLI, e.g. claude-code). " +
+				"With background: true it returns at once and the result comes back to you as a message when it is done — " +
+				"use it to run several tasks in parallel, or to stay available while one runs.",
 			Params: tools.Schema(map[string]any{
-				"task":     tools.Prop("string", "complete instructions for the sub-agent"),
-				"agent":    tools.Prop("string", "optional id of an existing agent to delegate to (default: a temporary sub-agent); for provider acp, the CLI (e.g. claude-code)"),
-				"mode":     tools.Prop("string", "optional run mode: read-only or sandbox (never wider than yours)"),
-				"provider": tools.Prop("string", "local (default), fork or acp"),
+				"task":       tools.Prop("string", "complete instructions for the sub-agent"),
+				"agent":      tools.Prop("string", "optional id of an existing agent to delegate to (default: a temporary sub-agent); for provider acp, the CLI (e.g. claude-code)"),
+				"mode":       tools.Prop("string", "optional run mode: read-only or sandbox (never wider than yours)"),
+				"provider":   tools.Prop("string", "local (default), fork or acp"),
+				"background": tools.Prop("boolean", "return at once; the result arrives later as a message (default false)"),
 			}, "task"),
 			Category: tools.CategoryNone,
 			Execute: func(ctx context.Context, call tools.Call) (tools.Result, error) {
@@ -576,23 +604,112 @@ var DelegatePlugin = kernel.Register(kernel.Spec{
 					req.ParentSession = call.Session.ID()
 					req.Depth = Depth(agents.Sessions(), call.Session) + 1
 				}
+				if a.Background {
+					return bg.start(call, a, req), nil
+				}
 				res, err := svc.Spawn(ctx, a.Provider, req)
-				if err != nil {
-					return tools.Result{Content: "delegation failed: " + err.Error(), IsError: true, Data: res}, nil
-				}
-				if res.StopReason != subagent.StopCompleted {
-					msg := "sub-agent " + res.StopReason
-					if res.Diagnostic != "" {
-						msg += ": " + res.Diagnostic
-					}
-					if res.Output != "" {
-						msg += "\npartial output:\n" + res.Output
-					}
-					return tools.Result{Content: msg, IsError: true, Data: res}, nil
-				}
-				return tools.Result{Content: res.Output, Data: res}, nil
+				return formatResult(res, err), nil
 			},
 		})
 		return nil
 	},
 })
+
+// ---------------------------------------------------------------- background
+
+// background runs delegations without blocking the delegating turn; each
+// result comes back to the parent's conversation as a message.
+type background struct {
+	c      *kernel.Context
+	svc    *subagent.Service
+	agents *agent.Registry
+
+	mu      sync.Mutex
+	seq     int
+	running map[string]context.CancelFunc // id → cancel (id = parent + "/" + n)
+}
+
+func (b *background) start(call tools.Call, a DelegateArgs, req subagent.Request) tools.Result {
+	b.mu.Lock()
+	b.seq++
+	id := fmt.Sprintf("d%d", b.seq)
+	ctx, cancel := context.WithCancel(context.Background())
+	b.running[call.Agent+"/"+id] = cancel
+	b.mu.Unlock()
+	who := a.Agent
+	if who == "" {
+		who = "a sub-agent"
+	}
+	session := req.ParentSession
+	b.c.Go(func(host context.Context) {
+		stop := context.AfterFunc(host, cancel)
+		defer stop()
+		defer func() {
+			b.mu.Lock()
+			delete(b.running, call.Agent+"/"+id)
+			b.mu.Unlock()
+			cancel()
+		}()
+		res, err := b.svc.Spawn(ctx, a.Provider, req)
+		if ctx.Err() != nil {
+			return // cancelled (parent deleted, shutdown)
+		}
+		parent, ok := b.agents.Get(call.Agent)
+		if !ok {
+			return
+		}
+		r := formatResult(res, err)
+		status := "完成"
+		if r.IsError {
+			status = "没有完成"
+		}
+		text := fmt.Sprintf("[委派结果] %s（%s）%s：\n\n%s", id, who, status, clipText(r.Content, 12000))
+		_, _ = parent.Enqueue(agent.Input{Session: session, Text: text, From: "delegation", Tag: "delegation:" + id})
+	})
+	return tools.Text(fmt.Sprintf("Delegated as %s to %s, running in the background. Its result will come back to you as a message; "+
+		"you do not need to wait or poll. Carry on with other work, or tell the user what is under way and end your turn.", id, who))
+}
+
+func (b *background) cancelFor(agentID string) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	for k, cancel := range b.running {
+		if strings.HasPrefix(k, agentID+"/") {
+			cancel()
+			delete(b.running, k)
+		}
+	}
+}
+
+func clipText(s string, n int) string {
+	if r := []rune(s); len(r) > n {
+		return string(r[:n]) + "\n…（结果过长，已截断）"
+	}
+	return s
+}
+
+// Team renders the roster an agent can delegate to: the other agents with
+// their role (not blank chats or sub-agents). Empty when there are none.
+func Team(agents *agent.Registry, self string) string {
+	var lines []string
+	for _, a := range agents.List() {
+		s := a.Spec()
+		if s.ID == self || s.Kind == agent.KindChat || s.Ephemeral {
+			continue
+		}
+		line := fmt.Sprintf("- %s (id %s)", s.Name, s.ID)
+		if s.Role != "" {
+			line += ": " + s.Role
+		}
+		lines = append(lines, line)
+		if len(lines) == 30 {
+			lines = append(lines, "- …")
+			break
+		}
+	}
+	if len(lines) == 0 {
+		return ""
+	}
+	sort.Strings(lines)
+	return "Teammates you can hand work to with delegate (agent = their id):\n" + strings.Join(lines, "\n")
+}

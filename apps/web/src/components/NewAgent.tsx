@@ -26,12 +26,14 @@ export function emptyDraft(): Draft {
 }
 
 export type TemplateKey =
-  | "review" | "watch" | "weekly" | "frontend" | "tester" | "oncall"
+  | "lead" | "review" | "watch" | "weekly" | "frontend" | "tester" | "oncall"
   | "writer" | "translator" | "researcher" | "data" | "support" | "release";
 
 /** The template library; the welcome page and the form show three at a
  *  time and can shuffle to the next three. */
-export const TEMPLATES: { key: TemplateKey; color: string; shape: string; mode: Draft["mode"] }[] = [
+export const TEMPLATES: { key: TemplateKey; color: string; shape: string; mode: Draft["mode"]; instr?: boolean }[] = [
+  // the lead (two-layer setup): receives everything, hands work out, reports back
+  { key: "lead", color: "#3b32c4", shape: "hex", mode: "sandbox", instr: true },
   { key: "review", color: "#24b07e", shape: "circle", mode: "sandbox" },
   { key: "watch", color: "#8b7cf6", shape: "blob", mode: "read-only" },
   { key: "weekly", color: "#f2b33d", shape: "hex", mode: "sandbox" },
@@ -256,7 +258,7 @@ export function NewAgent({ draft: f, setDraft }: { draft: Draft; setDraft: (d: D
                   setErr(false);
                   set({
                     name: t(`tpl.${x.key}.name` as Key),
-                    desc: t(`tpl.${x.key}.desc` as Key),
+                    desc: t(`tpl.${x.key}.${x.instr ? "instr" : "desc"}` as Key),
                     role: t(`tpl.${x.key}.role` as Key),
                     color: x.color,
                     shape: x.shape,

@@ -38,7 +38,7 @@ export function Welcome({ onTemplate }: { onTemplate: (d: Partial<Draft>) => voi
     const x = TEMPLATES.find((tp) => tp.key === key)!;
     onTemplate({
       name: t(`tpl.${key}.name` as Key),
-      desc: t(`tpl.${key}.desc` as Key),
+      desc: t(`tpl.${key}.${x.instr ? "instr" : "desc"}` as Key),
       role: t(`tpl.${key}.role` as Key),
       color: x.color,
       shape: x.shape,

@@ -453,3 +453,54 @@ func TestACPProviderWithoutCLI(t *testing.T) {
 		t.Fatal("expected an error without ACP adapters")
 	}
 }
+
+// A background delegation returns at once; the results of parallel tasks
+// come back to the parent's conversation as messages, and the parent knows
+// its teammates.
+func TestBackgroundDelegation(t *testing.T) {
+	e := newEnv(t, nil)
+	lead, _ := e.agents.Create(agent.Spec{Name: "Lead", Role: "receives requests and hands them out"})
+	otto, _ := e.agents.Create(agent.Spec{Name: "Otto", Role: "pricing research"})
+	ss, _ := lead.Session()
+	if team := subagent.Team(e.agents, lead.ID()); !strings.Contains(team, "Otto (id "+otto.ID()+"): pricing research") || strings.Contains(team, "Lead") {
+		t.Fatalf("team: %q", team)
+	}
+	e.mock.SetDelay(150 * time.Millisecond) // every model call takes a while
+	start := time.Now()
+	lead.Enqueue(agent.Input{Text: delegateCmd(map[string]any{"task": "check prices", "agent": otto.ID(), "background": true})})
+	var toolRes string
+	for time.Now().Before(start.Add(5*time.Second)) && toolRes == "" {
+		for _, ev := range ss.Events() {
+			if ev.Type == session.TypeToolResult {
+				var r llm.ToolResult
+				ev.Decode(&r)
+				toolRes = r.Content
+			}
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	if !strings.Contains(toolRes, "running in the background") {
+		t.Fatalf("%q", toolRes)
+	}
+	if d := time.Since(start); d > 900*time.Millisecond {
+		t.Fatalf("background delegation blocked the turn: %v", d)
+	}
+	// the result arrives as a message and gets its own reply
+	deadline := time.Now().Add(5 * time.Second)
+	var res string
+	for time.Now().Before(deadline) && res == "" {
+		for _, ev := range ss.Events() {
+			if ev.Type == session.TypeUserMessage {
+				var m session.UserMessage
+				ev.Decode(&m)
+				if m.From == "delegation" {
+					res = m.Text
+				}
+			}
+		}
+		time.Sleep(30 * time.Millisecond)
+	}
+	if !strings.Contains(res, "[委派结果] d1") || !strings.Contains(res, "check prices") {
+		t.Fatalf("result message: %q", res)
+	}
+}

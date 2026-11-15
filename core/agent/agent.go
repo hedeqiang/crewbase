@@ -111,6 +111,21 @@ type Input struct {
 	Resumed bool `json:"resumed,omitempty"`
 }
 
+// background-work result tags: nobody waits for their turn end
+var resultTags = []string{"job:", "delegation:", "followup:"}
+
+func plain(in Input) bool {
+	if in.Tag == "" {
+		return true
+	}
+	for _, p := range resultTags {
+		if strings.HasPrefix(in.Tag, p) {
+			return true
+		}
+	}
+	return false
+}
+
 // resumable reports whether an input cut off by a restart is picked up
 // again: conversations (people, chat, follow-ups, job reports) are;
 // workflows, routines and goals are not (they record the interruption
@@ -119,7 +134,7 @@ func resumable(in Input) bool {
 	if in.Tag == "" {
 		return true
 	}
-	for _, p := range []string{"im:", "followup:", "job:"} {
+	for _, p := range []string{"im:", "followup:", "job:", "delegation:"} {
 		if strings.HasPrefix(in.Tag, p) {
 			return true
 		}
@@ -433,10 +448,12 @@ func (a *Agent) Claim() (Input, bool) {
 }
 
 // Joinable reports whether next can join the turn working on cur: both
-// are plain messages from a person (no producer tag, so no one waits for
-// their own turn end), for the same conversation, run mode and model.
+// are plain messages (from people, or results of background work: jobs,
+// delegations, follow-ups — nobody waits for the turn end of those), for
+// the same conversation, run mode and model. Several results arriving
+// together become one turn, and one update.
 func Joinable(cur, next Input) bool {
-	if cur.Tag != "" || next.Tag != "" || cur.Session != next.Session || cur.Mode != next.Mode || cur.From != next.From {
+	if !plain(cur) || !plain(next) || cur.Session != next.Session || cur.Mode != next.Mode {
 		return false
 	}
 	if next.Model != nil && (cur.Model == nil || *cur.Model != *next.Model) {
