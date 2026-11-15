@@ -75,6 +75,8 @@ type Gateway struct {
 	Approvals    bool      `json:"approvals"`
 	Enabled      bool      `json:"enabled"`
 	Created      time.Time `json:"created"`
+	// Listen: an agent follows the channel without being @'d.
+	Listen *im.Listen `json:"listen,omitempty"`
 }
 
 // Input creates or edits a gateway; tokens are write-only.
@@ -88,6 +90,8 @@ type Input struct {
 	Enabled      *bool    `json:"enabled"`
 	BotToken     string   `json:"botToken"`
 	AppToken     string   `json:"appToken"`
+	// Listen sets listening in; an empty agent turns it off. nil = unchanged.
+	Listen *im.Listen `json:"listen"`
 }
 
 // View is a gateway with whether its tokens are stored.
@@ -198,6 +202,9 @@ func (s *Service) mount(g Gateway) {
 	if p.Domain != "" {
 		cfg["domain"] = p.Domain
 	}
+	if g.Listen != nil {
+		cfg["listen"] = g.Listen
+	}
 	for k, v := range s.extra {
 		cfg[k] = v
 	}
@@ -268,6 +275,16 @@ func (s *Service) Save(id string, in Input) (View, error) {
 	}
 	if in.Enabled != nil {
 		g.Enabled = *in.Enabled
+	}
+	if in.Listen != nil {
+		if strings.TrimSpace(in.Listen.Agent) == "" {
+			g.Listen = nil
+		} else {
+			l := *in.Listen
+			l.Agent = strings.TrimSpace(l.Agent)
+			l.Keywords = cleanUsers(l.Keywords) // same splitting: commas, spaces
+			g.Listen = &l
+		}
 	}
 	if g.Channel == "" {
 		return View{}, errors.New("a channel is required")

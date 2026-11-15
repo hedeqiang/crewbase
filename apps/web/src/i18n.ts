@@ -421,6 +421,10 @@ const zh = {
   "att.saved": "已保存到工作区 {path}",
   "chat.voice": "语音输入",
   "voice.stopDictation": "停止听写",
+  "im.listen": "群里没 @ 时也关注",
+  "im.listenOff": "不旁听",
+  "im.listenKeywords": "只看含这些词的消息（逗号分隔，可留空）",
+  "im.listenHelp": "选一个 Agent 旁听这个群：允许名单里的人发的消息会先按关键词和频率筛一遍，再由 Agent 判断要不要接话；没把握就不说话。旁听时只读，不会改文件或跑命令。",
   "set.about": "关于",
   "set.license": "开源许可",
   "set.licenseDesc": "Crewbase 以 MIT 许可开源，并使用了许多第三方开源组件",
@@ -1123,6 +1127,10 @@ const zh = {
 export type Key = keyof typeof zh;
 
 const en: Partial<Record<Key, string>> = {
+  "im.listen": "Follow the group without @",
+  "im.listenOff": "Not listening",
+  "im.listenKeywords": "Only messages with these words (comma separated, optional)",
+  "im.listenHelp": "Pick an agent to listen in on this group: messages from allowed people are filtered by keywords and rate first, then the agent decides whether to speak up, and stays quiet when unsure. Listening is read-only: no file edits or commands.",
   "tpl.lead.name": "Lead",
   "tpl.lead.desc": "Receives your and the team chat's requests, hands them to teammates in parallel, reports back",
   "tpl.lead.role": "Lead",

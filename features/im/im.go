@@ -232,7 +232,31 @@ type Config struct {
 	// StateDir keeps thread → conversation bindings across restarts
 	// (im-<name>-threads.json); "" = memory only.
 	StateDir string `json:"stateDir,omitempty"`
+	// Listen lets an agent follow the channel without being @'d and step
+	// in when it can help (off by default).
+	Listen *Listen `json:"listen,omitempty"`
 }
+
+// Listen configures listening in on the channel. Messages pass a program
+// filter first (the channel itself, people in AllowUsers, MinChars,
+// Keywords, PerHour); the agent then decides whether to reply and stays
+// quiet otherwise. Listened-in turns run read-only: group chatter is
+// untrusted input.
+type Listen struct {
+	Agent    string   `json:"agent"`
+	Keywords []string `json:"keywords,omitempty"` // any of them (case-insensitive); empty = all
+	MinChars int      `json:"minChars,omitempty"` // default 8
+	PerHour  int      `json:"perHour,omitempty"`  // messages handed to the agent, default 20
+}
+
+// NoReply is what a listening agent answers to stay quiet.
+const NoReply = "NO_REPLY"
+
+// ListenPrompt wraps a message the agent was not addressed in.
+const ListenPrompt = "[Listening in on the team chat — you were not addressed] %s wrote:\n\n%s\n\n" +
+	"Reply only if you can clearly help right now: answer a question you know the answer to, point out a mistake or a risk, " +
+	"or offer something useful you have. Your reply goes under that message in the chat. Otherwise reply with exactly " + NoReply +
+	" and nothing else. When unsure, stay quiet."
 
 func (c Config) approvals() bool { return c.Approvals == nil || *c.Approvals }
 
@@ -276,6 +300,7 @@ type binding struct {
 	session string
 	chat    string
 	anchor  string
+	listen  string // listened-in message id: its thread is bound only once the agent replies
 }
 
 // Status is the public state of a gateway (never contains tokens).
@@ -318,6 +343,7 @@ type Gateway struct {
 	saveTimer *time.Timer
 	refused   map[string]time.Time
 	cardWait  *sync.Cond
+	listenLim *rate.Limiter
 	// inputs enqueued from chat (input id → queued), for the chat norm
 	chatInputs map[string]time.Time
 }
@@ -357,6 +383,7 @@ type savedBinding struct {
 	Chat    string   `json:"chat"`
 	Anchor  string   `json:"anchor,omitempty"`
 	Msgs    []string `json:"msgs"`
+	Listen  string   `json:"listen,omitempty"`
 }
 
 func (g *Gateway) statePath() string {
@@ -389,7 +416,7 @@ func (g *Gateway) loadBindings() {
 		return
 	}
 	for _, x := range list {
-		bd := &binding{id: x.ID, agent: x.Agent, session: x.Session, chat: x.Chat, anchor: x.Anchor}
+		bd := &binding{id: x.ID, agent: x.Agent, session: x.Session, chat: x.Chat, anchor: x.Anchor, listen: x.Listen}
 		g.byID[bd.id] = bd
 		g.order = append(g.order, bd.id)
 		for _, m := range x.Msgs {
@@ -419,7 +446,7 @@ func (g *Gateway) saveSoon() {
 				continue
 			}
 			sort.Strings(msgs[id])
-			list = append(list, savedBinding{ID: b.id, Agent: b.agent, Session: b.session, Chat: b.chat, Anchor: b.anchor, Msgs: msgs[id]})
+			list = append(list, savedBinding{ID: b.id, Agent: b.agent, Session: b.session, Chat: b.chat, Anchor: b.anchor, Msgs: msgs[id], Listen: b.listen})
 		}
 		g.mu.Unlock()
 		data, err := json.Marshal(list)
@@ -1002,6 +1029,7 @@ func (g *Gateway) Message(ctx context.Context, in Inbound) {
 	}
 	addressed := in.Direct || target != nil || b != nil
 	if !addressed {
+		g.listen(in)
 		return
 	}
 	if !g.Allowed(in.User.ID) {
@@ -1191,6 +1219,12 @@ func (g *Gateway) onTurnEnded(e agentloop.TurnEndEvent) {
 	if text == "" {
 		return
 	}
+	if b.listen != "" {
+		if quiet(text) {
+			return // the listening agent had nothing to add
+		}
+		g.bind(b, b.chat, b.listen) // replies to that message now reach it
+	}
 	parts := SplitReply(text, MaxRelay, MaxRelayParts)
 	g.later(func(ctx context.Context) {
 		reply := msgID
@@ -1259,4 +1293,71 @@ func (g *Gateway) platform() string {
 		return "Feishu / Lark"
 	}
 	return g.provider
+}
+
+// quiet reports a listening agent's "nothing to add".
+func quiet(text string) bool {
+	t := strings.Trim(strings.TrimSpace(text), "`*_.。 \n")
+	return t == NoReply || strings.HasPrefix(t, NoReply+"\n") || strings.HasSuffix(t, "\n"+NoReply)
+}
+
+// listen hands a message nobody addressed to the listening agent, after
+// the program filter (fast path); the agent decides whether to speak.
+func (g *Gateway) listen(in Inbound) {
+	l := g.cfg.Listen
+	if l == nil || l.Agent == "" || in.Chat != g.cfg.Channel || !g.Allowed(in.User.ID) {
+		return
+	}
+	text := strings.TrimSpace(in.Text)
+	min := l.MinChars
+	if min <= 0 {
+		min = 8
+	}
+	if utf8.RuneCountInString(text) < min {
+		return
+	}
+	if len(l.Keywords) > 0 {
+		low := strings.ToLower(text)
+		hit := false
+		for _, k := range l.Keywords {
+			if k = strings.ToLower(strings.TrimSpace(k)); k != "" && strings.Contains(low, k) {
+				hit = true
+				break
+			}
+		}
+		if !hit {
+			return
+		}
+	}
+	g.mu.Lock()
+	if g.listenLim == nil {
+		per := l.PerHour
+		if per <= 0 {
+			per = 20
+		}
+		g.listenLim = rate.NewLimiter(rate.Every(time.Hour/time.Duration(per)), 3)
+	}
+	ok := g.listenLim.Allow()
+	g.mu.Unlock()
+	if !ok {
+		return
+	}
+	a, found := g.findAgent(l.Agent)
+	if !found {
+		return
+	}
+	anchor := in.Thread
+	if anchor == "" {
+		anchor = in.MessageID
+	}
+	b := &binding{id: newToken(), agent: a.ID(), session: a.Spec().Session, chat: in.Chat, anchor: anchor, listen: in.MessageID}
+	g.bind(b, in.Chat) // known by id (for the reply), not bound to the thread yet
+	from := in.User.display()
+	q, err := a.Enqueue(agent.Input{Session: b.session, Text: fmt.Sprintf(ListenPrompt, from, text), From: from,
+		Tag: g.tag(b.id, in.MessageID), Mode: agent.ModeReadOnly})
+	if err != nil {
+		g.log.Warn("im listen enqueue failed", "agent", a.ID(), "err", err.Error())
+		return
+	}
+	g.noteChatInput(q.ID)
 }

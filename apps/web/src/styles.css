@@ -1235,6 +1235,9 @@ button.tg:disabled { opacity: .5; cursor: not-allowed; }
 .imfh .sp { flex: 1; }
 .imkey { display: flex; align-items: center; gap: 5px; color: var(--ok-text); margin: 8px 0 0; }
 .imrow { grid-template-columns: auto minmax(0, 1fr) auto auto auto; }
+.imlisten { grid-column: 2 / -1; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.imlisten .ssel select { font-size: 12.5px; }
+.imlisten .fi.sm { flex: 1; min-width: 180px; height: 28px; font-size: 12.5px; }
 
 /* ---- workflow canvas */
 .wfboard { display: flex; gap: 12px; align-items: flex-start; margin-bottom: 10px; }

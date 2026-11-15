@@ -766,6 +766,7 @@ export interface ImGateway {
   hasToken: boolean;
   running: boolean;
   error?: string;
+  listen?: { agent: string; keywords?: string[] } | null;
 }
 
 export type Followup = { id: string; agent: string; session: string; note: string; due: string; set: string };

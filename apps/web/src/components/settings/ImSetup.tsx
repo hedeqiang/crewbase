@@ -2,7 +2,7 @@ import { CheckCircle2, ExternalLink, Loader2, MessageCircle, Send, Trash2, X } f
 import { useEffect, useState } from "react";
 import { API, type ImGateway, type ImPlatform } from "../../api";
 import { t } from "../../i18n";
-import { toast } from "../../store";
+import { toast, useStore } from "../../store";
 
 /** 即时通讯 (in 设置 › 通知): connect Slack / Telegram / Discord / 飞书 bots. */
 export function ImSetup({ onChanged }: { onChanged: () => void }) {
@@ -48,6 +48,16 @@ export function ImSetup({ onChanged }: { onChanged: () => void }) {
     onChanged();
   };
   const name = (id: string) => platforms.find((p) => p.id === id)?.name ?? id;
+  const agents = useStore((s) => s.agents);
+  const team = Object.values(agents).filter((a) => a.kind !== "chat");
+  const setListen = async (g: ImGateway, agent: string, keywords?: string) => {
+    try {
+      await API.saveIm(g.id, { listen: { agent, keywords: keywords === undefined ? g.listen?.keywords ?? [] : [keywords] } });
+      await load();
+    } catch (e: any) {
+      toast(e?.message ?? String(e));
+    }
+  };
 
   return (
     <>
@@ -75,6 +85,32 @@ export function ImSetup({ onChanged }: { onChanged: () => void }) {
               <button className="ix dng" type="button" title={t("common.delete")} aria-label={t("common.delete")} onClick={() => void remove(g)}>
                 <Trash2 size={13} />
               </button>
+              <div className="imlisten">
+                <span className="small" title={t("im.listenHelp")}>
+                  {t("im.listen")}
+                </span>
+                <span className="ssel">
+                  <select value={g.listen?.agent ?? ""} onChange={(e) => void setListen(g, e.target.value)} aria-label={t("im.listen")}>
+                    <option value="">{t("im.listenOff")}</option>
+                    {team.map((a) => (
+                      <option key={a.id} value={a.id}>
+                        {a.name}
+                      </option>
+                    ))}
+                  </select>
+                </span>
+                {g.listen?.agent && (
+                  <input
+                    className="fi sm"
+                    defaultValue={(g.listen.keywords ?? []).join(", ")}
+                    placeholder={t("im.listenKeywords")}
+                    onBlur={(e) => {
+                      const v = e.target.value.trim();
+                      if (v !== (g.listen?.keywords ?? []).join(", ")) void setListen(g, g.listen!.agent, v);
+                    }}
+                  />
+                )}
+              </div>
             </div>
           ))}
         </div>
