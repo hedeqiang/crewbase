@@ -145,6 +145,8 @@ var Base = kernel.Bundle{Name: "base", Entries: []kernel.Entry{
 	{ID: "skills", Name: "@crewbase/skills", Config: map[string]any{"dirs": []string{"${root}/skills"}}},
 	{ID: "compaction", Name: "@crewbase/compaction-summary"},
 	{ID: "memory", Name: "@crewbase/memory-markdown-sqlite", Config: map[string]any{"root": "${root}"}},
+	// Nightly: agents curate an overgrown MEMORY.md (backed up first).
+	{ID: "memory-tidy", Name: "@crewbase/memory-tidy"},
 }}
 
 // Desktop adds the local gateway, API and desktop approval cards.
