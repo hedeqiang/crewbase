@@ -379,8 +379,11 @@ func TestInboundMentionAndRelay(t *testing.T) {
 		t.Fatalf("%v", reply)
 	}
 
-	// Replying to the bot's message continues the conversation with Kai.
+	// Replying to the bot's message continues the conversation with Kai
+	// (once the gateway has the reply's id; a person is never that fast).
 	replyID := 100 + 3 // fake server ids: 101 refusal, 102 ack, 103 reply
+	g, _ := kernel.Lookup[*im.Gateway](e.Host.Root(), im.ServicePrefix+"telegram")
+	imtest.Eventually(t, func() bool { return g.Bound("42", strconv.Itoa(replyID)) })
 	bot.say(7, 11, "thanks, now deploy", replyID)
 	in2 := imtest.Recv(t, queued)
 	if in2.Text != "thanks, now deploy" || in2.Session != in.Session {

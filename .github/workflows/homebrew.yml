@@ -1,0 +1,59 @@
+name: Homebrew
+
+# brew install --cask hedeqiang/tap/crewbase: renders packaging/homebrew/
+# crewbase.rb with a release's version and disk image checksum and pushes it
+# to the hedeqiang/homebrew-tap repository (deploy key in the
+# HOMEBREW_TAP_DEPLOY_KEY secret). Called by the release workflow after
+# publishing; run it by hand to (re)publish the cask of a given tag.
+
+on:
+  workflow_call:
+    inputs:
+      tag:
+        type: string
+        required: true
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag, e.g. v0.4.0
+        type: string
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  cask:
+    runs-on: ubuntu-latest
+    env:
+      TAP_KEY: ${{ secrets.HOMEBREW_TAP_DEPLOY_KEY }}
+      TAG: ${{ inputs.tag }}
+    steps:
+      - name: Deploy key present
+        if: env.TAP_KEY == ''
+        run: echo "::warning::HOMEBREW_TAP_DEPLOY_KEY is not set; the cask was not updated"
+      - uses: actions/checkout@v5
+        if: env.TAP_KEY != ''
+      - name: Update the cask
+        if: env.TAP_KEY != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -eu
+          v="${TAG#v}"
+          gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --pattern "crewbase-$v.dmg" --dir dl
+          sha="$(sha256sum "dl/crewbase-$v.dmg" | cut -d' ' -f1)"
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$TAP_KEY" > ~/.ssh/tap && chmod 600 ~/.ssh/tap
+          ssh-keyscan github.com >> ~/.ssh/known_hosts 2>/dev/null
+          export GIT_SSH_COMMAND="ssh -i $HOME/.ssh/tap -o IdentitiesOnly=yes"
+          git clone --depth 1 git@github.com:hedeqiang/homebrew-tap.git tap
+          mkdir -p tap/Casks
+          sed -e "s/@VERSION@/$v/" -e "s/@SHA256@/$sha/" packaging/homebrew/crewbase.rb > tap/Casks/crewbase.rb
+          cd tap
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add Casks/crewbase.rb
+          if git diff --cached --quiet; then echo "cask already at $v"; exit 0; fi
+          git commit -m "crewbase $v"
+          git push origin HEAD

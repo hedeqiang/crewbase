@@ -216,7 +216,7 @@ func TestIsolationGroups(t *testing.T) {
 
 func TestPatchAndApplyEntries(t *testing.T) {
 	var applies int32
-	Register(Spec{Name: "@test/counter", Apply: func(c *Context) error {
+	testRegister(Spec{Name: "@test/counter", Apply: func(c *Context) error {
 		atomic.AddInt32(&applies, 1)
 		return nil
 	}})
@@ -282,7 +282,7 @@ func TestDecode(t *testing.T) {
 }
 
 func TestApplyEntriesLeavesDirectLoadsAndFail(t *testing.T) {
-	Register(Spec{Name: "@test/managed"})
+	testRegister(Spec{Name: "@test/managed"})
 	h := NewHost(nil)
 	defer h.Close()
 	if err := h.ApplyEntries([]Entry{{ID: "m", Name: "@test/managed"}}); err != nil {
@@ -344,4 +344,14 @@ func TestFailFromStaleContextIgnored(t *testing.T) {
 	if info, _ := h.Plugin("p"); info.State != StateActive {
 		t.Fatalf("stale Fail tore down the new activation: %+v", info)
 	}
+}
+
+// testRegister is Register for tests: it replaces an existing entry, so a
+// test can run again in the same process (go test -count=N) with its own
+// Apply.
+func testRegister(spec Spec) Spec {
+	catalogMu.Lock()
+	defer catalogMu.Unlock()
+	catalog[spec.Name] = spec
+	return spec
 }

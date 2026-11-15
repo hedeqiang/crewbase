@@ -986,6 +986,11 @@ func (g *Gateway) lookupBinding(chat, msg string) *binding {
 	return b
 }
 
+// Bound reports whether a reply to message msg in chat reaches a
+// conversation. A relayed reply is bound once the platform has answered
+// with its id, a moment after it shows up in the chat.
+func (g *Gateway) Bound(chat, msg string) bool { return g.lookupBinding(chat, msg) != nil }
+
 // reachable: agents a chat may address — not personal chats, and only the
 // bound team's when there is one.
 func (g *Gateway) reachable(a *agent.Agent) bool {

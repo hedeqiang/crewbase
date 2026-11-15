@@ -248,38 +248,10 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: gh release edit "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --draft=false
 
-  # brew install --cask hedeqiang/tap/crewbase: Casks/crewbase.rb in the tap
-  # repository follows each release (packaging/homebrew/crewbase.rb with the
-  # version and the disk image's checksum). Skipped until the tap's deploy
-  # key is set as the HOMEBREW_TAP_DEPLOY_KEY secret.
+  # Casks/crewbase.rb in hedeqiang/homebrew-tap follows each release
   homebrew:
     needs: [publish]
-    runs-on: ubuntu-latest
-    env:
-      TAP_KEY: ${{ secrets.HOMEBREW_TAP_DEPLOY_KEY }}
-    steps:
-      - uses: actions/checkout@v5
-        if: env.TAP_KEY != ''
-      - name: Update the cask
-        if: env.TAP_KEY != ''
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          set -eu
-          v="${GITHUB_REF_NAME#v}"
-          gh release download "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --pattern "crewbase-$v.dmg" --dir dl
-          sha="$(sha256sum "dl/crewbase-$v.dmg" | cut -d' ' -f1)"
-          install -d -m 700 ~/.ssh
-          printf '%s\n' "$TAP_KEY" > ~/.ssh/tap && chmod 600 ~/.ssh/tap
-          ssh-keyscan github.com >> ~/.ssh/known_hosts 2>/dev/null
-          export GIT_SSH_COMMAND="ssh -i $HOME/.ssh/tap -o IdentitiesOnly=yes"
-          git clone --depth 1 git@github.com:hedeqiang/homebrew-tap.git tap
-          mkdir -p tap/Casks
-          sed -e "s/@VERSION@/$v/" -e "s/@SHA256@/$sha/" packaging/homebrew/crewbase.rb > tap/Casks/crewbase.rb
-          cd tap
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add Casks/crewbase.rb
-          git diff --cached --quiet && exit 0
-          git commit -m "crewbase $v"
-          git push origin HEAD
+    uses: ./.github/workflows/homebrew.yml
+    with:
+      tag: ${{ github.ref_name }}
+    secrets: inherit

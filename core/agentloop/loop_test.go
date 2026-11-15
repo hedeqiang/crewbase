@@ -464,22 +464,25 @@ func TestInterruptedTurnResumesAfterRestart(t *testing.T) {
 	}
 	e.h.Close()
 
+	// The resumed turn starts while the host loads, before a test could
+	// script the model; what the model was sent is what matters.
 	e2 := newEnv(t, root)
 	ad2, _ := e2.llms.Get("claude-code")
 	m2 := ad2.(*mock.Adapter)
-	var sawNote bool
-	m2.Script = func(req llm.Request) (llm.Response, error) {
-		for _, msg := range req.Messages {
-			if strings.Contains(msg.Text(), "Crewbase restarted") {
-				sawNote = true
-			}
-		}
-		return llm.Response{StopReason: "end", Message: llm.TextMessage(llm.RoleAssistant, "migration finished")}, nil
-	}
 	a2, _ := e2.agents.Get(a.ID())
+	deadline = time.Now().Add(3 * time.Second)
+	for len(m2.Requests()) == 0 && time.Now().Before(deadline) {
+		time.Sleep(10 * time.Millisecond)
+	}
 	agentloop.WaitIdle(a2, 3*time.Second)
+	sawNote := false
+	for _, req := range m2.Requests() {
+		for _, msg := range req.Messages {
+			sawNote = sawNote || strings.Contains(msg.Text(), "Crewbase restarted")
+		}
+	}
 	ss2, _ := e2.agents.Sessions().Get(ss.ID())
-	if _, text := lastAssistant(t, ss2); text != "migration finished" || !sawNote {
+	if _, text := lastAssistant(t, ss2); text == "" || !sawNote {
 		t.Fatalf("not resumed: %q note=%v", text, sawNote)
 	}
 	if got := strings.Join(userTexts(ss2), "|"); got != "migrate the database" {
