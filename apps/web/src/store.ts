@@ -745,6 +745,7 @@ export function connectEvents() {
   on("channel.owner", (d: { channel: string }) => void refreshChannel(d.channel));
   on("browser.state", (d: BrowserState) => setState((s) => ({ browser: { ...s.browser, [d.agent]: d } })));
   on("mcp", () => setState((s) => ({ mcpTick: s.mcpTick + 1 })));
+  on("google", () => setState((s) => ({ mcpTick: s.mcpTick + 1 }))); // the built-in Google connector
   on("models.changed", () => void refreshModels());
   on("ui.changed", () => void refreshUI());
   on("members.changed", () => void refreshTier());

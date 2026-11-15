@@ -1,7 +1,7 @@
 {
   "categories": [
     {"id": "google", "title": {"zh": "Google Workspace", "en": "Google Workspace"},
-     "desc": {"zh": "邮件、日历、云端硬盘与文档，由一个本地服务器统一登录", "en": "Mail, calendar, Drive and documents through one local server and one sign-in"}},
+     "desc": {"zh": "邮件、日历、云端硬盘与文档：内置，用 Google 账号登录即可使用", "en": "Mail, calendar, Drive and documents: built in, just sign in with Google"}},
     {"id": "dev", "title": {"zh": "开发工具", "en": "Developer tools"},
      "desc": {"zh": "代码托管、最新文档、错误监控与云平台", "en": "Code hosting, up-to-date docs, error monitoring and cloud platforms"}},
     {"id": "work", "title": {"zh": "知识与项目", "en": "Knowledge & projects"},
@@ -11,32 +11,25 @@
     {"id": "web", "title": {"zh": "搜索与网页", "en": "Search & web"},
      "desc": {"zh": "面向 AI 的联网搜索与网页抓取", "en": "Web search and page fetching built for AI"}}
   ],
-  "groups": {
-    "google-workspace": {
-      "auth": "setup",
-      "docs": "https://github.com/taylorwilsdon/google_workspace_mcp",
-      "setup": {"zh": "这些服务共用一个本地服务器（workspace-mcp，需要本机装有 uv）。在 Google Cloud Console 新建项目，启用要用的 API（Gmail、Calendar、Drive…），创建 OAuth 客户端，把客户端 ID 和密钥填在这里（密钥保存在系统钥匙串）。第一次使用时 Agent 会给出 Google 登录链接；登录凭据保存在该服务器自己的文件夹里。之后再添加其他 Google 服务无需重复填写。", "en": "These services share one local server (workspace-mcp; needs uv on this computer). In Google Cloud Console create a project, enable the APIs you want (Gmail, Calendar, Drive …), create an OAuth client and paste its client ID and secret here (the secret is kept in the system keychain). On first use the agent shows a Google sign-in link; the sign-in is stored in that server's own folder. Adding more Google services later needs nothing more."},
-      "server": "google-workspace", "transport": "stdio",
-      "command": ["uvx", "workspace-mcp", "--single-user", "--tools", "{parts}"],
-      "env": {"GOOGLE_OAUTH_CLIENT_ID": "{clientId}", "GOOGLE_OAUTH_CLIENT_SECRET": "{clientSecret}", "WORKSPACE_MCP_CREDENTIALS_DIR": "{serverDir}/credentials"},
-      "inputs": [
-        {"id": "clientId", "label": {"zh": "OAuth 客户端 ID", "en": "OAuth client ID"}, "placeholder": "…apps.googleusercontent.com"},
-        {"id": "clientSecret", "label": {"zh": "OAuth 客户端密钥", "en": "OAuth client secret"}, "placeholder": "GOCSPX-…", "secret": true}
-      ]
-    }
-  },
+  "groups": {},
   "presets": [
-    {"id": "gmail", "category": "google", "name": "Gmail", "icon": "google", "group": "google-workspace", "part": "gmail",
+    {"id": "gmail", "category": "google", "name": "Gmail", "icon": "google", "builtin": "google", "product": "gmail", "auth": "oauth",
+     "docs": "https://developers.google.com/workspace/gmail/api",
      "desc": {"zh": "搜索、阅读、起草和发送邮件", "en": "Search, read, draft and send email"}},
-    {"id": "google-calendar", "category": "google", "name": "Google Calendar", "icon": "google", "group": "google-workspace", "part": "calendar",
+    {"id": "google-calendar", "category": "google", "name": "Google Calendar", "icon": "google", "builtin": "google", "product": "calendar", "auth": "oauth",
+     "docs": "https://developers.google.com/workspace/calendar/api",
      "desc": {"zh": "查看日程、创建和修改活动", "en": "See your schedule, create and change events"}},
-    {"id": "google-drive", "category": "google", "name": "Google Drive", "icon": "google", "group": "google-workspace", "part": "drive",
+    {"id": "google-drive", "category": "google", "name": "Google Drive", "icon": "google", "builtin": "google", "product": "drive", "auth": "oauth",
+     "docs": "https://developers.google.com/workspace/drive/api",
      "desc": {"zh": "搜索、读取和整理云端硬盘里的文件", "en": "Search, read and organise files in Drive"}},
-    {"id": "google-docs", "category": "google", "name": "Google Docs", "icon": "google", "group": "google-workspace", "part": "docs",
+    {"id": "google-docs", "category": "google", "name": "Google Docs", "icon": "google", "builtin": "google", "product": "docs", "auth": "oauth",
+     "docs": "https://developers.google.com/workspace/docs/api",
      "desc": {"zh": "阅读和编辑文档", "en": "Read and edit documents"}},
-    {"id": "google-sheets", "category": "google", "name": "Google Sheets", "icon": "google", "group": "google-workspace", "part": "sheets",
+    {"id": "google-sheets", "category": "google", "name": "Google Sheets", "icon": "google", "builtin": "google", "product": "sheets", "auth": "oauth",
+     "docs": "https://developers.google.com/workspace/sheets/api",
      "desc": {"zh": "读取和写入表格数据", "en": "Read and write spreadsheet data"}},
-    {"id": "google-slides", "category": "google", "name": "Google Slides", "icon": "google", "group": "google-workspace", "part": "slides",
+    {"id": "google-slides", "category": "google", "name": "Google Slides", "icon": "google", "builtin": "google", "product": "slides", "auth": "oauth",
+     "docs": "https://developers.google.com/workspace/slides/api",
      "desc": {"zh": "读取和制作演示文稿", "en": "Read and build presentations"}},
 
     {"id": "github", "category": "dev", "name": "GitHub", "icon": "github", "auth": "token", "signIn": "github",

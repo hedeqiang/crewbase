@@ -33,6 +33,7 @@ import (
 	_ "github.com/hedeqiang/crewbase/features/followups"
 	_ "github.com/hedeqiang/crewbase/features/gateway"
 	_ "github.com/hedeqiang/crewbase/features/goals"
+	_ "github.com/hedeqiang/crewbase/features/google"
 	_ "github.com/hedeqiang/crewbase/features/im"
 	_ "github.com/hedeqiang/crewbase/features/imconfig"
 	_ "github.com/hedeqiang/crewbase/features/mcp"
@@ -146,6 +147,10 @@ var Base = kernel.Bundle{Name: "base", Entries: []kernel.Entry{
 	{ID: "mcp", Name: "@crewbase/mcp", Config: map[string]any{"dir": "${root}"}},
 	{ID: "skills", Name: "@crewbase/skills", Config: map[string]any{"dirs": []string{"${root}/skills"}}},
 	{ID: "catalog", Name: "@crewbase/catalog"},
+	// Gmail / Calendar / Drive / Docs / Sheets / Slides with Google sign-in.
+	// OAuth client: config clientId / clientSecret, else env
+	// CREWBASE_GOOGLE_CLIENT_ID / _SECRET, else the build defaults.
+	{ID: "google", Name: "@crewbase/google", Config: map[string]any{"dir": "${root}"}},
 	{ID: "compaction", Name: "@crewbase/compaction-summary"},
 	{ID: "memory", Name: "@crewbase/memory-markdown-sqlite", Config: map[string]any{"root": "${root}"}},
 	// Nightly: agents curate an overgrown MEMORY.md (backed up first).
@@ -167,6 +172,7 @@ var Desktop = kernel.Bundle{Name: "desktop", Entries: []kernel.Entry{
 	{ID: "workflows-api", Name: "@crewbase/workflows-api"},
 	{ID: "mcp-api", Name: "@crewbase/mcp-api"},
 	{ID: "catalog-api", Name: "@crewbase/catalog-api"},
+	{ID: "google-api", Name: "@crewbase/google-api"},
 	{ID: "skills-api", Name: "@crewbase/skills-api"},
 	{ID: "browser-api", Name: "@crewbase/browser-api"},
 	{ID: "im-api", Name: "@crewbase/im-api"},

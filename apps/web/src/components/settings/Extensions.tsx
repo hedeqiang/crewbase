@@ -10,6 +10,7 @@ import { setState, toast, useStore } from "../../store";
 import { Head } from "../Settings";
 import { MonoMark } from "../ProviderMark";
 import { ApproveDialog, errMsg, MCP_TONE, McpForm, McpTools, PluginCards, stateLabel } from "./ExtParts";
+import { builtinNote, connectBuiltin, GoogleAccount, type BuiltinItem } from "./GoogleConnect";
 
 // Brand icons from LobeHub Icons (@lobehub/icons-static-svg, MIT), as in
 // ProviderMark, where the package has the mark; the others are the
@@ -51,7 +52,7 @@ type Text = { zh: string; en: string };
 interface CatInput { id: string; label: Text; help?: Text; placeholder?: string; secret?: boolean; optional?: boolean }
 interface CatItem {
   id: string;
-  kind: "mcp" | "skill";
+  kind: "mcp" | "skill" | "builtin";
   category: string;
   name: string;
   icon?: string;
@@ -67,6 +68,10 @@ interface CatItem {
   installed: boolean;
   server?: string;
   scope?: string;
+  // kind "builtin": a connector compiled into Crewbase (GoogleConnect.tsx)
+  builtin?: BuiltinItem["builtin"];
+  product?: string;
+  connector?: BuiltinItem["connector"];
 }
 interface CatCategory { id: string; title: Text; desc: Text }
 interface Catalog { categories: CatCategory[]; items: CatItem[] }
@@ -327,6 +332,7 @@ function MarketView({ d, q, reload, reloadMarket, onApprove, onSignIn, onManage 
    *  a dialog only for what must be entered or done first. */
   const connect = async (it: CatItem) => {
     setErrs((x) => ({ ...x, [it.id]: "" }));
+    if (it.kind === "builtin") return connectBuiltin(it); // the connector's own official sign-in
     const how = connectHow(it);
     if (how === "dialog") return setDialog(it);
     if (how === "device") return onSignIn(it);
@@ -386,6 +392,10 @@ function MarketView({ d, q, reload, reloadMarket, onApprove, onSignIn, onManage 
     const base = { key: it.id, name: it.name, desc: tx(it.desc), icon: <ItemIcon icon={it.icon} id={it.id} label={it.name} kind={it.kind} /> };
     if (it.kind === "skill")
       return { ...base, verb: "add", state: busy[it.id] ? "busy" : it.installed ? "added" : "idle", error: errs[it.id], onAct: () => void connect(it) };
+    if (it.kind === "builtin") {
+      const state: RowState = it.connector?.needsLogin ? "reauth" : it.installed ? "connected" : "idle";
+      return { ...base, desc: builtinNote(it) || base.desc, verb: "connect", state, onAct: () => void connectBuiltin(it) };
+    }
     const s = it.installed ? servers.find((x) => x.name === it.server) : undefined;
     const st = s?.status;
     let state: RowState = "idle";
@@ -988,6 +998,7 @@ function InstalledView({ d, q, reload, reloadMarket, onApprove, onSignIn, onScop
 
   return (
     <>
+      <GoogleAccount onChange={reload} />
       <section className="mksec">
         <div className="mksh">
           <h3>{t("mk2.instServices")}</h3>

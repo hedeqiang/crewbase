@@ -1454,6 +1454,26 @@ const zh = {
   "mk2.ghExpired": "代码已过期，请重新获取。",
   "mk2.retry": "重新获取代码",
   "mk2.usePat": "改用 Personal access token",
+  // ---- built-in Google connector (GoogleConnect.tsx)
+  "gws.notSetUp": "此版本尚未设置 Google 登录（缺少 OAuth 客户端），暂时无法连接。",
+  "gws.notSetUpShort": "此版本尚未设置 Google 登录",
+  "gws.continueInBrowser": "请在浏览器里登录 Google，授权 {name} 后回到这里",
+  "gws.needsLogin": "Google 登录已过期或被撤销，需要重新登录",
+  "gws.needsLoginShort": "需要重新登录",
+  "gws.account": "Google 账号",
+  "gws.connected": "已连接",
+  "gws.waiting": "等待登录",
+  "gws.waitingDesc": "已打开 Google 登录页，完成授权后会自动连接",
+  "gws.signInAgain": "重新登录",
+  "gws.signOut": "退出登录",
+  "gws.signOutConfirm": "退出 Google 账号 {email}？Crewbase 会撤销授权并删除钥匙串里的登录凭据，所有 Google 服务都会断开。",
+  "gws.signedOut": "已退出 Google 登录",
+  "gws.disconnect": "断开",
+  "gws.connectedToast": "Google 已连接",
+  "gws.pasteLabel": "登录完成后的地址",
+  "gws.pastePh": "http://127.0.0.1:…/api/google/callback?state=…",
+  "gws.pasteBtn": "完成连接",
+  "gws.pasteHint": "如果你是在另一台电脑上登录的，浏览器最后会打不开页面：把那个页面的地址粘贴到这里即可完成连接。",
 } as const;
 
 export type Key = keyof typeof zh;

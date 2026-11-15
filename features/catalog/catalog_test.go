@@ -56,6 +56,12 @@ func TestBuiltinCatalogIsValid(t *testing.T) {
 		if !slices.Contains([]string{"none", "oauth", "token", "setup"}, p.Auth) {
 			t.Errorf("%s: auth %q", p.ID, p.Auth)
 		}
+		if p.Builtin != "" { // a compiled-in connector (connector.go)
+			if p.Product == "" || p.Server != "" || len(p.Command) > 0 || p.URL != "" {
+				t.Errorf("%s: builtin entries name a product and nothing to launch", p.ID)
+			}
+			continue
+		}
 		if (p.Auth == "oauth") != p.OAuth {
 			t.Errorf("%s: auth %q but oauth=%v", p.ID, p.Auth, p.OAuth)
 		}
