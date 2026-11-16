@@ -1738,3 +1738,12 @@ button.psec.toggle { width: 100%; background: none; border: 0; font-family: inhe
 .steplink { margin-left: auto; flex: none; font-size: 12px; color: var(--accent-text); padding: 0 4px; border-radius: 4px; }
 .steplink:hover { text-decoration: underline; }
 .bgsub { display: block; font-size: 12px; padding: 0 12px 9px 42px; }
+
+/* template areas */
+.tplgrp { display: flex; flex-direction: column; gap: 2px; }
+.tplcat { font-size: 11px; font-weight: 600; color: var(--muted); letter-spacing: .04em; padding: 10px 8px 4px; }
+.tplgrp:first-of-type .tplcat { padding-top: 4px; }
+.wcats { display: flex; flex-wrap: wrap; gap: 6px; width: 100%; margin: -2px 0 2px; }
+.wcat { font-size: 12px; padding: 4px 11px; border-radius: 999px; border: 1px solid var(--border); background: var(--surface); color: var(--text2); }
+.wcat:hover { background: var(--hover); }
+.wcat.on { background: var(--text); color: var(--surface); border-color: var(--text); }

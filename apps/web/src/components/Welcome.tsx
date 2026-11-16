@@ -6,7 +6,7 @@ import { t, type Key } from "../i18n";
 import { newChat, openConnect, openNewAgent, openSettings, useStore, teamMode } from "../store";
 import { AvatarRaw } from "./Avatar";
 import { Logo } from "./Logo";
-import { ShuffleButton, TEMPLATES, templatePage, type Draft } from "./NewAgent";
+import { ShuffleButton, TEMPLATES, TEMPLATE_CATS, templatePage, type Draft, type TemplateCat } from "./NewAgent";
 import { ProviderMark } from "./ProviderMark";
 
 /** Shown in the main area when there is no conversation open. With no
@@ -18,6 +18,7 @@ export function Welcome({ onTemplate }: { onTemplate: (d: Partial<Draft>) => voi
   const name = useStore((s) => s.profile.displayName);
   const first = Object.keys(agents).length === 0;
   const [page, setPage] = useState(0);
+  const [cat, setCat] = useState<TemplateCat | "">("");
 
   const sources = useMemo(() => {
     const ps = models?.providers ?? [];
@@ -107,10 +108,27 @@ export function Welcome({ onTemplate }: { onTemplate: (d: Partial<Draft>) => voi
       </div>
       <div className="wtplh">
         <span>{t("na.templates")}</span>
-        <ShuffleButton page={page} onNext={() => setPage((p) => p + 1)} />
+        <ShuffleButton page={page} cat={cat} onNext={() => setPage((p) => p + 1)} />
+      </div>
+      <div className="wcats" role="tablist" aria-label={t("na.templates")}>
+        {(["", ...TEMPLATE_CATS] as (TemplateCat | "")[]).map((c) => (
+          <button
+            key={c || "all"}
+            type="button"
+            role="tab"
+            aria-selected={cat === c}
+            className={"wcat" + (cat === c ? " on" : "")}
+            onClick={() => {
+              setCat(c);
+              setPage(0);
+            }}
+          >
+            {c ? t(`tplcat.${c}` as Key) : t("tplcat.all")}
+          </button>
+        ))}
       </div>
       <div className="wtpl">
-        {templatePage(page).map((x) => (
+        {templatePage(page, cat).map((x) => (
           <button key={x.key} type="button" className="wcard" onClick={() => start(x.key)}>
             <AvatarRaw color={x.color} shape={x.shape} size={36} name={t(`tpl.${x.key}.name` as Key)} />
             <b>{t(`tpl.${x.key}.name` as Key)}</b>

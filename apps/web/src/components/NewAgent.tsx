@@ -26,38 +26,67 @@ export function emptyDraft(): Draft {
 }
 
 export type TemplateKey =
-  | "lead" | "review" | "watch" | "weekly" | "frontend" | "tester" | "oncall"
-  | "writer" | "translator" | "researcher" | "data" | "support" | "release";
+  | "lead" | "researcher" | "translator" | "weekly" | "review" | "frontend" | "backend" | "tester" | "architect" | "techdocs" | "release" | "uiux" | "designqa" | "uxwriter" | "visual" | "pm" | "userresearch" | "watch" | "data" | "writer" | "social" | "seo" | "community" | "campaign" | "support" | "oncall" | "sre" | "cicd" | "security" | "incident" | "cost";
 
-/** The template library; the welcome page and the form show three at a
- *  time and can shuffle to the next three. */
-export const TEMPLATES: { key: TemplateKey; color: string; shape: string; mode: Draft["mode"]; instr?: boolean }[] = [
-  // the lead (two-layer setup): receives everything, hands work out, reports back
-  { key: "lead", color: "#3b32c4", shape: "hex", mode: "sandbox", instr: true },
-  { key: "review", color: "#24b07e", shape: "circle", mode: "sandbox" },
-  { key: "watch", color: "#8b7cf6", shape: "blob", mode: "read-only" },
-  { key: "weekly", color: "#f2b33d", shape: "hex", mode: "sandbox" },
-  { key: "frontend", color: "#3987e5", shape: "sq", mode: "sandbox" },
-  { key: "tester", color: "#ef8a45", shape: "diamond", mode: "sandbox" },
-  { key: "oncall", color: "#e5484d", shape: "tri", mode: "read-only" },
-  { key: "writer", color: "#d651c8", shape: "pill", mode: "sandbox" },
-  { key: "translator", color: "#1fb5a8", shape: "circle", mode: "read-only" },
-  { key: "researcher", color: "#6c6cf0", shape: "blob", mode: "read-only" },
-  { key: "data", color: "#2db7f5", shape: "hex", mode: "sandbox" },
-  { key: "support", color: "#f07aa8", shape: "pill", mode: "read-only" },
-  { key: "release", color: "#3a4aa8", shape: "sq", mode: "sandbox" },
+export type TemplateCat = "general" | "dev" | "design" | "product" | "growth" | "devops";
+/** template areas, in the order the picker shows them */
+export const TEMPLATE_CATS: TemplateCat[] = ["general", "dev", "design", "product", "growth", "devops"];
+
+/** The template library, grouped by area (开发、设计、产品、运营、运维…);
+ *  the welcome page shows three at a time and can shuffle. */
+export const TEMPLATES: { key: TemplateKey; cat: TemplateCat; color: string; shape: string; mode: Draft["mode"]; instr?: boolean }[] = [
+  // General
+  { key: "lead", cat: "general", color: "#3b32c4", shape: "hex", mode: "sandbox", instr: true },
+  { key: "researcher", cat: "general", color: "#6c6cf0", shape: "blob", mode: "read-only", instr: true },
+  { key: "translator", cat: "general", color: "#1fb5a8", shape: "circle", mode: "sandbox", instr: true },
+  { key: "weekly", cat: "general", color: "#f2b33d", shape: "hex", mode: "sandbox", instr: true },
+  // Engineering
+  { key: "review", cat: "dev", color: "#24b07e", shape: "circle", mode: "sandbox", instr: true },
+  { key: "frontend", cat: "dev", color: "#3987e5", shape: "sq", mode: "sandbox", instr: true },
+  { key: "backend", cat: "dev", color: "#3987e5", shape: "oct", mode: "sandbox", instr: true },
+  { key: "tester", cat: "dev", color: "#ef8a45", shape: "diamond", mode: "sandbox", instr: true },
+  { key: "architect", cat: "dev", color: "#6c6cf0", shape: "shield", mode: "read-only", instr: true },
+  { key: "techdocs", cat: "dev", color: "#3987e5", shape: "ticket", mode: "sandbox", instr: true },
+  { key: "release", cat: "dev", color: "#3a4aa8", shape: "sq", mode: "sandbox", instr: true },
+  // Design
+  { key: "uiux", cat: "design", color: "#d651c8", shape: "flower", mode: "sandbox", instr: true },
+  { key: "designqa", cat: "design", color: "#d651c8", shape: "drop", mode: "read-only", instr: true },
+  { key: "uxwriter", cat: "design", color: "#f07aa8", shape: "pill", mode: "sandbox", instr: true },
+  { key: "visual", cat: "design", color: "#f07aa8", shape: "spark", mode: "sandbox", instr: true },
+  // Product
+  { key: "pm", cat: "product", color: "#6c6cf0", shape: "tri", mode: "sandbox", instr: true },
+  { key: "userresearch", cat: "product", color: "#24b07e", shape: "blob", mode: "read-only", instr: true },
+  { key: "watch", cat: "product", color: "#8b7cf6", shape: "blob", mode: "read-only", instr: true },
+  { key: "data", cat: "product", color: "#2db7f5", shape: "hex", mode: "sandbox", instr: true },
+  // Growth & ops
+  { key: "writer", cat: "growth", color: "#d651c8", shape: "pill", mode: "sandbox", instr: true },
+  { key: "social", cat: "growth", color: "#ef8a45", shape: "flower", mode: "sandbox", instr: true },
+  { key: "seo", cat: "growth", color: "#24b07e", shape: "tri", mode: "read-only", instr: true },
+  { key: "community", cat: "growth", color: "#1fb5a8", shape: "circle", mode: "sandbox", instr: true },
+  { key: "campaign", cat: "growth", color: "#f2b33d", shape: "ticket", mode: "sandbox", instr: true },
+  { key: "support", cat: "growth", color: "#f07aa8", shape: "pill", mode: "read-only", instr: true },
+  // DevOps & SRE
+  { key: "oncall", cat: "devops", color: "#e5484d", shape: "tri", mode: "read-only", instr: true },
+  { key: "sre", cat: "devops", color: "#b8314f", shape: "shield", mode: "sandbox", instr: true },
+  { key: "cicd", cat: "devops", color: "#2db7f5", shape: "oct", mode: "sandbox", instr: true },
+  { key: "security", cat: "devops", color: "#b8314f", shape: "shield", mode: "read-only", instr: true },
+  { key: "incident", cat: "devops", color: "#b8314f", shape: "drop", mode: "sandbox", instr: true },
+  { key: "cost", cat: "devops", color: "#24b07e", shape: "hex", mode: "read-only", instr: true },
 ];
 
-/** Three templates starting at page*3, wrapping around. */
-export function templatePage(page: number) {
-  const n = TEMPLATES.length;
+/** Three templates of an area ("" = all) starting at page*3, wrapping around. */
+export function templatePage(page: number, cat: TemplateCat | "" = "") {
+  const list = cat ? TEMPLATES.filter((x) => x.cat === cat) : TEMPLATES;
+  const n = list.length;
+  if (n <= 3) return list;
   const start = ((page * 3) % n + n) % n;
-  return [0, 1, 2].map((i) => TEMPLATES[(start + i) % n]);
+  return [0, 1, 2].map((i) => list[(start + i) % n]);
 }
 
 /** "Shuffle" control: 换一批 with a page counter. */
-export function ShuffleButton({ page, onNext }: { page: number; onNext: () => void }) {
-  const pages = Math.ceil(TEMPLATES.length / 3);
+export function ShuffleButton({ page, onNext, cat = "" }: { page: number; onNext: () => void; cat?: TemplateCat | "" }) {
+  const pages = Math.ceil((cat ? TEMPLATES.filter((x) => x.cat === cat) : TEMPLATES).length / 3);
+  if (pages <= 1) return null;
   return (
     <button className="btn ghost sm shuffle" type="button" onClick={onNext} title={t("na.shuffle")}>
       <RefreshCw size={13} />
@@ -203,14 +232,19 @@ export function NewAgent({ draft: f, setDraft }: { draft: Draft; setDraft: (d: D
                 <span>{t("na.blankDesc")}</span>
               </span>
             </button>
-            {TEMPLATES.map((x) => (
-              <button key={x.key} type="button" className={"tpl" + (picked === x.key ? " on" : "")} onClick={() => pickTemplate(x)}>
-                <AvatarRaw color={x.color} shape={x.shape} size={34} name={t(`tpl.${x.key}.name` as Key)} />
-                <span className="g">
-                  <b>{t(`tpl.${x.key}.name` as Key)}</b>
-                  <span>{t(`tpl.${x.key}.desc` as Key)}</span>
-                </span>
-              </button>
+            {TEMPLATE_CATS.map((c) => (
+              <div className="tplgrp" key={c}>
+                <div className="tplcat">{t(`tplcat.${c}` as Key)}</div>
+                {TEMPLATES.filter((x) => x.cat === c).map((x) => (
+                  <button key={x.key} type="button" className={"tpl" + (picked === x.key ? " on" : "")} onClick={() => pickTemplate(x)}>
+                    <AvatarRaw color={x.color} shape={x.shape} size={34} name={t(`tpl.${x.key}.name` as Key)} />
+                    <span className="g">
+                      <b>{t(`tpl.${x.key}.name` as Key)}</b>
+                      <span>{t(`tpl.${x.key}.desc` as Key)}</span>
+                    </span>
+                  </button>
+                ))}
+              </div>
             ))}
             <button type="button" className="tpl imp" onClick={() => setImporting(true)}>
               <span className="tplblank">
