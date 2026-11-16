@@ -409,7 +409,7 @@ func (l *loop) selectModel(a *agent.Agent, in agent.Input) (llm.ModelRef, bool) 
 }
 
 func (l *loop) window(ctx context.Context, ad llm.Adapter, ref llm.ModelRef) int {
-	ms, err := ad.Models(ctx)
+	ms, err := l.llms.ModelsOf(ctx, ad) // the catalog fills windows providers do not report
 	if err == nil {
 		for _, m := range ms {
 			if m.ID == ref.Model && m.ContextWindow > 0 {

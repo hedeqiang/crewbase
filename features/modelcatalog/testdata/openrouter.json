@@ -1,0 +1,1062 @@
+{
+ "data": [
+  {
+   "id": "qwen/qwen4-max",
+   "canonical_slug": "qwen/qwen4-max-20261115",
+   "hugging_face_id": null,
+   "name": "Qwen: Qwen4 Max",
+   "created": 1794795526,
+   "context_length": 1000000,
+   "architecture": {
+    "modality": "text+image+video->text",
+    "input_modalities": [
+     "text",
+     "image",
+     "video"
+    ],
+    "output_modalities": [
+     "text"
+    ],
+    "tokenizer": "Qwen",
+    "instruct_type": null
+   },
+   "pricing": {
+    "prompt": "0.0000015",
+    "completion": "0.0000045",
+    "input_cache_read": "0.000000075",
+    "input_cache_write": "0.000001875"
+   },
+   "top_provider": {
+    "context_length": 1000000,
+    "max_completion_tokens": 393216,
+    "is_moderated": false
+   },
+   "per_request_limits": null,
+   "supported_parameters": [
+    "frequency_penalty",
+    "include_reasoning",
+    "logprobs",
+    "max_tokens",
+    "presence_penalty",
+    "reasoning",
+    "reasoning_effort",
+    "response_format",
+    "seed",
+    "stop",
+    "structured_outputs",
+    "temperature",
+    "tool_choice",
+    "tools",
+    "top_k",
+    "top_logprobs",
+    "top_p"
+   ],
+   "default_parameters": {},
+   "supported_voices": null,
+   "knowledge_cutoff": null,
+   "expiration_date": null,
+   "links": {
+    "details": "/api/v1/models/qwen/qwen4-max-20261115/endpoints"
+   },
+   "endpoints": [
+    "/api/v1/chat/completions",
+    "/api/v1/completions",
+    "/api/v1/messages",
+    "/api/v1/responses"
+   ],
+   "reasoning": {
+    "mandatory": false,
+    "default_enabled": true,
+    "supported_efforts": [
+     "xhigh",
+     "high",
+     "low",
+     "none"
+    ],
+    "default_effort": "high"
+   }
+  },
+  {
+   "id": "openai/gpt-6.1-sol",
+   "canonical_slug": "openai/gpt-6.1-sol-20260929",
+   "hugging_face_id": null,
+   "name": "OpenAI: GPT-6.1 Sol",
+   "created": 1790702882,
+   "context_length": 1050000,
+   "architecture": {
+    "modality": "text+image+file->text",
+    "input_modalities": [
+     "file",
+     "image",
+     "text"
+    ],
+    "output_modalities": [
+     "text"
+    ],
+    "tokenizer": "GPT",
+    "instruct_type": null
+   },
+   "pricing": {
+    "prompt": "0.000002",
+    "completion": "0.00001",
+    "web_search": "0.01",
+    "input_cache_read": "0.0000001",
+    "input_cache_write": "0.0000025",
+    "overrides": [
+     {
+      "min_prompt_tokens": 272000,
+      "prompt": "0.000004",
+      "completion": "0.000015",
+      "input_cache_read": "0.0000002",
+      "input_cache_write": "0.000005"
+     }
+    ]
+   },
+   "top_provider": {
+    "context_length": 1050000,
+    "max_completion_tokens": 128000,
+    "is_moderated": true
+   },
+   "per_request_limits": null,
+   "supported_parameters": [
+    "include_reasoning",
+    "max_completion_tokens",
+    "max_tokens",
+    "reasoning",
+    "reasoning_effort",
+    "response_format",
+    "seed",
+    "structured_outputs",
+    "tool_choice",
+    "tools",
+    "verbosity"
+   ],
+   "default_parameters": {},
+   "supported_voices": null,
+   "knowledge_cutoff": null,
+   "expiration_date": null,
+   "links": {
+    "details": "/api/v1/models/openai/gpt-6.1-sol-20260929/endpoints"
+   },
+   "endpoints": [
+    "/api/v1/chat/completions",
+    "/api/v1/completions",
+    "/api/v1/messages",
+    "/api/v1/responses"
+   ],
+   "benchmarks": {
+    "design_arena": [
+     {
+      "arena": "agents",
+      "category": "androidnative",
+      "elo": 1195,
+      "win_rate": 49.2,
+      "rank": 15
+     },
+     {
+      "arena": "agents",
+      "category": "blender3d",
+      "elo": 1267,
+      "win_rate": 60.5,
+      "rank": 2
+     },
+     {
+      "arena": "agents",
+      "category": "codetovideo",
+      "elo": 1195,
+      "win_rate": 56.1,
+      "rank": 11
+     },
+     {
+      "arena": "agents",
+      "category": "mobileapps",
+      "elo": 1227,
+      "win_rate": 53,
+      "rank": 13
+     },
+     {
+      "arena": "agents",
+      "category": "pdf",
+      "elo": 1133,
+      "win_rate": 44.1,
+      "rank": 27
+     },
+     {
+      "arena": "agents",
+      "category": "spreadsheet",
+      "elo": 1223,
+      "win_rate": 44.2,
+      "rank": 14
+     },
+     {
+      "arena": "agents",
+      "category": "webapps",
+      "elo": 1279,
+      "win_rate": 56.5,
+      "rank": 7
+     },
+     {
+      "arena": "models",
+      "category": "3d",
+      "elo": 1426,
+      "win_rate": 59.1,
+      "rank": 6
+     },
+     {
+      "arena": "models",
+      "category": "codecategories",
+      "elo": 1361,
+      "win_rate": 56.8,
+      "rank": 4
+     },
+     {
+      "arena": "models",
+      "category": "dataviz",
+      "elo": 1278,
+      "win_rate": 52,
+      "rank": 19
+     },
+     {
+      "arena": "models",
+      "category": "gamedev",
+      "elo": 1404,
+      "win_rate": 59.6,
+      "rank": 3
+     },
+     {
+      "arena": "models",
+      "category": "svg",
+      "elo": 1343,
+      "win_rate": 60.8,
+      "rank": 1
+     },
+     {
+      "arena": "models",
+      "category": "uicomponent",
+      "elo": 1357,
+      "win_rate": 58.9,
+      "rank": 6
+     },
+     {
+      "arena": "models",
+      "category": "website",
+      "elo": 1315,
+      "win_rate": 53.9,
+      "rank": 10
+     }
+    ],
+    "artificial_analysis": {
+     "intelligence_index": 54.6,
+     "coding_index": null,
+     "agentic_index": null
+    }
+   },
+   "reasoning": {
+    "mandatory": true,
+    "default_enabled": true,
+    "supported_efforts": [
+     "max",
+     "xhigh",
+     "high",
+     "medium",
+     "low"
+    ],
+    "default_effort": "medium"
+   }
+  },
+  {
+   "id": "anthropic/claude-opus-5.5",
+   "canonical_slug": "anthropic/claude-opus-5.5-20260921",
+   "hugging_face_id": null,
+   "name": "Anthropic: Claude Opus 5.5",
+   "created": 1790094732,
+   "context_length": 1000000,
+   "architecture": {
+    "modality": "text+image+file->text",
+    "input_modalities": [
+     "text",
+     "image",
+     "file"
+    ],
+    "output_modalities": [
+     "text"
+    ],
+    "tokenizer": "Claude",
+    "instruct_type": null
+   },
+   "pricing": {
+    "prompt": "0.000004",
+    "completion": "0.00002",
+    "web_search": "0.01",
+    "input_cache_read": "0.0000002",
+    "input_cache_write": "0.000005",
+    "input_cache_write_1h": "0.000008"
+   },
+   "top_provider": {
+    "context_length": 1000000,
+    "max_completion_tokens": 128000,
+    "is_moderated": true
+   },
+   "per_request_limits": null,
+   "supported_parameters": [
+    "include_reasoning",
+    "max_completion_tokens",
+    "max_tokens",
+    "reasoning",
+    "reasoning_effort",
+    "response_format",
+    "stop",
+    "structured_outputs",
+    "tool_choice",
+    "tools",
+    "verbosity"
+   ],
+   "default_parameters": {},
+   "supported_voices": null,
+   "knowledge_cutoff": null,
+   "expiration_date": null,
+   "links": {
+    "details": "/api/v1/models/anthropic/claude-opus-5.5-20260921/endpoints"
+   },
+   "endpoints": [
+    "/api/v1/chat/completions",
+    "/api/v1/completions",
+    "/api/v1/messages",
+    "/api/v1/responses"
+   ],
+   "benchmarks": {
+    "design_arena": [
+     {
+      "arena": "agents",
+      "category": "androidnative",
+      "elo": 1389,
+      "win_rate": 74.9,
+      "rank": 1
+     },
+     {
+      "arena": "agents",
+      "category": "blender3d",
+      "elo": 1247,
+      "win_rate": 57.3,
+      "rank": 4
+     },
+     {
+      "arena": "agents",
+      "category": "codetovideo",
+      "elo": 1336,
+      "win_rate": 72.9,
+      "rank": 2
+     },
+     {
+      "arena": "agents",
+      "category": "fullstack",
+      "elo": 1390,
+      "win_rate": 70.9,
+      "rank": 2
+     },
+     {
+      "arena": "agents",
+      "category": "mobileapps",
+      "elo": 1294,
+      "win_rate": 61.8,
+      "rank": 3
+     },
+     {
+      "arena": "agents",
+      "category": "pdf",
+      "elo": 1303,
+      "win_rate": 67.8,
+      "rank": 3
+     },
+     {
+      "arena": "agents",
+      "category": "spreadsheet",
+      "elo": 1328,
+      "win_rate": 59.7,
+      "rank": 4
+     },
+     {
+      "arena": "agents",
+      "category": "webapps",
+      "elo": 1321,
+      "win_rate": 63.3,
+      "rank": 1
+     },
+     {
+      "arena": "models",
+      "category": "3d",
+      "elo": 1460,
+      "win_rate": 65,
+      "rank": 2
+     },
+     {
+      "arena": "models",
+      "category": "asciiart",
+      "elo": 1357,
+      "win_rate": 65.5,
+      "rank": 1
+     },
+     {
+      "arena": "models",
+      "category": "codecategories",
+      "elo": 1385,
+      "win_rate": 60.9,
+      "rank": 2
+     },
+     {
+      "arena": "models",
+      "category": "dataviz",
+      "elo": 1385,
+      "win_rate": 63.8,
+      "rank": 1
+     },
+     {
+      "arena": "models",
+      "category": "gamedev",
+      "elo": 1426,
+      "win_rate": 63.7,
+      "rank": 1
+     },
+     {
+      "arena": "models",
+      "category": "svg",
+      "elo": 1321,
+      "win_rate": 53.9,
+      "rank": 4
+     },
+     {
+      "arena": "models",
+      "category": "uicomponent",
+      "elo": 1375,
+      "win_rate": 62.9,
+      "rank": 4
+     },
+     {
+      "arena": "models",
+      "category": "website",
+      "elo": 1326,
+      "win_rate": 55.5,
+      "rank": 5
+     }
+    ],
+    "artificial_analysis": {
+     "intelligence_index": 59.1,
+     "coding_index": null,
+     "agentic_index": null
+    }
+   },
+   "reasoning": {
+    "mandatory": true,
+    "supported_efforts": [
+     "max",
+     "xhigh",
+     "high",
+     "medium",
+     "low"
+    ],
+    "default_effort": "high"
+   }
+  },
+  {
+   "id": "anthropic/claude-opus-5.5:batch",
+   "canonical_slug": "anthropic/claude-opus-5.5-20260921",
+   "hugging_face_id": null,
+   "name": "Anthropic: Claude Opus 5.5 (batch)",
+   "created": 1790094732,
+   "context_length": 1000000,
+   "architecture": {
+    "modality": "text+image+file->text",
+    "input_modalities": [
+     "text",
+     "image",
+     "file"
+    ],
+    "output_modalities": [
+     "text"
+    ],
+    "tokenizer": "Claude",
+    "instruct_type": null
+   },
+   "pricing": {
+    "prompt": "0.000002",
+    "completion": "0.00001",
+    "web_search": "0.01",
+    "input_cache_read": "0.0000001",
+    "input_cache_write": "0.0000025",
+    "input_cache_write_1h": "0.000004"
+   },
+   "top_provider": {
+    "context_length": 1000000,
+    "max_completion_tokens": 128000,
+    "is_moderated": true
+   },
+   "per_request_limits": null,
+   "supported_parameters": [
+    "include_reasoning",
+    "max_tokens",
+    "reasoning",
+    "reasoning_effort",
+    "response_format",
+    "stop",
+    "structured_outputs",
+    "tool_choice",
+    "tools",
+    "verbosity"
+   ],
+   "default_parameters": {},
+   "supported_voices": null,
+   "knowledge_cutoff": null,
+   "expiration_date": null,
+   "links": {
+    "details": "/api/v1/models/anthropic/claude-opus-5.5-20260921/endpoints"
+   },
+   "endpoints": [
+    "/api/v1/batches"
+   ],
+   "benchmarks": {
+    "design_arena": [
+     {
+      "arena": "agents",
+      "category": "androidnative",
+      "elo": 1389,
+      "win_rate": 74.9,
+      "rank": 1
+     },
+     {
+      "arena": "agents",
+      "category": "blender3d",
+      "elo": 1247,
+      "win_rate": 57.3,
+      "rank": 4
+     },
+     {
+      "arena": "agents",
+      "category": "codetovideo",
+      "elo": 1336,
+      "win_rate": 72.9,
+      "rank": 2
+     },
+     {
+      "arena": "agents",
+      "category": "fullstack",
+      "elo": 1390,
+      "win_rate": 70.9,
+      "rank": 2
+     },
+     {
+      "arena": "agents",
+      "category": "mobileapps",
+      "elo": 1294,
+      "win_rate": 61.8,
+      "rank": 3
+     },
+     {
+      "arena": "agents",
+      "category": "pdf",
+      "elo": 1303,
+      "win_rate": 67.8,
+      "rank": 3
+     },
+     {
+      "arena": "agents",
+      "category": "spreadsheet",
+      "elo": 1328,
+      "win_rate": 59.7,
+      "rank": 4
+     },
+     {
+      "arena": "agents",
+      "category": "webapps",
+      "elo": 1321,
+      "win_rate": 63.3,
+      "rank": 1
+     },
+     {
+      "arena": "models",
+      "category": "3d",
+      "elo": 1460,
+      "win_rate": 65,
+      "rank": 2
+     },
+     {
+      "arena": "models",
+      "category": "asciiart",
+      "elo": 1357,
+      "win_rate": 65.5,
+      "rank": 1
+     },
+     {
+      "arena": "models",
+      "category": "codecategories",
+      "elo": 1385,
+      "win_rate": 60.9,
+      "rank": 2
+     },
+     {
+      "arena": "models",
+      "category": "dataviz",
+      "elo": 1385,
+      "win_rate": 63.8,
+      "rank": 1
+     },
+     {
+      "arena": "models",
+      "category": "gamedev",
+      "elo": 1426,
+      "win_rate": 63.7,
+      "rank": 1
+     },
+     {
+      "arena": "models",
+      "category": "svg",
+      "elo": 1321,
+      "win_rate": 53.9,
+      "rank": 4
+     },
+     {
+      "arena": "models",
+      "category": "uicomponent",
+      "elo": 1375,
+      "win_rate": 62.9,
+      "rank": 4
+     },
+     {
+      "arena": "models",
+      "category": "website",
+      "elo": 1326,
+      "win_rate": 55.5,
+      "rank": 5
+     }
+    ],
+    "artificial_analysis": {
+     "intelligence_index": 59.1,
+     "coding_index": null,
+     "agentic_index": null
+    }
+   },
+   "reasoning": {
+    "mandatory": true,
+    "supported_efforts": [
+     "max",
+     "xhigh",
+     "high",
+     "medium",
+     "low"
+    ],
+    "default_effort": "high"
+   }
+  },
+  {
+   "id": "x-ai/grok-4.7",
+   "canonical_slug": "x-ai/grok-4.7-20260916",
+   "hugging_face_id": null,
+   "name": "SpaceXAI: Grok 4.7",
+   "created": 1790007541,
+   "context_length": 500000,
+   "architecture": {
+    "modality": "text+image+file->text",
+    "input_modalities": [
+     "text",
+     "image",
+     "file"
+    ],
+    "output_modalities": [
+     "text"
+    ],
+    "tokenizer": "Grok",
+    "instruct_type": null
+   },
+   "pricing": {
+    "prompt": "0.000002",
+    "completion": "0.000006",
+    "web_search": "0.005",
+    "input_cache_read": "0.0000005",
+    "overrides": [
+     {
+      "min_prompt_tokens": 200000,
+      "prompt": "0.000004",
+      "completion": "0.000012",
+      "input_cache_read": "0.000001"
+     }
+    ]
+   },
+   "top_provider": {
+    "context_length": 500000,
+    "max_completion_tokens": 450000,
+    "is_moderated": false
+   },
+   "per_request_limits": null,
+   "supported_parameters": [
+    "include_reasoning",
+    "logprobs",
+    "max_tokens",
+    "reasoning",
+    "reasoning_effort",
+    "response_format",
+    "seed",
+    "stop",
+    "structured_outputs",
+    "temperature",
+    "tool_choice",
+    "tools",
+    "top_k",
+    "top_logprobs",
+    "top_p"
+   ],
+   "default_parameters": {
+    "temperature": 0.7,
+    "top_p": 0.95
+   },
+   "supported_voices": null,
+   "knowledge_cutoff": null,
+   "expiration_date": null,
+   "links": {
+    "details": "/api/v1/models/x-ai/grok-4.7-20260916/endpoints"
+   },
+   "endpoints": [
+    "/api/v1/chat/completions",
+    "/api/v1/completions",
+    "/api/v1/messages",
+    "/api/v1/responses"
+   ],
+   "benchmarks": {
+    "design_arena": [
+     {
+      "arena": "agents",
+      "category": "blender3d",
+      "elo": 1163,
+      "win_rate": 60,
+      "rank": 7
+     },
+     {
+      "arena": "agents",
+      "category": "codetovideo",
+      "elo": 1100,
+      "win_rate": 41.1,
+      "rank": 23
+     },
+     {
+      "arena": "agents",
+      "category": "mobileapps",
+      "elo": 1242,
+      "win_rate": 53.7,
+      "rank": 11
+     },
+     {
+      "arena": "agents",
+      "category": "pdf",
+      "elo": 1180,
+      "win_rate": 49.7,
+      "rank": 20
+     },
+     {
+      "arena": "agents",
+      "category": "spreadsheet",
+      "elo": 1425,
+      "win_rate": 74.7,
+      "rank": 2
+     },
+     {
+      "arena": "models",
+      "category": "3d",
+      "elo": 1253,
+      "win_rate": 47.3,
+      "rank": 28
+     },
+     {
+      "arena": "models",
+      "category": "codecategories",
+      "elo": 1266,
+      "win_rate": 47.4,
+      "rank": 31
+     },
+     {
+      "arena": "models",
+      "category": "dataviz",
+      "elo": 1223,
+      "win_rate": 44.5,
+      "rank": 47
+     },
+     {
+      "arena": "models",
+      "category": "gamedev",
+      "elo": 1305,
+      "win_rate": 50.4,
+      "rank": 19
+     },
+     {
+      "arena": "models",
+      "category": "svg",
+      "elo": 1271,
+      "win_rate": 50.4,
+      "rank": 15
+     },
+     {
+      "arena": "models",
+      "category": "uicomponent",
+      "elo": 1276,
+      "win_rate": 49.4,
+      "rank": 30
+     },
+     {
+      "arena": "models",
+      "category": "website",
+      "elo": 1244,
+      "win_rate": 45.6,
+      "rank": 48
+     }
+    ],
+    "artificial_analysis": {
+     "intelligence_index": 35.5,
+     "coding_index": null,
+     "agentic_index": null
+    }
+   },
+   "reasoning": {
+    "mandatory": true,
+    "default_enabled": true,
+    "supported_efforts": [
+     "xhigh",
+     "high",
+     "medium",
+     "low"
+    ],
+    "default_effort": "high"
+   }
+  },
+  {
+   "id": "deepseek/deepseek-v4-pro",
+   "canonical_slug": "deepseek/deepseek-v4-pro-20260423",
+   "hugging_face_id": "deepseek-ai/DeepSeek-V4-Pro",
+   "name": "DeepSeek: DeepSeek V4 Pro 0423",
+   "created": 1777000679,
+   "context_length": 1048576,
+   "architecture": {
+    "modality": "text->text",
+    "input_modalities": [
+     "text"
+    ],
+    "output_modalities": [
+     "text"
+    ],
+    "tokenizer": "DeepSeek",
+    "instruct_type": null
+   },
+   "pricing": {
+    "prompt": "0.0000009",
+    "completion": "0.0000015",
+    "input_cache_read": "0.00000025"
+   },
+   "top_provider": {
+    "context_length": 1048576,
+    "max_completion_tokens": 393216,
+    "is_moderated": false
+   },
+   "per_request_limits": null,
+   "supported_parameters": [
+    "frequency_penalty",
+    "include_reasoning",
+    "logit_bias",
+    "logprobs",
+    "max_completion_tokens",
+    "max_tokens",
+    "min_p",
+    "presence_penalty",
+    "reasoning",
+    "reasoning_effort",
+    "repetition_penalty",
+    "response_format",
+    "seed",
+    "stop",
+    "structured_outputs",
+    "temperature",
+    "tool_choice",
+    "tools",
+    "top_k",
+    "top_logprobs",
+    "top_p"
+   ],
+   "default_parameters": {
+    "temperature": 1,
+    "top_p": 1
+   },
+   "supported_voices": null,
+   "knowledge_cutoff": null,
+   "expiration_date": null,
+   "links": {
+    "details": "/api/v1/models/deepseek/deepseek-v4-pro-20260423/endpoints"
+   },
+   "endpoints": [
+    "/api/v1/chat/completions",
+    "/api/v1/completions",
+    "/api/v1/messages",
+    "/api/v1/responses"
+   ],
+   "benchmarks": {
+    "design_arena": [
+     {
+      "arena": "agents",
+      "category": "fullstack",
+      "elo": 948,
+      "win_rate": 22.1,
+      "rank": 46
+     },
+     {
+      "arena": "agents",
+      "category": "godotgamedev",
+      "elo": 1059,
+      "win_rate": 34,
+      "rank": 32
+     },
+     {
+      "arena": "agents",
+      "category": "webapps",
+      "elo": 1000,
+      "win_rate": 26.4,
+      "rank": 47
+     },
+     {
+      "arena": "models",
+      "category": "3d",
+      "elo": 1232,
+      "win_rate": 56.8,
+      "rank": 38
+     },
+     {
+      "arena": "models",
+      "category": "asciiart",
+      "elo": 1136,
+      "win_rate": 46.4,
+      "rank": 47
+     },
+     {
+      "arena": "models",
+      "category": "codecategories",
+      "elo": 1230,
+      "win_rate": 52.2,
+      "rank": 51
+     },
+     {
+      "arena": "models",
+      "category": "dataviz",
+      "elo": 1199,
+      "win_rate": 48.8,
+      "rank": 61
+     },
+     {
+      "arena": "models",
+      "category": "gamedev",
+      "elo": 1221,
+      "win_rate": 53,
+      "rank": 47
+     },
+     {
+      "arena": "models",
+      "category": "svg",
+      "elo": 1127,
+      "win_rate": 45.5,
+      "rank": 59
+     },
+     {
+      "arena": "models",
+      "category": "uicomponent",
+      "elo": 1211,
+      "win_rate": 50.6,
+      "rank": 58
+     },
+     {
+      "arena": "models",
+      "category": "website",
+      "elo": 1227,
+      "win_rate": 50.9,
+      "rank": 58
+     }
+    ],
+    "artificial_analysis": {
+     "intelligence_index": 20.8,
+     "coding_index": null,
+     "agentic_index": null
+    }
+   },
+   "reasoning": {
+    "mandatory": false,
+    "supported_efforts": [
+     "xhigh",
+     "high",
+     "none"
+    ],
+    "default_effort": "high"
+   }
+  },
+  {
+   "id": "google/gemini-nano-banana-2.1",
+   "canonical_slug": "google/gemini-nano-banana-2.1-20261006",
+   "hugging_face_id": null,
+   "name": "Google: Nano Banana 2.1",
+   "created": 1791300825,
+   "context_length": 65536,
+   "architecture": {
+    "modality": "text+image->text+image",
+    "input_modalities": [
+     "image",
+     "text"
+    ],
+    "output_modalities": [
+     "image",
+     "text"
+    ],
+    "tokenizer": "Gemini",
+    "instruct_type": null
+   },
+   "pricing": {
+    "prompt": "0.0000015",
+    "completion": "0.0000075",
+    "image_output": "0.00003",
+    "web_search": "0.014"
+   },
+   "top_provider": {
+    "context_length": 65536,
+    "max_completion_tokens": 58982,
+    "is_moderated": false
+   },
+   "per_request_limits": null,
+   "supported_parameters": [
+    "include_reasoning",
+    "max_tokens",
+    "reasoning",
+    "reasoning_effort",
+    "response_format",
+    "seed",
+    "structured_outputs",
+    "temperature",
+    "tool_choice",
+    "tools",
+    "top_p"
+   ],
+   "default_parameters": {},
+   "supported_voices": null,
+   "knowledge_cutoff": null,
+   "expiration_date": null,
+   "links": {
+    "details": "/api/v1/models/google/gemini-nano-banana-2.1-20261006/endpoints"
+   },
+   "endpoints": [
+    "/api/v1/chat/completions",
+    "/api/v1/completions",
+    "/api/v1/messages",
+    "/api/v1/responses",
+    "/api/v1/images"
+   ],
+   "reasoning": {
+    "mandatory": false,
+    "default_enabled": true,
+    "supported_efforts": [
+     "high",
+     "minimal",
+     "none"
+    ],
+    "default_effort": "minimal"
+   }
+  }
+ ]
+}

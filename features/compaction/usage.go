@@ -230,7 +230,7 @@ func (s *Service) currentModel(a *agent.Agent, events []session.Event) llm.Model
 
 func (s *Service) window(ctx context.Context, ref llm.ModelRef) int {
 	if ad, ok := s.llms.Get(ref.Provider); ok {
-		if ms, err := ad.Models(ctx); err == nil {
+		if ms, err := s.llms.ModelsOf(ctx, ad); err == nil {
 			for _, m := range ms {
 				if m.ID == ref.Model && m.ContextWindow > 0 {
 					return m.ContextWindow

@@ -536,7 +536,7 @@ var Plugin = kernel.Register(kernel.Spec{
 				for _, ad := range llms.List() {
 					pv := ProviderView{ID: ad.ID(), Kind: ad.Kind(), Models: []llm.ModelInfo{}}
 					mctx, cancel := context.WithTimeout(ctx, 3*time.Second)
-					ms, err := ad.Models(mctx)
+					ms, err := llms.ModelsOf(mctx, ad)
 					cancel()
 					if err != nil {
 						pv.Error = err.Error()

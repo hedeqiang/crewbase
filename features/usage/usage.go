@@ -46,7 +46,10 @@ type Stats struct {
 	SavedUSD      float64        `json:"savedUsd"`
 	SpentUSD      float64        `json:"spentUsd"` // estimated API spend
 	Reference     Price          `json:"reference"`
-	Kinds         map[string]int `json:"kinds"` // subscription/api/local → tokens
+	// PricedTokens were valued at their model's own list price (from the
+	// model catalog); the rest at Reference.
+	PricedTokens int            `json:"pricedTokens"`
+	Kinds        map[string]int `json:"kinds"` // subscription/api/local → tokens
 	// Generated counts images and videos made per provider (media/generated
 	// events; providers bill these per image / per second, not counted in
 	// SpentUSD).
@@ -113,6 +116,7 @@ func (s *Service) Compute() Stats {
 	byProv := map[string]int{}
 	byAgent := map[string]*AgentShare{}
 	gens := map[string]*GenShare{}
+	prices := map[string]*llm.Pricing{} // model → catalog price (nil = unknown)
 	for _, m := range s.sessions.List() {
 		ss, err := s.sessions.Get(m.ID)
 		if err != nil {
@@ -137,17 +141,31 @@ func (s *Service) Compute() Stats {
 				byProv[am.Model.Provider] += n
 				kind := s.kindOf(am.Model.Provider)
 				st.Kinds[kind] += n
+				// Value the tokens at the model's own list price when the
+				// model catalog knows it, else at the reference price.
 				cost := float64(am.Usage.InputTokens)/1e6*s.ref.Input + float64(am.Usage.OutputTokens)/1e6*s.ref.Output
+				p, priced := prices[am.Model.String()]
+				if !priced {
+					p = s.llms.PriceOf(am.Model)
+					prices[am.Model.String()] = p
+				}
 				switch kind {
 				case "gateway":
 					// billed (or not) inside the gateway, e.g. magpie: neither
 					// saved nor spent from Crewbase's point of view
 				case "api":
-					if p, ok := s.prices[am.Model.Provider]; ok {
-						cost = float64(am.Usage.InputTokens)/1e6*p.Input + float64(am.Usage.OutputTokens)/1e6*p.Output
+					if cp, ok := s.prices[am.Model.Provider]; ok {
+						cost = float64(am.Usage.InputTokens)/1e6*cp.Input + float64(am.Usage.OutputTokens)/1e6*cp.Output
+					} else if p != nil {
+						cost = p.Cost(am.Usage)
+						st.PricedTokens += n
 					}
 					st.SpentUSD += cost
 				default:
+					if p != nil {
+						cost = p.Cost(am.Usage)
+						st.PricedTokens += n
+					}
 					st.SavedUSD += cost
 				}
 				as := byAgent[e.Agent]

@@ -272,14 +272,15 @@ func (a *Adapter) FetchModels(ctx context.Context) ([]llm.ModelInfo, error) {
 				}
 			}
 		}
-		if w == 0 {
+		guessed := w == 0
+		if guessed {
 			w = a.windowFor(m.ID)
 		}
 		name := ""
 		if fld, ok := m.JSON.ExtraFields["name"]; ok {
 			_ = json.Unmarshal([]byte(fld.Raw()), &name)
 		}
-		mi := llm.ModelInfo{ID: m.ID, Provider: a.id, Name: name, ContextWindow: w, Enabled: true}
+		mi := llm.ModelInfo{ID: m.ID, Provider: a.id, Name: name, ContextWindow: w, ContextEstimated: guessed && w > 0, Enabled: true}
 		if k := extraString(m.JSON.ExtraFields, "kind"); k == llm.KindImage || k == llm.KindVideo {
 			mi.Kind = k // gateways that list media models say so
 		}
