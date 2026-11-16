@@ -70,3 +70,46 @@ func TestUsageAndSavings(t *testing.T) {
 		t.Fatalf("%+v %+v", st.ByAgent, st.ByProvider)
 	}
 }
+
+type fakeCatalog map[string]llm.CatalogEntry
+
+func (f fakeCatalog) Lookup(id string) (llm.CatalogEntry, bool) { e, ok := f[id]; return e, ok }
+
+func TestPerModelPrices(t *testing.T) {
+	h := kernel.NewHost(nil)
+	t.Cleanup(h.Close)
+	root := t.TempDir()
+	for _, x := range []struct {
+		s   kernel.Spec
+		cfg map[string]any
+	}{
+		{session.Plugin, nil}, {prompt.Plugin, nil}, {tools.Plugin, nil}, {approval.Plugin, nil},
+		{llm.Plugin, nil}, {mock.Plugin, map[string]any{"ids": []string{"sub", "api"}}},
+		{agent.Plugin, map[string]any{"root": root, "defaultModels": []string{"sub/default"}}},
+		{usage.Plugin, map[string]any{"reference": map[string]float64{"input": 10, "output": 10}}},
+	} {
+		h.Load(x.s, kernel.LoadOptions{Config: x.cfg})
+	}
+	r := h.Root()
+	llms := kernel.Use[*llm.Registry](r, llm.ServiceKey)
+	sub, _ := llms.Get("sub")
+	sub.(*mock.Adapter).SetKind("subscription")
+	llms.SetCatalog(r, fakeCatalog{
+		"cheap":     {Pricing: &llm.Pricing{Input: 1, Output: 2}},
+		"cache-pro": {Pricing: &llm.Pricing{Input: 4, Output: 20, CacheRead: 0.4}},
+	})
+	a, _ := kernel.Use[*agent.Registry](r, agent.ServiceKey).Create(agent.Spec{Name: "Kai"})
+	ss, _ := a.Session()
+	M := 1_000_000
+	for _, m := range []session.AssistantMessage{
+		{Model: llm.ModelRef{Provider: "api", Model: "cheap"}, Usage: llm.Usage{InputTokens: M, OutputTokens: M}},  // 1 + 2
+		{Model: llm.ModelRef{Provider: "api", Model: "unknown"}, Usage: llm.Usage{InputTokens: M}},                 // reference: 10
+		{Model: llm.ModelRef{Provider: "sub", Model: "cache-pro"}, Usage: llm.Usage{InputTokens: M, CacheRead: M}}, // all cached: 0.4
+	} {
+		ss.Append(session.TypeAssistantMessage, a.ID(), m)
+	}
+	st := kernel.Use[*usage.Service](r, usage.ServiceKey).Compute()
+	if st.SpentUSD != 13 || st.SavedUSD < 0.399 || st.SavedUSD > 0.401 || st.PricedTokens != 3*M {
+		t.Fatalf("spent %v saved %v priced %d", st.SpentUSD, st.SavedUSD, st.PricedTokens)
+	}
+}

@@ -416,11 +416,11 @@ func (m *ModelSpec) UnmarshalJSON(b []byte) error {
 }
 
 func (m ModelSpec) Info(provider string, defWindow func(string) int) llm.ModelInfo {
-	w := m.ContextWindow
+	w, guessed := m.ContextWindow, false
 	if w == 0 && defWindow != nil {
-		w = defWindow(m.ID)
+		w, guessed = defWindow(m.ID), true
 	}
-	mi := llm.ModelInfo{ID: m.ID, Provider: provider, Name: m.Name, ContextWindow: w, Capabilities: m.Capabilities, Kind: m.Kind, Enabled: true}
+	mi := llm.ModelInfo{ID: m.ID, Provider: provider, Name: m.Name, ContextWindow: w, ContextEstimated: guessed && w > 0, Capabilities: m.Capabilities, Kind: m.Kind, Enabled: true}
 	return MediaInfo(mi)
 }
 
@@ -434,9 +434,9 @@ func MediaInfo(mi llm.ModelInfo) llm.ModelInfo {
 		if llm.EditsByID(mi.ID) && !HasCap(mi.Capabilities, llm.CapImageEdit) {
 			mi.Capabilities = append(append([]string(nil), mi.Capabilities...), llm.CapImageEdit)
 		}
-		mi.ContextWindow = 0
+		mi.ContextWindow, mi.ContextEstimated = 0, false
 	case llm.KindVideo:
-		mi.ContextWindow = 0
+		mi.ContextWindow, mi.ContextEstimated = 0, false
 	}
 	return mi
 }

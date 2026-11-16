@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { AlarmClock, Archive, ArrowDown, ArrowUp, Check, ChevronLeft, ChevronRight, CircleMinus, CircleX, Globe, GripVertical, Link2, Minimize2, Pause, Play, Plus, Shuffle, Square, Trash, UserPlus, X } from "lucide-react";
 import { API, refString, type Followup, type AgentView, type ChannelView, type ContextBreakdown, type ModelRef } from "../api";
 import { t, type Key } from "../i18n";
-import { activeModel, allModels, detailLabel, effortLabel, hhmm, isExhausted, kfmt, modeLabel, modelLabel, pillTone, sameRef, statusLabel, until } from "../format";
+import { activeModel, allModels, detailLabel, effortLabel, hhmm, isExhausted, kfmt, modeLabel, modelLabel, modelMeta, pillTone, sameRef, statusLabel, until } from "../format";
 import { project, type SubRun } from "../projection";
 import { openSubRun, refreshChannel, setState, toast, useStore, sessionAgent } from "../store";
 import { FilesTab } from "./Files";
@@ -656,6 +656,7 @@ function AgentTab({ agent, sessionId }: { agent: AgentView; sessionId: string })
               {m.info.name || m.info.id}
               <span>
                 {m.provider.id} · {t(`kind.${m.provider.kind}` as Key)}
+                {modelMeta(m.info) ? ` · ${modelMeta(m.info)}` : ""}
               </span>
             </span>
           </button>

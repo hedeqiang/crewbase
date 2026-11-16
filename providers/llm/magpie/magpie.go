@@ -113,7 +113,9 @@ type Adapter struct {
 
 	mu        sync.RWMutex
 	inner     *openai.Adapter
-	models    []llm.ModelInfo
+	all       []llm.ModelInfo   // everything magpie lists
+	models    []llm.ModelInfo   // the enabled ones (see Discovery.SetEnabled)
+	enabled   map[string]bool   // nil = all
 	providers map[string]bool   // magpie providers behind the catalog
 	modelProv map[string]string // model id -> magpie provider
 	version   string
@@ -135,11 +137,53 @@ func (a *Adapter) Version() string {
 // BaseURL is the gateway root.
 func (a *Adapter) BaseURL() string { return a.root }
 
-// Models returns the catalog fetched at the last scan.
+// Models returns the enabled models of the catalog fetched at the last
+// scan (all of them unless the person chose; see Discovery.SetEnabled).
+// Pickers and routing only see these; a model chosen earlier still
+// streams when it is later disabled.
 func (a *Adapter) Models(context.Context) ([]llm.ModelInfo, error) {
 	a.mu.RLock()
 	defer a.mu.RUnlock()
 	return append([]llm.ModelInfo(nil), a.models...), nil
+}
+
+// AllModels returns everything magpie lists, enabled or not.
+func (a *Adapter) AllModels() []llm.ModelInfo {
+	a.mu.RLock()
+	defer a.mu.RUnlock()
+	return append([]llm.ModelInfo(nil), a.all...)
+}
+
+// filterLocked recomputes models from all and enabled.
+func (a *Adapter) filterLocked() {
+	if a.enabled == nil {
+		a.models = a.all
+		return
+	}
+	a.models = make([]llm.ModelInfo, 0, len(a.enabled))
+	for _, m := range a.all {
+		if a.enabled[m.ID] {
+			a.models = append(a.models, m)
+		}
+	}
+}
+
+func (a *Adapter) setEnabled(ids []string) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.enabled = enabledSet(ids)
+	a.filterLocked()
+}
+
+func enabledSet(ids []string) map[string]bool {
+	if ids == nil {
+		return nil
+	}
+	m := make(map[string]bool, len(ids))
+	for _, id := range ids {
+		m[id] = true
+	}
+	return m
 }
 
 // Stream sends the request through magpie's Chat Completions endpoint.
@@ -288,9 +332,9 @@ func (a *Adapter) refresh(ctx context.Context) (bool, error) {
 			specs = append(specs, openai.ModelSpec{ID: m.ID, Name: name, Kind: m.Kind, Capabilities: caps})
 			continue
 		}
-		w := m.ContextWindow
+		w, guessed := m.ContextWindow, false
 		if w == 0 {
-			w = a.window
+			w, guessed = a.window, true // the model catalog may know better
 		}
 		var caps []string
 		if m.ToolCall == nil || *m.ToolCall {
@@ -308,7 +352,7 @@ func (a *Adapter) refresh(ctx context.Context) (bool, error) {
 		if w >= 500000 {
 			caps = append(caps, "long-context")
 		}
-		infos = append(infos, llm.ModelInfo{ID: m.ID, Provider: ProviderID, Name: name, ContextWindow: w, Capabilities: caps, Enabled: true})
+		infos = append(infos, llm.ModelInfo{ID: m.ID, Provider: ProviderID, Name: name, ContextWindow: w, ContextEstimated: guessed, MaxOutput: m.MaxOutputTokens, Capabilities: caps, Enabled: true})
 		specs = append(specs, openai.ModelSpec{ID: m.ID, Name: name, ContextWindow: w, Capabilities: caps, Kind: llm.KindChat})
 	}
 	inner, err := openai.New(a.c, openai.ProviderConfig{
@@ -321,7 +365,8 @@ func (a *Adapter) refresh(ctx context.Context) (bool, error) {
 	}
 	inner.SetHTTPClient(a.client)
 	a.mu.Lock()
-	a.inner, a.models, a.version = inner, infos, ver
+	a.inner, a.all, a.version = inner, infos, ver
+	a.filterLocked()
 	a.providers, a.modelProv = provs, modelProv
 	a.mu.Unlock()
 	return true, nil
@@ -335,18 +380,24 @@ type Discovery struct {
 	client  *http.Client
 	window  int
 
+	statePath string // ${stateDir}/magpie.json; "" = not persisted
+
 	mu      sync.Mutex
 	adapter *Adapter
 	regCtx  *kernel.Context
 	lastErr string
+	enabled []string // nil = every model magpie lists
 }
 
 // Status describes the gateway for the settings UI.
 type Status struct {
-	Running  bool   `json:"running"`
-	BaseURL  string `json:"baseURL"`
-	Version  string `json:"version,omitempty"`
-	Models   int    `json:"models"`
+	Running bool   `json:"running"`
+	BaseURL string `json:"baseURL"`
+	Version string `json:"version,omitempty"`
+	Models  int    `json:"models"` // enabled
+	Total   int    `json:"total"`  // listed by magpie
+	// Chosen: the person picked the enabled models (otherwise all are).
+	Chosen   bool   `json:"chosen"`
 	Error    string `json:"error,omitempty"`
 	Settings string `json:"settings"`
 }
@@ -355,13 +406,76 @@ type Status struct {
 func (d *Discovery) Status() Status {
 	d.mu.Lock()
 	defer d.mu.Unlock()
-	st := Status{BaseURL: d.root(), Settings: SettingsPath(), Error: d.lastErr}
+	st := Status{BaseURL: d.root(), Settings: SettingsPath(), Error: d.lastErr, Chosen: d.enabled != nil}
 	if d.adapter != nil {
 		st.Running, st.Version = true, d.adapter.Version()
 		ms, _ := d.adapter.Models(context.Background())
-		st.Models = len(ms)
+		st.Models, st.Total = len(ms), len(d.adapter.AllModels())
 	}
 	return st
+}
+
+// Choice is magpie's model list with what is enabled.
+type Choice struct {
+	Running bool            `json:"running"`
+	Models  []llm.ModelInfo `json:"models"`  // everything magpie lists
+	Enabled []string        `json:"enabled"` // null = all
+}
+
+// Choice returns every model magpie lists and the enabled ids.
+func (d *Discovery) Choice() Choice {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	ch := Choice{Models: []llm.ModelInfo{}, Enabled: d.enabled}
+	if d.adapter != nil {
+		ch.Running, ch.Models = true, d.adapter.AllModels()
+	}
+	return ch
+}
+
+// SetEnabled chooses which magpie models Crewbase offers (nil = all,
+// the default). It applies at once and is kept in magpie.json. Ids
+// magpie does not list right now are kept, so a model that is briefly
+// gone stays chosen.
+func (d *Discovery) SetEnabled(ids []string) error {
+	if ids != nil {
+		seen := map[string]bool{}
+		clean := make([]string, 0, len(ids))
+		for _, id := range ids {
+			id = strings.TrimSpace(id)
+			if id != "" && !seen[id] && len(id) <= 200 {
+				seen[id] = true
+				clean = append(clean, id)
+			}
+		}
+		sort.Strings(clean)
+		ids = clean
+	}
+	if d.statePath != "" {
+		b, _ := json.MarshalIndent(state{Enabled: ids}, "", "  ")
+		tmp := d.statePath + ".tmp"
+		if err := os.WriteFile(tmp, b, 0o600); err != nil {
+			return err
+		}
+		if err := os.Rename(tmp, d.statePath); err != nil {
+			return err
+		}
+	}
+	d.mu.Lock()
+	d.enabled = ids
+	a := d.adapter
+	d.mu.Unlock()
+	if a != nil {
+		a.setEnabled(ids)
+		llm.AdaptersChanged.Emit(d.c.Host(), struct{}{})
+	}
+	return nil
+}
+
+// state is magpie.json.
+type state struct {
+	// Enabled models; absent / null = all.
+	Enabled []string `json:"enabled"`
 }
 
 func (d *Discovery) root() string {
@@ -382,7 +496,10 @@ func (d *Discovery) Rescan(ctx context.Context) {
 	}
 	d.mu.Unlock()
 	if a == nil {
-		a = &Adapter{c: d.c, root: root, client: d.client, window: d.window}
+		d.mu.Lock()
+		en := enabledSet(d.enabled)
+		d.mu.Unlock()
+		a = &Adapter{c: d.c, root: root, client: d.client, window: d.window, enabled: en}
 	}
 	up, err := a.refresh(ctx)
 	d.mu.Lock()
@@ -418,8 +535,11 @@ type Config struct {
 	// a gateway key is required — set it in magpie, not here).
 	BaseURL        string `json:"baseURL"`
 	RescanInterval string `json:"rescanInterval"` // default 30s; "0" disables
-	// DefaultContextWindow for models magpie reports without one.
+	// DefaultContextWindow for models magpie reports without one (and
+	// the model catalog does not know).
 	DefaultContextWindow int `json:"defaultContextWindow"`
+	// StateDir keeps magpie.json (the models the person enabled).
+	StateDir string `json:"stateDir"`
 }
 
 // ServiceKey exposes the discovery (status for the settings UI).
@@ -448,6 +568,16 @@ var Plugin = kernel.Register(kernel.Spec{
 		}
 		d := &Discovery{c: c, reg: kernel.Use[*llm.Registry](c, llm.ServiceKey), baseURL: cfg.BaseURL,
 			client: &http.Client{Timeout: 0}, window: cfg.DefaultContextWindow}
+		if cfg.StateDir != "" {
+			d.statePath = filepath.Join(cfg.StateDir, "magpie.json")
+			if b, err := os.ReadFile(d.statePath); err == nil {
+				var st state
+				if err := json.Unmarshal(b, &st); err != nil {
+					return fmt.Errorf("magpie.json: %w", err)
+				}
+				d.enabled = st.Enabled
+			}
+		}
 		if err := c.Provide(ServiceKey, d); err != nil {
 			return err
 		}

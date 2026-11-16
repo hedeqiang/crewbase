@@ -3,7 +3,7 @@ import { Check, ChevronDown, Dices, FileUp, Folder, Plus, RefreshCw, Shield } fr
 import { API, refString, type ModelRef } from "../api";
 import { ImportRoleDialog } from "./ImportRole";
 import { t, type Key } from "../i18n";
-import { allModels, effortLabel, kfmt, modeLabel, sameRef, shortModel } from "../format";
+import { allModels, effortLabel, modeLabel, modelMeta, sameRef, shortModel } from "../format";
 import { openSession, refreshAgents, refreshSessions, setState, toast, useFolders, useStore, currentTeam, teamMode } from "../store";
 import { AvatarRaw, COLORS, SHAPES } from "./Avatar";
 import { Popover, useMenu } from "./Popover";
@@ -462,7 +462,7 @@ export function NewAgent({ draft: f, setDraft }: { draft: Draft; setDraft: (d: D
               {m.info.name || m.info.id}
               <span>
                 {t(`kind.${m.provider.kind}` as Key)}
-                {m.info.contextWindow ? ` · ${kfmt(m.info.contextWindow)}` : ""}
+                {modelMeta(m.info) ? ` · ${modelMeta(m.info)}` : ""}
               </span>
             </span>
             <span className="ck">{sameRef(primary, m.ref) && <Check size={14} />}</span>

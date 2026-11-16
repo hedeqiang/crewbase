@@ -218,6 +218,14 @@ type ModelInfo struct {
 	Kind      string `json:"kind,omitempty"`
 	Enabled   bool   `json:"enabled"`
 	SizeBytes int64  `json:"sizeBytes,omitempty"` // local models
+	// MaxOutput is the most tokens one reply may have, when known.
+	MaxOutput int `json:"maxOutput,omitempty"`
+	// Pricing is the model's API list price, when known (see catalog.go).
+	Pricing *Pricing `json:"pricing,omitempty"`
+	// ContextEstimated marks a ContextWindow the adapter guessed (a table
+	// or a default) instead of the provider reporting it; the model
+	// catalog may replace it.
+	ContextEstimated bool `json:"contextEstimated,omitempty"`
 }
 
 // Quota is remaining subscription/API allowance, when known.
@@ -355,6 +363,7 @@ func ParseRef(s string) (ModelRef, error) {
 type Registry struct {
 	mu       sync.RWMutex
 	adapters map[string]Adapter
+	catalog  Catalog
 }
 
 func NewRegistry() *Registry { return &Registry{adapters: map[string]Adapter{}} }

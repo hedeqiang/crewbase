@@ -121,7 +121,7 @@ export interface State {
   newChannel: boolean;
   /** folder new things are created in (the folder's + / menu), once */
   createIn: string;
-  modelsTab: "providers" | "routing";
+  modelsTab: "providers" | "routing" | "catalog";
   /** File to open in the right panel's 文件 tab. */
   fileOpen: string | null;
   /** Bumped on SSE "mcp" pushes so settings pages can refetch. */

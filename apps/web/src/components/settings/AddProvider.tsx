@@ -1,56 +1,64 @@
 import { AlertTriangle, Check, ChevronDown, ExternalLink, KeyRound, Loader2, Search, Sparkles, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { API, desktop, type ModelKind, type ProviderPreset, type ProviderTestResult } from "../../api";
+import { API, desktop, type ModelKind, type ProviderPreset, type ProviderTestResult, type UserProvider } from "../../api";
 import { classifyModelId, modelKind } from "../../format";
 import { t } from "../../i18n";
 import { resync, toast } from "../../store";
 import { autoIcon, IconMark, PICKABLE, ProviderMark } from "../ProviderMark";
+import { ModelChecklist } from "./ModelChecklist";
 
 type Step = "pick" | "key";
 
-/** Model ids typed by hand: one per line or separated by commas / spaces. */
-function parseIds(s: string): string[] {
-  return [...new Set(s.split(/[\s,，]+/).map((x) => x.trim()).filter(Boolean))];
-}
-
 /** Settings › 模型与订阅 › 添加提供方: pick a provider, paste the key, test,
  *  choose models, add. The key goes to the system keychain; the provider is
- *  live immediately, no restart. */
-export function AddProviderDialog({ onClose, existing }: { onClose: () => void; existing: string[] }) {
+ *  live immediately, no restart.
+ *
+ *  With `edit`, the same dialog edits an added provider, opened at the
+ *  models step: the listing is fetched again with the stored key, models
+ *  can be ticked / unticked or typed by hand, and a blank key keeps the
+ *  stored one. */
+export function AddProviderDialog({ onClose, existing, edit }: { onClose: () => void; existing: string[]; edit?: UserProvider }) {
   const [presets, setPresets] = useState<ProviderPreset[] | null>(null);
   const [loadErr, setLoadErr] = useState("");
-  const [step, setStep] = useState<Step>("pick");
+  const [step, setStep] = useState<Step>(edit ? "key" : "pick");
   const [q, setQ] = useState("");
   const [pre, setPre] = useState<ProviderPreset | null>(null);
-  const [custom, setCustom] = useState(false);
-  const [id, setId] = useState("");
-  const [name, setName] = useState("");
-  const [baseURL, setBaseURL] = useState("");
-  const [api, setApi] = useState("openai");
+  const [custom, setCustom] = useState(!!edit && !edit.preset);
+  const [id, setId] = useState(edit?.id ?? "");
+  const [name, setName] = useState(edit?.name ?? "");
+  const [baseURL, setBaseURL] = useState(edit?.baseURL ?? "");
+  const [api, setApi] = useState(edit?.api ?? "openai");
   const [key, setKey] = useState("");
   /** "" = automatic (detected from the endpoint, name and models) */
-  const [icon, setIcon] = useState("");
+  const [icon, setIcon] = useState(edit?.icon ?? "");
   const [iconOpen, setIconOpen] = useState(false);
   const [test, setTest] = useState<ProviderTestResult | null>(null);
-  const [manual, setManual] = useState("");
+  /** ids not in the listing: typed by hand, or enabled before */
+  const [extra, setExtra] = useState<string[]>(edit?.models ?? []);
   const [busy, setBusy] = useState<"" | "test" | "add">("");
-  const [picked, setPicked] = useState<Set<string>>(new Set());
+  const [picked, setPicked] = useState<Set<string>>(new Set(edit?.models ?? []));
   /** model kinds chosen by hand (otherwise: the listing's, else by id) */
-  const [kinds, setKinds] = useState<Record<string, ModelKind>>({});
+  const [kinds, setKinds] = useState<Record<string, ModelKind>>((edit?.kinds as Record<string, ModelKind>) ?? {});
   const keyRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     API.providers()
-      .then((r) => setPresets(r.presets ?? []))
+      .then((r) => {
+        setPresets(r.presets ?? []);
+        if (edit?.preset) setPre(r.presets?.find((p) => p.id === edit.preset) ?? null);
+      })
       .catch((e: any) => {
         setPresets([]);
         // an older daemon without the providers API answers 404
         setLoadErr(e?.status === 404 ? t("ap.oldDaemon") : t("ap.loadFailed", { error: e?.message ?? String(e) }));
       });
+    // editing: list the provider's models again with the stored key
+    if (edit) void runTest();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   useEffect(() => {
-    if (step === "key") keyRef.current?.focus();
-  }, [step]);
+    if (step === "key" && !edit) keyRef.current?.focus();
+  }, [step, edit]);
 
   const list = useMemo(() => {
     const ql = q.trim().toLowerCase();
@@ -69,17 +77,30 @@ export function AddProviderDialog({ onClose, existing }: { onClose: () => void; 
     setApi(p?.api ?? "openai");
     setIcon(p?.icon ?? "");
     setTest(null);
-    setManual("");
+    setExtra([]);
+    setPicked(new Set());
     setKinds({});
     setStep("key");
   };
 
   const detected = useMemo(() => autoIcon(baseURL, name, test?.models?.map((m) => m.id) ?? []), [baseURL, name, test]);
   const effIcon = icon || detected;
-  const manualIds = parseIds(manual);
-  const manualMode = !!test && !test.ok && !!test.manualModels;
+  // the listing is unavailable: models are typed by hand (editing: also
+  // when the re-fetch failed, so the stored list stays editable)
+  const manualMode = !!test && !test.ok && (!!test.manualModels || !!edit);
+  const listing = test?.ok ? test.models : [];
+  const all = [...listing.map((m) => m.id), ...extra.filter((x) => !listing.some((m) => m.id === x))];
+  const chosen = all.filter((m) => picked.has(m));
 
-  const input = () => ({ id: id.trim(), name: name.trim(), preset: pre?.id ?? "", api, baseURL: baseURL.trim(), apiKey: key, icon: custom ? effIcon : pre?.icon ?? "" });
+  const input = () => ({
+    id: id.trim(),
+    name: name.trim(),
+    preset: edit ? (edit.preset ?? "") : (pre?.id ?? ""),
+    api,
+    baseURL: baseURL.trim(),
+    apiKey: key,
+    icon: custom || edit ? effIcon : (pre?.icon ?? ""),
+  });
 
   const runTest = async () => {
     setBusy("test");
@@ -89,7 +110,8 @@ export function AddProviderDialog({ onClose, existing }: { onClose: () => void; 
       r.models = r.models ?? [];
       setTest(r);
       // start with two chat models; image / video models are opt-in
-      if (r.ok) setPicked(new Set(r.models.filter((m) => modelKind(m) === "chat").slice(0, 2).map((m) => m.id)));
+      // (editing keeps what is enabled)
+      if (r.ok && !edit) setPicked(new Set(r.models.filter((m) => modelKind(m) === "chat").slice(0, 2).map((m) => m.id)));
     } catch (e: any) {
       setTest({ ok: false, latencyMs: 0, models: [], error: e?.message ?? String(e) });
     } finally {
@@ -100,12 +122,18 @@ export function AddProviderDialog({ onClose, existing }: { onClose: () => void; 
   const add = async () => {
     setBusy("add");
     try {
-      const models = manualMode ? manualIds : [...picked];
+      const models = chosen;
       // send only kinds the daemon would not derive from the id itself
       const marks: Record<string, ModelKind> = {};
       for (const m of models) if (kindOf(m) !== classifyModelId(m)) marks[m] = kindOf(m);
-      await API.addProvider({ ...input(), models, kinds: marks });
-      toast(t("ap.added", { name: name || id }));
+      if (edit) {
+        const inp = input();
+        await API.updateProvider(edit.id, { name: inp.name, icon: inp.icon, baseURL: inp.baseURL, apiKey: key || undefined, models, kinds: marks });
+        toast(t("ap.saved", { name: name || id }));
+      } else {
+        await API.addProvider({ ...input(), models, kinds: marks });
+        toast(t("ap.added", { name: name || id }));
+      }
       await resync();
       onClose();
     } catch (e: any) {
@@ -115,9 +143,19 @@ export function AddProviderDialog({ onClose, existing }: { onClose: () => void; 
     }
   };
 
-  const kindOf = (m: string): ModelKind => kinds[m] ?? (test?.models?.find((x) => x.id === m) ? modelKind(test.models.find((x) => x.id === m)) : classifyModelId(m));
+  const kindOf = (m: string): ModelKind => {
+    if (kinds[m]) return kinds[m];
+    const listed = test?.models?.find((x) => x.id === m);
+    return listed ? modelKind(listed) : classifyModelId(m);
+  };
   const kindSelect = (m: string) => (
-    <select className="ap-kind" aria-label={t("ap.kindOf", { id: m })} value={kindOf(m)} onChange={(e) => setKinds((k) => ({ ...k, [m]: e.target.value as ModelKind }))}>
+    <select
+      className="ap-kind"
+      aria-label={t("ap.kindOf", { id: m })}
+      value={kindOf(m)}
+      onClick={(e) => e.stopPropagation()}
+      onChange={(e) => setKinds((k) => ({ ...k, [m]: e.target.value as ModelKind }))}
+    >
       <option value="chat">{t("set.kind.chat")}</option>
       <option value="image">{t("set.kind.image")}</option>
       <option value="video">{t("set.kind.video")}</option>
@@ -131,15 +169,13 @@ export function AddProviderDialog({ onClose, existing }: { onClose: () => void; 
     else window.open(url, "_blank", "noopener");
   };
 
-  const toggle = (m: string) =>
-    setPicked((s) => {
-      const n = new Set(s);
-      if (n.has(m)) n.delete(m);
-      else n.add(m);
-      return n;
-    });
+  const addIds = (ids: string[]) => {
+    setExtra((x) => [...x, ...ids.filter((i) => !x.includes(i))]);
+    setPicked((s) => new Set([...s, ...ids]));
+  };
 
-  const idTaken = !!id && existing.includes(id) && !test?.ok;
+  const idTaken = !edit && !!id && existing.includes(id) && !test?.ok;
+  const showIdent = custom || !!edit;
 
   const card = (p: ProviderPreset) => {
     const added = existing.includes(p.id);
@@ -155,9 +191,9 @@ export function AddProviderDialog({ onClose, existing }: { onClose: () => void; 
   return (
     <>
       <div className="ovscrim show" onMouseDown={onClose} />
-      <div className="modal addprov" role="dialog" aria-modal="true" aria-label={t("set.addProvider")}>
+      <div className="modal addprov" role="dialog" aria-modal="true" aria-label={edit ? t("ap.edit", { name: edit.name || edit.id }) : t("set.addProvider")}>
         <div className="mhd">
-          <h3>{step === "pick" ? t("set.addProvider") : t("ap.connect", { name: name || t("ap.custom") })}</h3>
+          <h3>{edit ? t("ap.edit", { name: edit.name || edit.id }) : step === "pick" ? t("set.addProvider") : t("ap.connect", { name: name || t("ap.custom") })}</h3>
           <button className="ib" type="button" aria-label={t("common.close")} onClick={onClose}>
             <X size={16} />
           </button>
@@ -200,7 +236,7 @@ export function AddProviderDialog({ onClose, existing }: { onClose: () => void; 
             </>
           ) : (
             <>
-              {custom && (
+              {showIdent && (
                 <div className="ap-ident">
                   <div className="ap-iconpick">
                     <button
@@ -229,7 +265,7 @@ export function AddProviderDialog({ onClose, existing }: { onClose: () => void; 
                   <div className="ap-row2 grow">
                     <label className="fl">
                       <span>{t("ap.id")}</span>
-                      <input className="fi sm" value={id} placeholder="my-provider" onChange={(e) => setId(e.target.value.toLowerCase())} />
+                      <input className="fi sm" value={id} disabled={!!edit} placeholder="my-provider" onChange={(e) => setId(e.target.value.toLowerCase())} />
                     </label>
                     <label className="fl">
                       <span>{t("ap.name")}</span>
@@ -238,7 +274,7 @@ export function AddProviderDialog({ onClose, existing }: { onClose: () => void; 
                   </div>
                 </div>
               )}
-              {custom && iconOpen && (
+              {showIdent && iconOpen && (
                 <div className="ap-icons" role="listbox" aria-label={t("ap.icon")}>
                   <button
                     type="button"
@@ -301,21 +337,21 @@ export function AddProviderDialog({ onClose, existing }: { onClose: () => void; 
                     autoComplete="off"
                     spellCheck={false}
                     value={key}
-                    placeholder="sk-…"
+                    placeholder={edit ? t("ap.keyKeep", { masked: edit.masked || "••••" }) : "sk-…"}
                     onChange={(e) => {
                       setKey(e.target.value);
-                      setTest(null);
+                      if (!edit) setTest(null);
                     }}
-                    onKeyDown={(e) => e.key === "Enter" && key && void runTest()}
+                    onKeyDown={(e) => e.key === "Enter" && (key || edit) && void runTest()}
                   />
                 </span>
-                <span className="small">{t("ap.keyNote")}</span>
+                <span className="small">{edit ? t("ap.keyKeepNote") : t("ap.keyNote")}</span>
               </label>
               <label className="fl">
                 <span>{t("ap.base")}</span>
                 <input className="fi sm mono" value={baseURL} placeholder="https://…/v1" onChange={(e) => setBaseURL(e.target.value)} />
               </label>
-              {custom && (
+              {custom && !edit && (
                 <label className="fl">
                   <span>{t("ap.api")}</span>
                   <select className="fi sm" value={api} onChange={(e) => setApi(e.target.value)}>
@@ -327,77 +363,59 @@ export function AddProviderDialog({ onClose, existing }: { onClose: () => void; 
               )}
 
               {test && !test.ok && !manualMode && <div className="confirmbar errbar">{test.error || t("ap.testFailed")}</div>}
-              {manualMode && (
+              {(manualMode || test?.ok) && (
                 <div className="ap-models">
                   <div className="ap-mh">
-                    <span className="amt">
-                      <AlertTriangle size={14} /> {t("ap.noList")}
-                    </span>
+                    {test?.ok ? (
+                      <span className="okt">
+                        <Check size={14} /> {t("ap.connected", { ms: test.latencyMs, n: test.models.length })}
+                      </span>
+                    ) : (
+                      <span className="amt">
+                        <AlertTriangle size={14} /> {test?.manualModels ? t("ap.noList") : t("ap.listFailed")}
+                      </span>
+                    )}
+                    {edit && (
+                      <button type="button" className="linkbtn" disabled={busy !== ""} onClick={() => void runTest()}>
+                        {t("ap.refetch")}
+                      </button>
+                    )}
                   </div>
-                  <textarea
-                    className="fi sm mono ap-manual"
-                    rows={3}
-                    autoFocus
-                    value={manual}
-                    placeholder={pre?.modelHint || t("ap.manualPh")}
-                    onChange={(e) => setManual(e.target.value)}
+                  <ModelChecklist
+                    models={listing}
+                    extra={extra}
+                    picked={picked}
+                    setPicked={setPicked}
+                    kindOf={kindOf}
+                    kindSelect={kindSelect}
+                    onAdd={addIds}
+                    addPlaceholder={pre?.modelHint}
+                    autoFocus={!edit}
                   />
-                  {manualIds.length > 0 && (
-                    <div className="ap-ml">
-                      {manualIds.map((m) => (
-                        <div key={m} className="ap-m">
-                          <span className="mono">{m}</span>
-                          {kindSelect(m)}
-                        </div>
-                      ))}
-                    </div>
-                  )}
                   <p className="small">
-                    {t("ap.manualNote")}
-                    {test?.error ? <span className="mono ap-err"> {test.error}</span> : null}
+                    {manualMode ? t("ap.manualNote") : t("ap.modelsNote")}
+                    {manualMode && test?.error ? <span className="mono ap-err"> {test.error}</span> : null}
                   </p>
                 </div>
               )}
-              {test?.ok && (
-                <div className="ap-models">
-                  <div className="ap-mh">
-                    <span className="okt">
-                      <Check size={14} /> {t("ap.connected", { ms: test.latencyMs, n: test.models.length })}
-                    </span>
-                    <button type="button" className="linkbtn" onClick={() => setPicked(new Set(picked.size === test.models.length ? [] : test.models.map((m) => m.id)))}>
-                      {picked.size === test.models.length ? t("ap.none") : t("ap.all")}
-                    </button>
-                  </div>
-                  <div className="ap-ml">
-                    {test.models.map((m) => (
-                      <label key={m.id} className="ap-m">
-                        <input type="checkbox" checked={picked.has(m.id)} onChange={() => toggle(m.id)} />
-                        <span className="mono">{m.id}</span>
-                        {kindSelect(m.id)}
-                      </label>
-                    ))}
-                  </div>
-                  <p className="small">{t("ap.modelsNote")}</p>
+              {edit && busy === "test" && (
+                <div className="small ap-loading">
+                  <Loader2 size={14} className="spin" /> {t("ap.refetching")}
                 </div>
               )}
               {idTaken && <p className="small dngt">{t("ap.idTaken", { id })}</p>}
 
               <div className="mft">
-                <button className="btn" type="button" onClick={() => setStep("pick")}>
-                  {t("ap.back")}
+                <button className="btn" type="button" onClick={() => (edit ? onClose() : setStep("pick"))}>
+                  {edit ? t("common.cancel") : t("ap.back")}
                 </button>
                 {test?.ok || manualMode ? (
-                  <button
-                    className="btn pri"
-                    type="button"
-                    disabled={busy !== "" || (manualMode ? manualIds.length === 0 : picked.size === 0)}
-                    onClick={() => void add()}
-                  >
+                  <button className="btn pri" type="button" disabled={busy !== "" || chosen.length === 0} onClick={() => void add()}>
                     {busy === "add" ? <Loader2 size={14} className="spin" /> : null}
-                    {t("ap.add", { n: manualMode ? manualIds.length : picked.size })}
+                    {edit ? t("ap.save", { n: chosen.length }) : t("ap.add", { n: chosen.length })}
                   </button>
                 ) : (
-                  <button className="btn pri" type="button" disabled={busy !== "" || !key || !id || !baseURL} onClick={() => void runTest()}>
+                  <button className="btn pri" type="button" disabled={busy !== "" || (!key && !edit) || !id || !baseURL} onClick={() => void runTest()}>
                     {busy === "test" ? <Loader2 size={14} className="spin" /> : null}
                     {t("ap.test")}
                   </button>

@@ -40,6 +40,7 @@ import (
 	_ "github.com/hedeqiang/crewbase/features/media"
 	_ "github.com/hedeqiang/crewbase/features/members"
 	_ "github.com/hedeqiang/crewbase/features/memory"
+	_ "github.com/hedeqiang/crewbase/features/modelcatalog"
 	_ "github.com/hedeqiang/crewbase/features/plugins"
 	_ "github.com/hedeqiang/crewbase/features/providers"
 	_ "github.com/hedeqiang/crewbase/features/redact"
@@ -96,7 +97,10 @@ var Base = kernel.Bundle{Name: "base", Entries: []kernel.Entry{
 	{ID: "llm-acp", Name: "@crewbase/llm-acp"},
 	{ID: "llm-local", Name: "@crewbase/llm-local"},
 	// magpie gateway, registered only while magpie runs (github.com/yetone/magpie).
-	{ID: "llm-magpie", Name: "@crewbase/llm-magpie"},
+	{ID: "llm-magpie", Name: "@crewbase/llm-magpie", Config: map[string]any{"stateDir": "${root}"}},
+	// Model metadata (context window, prices) from OpenRouter + LiteLLM:
+	// embedded snapshot, cached and refreshed daily under ${root}.
+	{ID: "model-catalog", Name: "@crewbase/model-catalog", Config: map[string]any{"dir": "${root}"}},
 	// API providers added from the UI (keys in the keychain), hot-applied.
 	{ID: "providers", Name: "@crewbase/providers", Config: map[string]any{"dir": "${root}"}},
 	// Deterministic mock for demos and tests; enable with a patch:
@@ -187,6 +191,7 @@ var Desktop = kernel.Bundle{Name: "desktop", Entries: []kernel.Entry{
 	{ID: "plugin-manager-api", Name: "@crewbase/plugin-manager-api"},
 	{ID: "console", Name: "@crewbase/console", Config: map[string]any{"dir": "${root}"}},
 	{ID: "providers-api", Name: "@crewbase/providers-api"},
+	{ID: "model-catalog-api", Name: "@crewbase/model-catalog-api"},
 	{ID: "usage-api", Name: "@crewbase/usage-api"},
 	{ID: "roles", Name: "@crewbase/roles"},
 	{ID: "ui-api", Name: "@crewbase/ui-api"},

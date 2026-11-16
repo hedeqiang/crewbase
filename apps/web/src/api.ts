@@ -178,6 +178,18 @@ export interface ModelInfo {
   /** What the model produces: chat (default), image or video. */
   kind?: ModelKind | string;
   enabled: boolean;
+  /** most tokens one reply may have, when known */
+  maxOutput?: number;
+  /** API list price (USD per million tokens; image: per image), from the model catalog */
+  pricing?: ModelPricing;
+}
+export interface ModelPricing {
+  input?: number;
+  output?: number;
+  cacheRead?: number;
+  cacheWrite?: number;
+  image?: number;
+  source?: string;
 }
 export type ModelKind = "chat" | "image" | "video";
 export interface Quota {
@@ -972,6 +984,12 @@ export const API = {
   testProvider: (b: ProviderInput) => api<ProviderTestResult>("POST", "/api/providers/test", b),
   addProvider: (b: ProviderInput & { models: string[]; kinds?: Record<string, ModelKind> }) => api<UserProvider>("POST", "/api/providers", b),
   removeProvider: (id: string) => api("DELETE", `/api/providers/${enc(id)}`),
+  updateProvider: (id: string, b: ProviderPatch) => api<UserProvider>("PATCH", `/api/providers/${enc(id)}`, b),
+  magpieModels: () => api<MagpieChoice>("GET", "/api/providers/magpie/models"),
+  setMagpieModels: (enabled: string[] | null) => api<MagpieChoice>("PUT", "/api/providers/magpie/models", { enabled }),
+  modelCatalog: () => api<CatalogStatus>("GET", "/api/model-catalog"),
+  refreshModelCatalog: () => api<CatalogStatus>("POST", "/api/model-catalog/refresh"),
+  setModelCatalog: (b: { sources: string[]; autoRefresh: boolean }) => api<CatalogStatus>("PUT", "/api/model-catalog/settings", b),
   updateChannel: (id: string, b: { title?: string; folder?: string; handoverConfirm?: boolean }) => api<ChannelView>("PATCH", `/api/channels/${enc(id)}`, b),
   deleteChannel: (id: string) => api("DELETE", `/api/channels/${enc(id)}`),
   createFolder: (name: string) => api<{ name: string }>("POST", "/api/folders", { name }),
@@ -1090,10 +1108,40 @@ export interface UserProvider {
   baseURL?: string;
   keyRef?: string;
   models?: string[];
+  kinds?: Record<string, ModelKind>;
   icon?: string;
   masked?: string;
   active: boolean;
   error?: string;
+}
+
+/** PATCH /api/providers/{id}: omitted fields stay; a blank apiKey keeps the stored key. */
+export interface ProviderPatch {
+  name?: string;
+  icon?: string;
+  baseURL?: string;
+  apiKey?: string;
+  models?: string[];
+  kinds?: Record<string, ModelKind>;
+}
+
+/** GET /api/providers/magpie/models */
+export interface MagpieChoice {
+  running: boolean;
+  models: ModelInfo[];
+  /** null = every model magpie lists */
+  enabled: string[] | null;
+}
+
+/** GET /api/model-catalog */
+export interface CatalogStatus {
+  settings: { sources: string[]; autoRefresh: boolean };
+  sources: { url: string; format?: string; fetched?: string; models: number; origin: "remote" | "embedded" | ""; error?: string }[];
+  models: number;
+  updated: string;
+  refreshing: boolean;
+  lastAttempt?: string;
+  embeddedAt?: string;
 }
 
 export interface ProviderInput {
