@@ -8,7 +8,9 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/egoist/mygo"
 	"github.com/hedeqiang/crewbase/capabilities/notify"
+	"github.com/hedeqiang/crewbase/kernel"
 )
 
 func newTestDaemon(t *testing.T, h http.Handler) *daemon {
@@ -109,4 +111,23 @@ func TestPreloadScript(t *testing.T) {
 			t.Errorf("preload lacks %q", want)
 		}
 	}
+}
+
+// After an update is installed, quitting closes agents in place instead of
+// deferring the quit: a deferred (prevented) quit drops the updater's
+// relaunch, and the app would quit without coming back.
+func TestQuitAfterUpdateIsNotDeferred(t *testing.T) {
+	h := kernel.NewHost(nil)
+	s := &shell{}
+	s.d = &daemon{host: h}
+	s.updateInstalled.Store(true)
+	e := &mygo.QuitEvent{}
+	s.beforeQuit(e)
+	if e.DefaultPrevented() {
+		t.Fatal("quit was deferred: the relaunch into the update would be lost")
+	}
+	if !s.d.closed.Load() {
+		t.Fatal("agents must be stopped before the quit goes on")
+	}
+
 }

@@ -59,8 +59,11 @@ type shell struct {
 	pending int // len(needs), for the badge
 
 	webBadge atomic.Int64 // window.crewbaseDesktop.setBadge
-	quitting atomic.Bool  // a quit started (OnBeforeQuit)
-	hidden   bool         // opened at login: stay hidden until asked
+	// updateInstalled: an update is staged; quitting must not be deferred
+	// (see beforeQuit)
+	updateInstalled atomic.Bool
+	quitting        atomic.Bool // a quit started (OnBeforeQuit)
+	hidden          bool        // opened at login: stay hidden until asked
 }
 
 func main() {
@@ -108,6 +111,7 @@ func main() {
 		}
 	})
 	mygo.App.OnBeforeQuit(s.beforeQuit)
+	updater.OnInstalled(func() { s.updateInstalled.Store(true) })
 	mygo.App.OnQuit(func() {
 		// Last resort (e.g. a second Ctrl+C): never leave agents running.
 		if d := s.daemon(); d != nil {
@@ -309,8 +313,15 @@ func (s *shell) beforeQuit(e *mygo.QuitEvent) {
 	if d == nil || d.attached() || !d.stopping.CompareAndSwap(false, true) {
 		return // nothing to stop, or already stopping: let the quit go on
 	}
-	if e.SessionEnding { // logout/shutdown: must finish synchronously
-		d.closeHost()
+	// logout/shutdown must finish synchronously. So must a quit after an
+	// update was installed: the updater's "Relaunch Now" quits through
+	// here, and a quit that is prevented (to stop agents in the background)
+	// drops the relaunch, so the app quit and never came back.
+	if e.SessionEnding || s.updateInstalled.Load() {
+		if win := s.window(); win != nil {
+			win.Hide()
+		}
+		closeWithin(d, 15*time.Second)
 		return
 	}
 	e.PreventDefault()
@@ -318,15 +329,20 @@ func (s *shell) beforeQuit(e *mygo.QuitEvent) {
 		win.Hide()
 	}
 	go func() {
-		done := make(chan struct{})
-		go func() { d.closeHost(); close(done) }()
-		select {
-		case <-done:
-		case <-time.After(15 * time.Second):
-			slog.Warn("desktop: host close timed out; quitting anyway")
-		}
+		closeWithin(d, 15*time.Second)
 		mygo.App.Quit()
 	}()
+}
+
+// closeWithin stops the in-process host, giving up after d.
+func closeWithin(dm *daemon, d time.Duration) {
+	done := make(chan struct{})
+	go func() { dm.closeHost(); close(done) }()
+	select {
+	case <-done:
+	case <-time.After(d):
+		slog.Warn("desktop: host close timed out; quitting anyway")
+	}
 }
 
 func (s *shell) setDockMenu() {
