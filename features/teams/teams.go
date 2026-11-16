@@ -79,7 +79,8 @@ type Team struct {
 type View struct {
 	Team
 	Default  bool `json:"default"`
-	Agents   int  `json:"agents"`
+	Agents   int  `json:"agents"` // agents, not counting blank chats
+	Chats    int  `json:"chats"`
 	Channels int  `json:"channels"`
 	// For the person asking: their role ("" = not in it), whether they may
 	// act in it and manage it.
@@ -323,11 +324,16 @@ func (s *Service) Update(id string, in Input) (View, error) {
 	return s.view(nt), nil
 }
 
-// count returns the agents and channels of a team.
-func (s *Service) count(id string) (agents, channels int) {
+// count returns the agents, blank chats and channels of a team.
+func (s *Service) count(id string) (agents, chats, channels int) {
 	for _, a := range s.agents.List() {
 		sp := a.Spec()
-		if !sp.Ephemeral && sp.TeamID() == id {
+		if sp.Ephemeral || sp.TeamID() != id {
+			continue
+		}
+		if sp.Kind == agent.KindChat {
+			chats++
+		} else {
 			agents++
 		}
 	}
@@ -340,8 +346,8 @@ func (s *Service) count(id string) (agents, channels int) {
 }
 
 func (s *Service) view(t Team) View {
-	a, c := s.count(t.ID)
-	return View{Team: t, Default: t.ID == agent.DefaultTeam, Agents: a, Channels: c}
+	a, ch, c := s.count(t.ID)
+	return View{Team: t, Default: t.ID == agent.DefaultTeam, Agents: a, Chats: ch, Channels: c}
 }
 
 // List returns the teams, the default first.
@@ -373,7 +379,7 @@ func (s *Service) Delete(id string) error {
 	if !s.Exists(id) {
 		return os.ErrNotExist
 	}
-	if a, c := s.count(id); a > 0 || c > 0 {
+	if a, ch, c := s.count(id); a > 0 || ch > 0 || c > 0 {
 		return fmt.Errorf("这个团队里还有 %d 个 Agent、%d 个频道，先把它们移走或删除", a, c)
 	}
 	s.mu.Lock()

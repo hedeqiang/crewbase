@@ -123,7 +123,7 @@ function TeamCard({
   };
   const remove = async () => {
     more.close();
-    if (tm.agents || tm.channels) return toast(t("teams.notEmpty", { name: tm.name }));
+    if (tm.agents || tm.chats || tm.channels) return toast(t("teams.notEmpty", { name: tm.name }));
     if (await confirmDialog(t("teams.deleteConfirm", { name: tm.name })))
       void run(async () => {
         await API.deleteTeam(tm.id);

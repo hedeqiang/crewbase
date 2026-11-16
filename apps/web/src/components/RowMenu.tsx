@@ -2,7 +2,7 @@ import { Archive, Bot, Check, FolderInput, FolderMinus, Hash, MessageSquare, Mor
 import { useEffect, useRef, useState, type MouseEvent, type ReactNode } from "react";
 import { API, type AgentView, type SessionMeta } from "../api";
 import { t } from "../i18n";
-import { getState, newChat, openNewAgent, openNewChannel, resync, setState, toast, useFolders, useStore } from "../store";
+import { getState, isChat, newChat, openNewAgent, openNewChannel, resync, setState, toast, useFolders, useStore } from "../store";
 import { teamOf } from "../api";
 import { Avatar } from "./Avatar";
 
@@ -133,7 +133,7 @@ export function RowMenuHost() {
                 }),
               )}
             <div className="msep" />
-            {item(<Trash2 size={15} />, tg.kind === "agent" ? t("rm.deleteAgent") : t("rm.deleteChannel"), () => setDialog({ kind: "delete", target: tg }), true)}
+            {item(<Trash2 size={15} />, tg.kind === "agent" ? (isChat(tg.agent) ? t("rm.deleteChat") : t("rm.deleteAgent")) : t("rm.deleteChannel"), () => setDialog({ kind: "delete", target: tg }), true)}
           </>
         )}
       </div>
@@ -283,7 +283,7 @@ function RowDialog({ d, folders, onClose }: { d: { kind: DialogKind; target: Tar
       if (tg.kind === "agent") {
         await API.deleteAgent(tg.agent.id);
         if (getState().current === tg.agent.session) setState({ current: null });
-        return t("rm.deletedAgent", { name: tg.agent.name });
+        return isChat(tg.agent) ? t("rm.deletedChat") : t("rm.deletedAgent", { name: tg.agent.name });
       }
       if (tg.kind === "channel") {
         await API.deleteChannel(tg.meta.id);
@@ -307,7 +307,9 @@ function RowDialog({ d, folders, onClose }: { d: { kind: DialogKind; target: Tar
       : d.kind === "move"
         ? t("rm.moveTitle", { name: nameOf(tg) })
         : tg.kind === "agent"
-          ? t("rm.deleteAgentQ", { name: nameOf(tg) })
+          ? isChat(tg.agent)
+            ? t("rm.deleteChatQ")
+            : t("rm.deleteAgentQ", { name: nameOf(tg) })
           : tg.kind === "channel"
             ? t("rm.deleteChannelQ", { name: nameOf(tg) })
             : t("rm.dissolveQ", { name: nameOf(tg) });
@@ -316,7 +318,9 @@ function RowDialog({ d, folders, onClose }: { d: { kind: DialogKind; target: Tar
     d.kind !== "delete"
       ? ""
       : tg.kind === "agent"
-        ? t("rm.deleteAgentNote")
+        ? isChat(tg.agent)
+          ? t("rm.deleteChatNote")
+          : t("rm.deleteAgentNote")
         : tg.kind === "channel"
           ? t("rm.deleteChannelNote")
           : t("rm.dissolveNote");

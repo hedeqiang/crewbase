@@ -441,8 +441,8 @@ export async function newChat(folder?: string) {
       (a.folder ?? "") === (folder ?? "") &&
       a.status !== "running" &&
       a.queue.length === 0 &&
-      state.summaries[a.session] !== undefined &&
-      !state.summaries[a.session].last,
+      // no summary yet means nothing was said in it
+      !state.summaries[a.session]?.last,
   );
   if (blank) {
     setState({ palette: false });

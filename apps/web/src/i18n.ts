@@ -441,6 +441,10 @@ const zh = {
   "rm.folderPh": "文件夹名（留空移到顶层）",
   "rm.archive": "归档频道",
   "rm.archived": "已归档「{name}」",
+  "rm.deleteChat": "删除对话…",
+  "rm.deleteChatQ": "删除这个对话？",
+  "rm.deleteChatNote": "会停止它正在做的事，并从列表移除。记录保留在本机。",
+  "rm.deletedChat": "已删除对话",
   "rm.deleteAgent": "删除 Agent…",
   "rm.deleteChannel": "删除频道…",
   "rm.dissolve": "解散文件夹…",
@@ -1159,6 +1163,7 @@ const zh = {
   "time.today": "今天",
   "time.yesterday": "昨天",
 
+  "list.chats": "对话",
   "list.agents": "Agent",
   "list.newChannelDesc": "多个 Agent 协作，一个负责人",
 

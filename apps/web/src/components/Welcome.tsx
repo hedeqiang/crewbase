@@ -16,7 +16,9 @@ export function Welcome({ onTemplate }: { onTemplate: (d: Partial<Draft>) => voi
   const agents = useStore((s) => s.agents);
   const models = useStore((s) => s.models);
   const name = useStore((s) => s.profile.displayName);
-  const first = Object.keys(agents).length === 0;
+  // blank chats are not a crew yet: the welcome (with templates) stays
+  // until the first real agent exists
+  const first = !Object.values(agents).some((a) => a.kind !== "chat");
   const [page, setPage] = useState(0);
   const [cat, setCat] = useState<TemplateCat | "">("");
 

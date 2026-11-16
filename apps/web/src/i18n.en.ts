@@ -587,6 +587,7 @@ export const en: Partial<Record<Key, string>> = {
   "theme.dark": "Dark",
   "pal.placeholder": "Jump to a channel, agent, page, or type a command…",
 
+  "list.chats": "Chats",
   "list.agents": "Agents",
   "list.newChannel": "New channel",
   "nc.name": "Channel name",
@@ -1283,6 +1284,10 @@ export const en: Partial<Record<Key, string>> = {
   "prof.top": "Most active members",
   "rm.archive": "Archive channel",
   "rm.archived": "Archived \"{name}\"",
+  "rm.deleteChat": "Delete chat…",
+  "rm.deleteChatQ": "Delete this chat?",
+  "rm.deleteChatNote": "Stops what it is doing and removes it from the list. The record stays on this computer.",
+  "rm.deletedChat": "Chat deleted",
   "rm.deleteAgent": "Delete agent…",
   "rm.deleteAgentNote": "This stops what it is doing and removes the agent. Its working folder moves to the trash area (workspaces/.deleted-…) and is not wiped right away; chat history stays on the host.",
   "rm.deleteAgentQ": "Delete agent \"{name}\"?",

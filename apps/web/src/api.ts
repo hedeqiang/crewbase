@@ -89,6 +89,8 @@ export interface TeamView {
   created: string;
   default: boolean;
   agents: number;
+  /** blank chats (not counted in agents) */
+  chats?: number;
   channels: number;
   defaultMode?: "" | "read-only" | "sandbox";
   tokens: number;

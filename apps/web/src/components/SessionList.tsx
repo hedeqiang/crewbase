@@ -229,7 +229,10 @@ export function SessionList() {
           </>
         )}
         {groups.map(([folder, g]) => {
-          const both = !folder && g.channels.length > 0 && g.agents.length > 0;
+          // blank chats are conversations, not team members: their own section
+          const crew = g.agents.filter((a) => !isChat(a));
+          const chats = g.agents.filter((a) => isChat(a));
+          const both = !folder && [g.channels.length, crew.length, chats.length].filter((n) => n > 0).length > 1;
           return (
             <div key={folder || "_"} className="lgrp">
               {folder && (
@@ -253,13 +256,20 @@ export function SessionList() {
                 </div>
               )}
               {!folded[folder] && g.channels.map(channelRow)}
-              {both && (
+              {both && crew.length > 0 && (
                 <div className="lsec">
                   <span>{t("list.agents")}</span>
-                  <span className="cnt">{g.agents.length}</span>
+                  <span className="cnt">{crew.length}</span>
                 </div>
               )}
-              {!folded[folder] && g.agents.map(agentRow)}
+              {!folded[folder] && (folder ? g.agents : crew).map(agentRow)}
+              {!folder && both && chats.length > 0 && (
+                <div className="lsec">
+                  <span>{t("list.chats")}</span>
+                  <span className="cnt">{chats.length}</span>
+                </div>
+              )}
+              {!folder && !folded[folder] && chats.map(agentRow)}
               {folder && !folded[folder] && g.agents.length + g.channels.length === 0 && (
                 <div className="lfempty">
                   <span>{t("list.emptyFolder")}</span>
