@@ -2,11 +2,15 @@ package providers_test
 
 import (
 	"context"
+	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/hedeqiang/crewbase/capabilities/credentials"
 	"github.com/hedeqiang/crewbase/core/llm"
@@ -92,5 +96,54 @@ func TestUpdate(t *testing.T) {
 	b, _ := os.ReadFile(filepath.Join(dir, "providers.json"))
 	if !strings.Contains(string(b), `"my-manual-id": "video"`) || strings.Contains(string(b), "sk-other") {
 		t.Fatalf("%s", b)
+	}
+}
+
+// The context window a provider's listing reports for a chosen model is
+// recorded when it is added, and is what the model reports afterwards
+// (the catalog only fills in models the provider says nothing about).
+func TestProviderWindowsWin(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if strings.HasSuffix(r.URL.Path, "/models") {
+			fmt.Fprint(w, `{"object":"list","data":[{"id":"gw/fast","object":"model","context_length":272000},{"id":"gw/plain","object":"model"}]}`)
+			return
+		}
+		w.WriteHeader(404)
+	}))
+	defer srv.Close()
+	_, s, reg, _ := setup(t)
+	if _, err := s.Add(providers.Input{ID: "gw", API: "openai", BaseURL: srv.URL, APIKey: secret, Models: []string{"gw/fast", "gw/plain"}}); err != nil {
+		t.Fatal(err)
+	}
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		p, _ := s.Get("gw")
+		if p.Windows["gw/fast"] == 272000 {
+			if _, ok := p.Windows["gw/plain"]; ok {
+				t.Fatalf("a window the provider did not report was recorded: %v", p.Windows)
+			}
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("windows not recorded: %+v", p.Windows)
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	deadline = time.Now().Add(5 * time.Second)
+	for {
+		ad, ok := reg.Get("gw")
+		if ok {
+			ms, _ := ad.Models(context.Background())
+			for _, m := range ms {
+				if m.ID == "gw/fast" && m.ContextWindow == 272000 && !m.ContextEstimated {
+					return
+				}
+			}
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("the adapter does not report the provider's window")
+		}
+		time.Sleep(20 * time.Millisecond)
 	}
 }

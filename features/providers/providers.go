@@ -13,6 +13,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -57,6 +58,10 @@ type Provider struct {
 	// Icon is a vendor icon key, "mono" for a letter tile, "" = auto.
 	Icon    string    `json:"icon,omitempty"`
 	Created time.Time `json:"created"`
+	// Windows are the context windows the provider's own listing reported
+	// for its chosen models (recorded when it is added or edited): what the
+	// provider says wins over the model catalog, which only fills gaps.
+	Windows map[string]int `json:"windows,omitempty"`
 }
 
 // Preset is a known provider offered in the add dialog.
@@ -146,7 +151,7 @@ func (s *Service) adapter(ctx *kernel.Context, p Provider) (llm.Adapter, error) 
 			pc.Preset = p.Preset
 		}
 		for _, m := range p.Models {
-			pc.Models = append(pc.Models, openai.ModelSpec{ID: m, Kind: p.Kinds[m]})
+			pc.Models = append(pc.Models, openai.ModelSpec{ID: m, Kind: p.Kinds[m], ContextWindow: p.Windows[m]})
 		}
 		return openai.New(ctx, pc)
 	}
@@ -390,7 +395,63 @@ func (s *Service) Add(in Input) (Provider, error) {
 	if err := s.save(); err != nil {
 		return p, err
 	}
-	return p, s.mount(p)
+	if err := s.mount(p); err != nil {
+		return p, err
+	}
+	s.learnWindows(p.ID)
+	return p, nil
+}
+
+// learnWindows records, in the background, the context windows the
+// provider's listing reports for its chosen models (OpenAI-compatible APIs
+// report them; a guessed or missing window is not recorded, the catalog
+// fills it). A failure changes nothing.
+func (s *Service) learnWindows(id string) {
+	s.c.Go(func(ctx context.Context) {
+		p, ok := s.Get(id)
+		if !ok || p.API == APIAnthropic || p.API == APIGemini || len(p.Models) == 0 {
+			return
+		}
+		tctx := s.c.Fork("")
+		defer tctx.Dispose()
+		ad, err := s.adapter(tctx, Provider{ID: p.ID, API: p.API, Preset: p.Preset, BaseURL: p.BaseURL, KeyRef: p.KeyRef})
+		if err != nil {
+			return
+		}
+		f, ok := ad.(interface {
+			FetchModels(context.Context) ([]llm.ModelInfo, error)
+		})
+		if !ok {
+			return
+		}
+		lctx, cancel := context.WithTimeout(ctx, 20*time.Second)
+		defer cancel()
+		ms, err := f.FetchModels(lctx)
+		if err != nil {
+			return
+		}
+		got := map[string]int{}
+		for _, m := range ms {
+			if m.ContextWindow > 0 && !m.ContextEstimated && slices.Contains(p.Models, m.ID) {
+				got[m.ID] = m.ContextWindow
+			}
+		}
+		s.mu.Lock()
+		cur, ok := s.items[id]
+		if !ok || maps.Equal(cur.Windows, got) || (len(got) == 0 && len(cur.Windows) == 0) {
+			s.mu.Unlock()
+			return
+		}
+		if len(got) == 0 {
+			got = nil
+		}
+		cur.Windows = got
+		s.items[id] = cur
+		s.mu.Unlock()
+		if s.save() == nil {
+			_ = s.mount(cur)
+		}
+	})
 }
 
 // Patch edits an added provider; nil fields are left as they are.
@@ -471,7 +532,11 @@ func (s *Service) Update(id string, pt Patch) (Provider, error) {
 	if err := s.save(); err != nil {
 		return p, err
 	}
-	return p, s.mount(p)
+	if err := s.mount(p); err != nil {
+		return p, err
+	}
+	s.learnWindows(p.ID)
+	return p, nil
 }
 
 var errNotFound = errors.New("provider not found")
