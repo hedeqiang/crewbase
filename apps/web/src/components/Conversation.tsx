@@ -347,6 +347,100 @@ function Superseded({ rw, rows, agents }: { rw: Rewind; rows: FeedItem[]; agents
   );
 }
 
+/** Rows of one feed run, grouped as the feed renders them. */
+function Rows({ items, agents }: { items: FeedItem[]; agents: Record<string, AgentView> }) {
+  return (
+    <>
+      {groupFeed(items).map((g) =>
+        g.sys ? (
+          <div className="sysgrp" key={g.items[0].it.id}>
+            {g.items.map((x) => (
+              <FeedRow key={x.it.id} it={x.it} agents={agents} />
+            ))}
+          </div>
+        ) : (
+          g.items.map((x) => <FeedRow key={x.it.id} it={x.it} agents={agents} showModel={x.showModel} before={x.before} after={x.after} />)
+        ),
+      )}
+    </>
+  );
+}
+
+/** The leading turn of a run: its user messages and what answered them,
+ *  up to the next user message after a reply. */
+function leadTurn(items: FeedItem[]): number {
+  let replied = false;
+  for (let i = 0; i < items.length; i++) {
+    const k = items[i].k;
+    if (k === "user" && replied) return i;
+    if (k === "agent") replied = true;
+  }
+  return items.length;
+}
+
+/** Answers to the same message after 重新生成: the one the model sees
+ *  (last) and the earlier ones, switched with ‹ n/m ›. */
+function Versions({ older, current, agents }: { older: FeedItem[][]; current: FeedItem[]; agents: Record<string, AgentView> }) {
+  const all = [...older, current];
+  const [i, setI] = useState(all.length - 1);
+  const at = Math.min(i, all.length - 1);
+  const live = at === all.length - 1;
+  const shown = all[at];
+  // the question once (from the shown version), then its answer
+  const q = shown.filter((x) => x.k === "user" || x.k === "time");
+  const a = shown.filter((x) => x.k !== "user" && x.k !== "time");
+  return (
+    <div className={"versions" + (live ? "" : " old")}>
+      <Rows items={q} agents={agents} />
+      {live ? (
+        <Rows items={a} agents={agents} />
+      ) : (
+        <div className="supbody">
+          <MsgCtx.Provider value={null}>
+            <Rows items={a} agents={agents} />
+          </MsgCtx.Provider>
+        </div>
+      )}
+      <div className="vswitch" role="group" aria-label={t("msg.versions")}>
+        <button type="button" className="ib" aria-label={t("msg.prevVersion")} disabled={at === 0} onClick={() => setI(at - 1)}>
+          <ChevronLeft size={13} />
+        </button>
+        <span>{t("msg.versionOf", { n: at + 1, m: all.length })}</span>
+        <button type="button" className="ib" aria-label={t("msg.nextVersion")} disabled={live} onClick={() => setI(at + 1)}>
+          <ChevronRight size={13} />
+        </button>
+        {!live && <span className="muted">· {t("msg.oldVersion")}</span>}
+      </div>
+    </div>
+  );
+}
+
+/** Segments as rendered: runs of regenerated answers followed by the one
+ *  the model sees become versions; other runs stay as they are. */
+type Block = { kind: "rows"; items: FeedItem[] } | { kind: "sup"; rw: Rewind; items: FeedItem[] } | { kind: "versions"; older: FeedItem[][]; current: FeedItem[] };
+function blocks(items: FeedItem[]): Block[] {
+  const segs = segments(items);
+  const out: Block[] = [];
+  for (let i = 0; i < segs.length; i++) {
+    const s = segs[i];
+    if (s.sup?.reason === "regenerate") {
+      const older: FeedItem[][] = [];
+      let j = i;
+      while (j < segs.length && segs[j].sup?.reason === "regenerate") older.push(segs[j++].items);
+      const next = segs[j];
+      if (next && !next.sup && older.every((o) => o.some((x) => x.k === "agent"))) {
+        const n = leadTurn(next.items);
+        out.push({ kind: "versions", older, current: next.items.slice(0, n) });
+        if (n < next.items.length) out.push({ kind: "rows", items: next.items.slice(n) });
+        i = j;
+        continue;
+      }
+    }
+    out.push(s.sup ? { kind: "sup", rw: s.sup, items: s.items } : { kind: "rows", items: s.items });
+  }
+  return out;
+}
+
 /** The feed split into runs the model still sees and runs it does not. */
 function segments(items: FeedItem[]): { sup?: Rewind; items: FeedItem[] }[] {
   const out: { sup?: Rewind; items: FeedItem[] }[] = [];
@@ -435,21 +529,13 @@ function Feed({
           <span className="small">{t("ch.emptyDesc", { owner: agents[channel.owner]?.name ?? channel.owner })}</span>
         </div>
       )}
-      {segments(items).map((seg) =>
-        seg.sup ? (
-          <Superseded key={"sup" + seg.items[0].id} rw={seg.sup} rows={seg.items} agents={agents} />
+      {blocks(items).map((b) =>
+        b.kind === "sup" ? (
+          <Superseded key={"sup" + b.items[0].id} rw={b.rw} rows={b.items} agents={agents} />
+        ) : b.kind === "versions" ? (
+          <Versions key={"v" + b.older[0][0].id} older={b.older} current={b.current} agents={agents} />
         ) : (
-          groupFeed(seg.items).map((g) =>
-            g.sys ? (
-              <div className="sysgrp" key={g.items[0].it.id}>
-                {g.items.map((x) => (
-                  <FeedRow key={x.it.id} it={x.it} agents={agents} />
-                ))}
-              </div>
-            ) : (
-              g.items.map((x) => <FeedRow key={x.it.id} it={x.it} agents={agents} showModel={x.showModel} before={x.before} after={x.after} />)
-            ),
-          )
+          <Rows key={"r" + b.items[0].id} items={b.items} agents={agents} />
         ),
       )}
       {live.map(([k, v]) => {
