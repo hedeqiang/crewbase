@@ -116,6 +116,11 @@ type Tool struct {
 	// (e.g. a host-trusted MCP server's process): in read-only mode only
 	// their read / none categories may run, whatever sandbox is loaded.
 	Unconfined bool
+	// Native marks a tool the model reaches through a provider's own tool
+	// (llm.NativeComputer): it runs through this pipeline like any other,
+	// but is not offered as a function schema; adapters declare the
+	// provider tool when the request asks for it (Request.NativeTools).
+	Native bool
 	// Classify optionally derives the category and a human summary from
 	// the arguments (e.g. bash: `git push` → push).
 	Classify func(call Call) (category, summary string)
@@ -276,7 +281,7 @@ func availableIn(t *Tool, kind string) bool {
 func (r *Registry) SchemasFor(agent, kind string) []llm.ToolSchema {
 	var out []llm.ToolSchema
 	for _, t := range r.Visible(agent) {
-		if !availableIn(t, kind) {
+		if t.Native || !availableIn(t, kind) {
 			continue
 		}
 		p := t.Params

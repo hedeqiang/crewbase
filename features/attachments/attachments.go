@@ -289,6 +289,16 @@ func (s *Service) Hydrate(ctx context.Context, workspace string, ad llm.Adapter,
 	for i := range req.Messages {
 		for j := range req.Messages[i].Parts {
 			p := &req.Messages[i].Parts[j]
+			if r := p.ToolResult; r != nil && len(r.Attachments) > 0 {
+				// images inside a result (native computer screenshots)
+				rc := *r // copy: never write into the projected log
+				rc.Attachments = append([]llm.Attachment(nil), r.Attachments...)
+				for k := range rc.Attachments {
+					s.fill(ctx, workspace, fa, model, &rc.Attachments[k])
+				}
+				p.ToolResult = &rc
+				continue
+			}
 			if p.Type != llm.PartAttachment || p.Attachment == nil {
 				continue
 			}

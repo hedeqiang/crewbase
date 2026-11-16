@@ -216,3 +216,33 @@ func TestDeriveMessagesToolImages(t *testing.T) {
 		t.Fatalf("want c1 and c2 after pruning c3, got %d", n)
 	}
 }
+
+// A native computer call keeps its screenshot inside the result (the
+// adapter places it there); older ones lose it like any tool image.
+func TestDeriveMessagesNativeComputerImages(t *testing.T) {
+	st, _ := NewStore(nil, "")
+	ss, _ := st.Create(Meta{Kind: "agent"})
+	ss.Append(TypeUserMessage, "", UserMessage{Text: "look", To: "kai"})
+	for _, id := range []string{"n1", "n2", "n3"} {
+		tc := llm.ToolCall{ID: id, Name: llm.NativeComputer, Args: json.RawMessage(`{"vendor":"anthropic","action":"screenshot"}`)}
+		ss.Append(TypeAssistantMessage, "kai", AssistantMessage{Message: llm.Message{Role: llm.RoleAssistant, Parts: []llm.Part{{Type: "tool_call", ToolCall: &tc}}}})
+		ss.Append(TypeToolResult, "kai", llm.ToolResult{CallID: id, Name: llm.NativeComputer, Content: "OK", Attachments: []llm.Attachment{{Path: "generated/" + id + ".png", Mime: "image/png"}}})
+	}
+	msgs := DeriveMessages(ss.Events(), "kai", nil)
+	var kept []string
+	for _, m := range msgs {
+		for _, p := range m.Parts {
+			if p.Type == llm.PartAttachment {
+				t.Fatal("native screenshot moved to a user message")
+			}
+			if p.Type == "tool_result" {
+				for _, at := range p.ToolResult.Attachments {
+					kept = append(kept, at.Path)
+				}
+			}
+		}
+	}
+	if strings.Join(kept, ",") != "generated/n2.png,generated/n3.png" {
+		t.Fatalf("kept: %v", kept)
+	}
+}
