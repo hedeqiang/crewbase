@@ -4,7 +4,7 @@
 // provider (server, web, non-macOS) the API is absent and the page says so.
 
 import { Hand, MonitorOff, ShieldCheck } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import { API, ApiError, desktop, type ComputerOverview, type ComputerPerm, type DesktopPermission } from "../../api";
 import { t, type Key } from "../../i18n";
 import { toast, useStore } from "../../store";
@@ -255,27 +255,30 @@ function BlockTable({ ov, run }: { ov: ComputerOverview; run: (p: Promise<Comput
         ))}
         {GROUPS.map((g) => {
           const rows = ov.blocks.default.filter((b) => b.group === g);
-          const off = rows.filter((b) => !b.blocked);
-          if (!open && off.length === 0)
-            return (
-              <Row key={g} title={t(`cu.group.${g}` as Key)} desc={rows.map((b) => b.name).join("、")}>
-                <span className="pill sm">{t("cu.blockedDefault")}</span>
-              </Row>
-            );
-          return rows
-            .filter((b) => open || !b.blocked)
-            .map((b) => (
-              <Row key={b.key} title={b.name} desc={t(`cu.group.${g}` as Key) + (b.id ? " · " + b.id : "")} dim={!b.blocked}>
-                <button
-                  className="tg"
-                  type="button"
-                  role="switch"
-                  aria-checked={b.blocked}
-                  aria-label={t("cu.blockedToggle", { app: b.name })}
-                  onClick={() => void run(API.setComputerBlocked(b.key, !b.blocked))}
-                />
-              </Row>
-            ));
+          const on = rows.filter((b) => b.blocked);
+          // collapsed: one line for what stays blocked, a row for each app let through
+          const summary = !open && on.length > 0 && (
+            <Row title={t(`cu.group.${g}` as Key)} desc={on.map((b) => b.name).join("、")}>
+              <span className="pill sm">{t("cu.blockedDefault")}</span>
+            </Row>
+          );
+          return (
+            <Fragment key={g}>
+              {summary}
+              {(open ? rows : rows.filter((b) => !b.blocked)).map((b) => (
+                <Row key={b.key} title={b.name} desc={t(`cu.group.${g}` as Key) + (b.id ? " · " + b.id : "")} dim={!b.blocked}>
+                  <button
+                    className="tg"
+                    type="button"
+                    role="switch"
+                    aria-checked={b.blocked}
+                    aria-label={t("cu.blockedToggle", { app: b.name })}
+                    onClick={() => void run(API.setComputerBlocked(b.key, !b.blocked))}
+                  />
+                </Row>
+              ))}
+            </Fragment>
+          );
         })}
       </div>
       <p className="small cufoot">
