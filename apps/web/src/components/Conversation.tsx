@@ -166,7 +166,9 @@ function Feed({
         <div className="feedintro">
           <Avatar agent={agent} size={56} />
           <b>{t("chat.empty", { name: agent.name })}</b>
-          <span className="small">{t("chat.emptyDesc", { dir: agent.workspace })}</span>
+          {/* the role says what it is for; a folder only when the person chose one */}
+          {agent.role && agent.kind !== "chat" && <span className="small">{agent.role}</span>}
+          <span className="small">{agent.sharedWorkspace ? t("chat.emptyInDir", { dir: shortPath(agent.sharedWorkspace) }) : t("chat.emptyDesc")}</span>
         </div>
       )}
       {!loading && channel && !items.some((i) => i.k === "user" || i.k === "agent") && (
