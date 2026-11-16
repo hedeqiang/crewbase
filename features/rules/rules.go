@@ -127,6 +127,9 @@ type Engine struct {
 	// ConfirmRemember and may still turn into a remember.
 	armed   map[string]int
 	pending map[string]string // callID → armed key
+	// granted are approvals that hold for the rest of one conversation
+	// (GrantSession): agent\x00session\x00category. In memory only.
+	granted map[string]bool
 }
 
 // Options configure an Engine.
@@ -146,6 +149,7 @@ func New(h *kernel.Host, opts Options) (*Engine, error) {
 		remembered: map[string]map[string]Choice{},
 		armed:      map[string]int{},
 		pending:    map[string]string{},
+		granted:    map[string]bool{},
 	}
 	for cat, v := range opts.Global {
 		if cat == tools.CategoryPayment && v != Block {
@@ -433,6 +437,49 @@ func (e *Engine) Revoke(agent, category string) error {
 
 func armKey(agent, cat string) string { return agent + "\x00" + cat }
 
+func grantKey(agent, session, cat string) string { return agent + "\x00" + session + "\x00" + cat }
+
+// maxGrants bounds the conversation grants kept in memory.
+const maxGrants = 4096
+
+// GrantSession lets agent's calls of category run without asking for the
+// rest of conversation session, the way a person approving "operate 备忘录"
+// once means the next click in 备忘录 need not ask again. It applies only
+// where the category would ask and could be remembered (never Block,
+// payment, or what the enforced layer forbids remembering), and is not
+// persisted.
+func (e *Engine) GrantSession(agent, session, category string) {
+	if agent == "" || session == "" || category == "" || category == tools.CategoryPayment {
+		return
+	}
+	e.mu.Lock()
+	if len(e.granted) >= maxGrants {
+		e.granted = map[string]bool{}
+	}
+	e.granted[grantKey(agent, session, category)] = true
+	e.mu.Unlock()
+}
+
+// SessionGranted reports whether GrantSession holds for the triple.
+func (e *Engine) SessionGranted(agent, session, category string) bool {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	return e.granted[grantKey(agent, session, category)]
+}
+
+// RevokeSessions drops every conversation grant of category (any agent
+// when agent is "").
+func (e *Engine) RevokeSessions(agent, category string) {
+	e.mu.Lock()
+	for k := range e.granted {
+		parts := strings.SplitN(k, "\x00", 3)
+		if len(parts) == 3 && parts[2] == category && (agent == "" || parts[0] == agent) {
+			delete(e.granted, k)
+		}
+	}
+	e.mu.Unlock()
+}
+
 // confirmTwice are the categories remembered only after a second
 // confirmation on the card (irreversible or paid).
 func confirmTwice(cat string) bool {
@@ -505,6 +552,10 @@ func (e *Engine) Middleware(ctx context.Context, d *tools.Decision, next kernel.
 	}
 	e.mu.Lock()
 	r := e.evalLocked(agent, d.Category)
+	if r.verdict == tools.Ask && r.rememberable && agent != "" && d.Call != nil && d.Call.Session != nil &&
+		e.granted[grantKey(agent, d.Call.Session.ID(), d.Category)] {
+		r.verdict, r.reason = tools.Allow, fmt.Sprintf("rules: %s allowed (approved earlier in this conversation)", d.Category)
+	}
 	e.mu.Unlock()
 	shape := func(x *tools.Decision) {
 		if !r.rememberable || r.preRemember != tools.Ask {
