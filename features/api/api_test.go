@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/url"
 	"os"
@@ -333,5 +334,56 @@ func TestResend(t *testing.T) {
 	m := ch.MustAppend(session.TypeUserMessage, "", session.UserMessage{Text: "hi", To: "kai"})
 	if code, _ := do(t, base, tok, "POST", "/api/agents/kai/resend", map[string]any{"session": ch.ID(), "seq": m.Seq}); code != 400 {
 		t.Fatalf("channel: %d", code)
+	}
+}
+
+// A turn that failed without a reply can be retried from its message.
+func TestRetryFailedTurn(t *testing.T) {
+	base, h := start(t)
+	do(t, base, tok, "POST", "/api/agents", map[string]any{"name": "Kai"})
+	a, _ := kernel.Use[*agent.Registry](h.Root(), agent.ServiceKey).Get("kai")
+	llms := kernel.Use[*llm.Registry](h.Root(), llm.ServiceKey)
+	ad, _ := llms.Get("mock")
+	m := ad.(*mock.Adapter)
+	fail := true
+	m.Script = func(req llm.Request) (llm.Response, error) {
+		if fail {
+			return llm.Response{}, errors.New("upstream 500")
+		}
+		return llm.Response{Message: llm.TextMessage(llm.RoleAssistant, "ok now")}, nil
+	}
+	if code, out := do(t, base, tok, "POST", "/api/agents/kai/messages", map[string]any{"text": "summarise"}); code != 200 {
+		t.Fatal(code, out)
+	}
+	agentloop.WaitIdle(a, 5*time.Second)
+	ss, _ := a.Session()
+	var seq int64
+	failed := false
+	for _, e := range ss.Events() {
+		var um session.UserMessage
+		if e.Type == session.TypeUserMessage && e.Decode(&um) == nil && um.Text == "summarise" {
+			seq = e.Seq
+		}
+		if e.Type == "turn/end" && strings.Contains(string(e.Data), `"failed"`) {
+			failed = true
+		}
+	}
+	if seq == 0 || !failed {
+		t.Fatalf("setup: seq %d failed %v", seq, failed)
+	}
+	fail = false
+	if code, out := do(t, base, tok, "POST", "/api/agents/kai/resend", map[string]any{"session": ss.ID(), "seq": seq}); code != 200 {
+		t.Fatal(code, out)
+	}
+	agentloop.WaitIdle(a, 5*time.Second)
+	msgs := session.DeriveMessages(ss.Events(), "kai", nil)
+	n := 0
+	for _, x := range msgs {
+		if x.Role == llm.RoleUser && strings.Contains(x.Text(), "summarise") {
+			n++
+		}
+	}
+	if n != 1 || msgs[len(msgs)-1].Text() != "ok now" {
+		t.Fatalf("model sees %d copies; last %q", n, msgs[len(msgs)-1].Text())
 	}
 }

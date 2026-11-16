@@ -995,6 +995,8 @@ export const en: Partial<Record<Key, string>> = {
   "msg.subTitle": "Uses your subscription; not billed per token",
   "msg.local": "Local",
   "msg.localTitle": "Local model; costs nothing",
+  "msg.retry": "Retry",
+  "msg.retryTitle": "Try the same messages again (you can pick another model in the composer first)",
   "msg.regenerate": "Regenerate",
   "msg.regenerateTitle": "Regenerate: the old answer stays in the record, but the model no longer sees it",
   "msg.edit": "Edit",

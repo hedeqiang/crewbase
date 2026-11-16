@@ -736,6 +736,8 @@ const zh = {
   "msg.subTitle": "走订阅额度，不按 token 计费",
   "msg.local": "本地",
   "msg.localTitle": "本地模型，不产生费用",
+  "msg.retry": "重试",
+  "msg.retryTitle": "用同样的消息再试一次（可以先在输入框换个模型）",
   "msg.regenerate": "重新生成",
   "msg.regenerateTitle": "重新生成：旧回答留在记录里，但模型不再看到它",
   "msg.edit": "编辑",

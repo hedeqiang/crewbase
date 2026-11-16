@@ -641,9 +641,33 @@ function FeedRow({ it, agents, showModel, before, after }: { it: FeedItem; agent
           ) : (
             <span>{it.key ? t(it.key as Key, it.vars) : it.text}</span>
           )}
+          {it.tone === "error" && <RetryButton id={it.id} />}
         </div>
       );
   }
+}
+
+/** 重试 on the error row of the last turn when it failed without a reply:
+ *  resends that turn's messages as they were (like regenerate). */
+function RetryButton({ id }: { id: string }) {
+  const acts = useContext(MsgCtx);
+  const [busy, setBusy] = useState(false);
+  if (!acts || acts.lastTurn?.item !== id || acts.lastTurn.from <= acts.compactedUpto) return null;
+  return (
+    <button
+      className="linkbtn"
+      type="button"
+      disabled={!acts.idle || busy}
+      title={acts.idle ? t("msg.retryTitle") : t("msg.busy", { name: acts.agent.name })}
+      onClick={async () => {
+        setBusy(true);
+        await acts.resend(acts.lastTurn!.from);
+        setBusy(false);
+      }}
+    >
+      {t("msg.retry")}
+    </button>
+  );
 }
 
 /** A subscription CLI's program could not be started (EBADMACHO -88: a

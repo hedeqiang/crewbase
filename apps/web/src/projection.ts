@@ -390,7 +390,12 @@ export function project(events: SessionEvent[], cards?: ReadonlySet<string>): Pr
           turn.last.turnFrom = turn.from;
           if (turn.from !== undefined) lastTurn[ag] = { item: turn.last.id, from: turn.from };
         }
-        if (d.status === "failed") push({ k: "sys", id, tone: "error", text: d.error ?? "", key: "chat.turnFailed", vars: { error: d.error ?? "" } }, e.time);
+        if (d.status === "failed") {
+          push({ k: "sys", id, tone: "error", text: d.error ?? "", key: "chat.turnFailed", vars: { error: d.error ?? "" } }, e.time);
+          // a failed turn can be retried from its first message (when it has
+          // no reply to regenerate, the error row offers it)
+          if (turn?.from !== undefined && !turn.last) lastTurn[ag] = { item: id, from: turn.from };
+        }
         else if (d.status === "cancelled") push({ k: "sys", id, tone: "muted", text: "", key: "chat.turnCancelled" }, e.time);
         break;
       }
