@@ -860,14 +860,46 @@ func writeIfMissing(path, content string) {
 	}
 }
 
-const ephemeralMarker = ".ephemeral"
+// Specs live in <root>/agents, outside every workspace: an agent can write
+// its own workspace, so anything there that is read back as its definition
+// (run mode, models, team, project folder) would let it raise its own
+// permissions. <root>/agents/<id>.json is the spec of a persisted agent,
+// <root>/agents/<id>.ephemeral marks a live sub-agent (its parent id) so a
+// crash leftover is swept at startup.
+const (
+	specDir         = "agents"
+	ephemeralSuffix = ".ephemeral"
+	// legacySpec and legacyEphemeral are where older versions kept them,
+	// inside the workspace; loadAll migrates them.
+	legacySpec      = "agent.json"
+	legacyEphemeral = ".ephemeral"
+)
+
+func (r *Registry) specPath(id string) string {
+	return filepath.Join(r.root, specDir, id+".json")
+}
+
+func (r *Registry) ephemeralPath(id string) string {
+	return filepath.Join(r.root, specDir, id+ephemeralSuffix)
+}
 
 func (r *Registry) persist(s Spec) error {
+	if err := os.MkdirAll(filepath.Join(r.root, specDir), 0o700); err != nil {
+		return err
+	}
 	if s.Ephemeral {
-		return os.WriteFile(filepath.Join(r.root, "workspaces", s.ID, ephemeralMarker), []byte(s.Parent), 0o644)
+		return os.WriteFile(r.ephemeralPath(s.ID), []byte(s.Parent), 0o600)
 	}
 	b, _ := json.MarshalIndent(s, "", "  ")
-	return os.WriteFile(filepath.Join(r.root, "workspaces", s.ID, "agent.json"), b, 0o644)
+	return writeAtomic(r.specPath(s.ID), b)
+}
+
+func writeAtomic(path string, b []byte) error {
+	tmp := path + ".tmp"
+	if err := os.WriteFile(tmp, b, 0o600); err != nil {
+		return err
+	}
+	return os.Rename(tmp, path)
 }
 
 // Get returns a published agent.
@@ -956,30 +988,36 @@ func (r *Registry) Delete(id string) error {
 	ws := a.ownDir()
 	if a.Spec().Ephemeral {
 		_ = os.RemoveAll(ws)
+		_ = os.Remove(r.ephemeralPath(id))
 	} else {
-		_ = os.Rename(ws, filepath.Join(r.root, "workspaces", fmt.Sprintf(".deleted-%s-%d", id, time.Now().Unix())))
+		// the spec is archived with the workspace (nothing loads it there)
+		archive := filepath.Join(r.root, "workspaces", fmt.Sprintf(".deleted-%s-%d", id, time.Now().Unix()))
+		if os.Rename(ws, archive) == nil {
+			_ = os.Rename(r.specPath(id), filepath.Join(archive, legacySpec))
+		}
+		_ = os.Remove(r.specPath(id))
 	}
 	Deleted.Emit(r.c, id)
 	return nil
 }
 
 func (r *Registry) loadAll() {
+	_ = os.MkdirAll(filepath.Join(r.root, specDir), 0o700)
+	// Ephemeral agents left behind by a crash are swept.
+	files, _ := os.ReadDir(filepath.Join(r.root, specDir))
+	for _, f := range files {
+		if id, ok := strings.CutSuffix(f.Name(), ephemeralSuffix); ok && validID(id) {
+			_ = os.RemoveAll(filepath.Join(r.root, "workspaces", id))
+			_ = os.Remove(filepath.Join(r.root, specDir, f.Name()))
+		}
+	}
 	dirs, _ := os.ReadDir(filepath.Join(r.root, "workspaces"))
 	for _, d := range dirs {
 		if !d.IsDir() || strings.HasPrefix(d.Name(), ".") {
 			continue
 		}
-		// Ephemeral agents left behind by a crash are swept.
-		if _, err := os.Stat(filepath.Join(r.root, "workspaces", d.Name(), ephemeralMarker)); err == nil {
-			_ = os.RemoveAll(filepath.Join(r.root, "workspaces", d.Name()))
-			continue
-		}
-		b, err := os.ReadFile(filepath.Join(r.root, "workspaces", d.Name(), "agent.json"))
-		if err != nil {
-			continue
-		}
-		var s Spec
-		if json.Unmarshal(b, &s) != nil || s.ID == "" {
+		s, ok := r.loadSpec(d.Name())
+		if !ok {
 			continue
 		}
 		r.mu.Lock()
@@ -989,6 +1027,72 @@ func (r *Registry) loadAll() {
 			r.c.Log().Warn("restore agent failed", "agent", s.ID, "err", err)
 		}
 	}
+}
+
+// validID reports whether id names a single path element.
+func validID(id string) bool {
+	return id != "" && id != "." && id != ".." && !strings.ContainsAny(id, `/\`)
+}
+
+// loadSpec reads the spec of the agent whose workspace is
+// workspaces/<id>, migrating one kept in the workspace by older versions.
+func (r *Registry) loadSpec(id string) (Spec, bool) {
+	var s Spec
+	if b, err := os.ReadFile(r.specPath(id)); err == nil {
+		if json.Unmarshal(b, &s) != nil || s.ID != id {
+			r.c.Log().Warn("agent spec unreadable", "agent", id)
+			return Spec{}, false
+		}
+		s.Ephemeral = false // ephemeral agents are never persisted
+		return s, true
+	}
+	ws := filepath.Join(r.root, "workspaces", id)
+	legacy := filepath.Join(ws, legacySpec)
+	b, err := os.ReadFile(legacy)
+	if err != nil {
+		// a sub-agent workspace left by an older version's crash
+		if _, err := os.Stat(filepath.Join(ws, legacyEphemeral)); err == nil {
+			_ = os.RemoveAll(ws)
+		}
+		return Spec{}, false
+	}
+	if json.Unmarshal(b, &s) != nil || s.ID == "" {
+		return Spec{}, false
+	}
+	s = r.distrustLegacy(id, s)
+	if err := r.persist(s); err != nil {
+		r.c.Log().Warn("agent spec migration failed", "agent", id, "err", err)
+		return s, true // keep the old file; try again next start
+	}
+	_ = os.Remove(legacy)
+	_ = os.Remove(filepath.Join(ws, legacyEphemeral)) // stray marker of a persisted agent
+	return s, true
+}
+
+// distrustLegacy resets what an agent could have granted itself by editing
+// a spec kept in its own (writable) workspace: host mode (only a person
+// grants it, for 24h, through Update), a project folder outside the checks
+// of ProjectDir, the ephemeral flag (lets SharedWorkspace skip them) and
+// its id.
+func (r *Registry) distrustLegacy(id string, s Spec) Spec {
+	s.ID = id
+	s.Ephemeral, s.Parent = false, ""
+	if s.Mode == ModeHost {
+		r.c.Log().Warn("agent spec migrated: host mode reset to sandbox, grant it again if needed", "agent", id)
+	}
+	s.ModeUntil = time.Time{}
+	if s.Mode != ModeReadOnly {
+		s.Mode = ModeSandbox
+	}
+	if s.SharedWorkspace != "" {
+		dir, err := r.ProjectDir(s.SharedWorkspace)
+		if err != nil {
+			r.c.Log().Warn("agent spec migrated: project folder dropped", "agent", id, "err", err)
+			dir = ""
+		}
+		s.SharedWorkspace = dir
+	}
+	return s
 }
 
 // Config of the agents plugin.
