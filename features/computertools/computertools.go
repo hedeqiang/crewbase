@@ -129,6 +129,9 @@ type Live struct {
 	// Paused: waiting for the person to stop using the keyboard / mouse.
 	Paused bool      `json:"paused,omitempty"`
 	Since  time.Time `json:"since"`
+	// Window is the target window on screen (points, from the agent's
+	// latest observation), for the desktop shell's border; nil = unknown.
+	Window *computer.Rect `json:"window,omitempty"`
 }
 
 // State is what the desktop shell needs for its indicator: who operates
@@ -494,6 +497,10 @@ func (s *Service) setLive(l Live) {
 		l.Since = cur.Since
 	} else {
 		l.Since = time.Now().UTC()
+	}
+	if o := s.obs[l.Agent][l.App]; l.Window == nil && o != nil && o.Window.Frame.W > 0 {
+		f := o.Window.Frame
+		l.Window = &f
 	}
 	s.live[l.Agent] = l
 	s.mu.Unlock()

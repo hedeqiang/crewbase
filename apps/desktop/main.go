@@ -59,6 +59,7 @@ type shell struct {
 	pending int // len(needs), for the badge
 
 	webBadge atomic.Int64 // window.crewbaseDesktop.setBadge
+	cu       *computerUI  // computer-use indicator, border and hotkey
 	// updateInstalled: an update is staged; quitting must not be deferred
 	// (see beforeQuit)
 	updateInstalled atomic.Bool
@@ -191,6 +192,7 @@ func (s *shell) boot() {
 	mygo.RunOnMain(s.newWindow)
 	go s.watchNeeds(d)
 	go s.showNotifications(d)
+	s.watchComputer(d)
 }
 
 // newWindow runs on the main thread, so its listeners are in place before

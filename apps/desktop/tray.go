@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"runtime"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/egoist/mygo"
@@ -85,7 +86,14 @@ func (s *shell) trayMenu(needs []need) *mygo.Menu {
 	if len(sub) == 0 {
 		sub = []*mygo.MenuItem{{Label: tr("needsNone"), Disabled: true}}
 	}
-	return mygo.NewMenu([]*mygo.MenuItem{
+	s.mu.Lock()
+	cu := s.cu
+	s.mu.Unlock()
+	var top []*mygo.MenuItem
+	if cu != nil {
+		top = cu.menuItems()
+	}
+	return mygo.NewMenu(append(top, []*mygo.MenuItem{
 		{Label: fmt.Sprintf(tr("open"), appName), Click: func(*mygo.MenuItem, *mygo.Window) { s.showWindow() }},
 		{Label: fmt.Sprintf(tr("needs"), len(needs)), Submenu: sub, Disabled: len(needs) == 0},
 		mygo.Separator(),
@@ -106,7 +114,7 @@ func (s *shell) trayMenu(needs []need) *mygo.Menu {
 			}},
 		mygo.Separator(),
 		{Label: fmt.Sprintf(tr("quit"), appName), Click: func(*mygo.MenuItem, *mygo.Window) { mygo.App.Quit() }},
-	})
+	}...))
 }
 
 // updateTray sets the tray's menu and, on macOS, its title (the count).
@@ -122,6 +130,14 @@ func (s *shell) updateTray() {
 		title := ""
 		if len(needs) > 0 {
 			title = fmt.Sprint(len(needs))
+		}
+		s.mu.Lock()
+		cu := s.cu
+		s.mu.Unlock()
+		if cu != nil {
+			if t := cu.title(); t != "" {
+				title = strings.TrimSpace(t + " " + title)
+			}
 		}
 		tray.SetTitle(title)
 	}

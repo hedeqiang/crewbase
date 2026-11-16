@@ -10,6 +10,7 @@ import (
 
 	"github.com/egoist/mygo"
 	"github.com/hedeqiang/crewbase/capabilities/notify"
+	"github.com/hedeqiang/crewbase/features/computertools"
 	"github.com/hedeqiang/crewbase/kernel"
 )
 
@@ -130,4 +131,19 @@ func TestQuitAfterUpdateIsNotDeferred(t *testing.T) {
 		t.Fatal("agents must be stopped before the quit goes on")
 	}
 
+}
+
+func TestComputerUILabels(t *testing.T) {
+	l := computertools.Live{Agent: "kai", App: "com.apple.Notes", AppName: "备忘录"}
+	if got := liveLabel("Kai", l); !strings.Contains(got, "Kai") || !strings.Contains(got, "备忘录") {
+		t.Fatalf("label %q", got)
+	}
+	u := &computerUI{borders: map[string]*mygo.Window{}}
+	if u.title() != "" || u.menuItems() != nil {
+		t.Fatal("nothing shown while nobody operates")
+	}
+	u.shown = []computertools.Live{l, {Agent: "ada", App: "com.apple.TextEdit", AppName: "文本编辑"}}
+	if got := u.title(); got != "● 备忘录 +1" {
+		t.Fatalf("title %q", got)
+	}
 }
