@@ -26,6 +26,19 @@ function verbOf(text: string): string | null {
   return m ? m[1][0].toUpperCase() + m[1].slice(1) : null;
 }
 
+export function splitQuestion(s: string): [string, string] {
+  let i = s.indexOf("？");
+  if (i < 0) {
+    const m = /\?(?=\s+[A-Z\u4e00-\u9fff]|\s*$)/.exec(s);
+    i = m ? m.index : -1;
+  }
+  if (i < 0) {
+    const [first, ...rest] = s.split("\n");
+    return [first, rest.join("\n").trim()];
+  }
+  return [s.slice(0, i + 1).trim(), s.slice(i + 1).trim()];
+}
+
 /** Asks; falls back to window.confirm before the host is mounted. */
 export function confirmDialog(o: ConfirmOptions | string): Promise<boolean> {
   const opts = typeof o === "string" ? { text: o, danger: true } : o;
@@ -37,6 +50,7 @@ export function confirmDialog(o: ConfirmOptions | string): Promise<boolean> {
 export function ConfirmHost() {
   const [p, setP] = useState<Pending | null>(null);
   const okRef = useRef<HTMLButtonElement>(null);
+  const cancelRef = useRef<HTMLButtonElement>(null);
   useEffect(() => {
     show = (x) => setP(x);
     return () => {
@@ -44,17 +58,18 @@ export function ConfirmHost() {
     };
   }, []);
   useEffect(() => {
-    if (p) okRef.current?.focus();
+    // a destructive answer is never one stray Enter away
+    if (p) (p.danger ? cancelRef : okRef).current?.focus();
   }, [p]);
   if (!p) return null;
   const answer = (v: boolean) => {
     setP(null);
     p.done(v);
   };
-  // "删除 X？工作区会保留。" → title "删除 X？", body the rest
-  const m = /^([^\n]*?[？?])\s*([\s\S]*)$/.exec(p.text);
-  const title = m ? m[1] : p.text.split("\n")[0];
-  const body = (m ? m[2] : p.text.split("\n").slice(1).join("\n")).trim();
+  // "删除 X？工作区会保留。" → title "删除 X？", body the rest. zh asks
+  // with a full-width ？ (names typed with an ASCII "?" stay whole); en with
+  // a "?" ending the text or followed by a new sentence.
+  const [title, body] = splitQuestion(p.text);
   return (
     <>
       <div className="scrim" onClick={() => answer(false)} />
@@ -81,7 +96,7 @@ export function ConfirmHost() {
           </div>
         )}
         <div className="mft">
-          <button className="btn ghost" type="button" onClick={() => answer(false)}>
+          <button ref={cancelRef} className="btn ghost" type="button" onClick={() => answer(false)}>
             {t("common.cancel")}
           </button>
           <button ref={okRef} className={"btn " + (p.danger ? "dngfill" : "pri")} type="button" onClick={() => answer(true)}>

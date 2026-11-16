@@ -43,7 +43,7 @@ import { display, enterSends, MAC } from "../shortcuts";
 import { API, desktop, parseRef, refString, type AgentView, type ChannelView, type ContextBreakdown, type ModelRef } from "../api";
 import { t, type Key } from "../i18n";
 import { argsFull, argsPreview, project, type FeedItem, type Step } from "../projection";
-import { hasModels, loadSession, openConnect, openSession, openSubRun, refreshAgents, refreshSessions, setState, toast, useStore, sessionAgent } from "../store";
+import { hasModels, loadSession, setModelOverride, openConnect, openSession, openSubRun, refreshAgents, refreshSessions, setState, toast, useStore, sessionAgent } from "../store";
 import { TakeoverCard, takeoverReason } from "./Browser";
 import { cloudVoice, dictate, dictationSupported, primeVoice, speak, speaking, speakSupported } from "../voice";
 import { addFiles, clearFiles, filesFrom, MsgAttachments, PendingChips } from "./Attachments";
@@ -1039,7 +1039,7 @@ function Composer({
     setState({ hostConfirm: null });
   };
 
-  const setOverride = (r: ModelRef | null) => setState((s) => ({ overrides: { ...s.overrides, [agent.id]: r ? refString(r) : null } }));
+  const setOverride = (r: ModelRef | null) => setModelOverride(agent.id, r ? refString(r) : null);
 
   const order = agent.models ?? [];
   const mode = agent.effectiveMode || agent.mode || "sandbox";

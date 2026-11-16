@@ -46,6 +46,7 @@ var words = map[string][2]string{ // key → {zh, en}
 	"needsMore":     {"还有 %d 项…", "%d more…"},
 	"atLogin":       {"开机时启动", "Open at login"},
 	"keepRunning":   {"关闭窗口后继续运行", "Keep running when the window is closed"},
+	"notifyTest":    {"通知已开启：Agent 等你批准或完成任务时会在这里提醒你。", "Notifications are on: Crewbase tells you here when an agent needs you or finishes."},
 	"pickFolder":    {"选择项目文件夹", "Choose a project folder"},
 	"pick":          {"选择", "Choose"},
 	"pickFolderMsg": {"Agent 会在这个文件夹里读写文件、运行命令（按它的运行权限）。", "The agent reads, writes and runs commands in this folder, within its run mode."},

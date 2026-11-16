@@ -104,7 +104,9 @@ func (d Desktop) SetBadge(n int) {
 // preloadScript defines window.crewbaseDesktop in pages of origin. The
 // surface is exactly { version, platform, quit(), openExternal(url),
 // setBadge(n), pickFolder(start), updates(), checkForUpdates(),
-// setUpdatePrefs(checks, downloads) }; it calls the Desktop service through window.mygo, which
+// setUpdatePrefs(checks, downloads), setLanguage(l), keepRunning(),
+// setKeepRunning(on), permissions(), requestPermission(id),
+// openPermissionSettings(id) }; it calls the Desktop service through window.mygo, which
 // MyGo injects before preload scripts run.
 func preloadScript(origin, version string) string {
 	o, _ := json.Marshal(origin)
@@ -126,6 +128,11 @@ func preloadScript(origin, version string) string {
       checkForUpdates: () => { call("CheckForUpdates"); },
       setUpdatePrefs: (checks, downloads) => window.mygo.call("Desktop.SetUpdatePrefs", !!checks, !!downloads),
       setLanguage: (l) => { call("SetLanguage", String(l)); },
+      keepRunning: () => window.mygo.call("Desktop.KeepRunning"),
+      setKeepRunning: (on) => window.mygo.call("Desktop.SetKeepRunning", !!on),
+      permissions: () => window.mygo.call("Desktop.Permissions"),
+      requestPermission: (id) => window.mygo.call("Desktop.RequestPermission", String(id)),
+      openPermissionSettings: (id) => { call("OpenPermissionSettings", String(id)); },
     }),
   });
 })();`

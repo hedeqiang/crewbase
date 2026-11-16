@@ -152,6 +152,30 @@ export interface State {
   toasts: Toast[];
 }
 
+// The model chosen in a chat's composer survives a reload (per browser).
+function loadOverrides(): Record<string, string | null> {
+  try {
+    const v = JSON.parse(localStorage.getItem("crewbase.modelOverrides") || "{}");
+    return v && typeof v === "object" ? v : {};
+  } catch {
+    return {};
+  }
+}
+
+/** Remembers (or clears) the composer's model choice for an agent. */
+export function setModelOverride(agentId: string, ref: string | null) {
+  setState((s) => {
+    const overrides = { ...s.overrides, [agentId]: ref };
+    if (ref === null) delete overrides[agentId];
+    try {
+      localStorage.setItem("crewbase.modelOverrides", JSON.stringify(overrides));
+    } catch {
+      /* private window: kept for this tab */
+    }
+    return { overrides };
+  });
+}
+
 const LS = {
   get(k: string): string | null {
     try {
@@ -220,7 +244,7 @@ let state: State = {
   })(),
   lang: getLang(),
   palette: false,
-  overrides: {},
+  overrides: loadOverrides(),
   drafts: {},
   attach: {},
   hostConfirm: null,

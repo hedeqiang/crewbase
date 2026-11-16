@@ -198,7 +198,9 @@ func (s *shell) notify(n notify.Notification) {
 	})
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
-	if err := note.ShowContext(ctx); err != nil {
+	err := note.ShowContext(ctx)
+	noteResult(err)
+	if err != nil {
 		slog.Warn("desktop: notification", "err", err)
 	}
 }

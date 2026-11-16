@@ -380,6 +380,16 @@ export interface CrewbaseDesktop {
   checkForUpdates?: () => void;
   setUpdatePrefs?: (checks: boolean, downloads: boolean) => Promise<DesktopUpdates>;
   setLanguage?: (l: "zh" | "en") => void;
+  /** macOS permissions the app uses (Settings › 通用 › 系统权限) */
+  permissions?: () => Promise<DesktopPermission[]>;
+  requestPermission?: (id: string) => Promise<DesktopPermission[]>;
+  openPermissionSettings?: (id: string) => void;
+}
+
+export interface DesktopPermission {
+  id: "notifications" | "microphone" | "full-disk-access";
+  status: "granted" | "denied" | "not-determined" | "unknown";
+  canRequest: boolean;
 }
 
 export interface DesktopUpdates {

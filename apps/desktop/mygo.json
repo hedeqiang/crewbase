@@ -11,7 +11,11 @@
     "icon.png"
   ],
   "macos": {
-    "minimumSystemVersion": "12.0"
+    "minimumSystemVersion": "12.0",
+    "infoPlist": {
+      "NSMicrophoneUsageDescription": "Crewbase 用麦克风把你说的话转成文字，发给 Agent。",
+      "NSSpeechRecognitionUsageDescription": "Crewbase 把你说的话转成文字，发给 Agent。"
+    }
   },
   "linux": {
     "comment": "Crewbase — a crew of AI agents on your desktop",

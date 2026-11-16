@@ -3,7 +3,7 @@ import { MagpieModelsDialog, ModelCatalog } from "./settings/ModelSources";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { ChevronLeft, Info, ListChecks, Pencil, Plus, Search, Workflow } from "lucide-react";
 import { NAV, SECTION_ICONS } from "./settings/nav";
-import { API, desktop, type DesktopUpdates, type UpdateInfo, type ApprovalHistoryItem, type ProviderView, type RememberedChoice, type Settings as SettingsData, type UserProvider } from "../api";
+import { API, desktop, type DesktopPermission, type DesktopUpdates, type UpdateInfo, type ApprovalHistoryItem, type ProviderView, type RememberedChoice, type Settings as SettingsData, type UserProvider } from "../api";
 import { getLang, t, type Key, type Lang } from "../i18n";
 import { ago, kfmt, modeLabel, modelKind, priceLong, priceShort, providerName, until } from "../format";
 import { openSession, setLang, setState, toast, useStore, type SettingsSection, resync } from "../store";
@@ -251,6 +251,66 @@ function KeepRunning() {
   );
 }
 
+/** 系统权限: what macOS lets the app do, with a way to give each. Rows
+ *  refresh when the window comes back from System Settings. */
+function SystemPermissions() {
+  const d = desktop();
+  const [rows, setRows] = useState<DesktopPermission[] | null>(null);
+  const [busy, setBusy] = useState("");
+  const load = () => d?.permissions?.().then(setRows, () => setRows(null));
+  useEffect(() => {
+    void load();
+    const back = () => document.visibilityState === "visible" && void load();
+    window.addEventListener("focus", back);
+    document.addEventListener("visibilitychange", back);
+    return () => {
+      window.removeEventListener("focus", back);
+      document.removeEventListener("visibilitychange", back);
+    };
+  }, []);
+  if (!rows || rows.length === 0) return null;
+  const ask = async (id: string) => {
+    setBusy(id);
+    try {
+      const r = await d?.requestPermission?.(id);
+      if (r) setRows(r);
+    } catch (e: any) {
+      toast(e?.message ?? String(e));
+    } finally {
+      setBusy("");
+    }
+  };
+  return (
+    <>
+      <div className="vsec">{t("perm.title")}</div>
+      <div className="sbox">
+        {rows.map((p) => (
+          <Row key={p.id} title={t(`perm.${p.id}` as Key)} desc={t(`perm.${p.id}.desc` as Key)}>
+            <span className="permr">
+              <span className={"pill sm " + (p.status === "granted" ? "ok" : p.status === "denied" ? "red" : "")}>{t(`perm.st.${p.status}` as Key)}</span>
+              {p.status !== "granted" &&
+                (p.canRequest || p.id === "full-disk-access" ? (
+                  <button className="btn sm" type="button" disabled={busy === p.id} onClick={() => void ask(p.id)}>
+                    {p.id === "notifications" ? t("perm.test") : t("perm.allow")}
+                  </button>
+                ) : (
+                  <button className="btn sm" type="button" onClick={() => d?.openPermissionSettings?.(p.id)}>
+                    {t("perm.open")}
+                  </button>
+                ))}
+              {p.status === "granted" && p.id === "notifications" && (
+                <button className="btn sm ghost" type="button" onClick={() => d?.openPermissionSettings?.(p.id)}>
+                  {t("perm.open")}
+                </button>
+              )}
+            </span>
+          </Row>
+        ))}
+      </div>
+    </>
+  );
+}
+
 export function Head({ title, sub, right }: { title: string; sub?: string; right?: ReactNode }) {
   return (
     <div className="vh">
@@ -336,6 +396,7 @@ function General() {
             </div>
           </>
         )}
+        {manage && desktop()?.permissions && <SystemPermissions />}
         {manage && (
           <>
             <div className="vsec">{t("set.defaults")}</div>

@@ -124,6 +124,20 @@ function Shell() {
       const typing = !!el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.tagName === "SELECT" || el.isContentEditable);
       // while a shortcut is being recorded in settings, keys belong to it
       if (el?.closest?.("[data-recording]")) return;
+      if (e.key === "Tab") {
+        // focus stays in the topmost dialog
+        const dlgs = Array.from(document.querySelectorAll<HTMLElement>(".modal, [role=alertdialog], [role=dialog][aria-modal=true]"));
+        const dlg = dlgs[dlgs.length - 1];
+        if (!dlg) return;
+        const f = Array.from(dlg.querySelectorAll<HTMLElement>('button:not([disabled]), [href], input:not([disabled]):not([type=hidden]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])')).filter((x) => x.offsetParent !== null);
+        if (f.length === 0) return;
+        const i = f.indexOf(document.activeElement as HTMLElement);
+        if (i === -1 || (e.shiftKey && i === 0) || (!e.shiftKey && i === f.length - 1)) {
+          e.preventDefault();
+          (e.shiftKey ? f[f.length - 1] : f[0]).focus();
+        }
+        return;
+      }
       if (e.key === "Escape") {
         // an open dialog closes first: Esc does what clicking its backdrop
         // does (the topmost one; dialogs with their own Esc handling have

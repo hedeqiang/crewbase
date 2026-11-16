@@ -1799,7 +1799,8 @@ button.psec.toggle { width: 100%; background: none; border: 0; font-family: inhe
 
 /* composer model menu: 模型 › / 推理强度 › rows with flyouts */
 .menu .mi.subrow .g { flex: none; }
-.menu .mi.subrow .val { flex: 1; min-width: 0; display: flex; align-items: center; justify-content: flex-end; gap: 5px; color: var(--muted); font-size: 12px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.menu .mi.subrow .val { flex: 1; min-width: 0; text-align: right; color: var(--muted); font-size: 12px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.menu .mi.subrow .val svg, .menu .mi.subrow .val .pmark { vertical-align: -2px; margin-right: 4px; }
 .menu .mi.subrow .chev { color: var(--muted); flex: none; }
 .menu .mi.subrow.on { background: var(--hover); }
 .menu.flyout { z-index: 71; }
@@ -1821,3 +1822,5 @@ button.psec.toggle { width: 100%; background: none; border: 0; font-family: inhe
 .lookpick .shp { width: 36px; height: 36px; border-radius: 10px; }
 .lookpick .na-colors { display: flex; flex-wrap: wrap; gap: 6px; padding: 2px; }
 .lookpick .na-shapes, .lookpick .na-colors { margin: 0; justify-content: flex-start; }
+.permr { display: inline-flex; align-items: center; gap: 8px; flex: none; }
+.menu.flyout .flback { color: var(--muted); border-bottom: 1px solid var(--border); border-radius: 8px 8px 0 0; margin-bottom: 4px; }

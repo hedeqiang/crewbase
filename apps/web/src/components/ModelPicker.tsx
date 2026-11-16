@@ -1,5 +1,5 @@
 import { useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from "react";
-import { Check, ChevronRight, Search } from "lucide-react";
+import { Check, ChevronLeft, ChevronRight, Search } from "lucide-react";
 import type { AgentView, ModelRef, ModelsResponse } from "../api";
 import { t } from "../i18n";
 import { allModels, effortLabel, isExhausted, modelLabel, modelMeta, sameRef, until } from "../format";
@@ -94,7 +94,7 @@ export function ModelPicker({
       aria-haspopup="menu"
       aria-expanded={sub === which}
       onMouseEnter={() => !disabled && setSub(which)}
-      onClick={() => setSub((s) => (s === which ? null : which))}
+      onClick={() => setSub(which)}
       onKeyDown={(e) => {
         if (e.key === "ArrowRight" || e.key === "Enter" || e.key === " ") {
           e.preventDefault();
@@ -207,7 +207,8 @@ export function ModelPicker({
 /** A submenu placed beside its row: to the right when it fits, else left. */
 function Flyout({ anchor, width, onBack, children }: { anchor: HTMLElement | null; width: number; onBack: () => void; children: ReactNode }) {
   const ref = useRef<HTMLDivElement>(null);
-  const [pos, setPos] = useState<{ left: number; top: number; maxH: number } | null>(null);
+  const [pos, setPos] = useState<{ left: number; top: number; maxH: number; w: number } | null>(null);
+  const [narrow, setNarrow] = useState(false);
   useLayoutEffect(() => {
     const el = ref.current;
     const menu = anchor?.closest(".menu") as HTMLElement | null;
@@ -217,16 +218,17 @@ function Flyout({ anchor, width, onBack, children }: { anchor: HTMLElement | nul
       const m = menu.getBoundingClientRect();
       const vw = window.innerWidth;
       const vh = window.innerHeight;
-      const w = el.offsetWidth || width;
       const maxH = vh - 16;
       const h = Math.min(el.scrollHeight, maxH);
-      let left = m.right + 4;
-      if (left + w > vw - 8) left = m.left - w - 4;
-      if (left < 8) left = Math.max(8, vw - w - 8); // phone: overlay
+      // beside the menu when the planned width fits on either side, else
+      // (phones) over it, as wide as it, with a back row
+      const over = m.right + 4 + width > vw - 8 && m.left - width - 4 < 8;
+      setNarrow(over);
+      const left = over ? m.left : m.right + 4 + width > vw - 8 ? m.left - width - 4 : m.right + 4;
       // line the flyout's first item up with the row, but keep it on screen
-      let top = r.top - 6;
+      let top = over ? m.bottom - h : r.top - 6;
       if (top + h > vh - 8) top = vh - 8 - h;
-      setPos({ left, top: Math.max(8, top), maxH });
+      setPos({ left, top: Math.max(8, top), maxH, w: over ? m.width : width });
     };
     place();
     const ro = new ResizeObserver(place);
@@ -242,7 +244,7 @@ function Flyout({ anchor, width, onBack, children }: { anchor: HTMLElement | nul
       ref={ref}
       className="menu flyout"
       role="menu"
-      style={{ width, left: pos?.left ?? -9999, top: pos?.top ?? -9999, maxHeight: pos?.maxH, visibility: pos ? "visible" : "hidden" }}
+      style={{ width: pos?.w ?? width, left: pos?.left ?? -9999, top: pos?.top ?? -9999, maxHeight: pos?.maxH, visibility: pos ? "visible" : "hidden" }}
       onKeyDown={(e) => {
         if (e.key === "ArrowLeft") {
           e.preventDefault();
@@ -250,6 +252,12 @@ function Flyout({ anchor, width, onBack, children }: { anchor: HTMLElement | nul
         }
       }}
     >
+      {narrow && (
+        <button className="mi flback" type="button" onClick={onBack}>
+          <ChevronLeft size={14} />
+          <span className="g">{t("common.back")}</span>
+        </button>
+      )}
       {children}
     </div>
   );
