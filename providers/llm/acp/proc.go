@@ -29,6 +29,7 @@ type proc struct {
 
 	mu       sync.Mutex
 	sessions map[string]*sessionState
+	mcpSkip  sync.Once
 }
 
 // sessionState routes updates of one ACP session.
@@ -38,9 +39,18 @@ type sessionState struct {
 	// own: cwd is an agent's own workspace (llm.Request.OwnWorkspace); its
 	// CLI config may not be written (see cliconfig.go)
 	own bool
+	// grant gives the CLI Crewbase's MCP server (nil = not offered)
+	grant MCPGrant
 
 	mu   sync.Mutex
 	turn *turn // active prompt turn, nil between turns
+}
+
+// revoke ends the session's MCP grant.
+func (s *sessionState) revoke() {
+	if s != nil && s.grant != nil {
+		s.grant.Revoke()
+	}
 }
 
 func (s *sessionState) current() *turn {
@@ -85,7 +95,7 @@ func (a *Adapter) startProc(ctx context.Context) (*proc, error) {
 	p.conn = jsonrpc.NewConn(stdout, stdin, jsonrpc.Options{
 		OnRequest:      p.onRequest,
 		OnNotification: p.onNotification,
-		Trace:          a.trace,
+		Trace:          traceFn(a.trace),
 	})
 
 	waited := make(chan struct{})
@@ -130,6 +140,27 @@ func (a *Adapter) startProc(ctx context.Context) (*proc, error) {
 		return nil, p.classify(err, llm.ErrUnavailable)
 	}
 	return p, nil
+}
+
+// traceFn redacts bearer tokens (the MCP grant's) from traced traffic.
+func traceFn(f func(string, []byte)) func(string, []byte) {
+	if f == nil {
+		return nil
+	}
+	return func(dir string, msg []byte) { f(dir, redactBearer(msg)) }
+}
+
+// revokeAll ends the MCP grants of every session of the process.
+func (p *proc) revokeAll() {
+	p.mu.Lock()
+	ss := make([]*sessionState, 0, len(p.sessions))
+	for _, s := range p.sessions {
+		ss = append(ss, s)
+	}
+	p.mu.Unlock()
+	for _, s := range ss {
+		s.revoke()
+	}
 }
 
 // kill closes the connection and waits (bounded) for the process to go.
@@ -185,32 +216,76 @@ func (p *proc) session(id string) *sessionState {
 }
 
 // newSession runs session/new in cwd and optionally selects a model. own
-// marks cwd as an agent's own workspace.
-func (p *proc) newSession(ctx context.Context, model, cwd string, own bool) (*sessionState, error) {
+// marks cwd as an agent's own workspace. With bind (an agent in a Crewbase
+// session) the CLI is given Crewbase's MCP server when it takes http MCP.
+func (p *proc) newSession(ctx context.Context, model, cwd string, own bool, bind *MCPBinding) (*sessionState, error) {
 	var res newSessionResult
 	params := newSessionParams{Cwd: cwd, MCPServers: []any{}, Meta: sessionMeta(p.a.cfg.ID, own)}
+	grant := p.mcpGrant(bind)
+	if grant != nil {
+		name, url, tok := grant.Server()
+		params.MCPServers = append(params.MCPServers, mcpServerHTTP{Type: "http", Name: name, URL: url,
+			Headers: []httpHeader{{Name: "Authorization", Value: "Bearer " + tok}}})
+	}
 	if err := p.conn.Call(ctx, mSessionNew, params, &res); err != nil {
+		if grant != nil {
+			grant.Revoke()
+		}
 		return nil, p.classify(err, "")
 	}
 	if res.SessionID == "" {
+		if grant != nil {
+			grant.Revoke()
+		}
 		return nil, &llm.Error{Kind: llm.ErrUnavailable, Provider: p.a.id, Message: "session/new returned no sessionId"}
 	}
 	if res.Models != nil {
 		p.a.learnModels(res.Models.AvailableModels)
 	}
-	s := &sessionState{id: res.SessionID, cwd: cwd, own: own}
+	s := &sessionState{id: res.SessionID, cwd: cwd, own: own, grant: grant}
 	p.mu.Lock()
 	p.sessions[s.id] = s
 	p.mu.Unlock()
+	if !p.alive() {
+		// the process went away meanwhile; its sessions were revoked already
+		s.revoke()
+	}
 	if model != "" && model != defaultModel && (res.Models == nil || res.Models.CurrentModelID != model) {
 		// unstable ACP extension; agents without it keep their default
 		err := p.conn.Call(ctx, mSessionSetModel, map[string]string{"sessionId": s.id, "modelId": model}, nil)
 		var je *jsonrpc.Error
 		if err != nil && !(errors.As(err, &je) && je.Code == jsonrpc.CodeMethodNotFound) {
+			p.dropSession(s)
 			return nil, p.classify(err, llm.ErrBadRequest)
 		}
 	}
 	return s, nil
+}
+
+// dropSession forgets s and revokes its grant.
+func (p *proc) dropSession(s *sessionState) {
+	p.mu.Lock()
+	if p.sessions[s.id] == s {
+		delete(p.sessions, s.id)
+	}
+	p.mu.Unlock()
+	s.revoke()
+}
+
+// mcpGrant opens an MCP grant for bind, or nil (no bridge, no binding, or
+// the agent does not take http MCP servers).
+func (p *proc) mcpGrant(bind *MCPBinding) MCPGrant {
+	a := p.a
+	if a.mcp == nil || bind == nil || bind.Agent == "" || bind.Session == "" {
+		return nil
+	}
+	if !httpMCP(p.info.AgentCapabilities) {
+		p.mcpSkip.Do(func() {
+			a.log.Info("acp: agent does not advertise http MCP servers; Crewbase tools not offered", "agent", a.cfg.ID)
+		})
+		return nil
+	}
+	return a.mcp(*bind)
 }
 
 func (p *proc) onNotification(method string, params json.RawMessage) {
@@ -336,6 +411,20 @@ func (p *proc) permission(params json.RawMessage) (any, error) {
 				return permissionResult{Outcome: permissionOutcome{Outcome: "selected", OptionID: id}}, nil
 			}
 			return permissionResult{Outcome: permissionOutcome{Outcome: "cancelled"}}, nil
+		}
+	}
+	if s.grant != nil {
+		name := metaToolName(pp.ToolCall.Meta)
+		if name == "" {
+			name = seen.name
+		}
+		if tool := crewbaseToolName(kind, pp.ToolCall.Title, name, pp.ToolCall.Content); tool != "" && s.grant.Allows(tool) {
+			// Crewbase's own tool: the call runs through Crewbase's tool
+			// pipeline, which asks the person itself when its rules say so
+			if id := pick("allow_once"); id != "" {
+				t.note(fmt.Sprintf("[Crewbase tool %s: Crewbase's own policy applies]", tool))
+				return permissionResult{Outcome: permissionOutcome{Outcome: "selected", OptionID: id}}, nil
+			}
 		}
 	}
 	if p.a.autoApprove {

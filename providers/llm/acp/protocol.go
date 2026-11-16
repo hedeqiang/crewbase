@@ -48,6 +48,19 @@ type initializeResult struct {
 	AuthMethods       []authMethod    `json:"authMethods,omitempty"`
 }
 
+// metaToolName reads _meta.claudeCode.toolName.
+func metaToolName(meta json.RawMessage) string {
+	var m struct {
+		ClaudeCode struct {
+			ToolName string `json:"toolName"`
+		} `json:"claudeCode"`
+	}
+	if json.Unmarshal(meta, &m) != nil {
+		return ""
+	}
+	return m.ClaudeCode.ToolName
+}
+
 type newSessionParams struct {
 	Cwd        string         `json:"cwd"`
 	MCPServers []any          `json:"mcpServers"`
@@ -106,6 +119,8 @@ type sessionUpdate struct {
 		Path string `json:"path"`
 		Line int    `json:"line,omitempty"`
 	} `json:"locations,omitempty"`
+	// tool_call: Claude Code puts the tool's name in _meta.claudeCode.toolName
+	Meta json.RawMessage `json:"_meta,omitempty"`
 	// usage_update
 	Used int `json:"used,omitempty"`
 	Size int `json:"size,omitempty"`
@@ -129,6 +144,7 @@ type permissionParams struct {
 		} `json:"locations,omitempty"`
 		Content  json.RawMessage `json:"content,omitempty"`
 		RawInput json.RawMessage `json:"rawInput,omitempty"`
+		Meta     json.RawMessage `json:"_meta,omitempty"`
 	} `json:"toolCall"`
 	Options []permissionOption `json:"options"`
 }

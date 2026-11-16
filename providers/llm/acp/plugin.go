@@ -8,7 +8,10 @@
 // own tools and history; its tool calls run inside the CLI and are reported
 // as text notes (never as Crewbase tool calls), so Response.StopReason is
 // always "end" or "max_tokens". Crewbase tools in Request.Tools are not
-// offered to the CLI.
+// offered to the CLI as such; instead, CLIs that take http MCP servers get
+// Crewbase's MCP server (features/mcpserver: computer_* and browser_*,
+// run through Crewbase's own tool pipeline) with a per-session token; see
+// mcp.go.
 //
 // Sessions: one ACP session per conversation, keyed by agent + session (or
 // hash(system prompt + first message) when the request carries neither). It is reused while the request's messages extend what the
@@ -26,6 +29,8 @@
 // from the tool title). Allowed-once selects the CLI's allow_once option;
 // anything else (rejected, no approver, no session) selects reject_once.
 // Config autoApprove: true is an explicit override that allows everything.
+// Requests for the CLI's calls of Crewbase's own MCP tools are allowed
+// without asking: Crewbase's tool pipeline asks for those itself (mcp.go).
 // Client methods: fs/read_text_file and fs/write_text_file are served,
 // restricted to the session cwd (symlinks resolved); terminal/* and
 // everything else answer method-not-found (capability not advertised).
@@ -61,6 +66,7 @@ import (
 	"github.com/hedeqiang/crewbase/capabilities/approval"
 	"github.com/hedeqiang/crewbase/core/llm"
 	"github.com/hedeqiang/crewbase/core/session"
+	"github.com/hedeqiang/crewbase/features/mcpserver"
 	"github.com/hedeqiang/crewbase/kernel"
 )
 
@@ -82,6 +88,24 @@ func approver(c *kernel.Context) func(context.Context, approval.Request) approva
 			return approval.OutcomeUnavailable
 		}
 		return svc.Ask(ctx, ss, req).Outcome
+	}
+}
+
+// mcpGranter opens grants on Crewbase's MCP server (features/mcpserver),
+// looked up when a session starts (it may load after this plugin, or not
+// at all: then CLIs are not given Crewbase's tools).
+func mcpGranter(c *kernel.Context) func(MCPBinding) MCPGrant {
+	return func(b MCPBinding) MCPGrant {
+		svc, ok := kernel.Lookup[*mcpserver.Service](c, mcpserver.ServiceKey)
+		if !ok {
+			return nil
+		}
+		g, err := svc.Open(mcpserver.Binding{Agent: b.Agent, Session: b.Session, Workspace: b.Workspace, Mode: b.Mode, Own: b.Own})
+		if err != nil {
+			c.Log().Debug("acp: Crewbase MCP server not offered", "agent", b.Agent, "err", err)
+			return nil
+		}
+		return g
 	}
 }
 
@@ -189,7 +213,7 @@ var Plugin = kernel.Register(kernel.Spec{
 			return true
 		}
 		svc.add = func(r resolved) error {
-			a := newAdapter(providerID(r.ID), r, Options{AutoApprove: cfg.AutoApprove, Approve: approver(c), IdleTimeout: idle, ToolNotes: notes, Go: goFn, StateDir: cfg.StateDir,
+			a := newAdapter(providerID(r.ID), r, Options{AutoApprove: cfg.AutoApprove, Approve: approver(c), MCP: mcpGranter(c), Log: c.Log(), IdleTimeout: idle, ToolNotes: notes, Go: goFn, StateDir: cfg.StateDir,
 				FilesChanged: func(agent, sess string, paths []string) {
 					FilesChanged.Emit(c.Host(), FilesChange{Agent: agent, Session: sess, Paths: paths})
 				}})

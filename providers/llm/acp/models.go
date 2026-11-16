@@ -85,6 +85,6 @@ func (a *Adapter) ProbeModels(ctx context.Context) error {
 		return err
 	}
 	// own: Claude Code loads user settings only, nothing from the scratch dir
-	_, err = p.newSession(ctx, "", dir, true)
+	_, err = p.newSession(ctx, "", dir, true, nil)
 	return err
 }

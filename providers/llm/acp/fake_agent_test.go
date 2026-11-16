@@ -3,9 +3,11 @@
 package acp
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"os"
 	"os/exec"
 	"strings"
@@ -32,9 +34,59 @@ import (
 //	/cwd     replies with the session's cwd
 //	/meta    replies with the session/new _meta
 //	/cfgperm P requests permission to edit P (raw input file_path)
+//	/mcpservers replies with the session/new mcpServers
+//	/mcpcall T calls tool T on the first session/new MCP server (HTTP)
+//	/mcpperm T K requests permission for a tool call titled T (kind K,
+//	         "-" = none), first reporting it with _meta.claudeCode.toolName T
+//
+// With FAKE_ACP_HTTP_MCP=1 initialize advertises mcpCapabilities.http.
 //
 // Otherwise it replies "[s<n>] echo: <prompt>" in two chunks with a tool call.
 const fakeEnv = "FAKE_ACP_AGENT"
+
+// fakeMCPCall posts tools/call to the first http server of a session/new
+// mcpServers list and returns the result's text (or the error).
+func fakeMCPCall(raw, tool string) string {
+	var servers []struct {
+		URL     string `json:"url"`
+		Headers []struct{ Name, Value string }
+	}
+	if json.Unmarshal([]byte(raw), &servers) != nil || len(servers) == 0 {
+		return "no server"
+	}
+	body, _ := json.Marshal(map[string]any{"jsonrpc": "2.0", "id": 1, "method": "tools/call", "params": map[string]any{"name": tool, "arguments": map[string]any{}}})
+	req, _ := http.NewRequest(http.MethodPost, servers[0].URL, bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	for _, h := range servers[0].Headers {
+		req.Header.Set(h.Name, h.Value)
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return "error " + err.Error()
+	}
+	defer resp.Body.Close()
+	var r struct {
+		Result *struct {
+			Content []struct{ Text string }
+			IsError bool
+		}
+		Error *struct{ Message string }
+	}
+	if resp.StatusCode != 200 || json.NewDecoder(resp.Body).Decode(&r) != nil {
+		return fmt.Sprintf("status %d", resp.StatusCode)
+	}
+	if r.Error != nil {
+		return "rpc error " + r.Error.Message
+	}
+	out := ""
+	for _, c := range r.Result.Content {
+		out += c.Text
+	}
+	if r.Result.IsError {
+		return "tool error " + out
+	}
+	return "ok " + out
+}
 
 func runFakeAgent() {
 	var (
@@ -43,6 +95,7 @@ func runFakeAgent() {
 		cancels = map[string]chan struct{}{}
 		cwds    = map[string]string{}
 		metas   = map[string]string{}
+		mcps    = map[string]string{}
 		conn    *jsonrpc.Conn
 	)
 	update := func(sid string, u map[string]any) {
@@ -161,6 +214,44 @@ func runFakeAgent() {
 			}
 			chunk(sid, fmt.Sprintf("permission: %s/%s", res.Outcome.Outcome, res.Outcome.OptionID))
 			return map[string]string{"stopReason": "end_turn"}, nil
+		case strings.Contains(text, "/mcpcall "):
+			tool, _ := arg(text, "/mcpcall")
+			mu.Lock()
+			raw := mcps[sid]
+			mu.Unlock()
+			chunk(sid, "mcpcall: "+fakeMCPCall(raw, tool))
+			return map[string]string{"stopReason": "end_turn"}, nil
+		case strings.Contains(text, "/mcpservers"):
+			mu.Lock()
+			m := mcps[sid]
+			mu.Unlock()
+			chunk(sid, "mcp="+m)
+			return map[string]string{"stopReason": "end_turn"}, nil
+		case strings.Contains(text, "/mcpperm "):
+			i := strings.LastIndex(text, "/mcpperm ")
+			f := strings.Fields(text[i+len("/mcpperm "):])
+			title, kind := f[0], f[1]
+			if kind == "-" {
+				kind = ""
+			}
+			title = strings.ReplaceAll(title, "+", " ")
+			meta := map[string]any{"claudeCode": map[string]string{"toolName": title}}
+			update(sid, map[string]any{"sessionUpdate": "tool_call", "toolCallId": "m1", "title": title, "kind": kind, "status": "pending", "_meta": meta})
+			var res permissionResult
+			err := conn.Call(ctx, "session/request_permission", map[string]any{
+				"sessionId": sid,
+				"toolCall":  map[string]any{"toolCallId": "m1", "title": title, "kind": kind},
+				"options": []map[string]string{
+					{"optionId": "always", "name": "Always", "kind": "allow_always"},
+					{"optionId": "yes", "name": "Allow", "kind": "allow_once"},
+					{"optionId": "no", "name": "Reject", "kind": "reject_once"},
+				},
+			}, &res)
+			if err != nil {
+				return nil, err
+			}
+			chunk(sid, fmt.Sprintf("permission: %s/%s", res.Outcome.Outcome, res.Outcome.OptionID))
+			return map[string]string{"stopReason": "end_turn"}, nil
 		case strings.Contains(text, "/cwd"):
 			mu.Lock()
 			cwd := cwds[sid]
@@ -190,7 +281,11 @@ func runFakeAgent() {
 					fmt.Fprintln(os.Stderr, "Error: You've hit your weekly limit.")
 					os.Exit(1)
 				}
-				return map[string]any{"protocolVersion": 1, "agentCapabilities": map[string]any{},
+				caps := map[string]any{}
+				if os.Getenv("FAKE_ACP_HTTP_MCP") != "" {
+					caps["mcpCapabilities"] = map[string]bool{"http": true, "sse": false}
+				}
+				return map[string]any{"protocolVersion": 1, "agentCapabilities": caps,
 					"agentInfo": map[string]string{"name": "fake", "version": "9.9.9"}, "authMethods": []any{}}, nil
 			case "session/new":
 				mu.Lock()
@@ -198,12 +293,14 @@ func runFakeAgent() {
 				sid := fmt.Sprintf("s%d", nsess)
 				cancels[sid] = make(chan struct{})
 				var np struct {
-					Cwd  string
-					Meta json.RawMessage `json:"_meta"`
+					Cwd        string
+					Meta       json.RawMessage `json:"_meta"`
+					MCPServers json.RawMessage `json:"mcpServers"`
 				}
 				_ = json.Unmarshal(params, &np)
 				cwds[sid] = np.Cwd
 				metas[sid] = string(np.Meta)
+				mcps[sid] = string(np.MCPServers)
 				mu.Unlock()
 				return map[string]any{"sessionId": sid, "models": map[string]any{
 					"currentModelId":  "fast",
