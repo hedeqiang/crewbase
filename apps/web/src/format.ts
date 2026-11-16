@@ -1,4 +1,4 @@
-import type { AgentView, ModelInfo, ModelKind, ModelRef, ModelsResponse, ProviderView } from "./api";
+import type { AgentView, ModelInfo, ModelKind, ModelPricing, ModelRef, ModelsResponse, ProviderView } from "./api";
 import { t, type Key } from "./i18n";
 
 export function modeLabel(m: string | undefined): string {
@@ -83,6 +83,46 @@ export function kfmt(n: number): string {
 }
 
 // ---------------------------------------------------------------- models
+
+/** "$3", "$0.15", "$0.075" — a USD price, short. */
+export function usd(n: number): string {
+  if (n >= 100) return "$" + Math.round(n);
+  if (n >= 1) return "$" + n.toFixed(2).replace(/\.?0+$/, "");
+  return "$" + Number(n.toPrecision(2)).toString();
+}
+
+/** "$3 / $15" (input / output per million tokens) or "$0.13 / 张" for an
+ *  image model priced per image; "" when unknown. */
+export function priceShort(p: ModelPricing | undefined): string {
+  if (!p) return "";
+  if (p.input || p.output) return `${p.input ? usd(p.input) : "—"} / ${p.output ? usd(p.output) : "—"}`;
+  if (p.image) return t("mc.perImage", { price: usd(p.image) });
+  return "";
+}
+
+/** Full price for a tooltip: "输入 $3 · 输出 $15 · 缓存读 $0.3（每百万 token）". */
+export function priceLong(p: ModelPricing | undefined): string {
+  if (!p) return "";
+  const parts: string[] = [];
+  if (p.input) parts.push(t("mc.in", { price: usd(p.input) }));
+  if (p.output) parts.push(t("mc.out", { price: usd(p.output) }));
+  if (p.cacheRead) parts.push(t("mc.cacheRead", { price: usd(p.cacheRead) }));
+  if (p.cacheWrite) parts.push(t("mc.cacheWrite", { price: usd(p.cacheWrite) }));
+  let s = parts.length ? t("mc.perM", { parts: parts.join(" · ") }) : "";
+  if (p.image) s = (s ? s + " · " : "") + t("mc.perImage", { price: usd(p.image) });
+  if (s && p.source) s += " · " + t("mc.source", { source: p.source === "openrouter" ? "OpenRouter" : p.source === "litellm" ? "LiteLLM" : p.source });
+  return s;
+}
+
+/** "200K · $3 / $15" — context window and list price, what is known. */
+export function modelMeta(m: Pick<ModelInfo, "contextWindow" | "pricing" | "kind"> | undefined): string {
+  if (!m) return "";
+  const parts: string[] = [];
+  if (m.contextWindow && modelKind(m) === "chat") parts.push(kfmt(m.contextWindow));
+  const p = priceShort(m.pricing);
+  if (p) parts.push(p);
+  return parts.join(" · ");
+}
 
 export function findModel(models: ModelsResponse | null, r: ModelRef): ModelInfo | undefined {
   const p = models?.providers.find((x) => x.id === r.provider);

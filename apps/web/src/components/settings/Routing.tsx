@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { ArrowDown, ArrowUp, Plus, RefreshCw, X } from "lucide-react";
 import { API, parseRef, refString, type ModelKind, type TaskRoute } from "../../api";
 import { t, type Key } from "../../i18n";
-import { allModels, modelLabel, providerName, until } from "../../format";
+import { allModels, modelLabel, modelMeta, providerName, until } from "../../format";
 import { refreshModels, toast, useStore } from "../../store";
 import { ProviderMark } from "../ProviderMark";
 import { useSettingsData } from "../Settings";
@@ -52,6 +52,7 @@ function ModelSelect({ value, onChange, placeholder, kind = "chat" }: { value: s
         {all.map((m) => (
           <option key={refString(m.ref)} value={refString(m.ref)}>
             {m.info.name || m.info.id} · {m.provider.id}
+            {modelMeta(m.info) ? ` · ${modelMeta(m.info)}` : ""}
           </option>
         ))}
       </select>

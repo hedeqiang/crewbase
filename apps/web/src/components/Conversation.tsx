@@ -61,6 +61,7 @@ import {
   kfmt,
   modeLabel,
   modelLabel,
+  modelMeta,
   sameRef,
   shortModelEffort,
   until,
@@ -1414,7 +1415,7 @@ function Composer({
               {m.info.name || m.info.id}
               <span>
                 {m.provider.id}
-                {m.info.contextWindow ? ` · ${kfmt(m.info.contextWindow)}` : ""}
+                {modelMeta(m.info) ? ` · ${modelMeta(m.info)}` : ""}
               </span>
             </span>
             <span className="ck">{overrideRef && sameRef(overrideRef, m.ref) && <Check size={14} />}</span>

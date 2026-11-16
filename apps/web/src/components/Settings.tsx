@@ -1,10 +1,11 @@
 import { AddProviderDialog } from "./settings/AddProvider";
+import { MagpieModelsDialog, ModelCatalog } from "./settings/ModelSources";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { ChevronLeft, Info, Plus, Search, Workflow } from "lucide-react";
+import { ChevronLeft, Info, ListChecks, Pencil, Plus, Search, Workflow } from "lucide-react";
 import { NAV, SECTION_ICONS } from "./settings/nav";
 import { API, desktop, type DesktopUpdates, type UpdateInfo, type ApprovalHistoryItem, type ProviderView, type RememberedChoice, type Settings as SettingsData, type UserProvider } from "../api";
 import { getLang, t, type Key, type Lang } from "../i18n";
-import { ago, kfmt, modeLabel, modelKind, providerName, until } from "../format";
+import { ago, kfmt, modeLabel, modelKind, priceLong, priceShort, providerName, until } from "../format";
 import { openSession, setLang, setState, toast, useStore, type SettingsSection, resync } from "../store";
 import { Automation } from "./settings/Automation";
 import { Extensions } from "./settings/Extensions";
@@ -501,9 +502,11 @@ function Models() {
   const agents = useStore((s) => s.agents);
   const [sel, setSel] = useState<string | null>(null);
   const tab = useStore((s) => s.modelsTab);
-  const setTab = (v: "providers" | "routing") => setState({ modelsTab: v });
+  const setTab = (v: "providers" | "routing" | "catalog") => setState({ modelsTab: v });
   const [q, setQ] = useState("");
   const [adding, setAdding] = useState(false);
+  const [editing, setEditing] = useState<UserProvider | null>(null);
+  const [choosingMagpie, setChoosingMagpie] = useState(false);
   const [userProv, setUserProv] = useState<UserProvider[]>([]);
   const pname = (id: string) => userProv.find((u) => u.id === id)?.name || providerName(id);
   const loadUser = () =>
@@ -542,6 +545,9 @@ function Models() {
               <button type="button" aria-pressed={tab === "routing"} onClick={() => setTab("routing")}>
                 {t("set.routing")}
               </button>
+              <button type="button" aria-pressed={tab === "catalog"} onClick={() => setTab("catalog")}>
+                {t("mcat.tab")}
+              </button>
             </div>
             <button className="btn" type="button" onClick={() => setAdding(true)}>
               <Plus size={14} />
@@ -551,8 +557,21 @@ function Models() {
         }
       />
       {adding && <AddProviderDialog existing={providers.map((p) => p.id)} onClose={() => setAdding(false)} />}
+      {editing && (
+        <AddProviderDialog
+          existing={providers.map((p) => p.id)}
+          edit={editing}
+          onClose={() => {
+            setEditing(null);
+            void loadUser();
+          }}
+        />
+      )}
+      {choosingMagpie && <MagpieModelsDialog onClose={() => setChoosingMagpie(false)} />}
       {tab === "routing" ? (
         <Routing />
+      ) : tab === "catalog" ? (
+        <ModelCatalog />
       ) : providers.length === 0 ? (
         <div className="vb">
           <div className="empty">{models ? t("set.noProviders") : t("common.loading")}</div>
@@ -622,6 +641,10 @@ function Models() {
                       {t("ap.keyStored")} <code>{up.masked || "••••"}</code>
                       {up.baseURL ? <> · <span className="mono">{up.baseURL}</span></> : null}
                     </span>
+                    <button className="btn sm" type="button" onClick={() => setEditing(up)}>
+                      <Pencil size={13} />
+                      {t("ap.editBtn")}
+                    </button>
                     <button
                       className="btn dng sm"
                       type="button"
@@ -655,7 +678,21 @@ function Models() {
                   <span className="small">{t("set.quotaUnknown")}</span>
                 )}
               </div>
-              <div className="psec2">{t("set.availableModels", { n: cur.models.length })}</div>
+              <div className="psec2 psec2r">
+                <span>{t("set.availableModels", { n: cur.models.length })}</span>
+                {cur.id === "magpie" && (
+                  <button className="btn sm" type="button" onClick={() => setChoosingMagpie(true)}>
+                    <ListChecks size={13} />
+                    {t("mp.choose")}
+                  </button>
+                )}
+                {userProv.some((u) => u.id === cur.id) && (
+                  <button className="btn sm" type="button" onClick={() => setEditing(userProv.find((u) => u.id === cur.id)!)}>
+                    <ListChecks size={13} />
+                    {t("ap.editModels")}
+                  </button>
+                )}
+              </div>
               {cur.models.length === 0 ? <div className="empty">{t("set.noModels")}</div> : <ModelTable provider={cur} />}
             </div>
           )}
@@ -698,12 +735,16 @@ function ModelTable({ provider }: { provider: ProviderView }) {
                       </span>
                     ))}
                   </span>
+                  <span className="mprice" title={priceLong(m.pricing) || t("mc.noPrice")}>
+                    {priceShort(m.pricing) || "—"}
+                  </span>
                   {kind === "chat" ? (
-                    <span className="mctx">{m.contextWindow ? kfmt(m.contextWindow) : "—"}</span>
+                    <span className="mctx" title={m.maxOutput ? t("mc.maxOut", { n: kfmt(m.maxOutput) }) : undefined}>
+                      {m.contextWindow ? kfmt(m.contextWindow) : "—"}
+                    </span>
                   ) : (
                     <span className={"mkind sm k-" + kind}>{t(`set.kind.${kind}`)}</span>
                   )}
-                  <span className="tg" role="switch" aria-checked={m.enabled} aria-disabled="true" title={t("common.soon")} />
                 </div>
               ))}
             </div>
