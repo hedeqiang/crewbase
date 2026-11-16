@@ -557,8 +557,8 @@ func (s *Service) dialStdio(ctx context.Context, srv Server, ws string, onChange
 			return nil, sess.scrubErr(err)
 		}
 		if conf.Enforcement == "" || conf.Enforcement == sandbox.EnforcementNone {
-			if conf.Kill != nil {
-				conf.Kill()
+			if done := conf.Cleanup(); done != nil {
+				done()
 			}
 			return nil, sandbox.Unavailable("sandbox %s gave no enforcement; refusing to start MCP server %q unconfined", sb.Name(), srv.Name)
 		}
@@ -566,7 +566,7 @@ func (s *Service) dialStdio(ctx context.Context, srv Server, ws string, onChange
 		envList = mergeEnv(envList, env)
 		conf = sandbox.Unconfined(srv.Command, envList)
 	}
-	sess.enforcement, sess.kill = conf.Enforcement, conf.Kill
+	sess.enforcement, sess.kill = conf.Enforcement, conf.Cleanup()
 
 	inR, inW, err := os.Pipe()
 	if err != nil {
@@ -593,8 +593,8 @@ func (s *Service) dialStdio(ctx context.Context, srv Server, ws string, onChange
 	if err != nil {
 		inW.Close()
 		outR.Close()
-		if conf.Kill != nil {
-			conf.Kill()
+		if sess.kill != nil {
+			sess.kill()
 		}
 		return nil, sess.scrubErr(fmt.Errorf("start %s: %w", srv.Command[0], err))
 	}

@@ -483,7 +483,7 @@ func (p *proxy) confine(argv, env []string) ([]string, []string, func(), error) 
 		s.Enforcement = cf.Enforcement
 		s.Limits = append(slices.Clone(cf.Limits), "subprocess permission is not enforced by the sandbox")
 	})
-	return cf.Argv, cf.Env, cf.Kill, nil
+	return cf.Argv, cf.Env, cf.Cleanup(), nil
 }
 
 func (p *proxy) spawn() (*generation, error) {

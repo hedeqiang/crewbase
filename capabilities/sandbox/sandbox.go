@@ -124,6 +124,29 @@ type Confined struct {
 	// command is cancelled or times out. Killing the local process is the
 	// caller's job.
 	Kill func() `json:"-"`
+	// Release, if set, must be called once the command has exited (or did
+	// not start). It undoes host-side preparation of the confinement, such
+	// as the empty mount points a provider made so a missing protected root
+	// cannot be created. Calling it more than once is harmless.
+	Release func() `json:"-"`
+}
+
+// Cleanup returns a function that runs Kill and then Release, for callers
+// that tear a confined process down in one step after it exited; nil if
+// there is nothing to do.
+func (c Confined) Cleanup() func() {
+	kill, release := c.Kill, c.Release
+	if kill == nil && release == nil {
+		return nil
+	}
+	return func() {
+		if kill != nil {
+			kill()
+		}
+		if release != nil {
+			release()
+		}
+	}
 }
 
 // Sandbox is the `sandbox` service.

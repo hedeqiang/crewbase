@@ -146,6 +146,9 @@ func (l *Local) Exec(ctx context.Context, req shell.ExecRequest) (shell.RunResul
 		if err != nil {
 			return shell.RunResult{}, err
 		}
+		if conf.Release != nil {
+			defer conf.Release() // run waits for the command to exit
+		}
 		if conf.Enforcement == "" || conf.Enforcement == sandbox.EnforcementNone {
 			return shell.RunResult{}, sandbox.Unavailable("sandbox %s returned no enforcement for a %s policy", sb.Name(), pol.Mode)
 		}

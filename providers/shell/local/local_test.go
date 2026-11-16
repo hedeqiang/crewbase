@@ -202,6 +202,37 @@ func TestSandboxUnavailableDoesNotRun(t *testing.T) {
 	}
 }
 
+// releaser checks that Release runs once, after the command finished.
+type releaser struct {
+	fakeSandbox
+	marker   string
+	released int
+	ranFirst bool
+}
+
+func (r *releaser) Confine(ctx context.Context, argv []string, cwd string, env []string, p sandbox.Policy) (sandbox.Confined, error) {
+	c, err := r.fakeSandbox.Confine(ctx, argv, cwd, env, p)
+	c.Release = func() {
+		r.released++
+		_, err := os.Stat(r.marker)
+		r.ranFirst = err == nil
+	}
+	return c, err
+}
+
+func TestSandboxReleaseAfterExit(t *testing.T) {
+	dir := t.TempDir()
+	sb := &releaser{marker: filepath.Join(dir, "done")}
+	l := newLocal(t, shelllocal.Config{}, sb)
+	ws := sandbox.Policy{Mode: sandbox.ModeWorkspaceWrite, WritableRoots: []string{dir}}
+	if _, err := l.Exec(context.Background(), shell.ExecRequest{Command: "sleep 0.1; touch " + sb.marker, Cwd: dir, Policy: ws}); err != nil {
+		t.Fatal(err)
+	}
+	if sb.released != 1 || !sb.ranFirst {
+		t.Fatalf("Release ran %d times, after the command: %v", sb.released, sb.ranFirst)
+	}
+}
+
 type liar struct{}
 
 func (liar) Name() string { return "liar" }

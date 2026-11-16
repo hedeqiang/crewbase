@@ -29,6 +29,7 @@ import (
 
 	"github.com/hedeqiang/crewbase/capabilities/sandbox"
 	"github.com/hedeqiang/crewbase/kernel"
+	"github.com/hedeqiang/crewbase/providers/sandbox/internal/protect"
 )
 
 // Defaults.
@@ -168,15 +169,31 @@ func (d *Docker) Check(ctx context.Context, p sandbox.Policy) (string, error) {
 // Args builds the `docker run` arguments (without the binary) and the env
 // keys forwarded into the container. Exported for tests.
 func (d *Docker) Args(name string, argv []string, cwd string, env []string, p sandbox.Policy) ([]string, error) {
+	args, _, err := d.args(name, argv, cwd, env, p, false)
+	return args, err
+}
+
+// placeholders tracks the mount points made for missing protected names.
+var placeholders protect.Registry
+
+// args builds the arguments; with acquire, release frees the placeholders
+// (see Confined.Release).
+func (d *Docker) args(name string, argv []string, cwd string, env []string, p sandbox.Policy, acquire bool) (args []string, release func(), err error) {
+	defer func() {
+		if err != nil && release != nil {
+			release()
+			release = nil
+		}
+	}()
 	p = p.Normalize()
 	if !filepath.IsAbs(cwd) {
-		return nil, fmt.Errorf("sandbox-docker: cwd must be absolute: %q", cwd)
+		return nil, nil, fmt.Errorf("sandbox-docker: cwd must be absolute: %q", cwd)
 	}
 	if strings.HasPrefix(d.cfg.Image, "-") || d.cfg.Image == "" {
-		return nil, fmt.Errorf("sandbox-docker: invalid image %q", d.cfg.Image)
+		return nil, nil, fmt.Errorf("sandbox-docker: invalid image %q", d.cfg.Image)
 	}
 	cwd = filepath.Clean(cwd)
-	args := []string{"run", "--rm", "--init", "--name", name,
+	args = []string{"run", "--rm", "--init", "--name", name,
 		"--security-opt", "no-new-privileges:true",
 		"--shm-size", d.cfg.ShmSize,
 		"--pids-limit", strconv.Itoa(d.cfg.PidsLimit),
@@ -201,22 +218,49 @@ func (d *Docker) Args(name string, argv []string, cwd string, env []string, p sa
 	}
 	cwdMounted := false
 	if p.Mode == sandbox.ModeWorkspaceWrite {
+		var bound []string
 		for _, r := range p.WritableRoots {
 			r = filepath.Clean(r)
 			if strings.Contains(r, ":") || strings.Contains(r, ",") {
-				return nil, fmt.Errorf("sandbox-docker: unsupported character in path %q", r)
+				return nil, nil, fmt.Errorf("sandbox-docker: unsupported character in path %q", r)
 			}
 			args = append(args, "--mount", "type=bind,source="+r+",target="+r)
+			bound = append(bound, r)
 			if within(cwd, r) {
 				cwdMounted = true
 			}
+		}
+		// Protected roots inside a writable root stay read-only: a present
+		// one is bound read-only over itself, a missing one gets an empty
+		// read-only tmpfs so it cannot be created (the mount point shows in
+		// the host folder as an empty directory until Release). Docker
+		// mounts parents before children whatever the argument order, but
+		// they follow the workspace here anyway.
+		var protected []string
+		for _, r := range p.ProtectedRoots {
+			r = filepath.Clean(r)
+			if !filepath.IsAbs(r) {
+				continue
+			}
+			if strings.Contains(r, ":") || strings.Contains(r, ",") {
+				return nil, nil, fmt.Errorf("sandbox-docker: unsupported character in path %q", r)
+			}
+			protected = append(protected, r)
+		}
+		plan, rel := placeholders.Plan(protected, bound, acquire)
+		release = rel
+		for _, r := range plan.Present {
+			args = append(args, "--mount", "type=bind,source="+r+",target="+r+",readonly")
+		}
+		for _, r := range plan.Missing {
+			args = append(args, "--tmpfs", r+":ro,size=4k")
 		}
 	} else {
 		args = append(args, "--read-only", "--tmpfs", "/tmp:rw,size=256m")
 	}
 	if !cwdMounted {
 		if strings.Contains(cwd, ",") {
-			return nil, fmt.Errorf("sandbox-docker: unsupported character in path %q", cwd)
+			return nil, nil, fmt.Errorf("sandbox-docker: unsupported character in path %q", cwd)
 		}
 		args = append(args, "--mount", "type=bind,source="+cwd+",target="+cwd+",readonly")
 	}
@@ -226,7 +270,7 @@ func (d *Docker) Args(name string, argv []string, cwd string, env []string, p sa
 	}
 	args = append(args, d.cfg.Image)
 	args = append(args, argv...)
-	return args, nil
+	return args, release, nil
 }
 
 func within(p, root string) bool {
@@ -282,7 +326,7 @@ func (d *Docker) Confine(ctx context.Context, argv []string, cwd string, env []s
 		return sandbox.Confined{}, err
 	}
 	name := newName()
-	args, err := d.Args(name, argv, cwd, env, p)
+	args, release, err := d.args(name, argv, cwd, env, p, true)
 	if err != nil {
 		return sandbox.Confined{}, err
 	}
@@ -297,6 +341,7 @@ func (d *Docker) Confine(ctx context.Context, argv []string, cwd string, env []s
 		Argv:        append([]string{d.cfg.Binary}, args...),
 		Env:         cenv,
 		Enforcement: enf,
+		Release:     release,
 		BlockedSignatures: []string{
 			"Read-only file system",
 		},

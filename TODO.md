@@ -320,7 +320,8 @@
 - [x] 小问题：已安装页「插件卡片」改名「内置面板」；「添加成员」灰掉时说明原因；归档不再用红色危险按钮；新建 Agent 页 Esc 返回；INSTRUCTIONS.md / MEMORY.md 未写时给出说明；⌘3 名称；起名提示跟随名字
 - [x] 侧栏预览去掉 Markdown 标记；新建频道成员用带序号的勾选框，说明可多选、第 1 个是负责人
 - [x] 编码 CLI 读取工作目录里的项目配置可提权（Claude Code、OpenCode 属实；Gemini、Cursor、Grok 在信任目录后属实；Codex 当前版本不受影响）：沙箱模式下 Agent 不能写 .claude / .mcp.json / .codex / .gemini / .cursor / .opencode / opencode.json / .agents / .grok（文件工具和命令沙箱都挡，大小写和符号链接都考虑了）；Agent 自己的工作区里，每轮前把这些配置移到 .crewbase-quarantine/，Claude Code 会话只读用户自己的设置（settingSources: user），CLI 写这些路径的权限请求直接拒绝；你选的项目文件夹里的配置照常生效
-- [ ] Linux 上 bubblewrap / docker 沙箱还不执行 ProtectedRoots（命令仍可创建这些配置；自己的工作区靠隔离兜底）
+- [x] Linux 上 bubblewrap / docker 沙箱执行 ProtectedRoots：已存在的配置只读绑定到自身，不存在的名字挂只读空 tmpfs（无法创建）；挂载点在命令运行期间以空目录出现在文件夹里，最后一个使用它的命令结束后删除（并发命令计数）；sandbox-none 在沙箱模式下不运行命令。CI（ubuntu-latest）安装 bubblewrap 跑真机测试，不可用时跳过
+- [ ] ProtectedRoots 余下的缝：配置路径本身是符号链接时只保护链接目标，链接可被删掉换成真目录；crewd 崩溃时可能留下空的占位目录（无内容，无害）；大小写不敏感的 Linux 文件系统（casefold ext4、vfat）上已存在名字的大小写变体也被挡，但没有专门测试
 - [ ] CLI 自己的命令经你批准后仍可能写配置；Agent 运行中被写入的配置要到下一轮才被移走
 
 ## 消息操作（2026-11-16）

@@ -3,6 +3,13 @@
 // and reports enforcement "none"; any confined policy fails closed with
 // SANDBOX_UNAVAILABLE so a deployment without a real backend never runs a
 // sandbox-mode command unconfined.
+//
+// It enforces no ProtectedRoots, and needs not: a policy that has them
+// (sandbox and read-only modes) is refused, so no command runs, and host
+// mode (full) carries none. Under this provider the coding CLIs' project
+// config (agent.CLIConfigNames) is guarded only by what does not depend on
+// the command sandbox: the fs tools refuse those paths in sandbox mode, and
+// an agent's own workspace is quarantined before each CLI turn.
 package none
 
 import (

@@ -45,6 +45,18 @@ jobs:
       - uses: actions/setup-go@v6
         with:
           go-version-file: go.mod
+      # The bubblewrap sandbox tests run inside real bwrap when it is
+      # installed and can create namespaces; they skip otherwise, so a
+      # failed install never fails the build. Ubuntu 24.04 lets only
+      # AppArmor-profiled programs use unprivileged user namespaces; the
+      # throwaway runner lifts that restriction.
+      - name: Install bubblewrap
+        if: runner.os == 'Linux'
+        continue-on-error: true
+        run: |
+          sudo apt-get install -y -q bubblewrap || (sudo apt-get update -q && sudo apt-get install -y -q bubblewrap)
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0 || true
+          bwrap --ro-bind / / --dev /dev --proc /proc --unshare-pid --unshare-net -- /bin/true && echo "bwrap works"
       - run: go vet ./...
       - run: go test -race -count=1 ./...
       - name: Cross-compile for Windows

@@ -3,8 +3,10 @@
 // namespaces, generated per call from the policy:
 //
 //   - the whole filesystem is mounted read-only; writable roots (workspace)
-//     are bound writable (read-only mode binds none); /tmp is a private,
-//     empty tmpfs (the host's /tmp is not visible); /dev and /proc are new;
+//     are bound writable (read-only mode binds none); protected roots in
+//     them stay read-only and missing ones cannot be created (see Args);
+//     /tmp is a private, empty tmpfs (the host's /tmp is not visible); /dev
+//     and /proc are new;
 //   - network: none → a new network namespace (no interfaces but lo);
 //     open → the host network; allowlist cannot filter by domain and is
 //     reported as enforcement "partial";
@@ -29,6 +31,7 @@ import (
 
 	"github.com/hedeqiang/crewbase/capabilities/sandbox"
 	"github.com/hedeqiang/crewbase/kernel"
+	"github.com/hedeqiang/crewbase/providers/sandbox/internal/protect"
 )
 
 // Config is the plugin config.
@@ -129,8 +132,24 @@ func (b *Bubblewrap) base(p sandbox.Policy) []string {
 
 // Args returns the full bwrap argument list for p (exported for tests and
 // diagnostics). Writable roots are bound after the read-only root so they
-// take precedence.
+// take precedence, and protected roots in them come last so they stay
+// read-only (in bwrap a later mount covers an earlier one):
+//
+//   - a protected path that exists: --ro-bind p p;
+//   - one that does not: --tmpfs p --remount-ro p, an empty read-only
+//     directory, so the command cannot create the name either. The mount
+//     point shows in the host folder as an empty directory while the
+//     command runs; Confine's Release removes it again (package
+//     internal/protect explains the trade-off).
 func (b *Bubblewrap) Args(p sandbox.Policy, cwd string, env []string) []string {
+	args, _ := b.args(p, cwd, env, false)
+	return args
+}
+
+// placeholders tracks the mount points made for missing protected names.
+var placeholders protect.Registry
+
+func (b *Bubblewrap) args(p sandbox.Policy, cwd string, env []string, acquire bool) ([]string, func()) {
 	p = p.Normalize()
 	args := b.base(p)
 	var roots []string
@@ -144,6 +163,7 @@ func (b *Bubblewrap) Args(p sandbox.Policy, cwd string, env []string) []string {
 	}
 	roots = append(roots, b.extra...)
 	seen := map[string]bool{}
+	var bound []string
 	for _, r := range roots {
 		r = resolve(r)
 		if r == "" || r == "/" || seen[r] {
@@ -152,11 +172,25 @@ func (b *Bubblewrap) Args(p sandbox.Policy, cwd string, env []string) []string {
 		seen[r] = true
 		// --bind-try: a root that does not exist yet is skipped, not fatal.
 		args = append(args, "--bind-try", r, r)
+		if _, err := os.Stat(r); err == nil {
+			bound = append(bound, r)
+		}
+	}
+	var protected []string
+	for _, r := range p.ProtectedRoots {
+		protected = append(protected, resolve(r))
+	}
+	plan, release := placeholders.Plan(protected, bound, acquire)
+	for _, r := range plan.Present {
+		args = append(args, "--ro-bind", r, r)
+	}
+	for _, r := range plan.Missing {
+		args = append(args, "--tmpfs", r, "--remount-ro", r)
 	}
 	if cwd != "" {
 		args = append(args, "--chdir", cwd)
 	}
-	return args
+	return args, release
 }
 
 func (b *Bubblewrap) Confine(ctx context.Context, argv []string, cwd string, env []string, p sandbox.Policy) (sandbox.Confined, error) {
@@ -171,13 +205,15 @@ func (b *Bubblewrap) Confine(ctx context.Context, argv []string, cwd string, env
 	if err != nil {
 		return sandbox.Confined{}, err
 	}
-	out := append([]string{b.binary}, b.Args(p, cwd, env)...)
+	args, release := b.args(p, cwd, env, true)
+	out := append([]string{b.binary}, args...)
 	out = append(out, "--")
 	out = append(out, argv...)
 	c := sandbox.Confined{
 		Argv:        out,
 		Env:         append([]string(nil), env...),
 		Enforcement: enf,
+		Release:     release,
 		BlockedSignatures: []string{
 			"Read-only file system",
 			"Permission denied",
