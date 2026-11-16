@@ -1,4 +1,4 @@
-import { Bell, Boxes, Cpu, Keyboard, ListChecks, MessagesSquare, Puzzle, Server, Settings as Gear, User, Workflow, Users } from "lucide-react";
+import { Bell, Boxes, Cpu, Keyboard, ListChecks, MessagesSquare, MousePointerClick, Puzzle, Server, Settings as Gear, User, Workflow, Users } from "lucide-react";
 import type { ReactNode } from "react";
 import type { Key } from "../../i18n";
 import type { SettingsSection } from "../../store";
@@ -20,8 +20,7 @@ export const NAV: { group: Key; items: { id: SettingsSection; icon: ReactNode }[
     items: [
       { id: "models", icon: <Cpu size={16} /> },
       { id: "market", icon: <Puzzle size={16} /> },
-      // 电脑操作 (computer use) returns to the menu when it does something;
-      // a "coming soon" page in the menu and ⌘K only disappoints
+      { id: "computer", icon: <MousePointerClick size={16} /> },
       { id: "auto", icon: <Workflow size={16} /> },
       { id: "approvals", icon: <ListChecks size={16} /> },
     ],

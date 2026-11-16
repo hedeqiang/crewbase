@@ -144,6 +144,8 @@ export interface ToolResult {
   name?: string;
   content: string;
   isError?: boolean;
+  /** workspace images the tool showed the model (e.g. a window screenshot) */
+  attachments?: Attachment[];
 }
 export interface Part {
   type: "text" | "thinking" | "tool_call" | "tool_result" | "citation" | "server_tool" | string;
@@ -390,8 +392,51 @@ export interface CrewbaseDesktop {
   openPermissionSettings?: (id: string) => void;
 }
 
+/** Computer use (features/computertools): GET /api/computer. */
+export type ComputerPerm = "allow" | "ask" | "block";
+export interface ComputerLive {
+  agent: string;
+  app: string;
+  appName?: string;
+  action: string;
+  foreground?: boolean;
+  paused?: boolean;
+  since: string;
+}
+export interface ComputerState {
+  live: ComputerLive[];
+  stoppedAll: boolean;
+  stopped: string[];
+}
+export interface ComputerApp {
+  id: string;
+  name: string;
+  running: boolean;
+  blocked?: boolean;
+  browser?: boolean;
+  /** agent → allow | block ("ask" is the default and not listed) */
+  perms: Record<string, ComputerPerm>;
+}
+export interface ComputerBlocked {
+  id: string;
+  name: string;
+  group: string;
+  key: string;
+  blocked: boolean;
+}
+export interface ComputerOverview {
+  available: boolean;
+  platform: string;
+  enabled: boolean;
+  permissions: { accessibility: boolean; screenRecording: boolean };
+  apps: ComputerApp[];
+  blocks: { default: ComputerBlocked[]; user: ComputerBlocked[]; unblocked: string[] };
+  state: ComputerState;
+  appsError?: string;
+}
+
 export interface DesktopPermission {
-  id: "notifications" | "microphone" | "full-disk-access";
+  id: "notifications" | "microphone" | "full-disk-access" | "accessibility" | "screen-recording";
   status: "granted" | "denied" | "not-determined" | "unknown";
   canRequest: boolean;
 }
@@ -994,6 +1039,14 @@ export const API = {
   settings: () => api<Settings>("GET", "/api/settings"),
   patchSettings: (b: Partial<Settings>) => api<Settings>("PATCH", "/api/settings", b),
   notify: () => api<NotifyState>("GET", "/api/notify"),
+  computer: () => api<ComputerOverview>("GET", "/api/computer"),
+  setComputer: (enabled: boolean) => api<ComputerOverview>("PATCH", "/api/computer", { enabled }),
+  setComputerPermission: (agent: string, app: string, permission: ComputerPerm) =>
+    api<ComputerOverview>("PUT", "/api/computer/permissions", { agent, app, permission }),
+  setComputerBlocked: (key: string, blocked: boolean) => api<ComputerOverview>("PUT", "/api/computer/blocked", { key, blocked }),
+  stopComputer: (agent?: string) =>
+    api<ComputerState>("POST", agent ? `/api/agents/${enc(agent)}/computer/stop` : "/api/computer/stop"),
+  resumeComputer: (agent?: string) => api<ComputerState>("POST", "/api/computer/resume", agent ? { agent } : {}),
   testNotify: (channel: string) => api<{ ok: boolean }>("POST", "/api/notify/test", { channel }),
   hosts: () => api<{ hosts: HostView[] }>("GET", "/api/hosts"),
 

@@ -13,6 +13,7 @@ import { Profile } from "./settings/Profile";
 import { Hosts } from "./settings/Hosts";
 import { Team } from "./settings/Team";
 import { Teams } from "./settings/Teams";
+import { Computer } from "./settings/Computer";
 import { askNotify, notifyPermission, notifySupported } from "../companion";
 import { Notify } from "./settings/Notify";
 import { Im } from "./settings/Im";
@@ -97,7 +98,8 @@ export function Settings() {
         {manage && sec === "team" && <Team />}
         {manage && sec === "teams" && <Teams />}
         {manage && sec === "im" && <Im />}
-        {manage && !["general", "models", "approvals", "auto", "market", "profile", "keys", "notify", "hosts", "team", "teams", "im"].includes(sec) && <Soon sec={sec} />}
+        {manage && sec === "computer" && <Computer />}
+        {manage && !["general", "models", "approvals", "auto", "market", "profile", "keys", "notify", "hosts", "team", "teams", "im", "computer"].includes(sec) && <Soon sec={sec} />}
       </div>
     </div>
   );
@@ -952,6 +954,8 @@ function Remembered() {
 }
 
 export function catLabel(c: string): string {
+  // computer:<bundle id> is operating that app (features/computertools)
+  if (c.startsWith("computer:")) return t("cat.computer", { app: c.slice("computer:".length) });
   const k = `cat.${c}` as Key;
   const v = t(k);
   return v === k ? c : v;

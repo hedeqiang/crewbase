@@ -14,6 +14,7 @@ import {
   type Attachment,
   type ApprovalRequest,
   type BrowserState,
+  type ComputerState,
   type ChannelView,
   type SessionSummary,
   type ModelsResponse,
@@ -118,6 +119,8 @@ export interface State {
   summaries: Record<string, SessionSummary>;
   channels: Record<string, ChannelView>;
   browser: Record<string, BrowserState>; // agent id → browser state
+  /** who operates which app now (features/computertools); null until known */
+  computer: ComputerState | null;
   newChannel: boolean;
   /** folder new things are created in (the folder's + / menu), once */
   createIn: string;
@@ -216,6 +219,7 @@ let state: State = {
   summaries: {},
   channels: {},
   browser: {},
+  computer: null,
   newChannel: false,
   createIn: "",
   modelsTab: "providers",
@@ -812,6 +816,7 @@ export function connectEvents() {
   on("approvals.changed", () => void refreshApprovals());
   on("channel.owner", (d: { channel: string }) => void refreshChannel(d.channel));
   on("browser.state", (d: BrowserState) => setState((s) => ({ browser: { ...s.browser, [d.agent]: d } })));
+  on("computer.state", (d: ComputerState) => setState({ computer: d }));
   on("mcp", () => setState((s) => ({ mcpTick: s.mcpTick + 1 })));
   on("google", () => setState((s) => ({ mcpTick: s.mcpTick + 1 }))); // the built-in Google connector
   on("models.changed", () => void refreshModels());

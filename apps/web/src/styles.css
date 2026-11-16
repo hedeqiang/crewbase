@@ -1876,6 +1876,16 @@ button.psec.toggle { width: 100%; background: none; border: 0; font-family: inhe
 .lookpick .na-colors { display: flex; flex-wrap: wrap; gap: 6px; padding: 2px; }
 .lookpick .na-shapes, .lookpick .na-colors { margin: 0; justify-content: flex-start; }
 .permr { display: inline-flex; align-items: center; gap: 8px; flex: none; }
+/* Settings › 电脑操作 and computer_* steps in conversations */
+.cusafe { display: flex; gap: 10px; align-items: flex-start; font-size: 13px; color: var(--text2); background: var(--raised); }
+.cusafe svg { flex: none; margin-top: 2px; }
+.cusafe ul { margin: 0; padding-left: 16px; display: flex; flex-direction: column; gap: 4px; line-height: 1.5; }
+.cufoot { margin: 8px 2px 0; }
+.cushots { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 2px 21px; }
+.cushots a { display: block; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; background: var(--sunken); }
+.cushots img { display: block; max-width: 220px; max-height: 140px; object-fit: contain; }
+.custeps { margin: 0 0 8px; padding-left: 18px; display: flex; flex-direction: column; gap: 2px; }
+.stephead .cul { font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
 .menu.flyout .flback { color: var(--muted); border-bottom: 1px solid var(--border); border-radius: 8px 8px 0 0; margin-bottom: 4px; }
 
 /* narrow screens: selects never push the page sideways */
