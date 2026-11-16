@@ -1,5 +1,6 @@
 import type { AgentView, ModelInfo, ModelKind, ModelPricing, ModelRef, ModelsResponse, ProviderView } from "./api";
 import { t, type Key } from "./i18n";
+import type { TurnStats, Usage } from "./projection";
 
 export function modeLabel(m: string | undefined): string {
   if (m === "read-only" || m === "sandbox" || m === "host") return t(`mode.${m}` as Key);
@@ -289,4 +290,104 @@ export function nextMorning(): Date {
   d.setDate(d.getDate() + (d.getHours() >= 8 ? 1 : 0));
   d.setHours(8, 0, 0, 0);
   return d;
+}
+
+// ---------------------------------------------------------------- reply usage
+
+/** "812", "48.2k", "1.3M": a token count. */
+export function tokfmt(n: number): string {
+  if (n >= 1_000_000) return (n / 1_000_000).toFixed(1).replace(/\.0$/, "") + "M";
+  if (n >= 1000) return (n / 1000).toFixed(n >= 100_000 ? 0 : 1).replace(/\.0$/, "") + "k";
+  return String(n);
+}
+
+/** "$0.2709", "$1.24", "<$0.0001": what one reply cost. */
+export function costfmt(usd: number): string {
+  if (usd > 0 && usd < 0.0001) return "<$0.0001";
+  if (usd >= 1) return "$" + usd.toFixed(2);
+  return "$" + usd.toFixed(4);
+}
+
+/** USD for usage at a list price (core/llm Pricing.Cost). */
+export function priceCost(p: ModelPricing, u: Usage): number {
+  let input = u.input;
+  let cost = 0;
+  if (p.cacheRead && u.cacheRead) {
+    input -= u.cacheRead;
+    cost += u.cacheRead * p.cacheRead;
+  }
+  if (p.cacheWrite && u.cacheWrite) {
+    input -= u.cacheWrite;
+    cost += u.cacheWrite * p.cacheWrite;
+  }
+  cost += Math.max(0, input) * (p.input ?? 0) + u.output * (p.output ?? 0);
+  return cost / 1e6;
+}
+
+export type Billing = "api" | "subscription" | "local" | "unknown";
+
+/** How calls to a model are paid for: a subscription CLI (acp-*), a local
+ *  model, a priced API model, or an API model with no known price. */
+export function billingOf(models: ModelsResponse | null, r: ModelRef | undefined): Billing {
+  if (!r) return "unknown";
+  const kind = findProvider(models, r.provider)?.kind;
+  if (r.provider.startsWith("acp-") || kind === "subscription") return "subscription";
+  if (kind === "local" || r.provider === "ollama" || r.provider === "lmstudio") return "local";
+  const p = findModel(models, r)?.pricing;
+  return p && (p.input || p.output) ? "api" : "unknown";
+}
+
+export interface ReplyUsage {
+  model?: ModelRef;
+  calls: number;
+  input: number;
+  output: number;
+  cacheRead: number;
+  /** token counts are estimates (subscription CLIs report none) */
+  estimated: boolean;
+  /** USD, set only when every call of the turn has a known price or is
+   *  free to this person (subscription, local), and one was priced */
+  cost?: number;
+  /** set when no call was priced and all were one kind of free */
+  billing?: "subscription" | "local";
+  /** output tokens per second of model time; unset when the timing does
+   *  not support it (no step timing, too short, or a CLI whose step time
+   *  includes its own tool runs) */
+  speed?: number;
+}
+
+/** What a whole turn (every model call from turn/start to turn/end) used. */
+export function replyUsage(models: ModelsResponse | null, stats: TurnStats): ReplyUsage {
+  const out: ReplyUsage = { calls: stats.steps.length, input: 0, output: 0, cacheRead: 0, estimated: false };
+  let cost = 0;
+  let priced = 0;
+  let unknown = 0;
+  const free = new Set<string>();
+  let ms = 0;
+  let timedOut = 0;
+  let timing = true;
+  for (const s of stats.steps) {
+    if (s.model) out.model = s.model;
+    out.input += s.usage.input;
+    out.output += s.usage.output;
+    out.cacheRead += s.usage.cacheRead ?? 0;
+    const b = billingOf(models, s.model);
+    if (b === "subscription") out.estimated = true;
+    const price = b === "api" && s.model ? findModel(models, s.model)?.pricing : undefined;
+    if (price) {
+      cost += priceCost(price, s.usage);
+      priced++;
+    } else if (b === "unknown" || b === "api") unknown++;
+    else free.add(b);
+    if (b === "subscription" || s.ms === undefined) timing = false;
+    else {
+      ms += s.ms;
+      timedOut += s.usage.output;
+    }
+  }
+  if (!unknown && priced) out.cost = cost;
+  else if (!unknown && !priced && free.size === 1) out.billing = [...free][0] as "subscription" | "local";
+  // under half a second or a handful of tokens says little about speed
+  if (timing && ms >= 500 && timedOut >= 20) out.speed = timedOut / (ms / 1000);
+  return out;
 }

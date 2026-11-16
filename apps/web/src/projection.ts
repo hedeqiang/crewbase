@@ -31,9 +31,31 @@ export interface Decision {
   by?: string;
 }
 
-export type FeedItem =
+/** Token counts of one model call, as recorded (core/llm Usage). */
+export interface Usage {
+  input: number;
+  output: number;
+  cacheRead?: number;
+  cacheWrite?: number;
+}
+
+/** One model call of a turn: its model, usage and how long it took
+ *  (step/start to message/assistant; unset when the log has no start). */
+export interface TurnStep {
+  model?: ModelRef;
+  usage: Usage;
+  ms?: number;
+}
+
+/** What a finished turn used, on the last reply of the turn. */
+export interface TurnStats {
+  steps: TurnStep[];
+  status: string;
+}
+
+export type FeedItem = (
   | { k: "time"; id: string; time: string }
-  | { k: "user"; id: string; text: string; from?: string; time: string; to?: string; attachments?: Attachment[] }
+  | { k: "user"; id: string; seq: number; text: string; from?: string; time: string; to?: string; attachments?: Attachment[] }
   | {
       k: "agent";
       id: string;
@@ -45,6 +67,10 @@ export type FeedItem =
       citations: Citation[];
       searches: string[];
       refusal: boolean;
+      /** set on the turn's last reply once the turn ended */
+      stats?: TurnStats;
+      /** seq of the first user message of this reply's turn */
+      turnFrom?: number;
     }
   | { k: "handover"; id: string; from: string; to: string; note: string; files: string[]; time: string }
   | { k: "owner"; id: string; owner: string; prev?: string; by?: string; reason: string }
@@ -77,7 +103,21 @@ export type FeedItem =
       time: string;
     }
   /** A plugin's event rendered by its conversation.node card. */
-  | { k: "plugin"; id: string; type: string; data: any; time: string };
+  | { k: "plugin"; id: string; type: string; data: any; time: string }
+) & {
+  /** Hidden from the model by a later history/rewind (regenerate, edit):
+   *  still shown, collapsed, so the record stays complete. */
+  superseded?: Rewind;
+};
+
+/** A history/rewind: events with from <= seq < at no longer reach the
+ *  agent's model (core/session RewindData). */
+export interface Rewind {
+  from: number;
+  at: number;
+  agent: string;
+  reason: string;
+}
 
 export interface MediaFile {
   path: string;
@@ -104,6 +144,12 @@ export interface Projection {
   openTurns: Set<string>;
   /** Sub-agent runs started here, oldest first. */
   subruns: SubRun[];
+  /** Per agent: the latest compaction's uptoSeq. History up to it is a
+   *  summary now, so it cannot be resent from. */
+  compactedUpto: Record<string, number>;
+  /** Per agent: the last finished turn (its reply item and first user
+   *  message), when nothing came after it: what regenerate resends. */
+  lastTurn: Record<string, { item: string; from: number }>;
 }
 
 const GAP_MS = 15 * 60 * 1000;
@@ -165,9 +211,26 @@ export function project(events: SessionEvent[], cards?: ReadonlySet<string>): Pr
   let lastTime = 0;
   let seenState = false;
 
+  // regenerate / edit: what a later history/rewind took back from the model
+  const rewinds: Rewind[] = [];
+  for (const e of events)
+    if (e.type === "history/rewind" && e.data?.from > 0 && e.data.from < e.seq)
+      rewinds.push({ from: e.data.from, at: e.seq, agent: e.agent ?? "", reason: e.data.reason ?? "" });
+  const compactedUpto: Record<string, number> = {};
+  const lastTurn: Projection["lastTurn"] = {};
+  // the open turn per agent: its first user message, model calls, last reply
+  type Open = { from?: number; steps: TurnStep[]; last?: Extract<FeedItem, { k: "agent" }>; stepAt?: number };
+  const turns = new Map<string, Open>();
+  const pendingFrom = new Map<string, number>(); // agent → first user message since its last turn
+
   const push = (it: FeedItem, time: string) => {
     const ts = new Date(time).getTime();
-    if (!lastTime || ts - lastTime > GAP_MS) items.push({ k: "time", id: "t" + it.id, time });
+    // the widest rewind covering it: an edit further back takes in an
+    // earlier regenerate, and shows as one run
+    let sup: Rewind | undefined;
+    for (const r of rewinds) if (Number(it.id) >= r.from && Number(it.id) < r.at && (!sup || r.from < sup.from || (r.from === sup.from && r.at > sup.at))) sup = r;
+    if (sup) it.superseded = sup;
+    if (!lastTime || ts - lastTime > GAP_MS) items.push({ k: "time", id: "t" + it.id, time, superseded: sup });
     lastTime = ts;
     items.push(it);
   };
@@ -177,6 +240,9 @@ export function project(events: SessionEvent[], cards?: ReadonlySet<string>): Pr
     const id = String(e.seq);
     switch (e.type) {
       case "message/user":
+        for (const k of Object.keys(lastTurn)) delete lastTurn[k];
+        // a message joined into a running turn belongs to that turn
+        if (!pendingFrom.has(d.to ?? "") && !turns.has(d.to ?? "")) pendingFrom.set(d.to ?? "", e.seq);
         if (INJECTED.test(d.text ?? "")) break;
         group = null;
         if (BG_FROM.has(d.from ?? "") && /^\[[^\]]+\]/.test(d.text ?? "")) {
@@ -184,7 +250,7 @@ export function project(events: SessionEvent[], cards?: ReadonlySet<string>): Pr
           push({ k: "bg", id, time: e.time, ...bg, sub: bg.kind === "delegation" ? runForTask(bg.task)?.session : undefined }, e.time);
           break;
         }
-        push({ k: "user", id, text: d.text ?? "", from: d.from, time: e.time, to: d.to, attachments: d.attachments }, e.time);
+        push({ k: "user", id, seq: e.seq, text: d.text ?? "", from: d.from, time: e.time, to: d.to, attachments: d.attachments }, e.time);
         break;
       case "message/assistant": {
         const parts: Part[] = d.message?.parts ?? [];
@@ -202,9 +268,22 @@ export function project(events: SessionEvent[], cards?: ReadonlySet<string>): Pr
         }
         const searches = parts.filter((p) => p.type === "server_tool" && p.text).map((p) => p.text as string);
         const refusal = d.stop === "refusal";
+        const turn = turns.get(e.agent ?? "");
+        if (turn) {
+          const ts = new Date(e.time).getTime();
+          const u = d.usage ?? {};
+          turn.steps.push({
+            model: d.model?.provider ? d.model : undefined,
+            usage: { input: u.input ?? 0, output: u.output ?? 0, cacheRead: u.cacheRead, cacheWrite: u.cacheWrite },
+            ms: turn.stepAt !== undefined && ts >= turn.stepAt ? ts - turn.stepAt : undefined,
+          });
+          turn.stepAt = undefined;
+        }
         if (text || thinking || citations.length || searches.length || refusal) {
           group = null;
-          push({ k: "agent", id, agent: e.agent ?? "", text, thinking, model: d.model, time: e.time, citations, searches, refusal }, e.time);
+          const it: Extract<FeedItem, { k: "agent" }> = { k: "agent", id, agent: e.agent ?? "", text, thinking, model: d.model, time: e.time, citations, searches, refusal };
+          if (turn) turn.last = it;
+          push(it, e.time);
         }
         break;
       }
@@ -289,22 +368,42 @@ export function project(events: SessionEvent[], cards?: ReadonlySet<string>): Pr
       case "compaction/summary":
         group = null;
         push({ k: "compact", id, summary: d.summary ?? "", before: d.tokensBefore ?? 0, after: d.tokensAfter ?? 0 }, e.time);
+        if (d.uptoSeq) compactedUpto[e.agent ?? ""] = d.uptoSeq;
         break;
-      case "turn/start":
-        openTurns.add(e.agent ?? "");
+      case "turn/start": {
+        const ag = e.agent ?? "";
+        openTurns.add(ag);
+        delete lastTurn[ag];
+        turns.set(ag, { from: pendingFrom.get(ag) ?? pendingFrom.get(""), steps: [] });
+        pendingFrom.delete(ag);
+        pendingFrom.delete("");
         break;
-      case "turn/end":
-        openTurns.delete(e.agent ?? "");
+      }
+      case "turn/end": {
+        const ag = e.agent ?? "";
+        openTurns.delete(ag);
         group = null;
+        const turn = turns.get(ag);
+        turns.delete(ag);
+        if (turn?.last) {
+          turn.last.stats = { steps: turn.steps, status: d.status ?? "" };
+          turn.last.turnFrom = turn.from;
+          if (turn.from !== undefined) lastTurn[ag] = { item: turn.last.id, from: turn.from };
+        }
         if (d.status === "failed") push({ k: "sys", id, tone: "error", text: d.error ?? "", key: "chat.turnFailed", vars: { error: d.error ?? "" } }, e.time);
         else if (d.status === "cancelled") push({ k: "sys", id, tone: "muted", text: "", key: "chat.turnCancelled" }, e.time);
         break;
+      }
       case "turn/error":
         push({ k: "sys", id, tone: "error", text: d.error ?? d.text ?? JSON.stringify(d) }, e.time);
         break;
       case "step/start":
         context[e.agent ?? ""] = { tokens: d.contextTokens ?? 0, window: d.contextWindow ?? 0, model: d.model };
         if (d.model?.provider) lastModel[e.agent ?? ""] = d.model;
+        {
+          const turn = turns.get(e.agent ?? "");
+          if (turn) turn.stepAt = new Date(e.time).getTime();
+        }
         break;
       case "channel/handover":
         group = null;
@@ -387,7 +486,7 @@ export function project(events: SessionEvent[], cards?: ReadonlySet<string>): Pr
         break;
     }
   }
-  return { items, context, lastModel, openTurns, subruns };
+  return { items, context, lastModel, openTurns, subruns, compactedUpto, lastTurn };
 }
 
 /** Last text message in the log (for list snippets). */
