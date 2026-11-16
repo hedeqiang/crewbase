@@ -114,6 +114,15 @@ Retina 缩放、坐标换算、按键名映射、各家的「需要确认」握�
 - 新能力 `computer`（capabilities/computer）+ macOS 实现（providers/computer/macos）+ 工具（features/computertools），结构与浏览器（capabilities/browser、providers/browser/chrome、features/browsertools）一致；
 - 审批类别：`computer`（操作应用）、`computer-script`（运行脚本），确认动作复用现有的 publish / delete / payment。
 
+### 订阅 CLI（ACP）也能用
+
+模型是 Claude Code、Codex、Cursor、OpenCode 等 CLI 的 agent 自己跑工具，Crewbase 的工具不在其中。为此 Crewbase 在网关上开了一个 MCP 服务器（features/mcpserver，Streamable HTTP，`http://127.0.0.1:<端口>/mcp`）：
+
+- 只提供白名单工具（配置 `tools`，默认 `computer_*`、`browser_*`），且只列出当前已注册、对该 agent 可见的（电脑操作开关关着时就没有 computer_*）；bash、文件等 CLI 自带的工具不提供；
+- ACP 适配器每开一个会话就签发一个随机令牌，绑定 agent + Crewbase 会话（运行模式按每轮更新），在 `session/new` 的 `mcpServers` 里以 `{"type":"http","name":"crewbase","url":…,"headers":[{"name":"Authorization","value":"Bearer …"}]}` 交给 CLI（仅当 CLI 在 initialize 里声明了 `mcpCapabilities.http`）；会话被丢弃、进程退出或适配器关闭时吊销。令牌只对 /mcp 有效，不进日志；
+- 调用走 `tools.Registry.Run`，与模型直接调用完全一样：规则、审批卡、运行模式、电脑操作的策略、日志和会话事件都生效；只在 Crewbase 正在为这个 agent 跑一轮时可用，取消这一轮会取消进行中的调用；
+- 不重复询问：CLI 调这些工具前会发 `session/request_permission`，若请求明确是 crewbase MCP 工具（Claude Code 的 `mcp__crewbase__<tool>`、Cursor 的 `crewbase: <tool>`、OpenCode 的 `crewbase_<tool>`、codex-acp 的 `Approve <tool>` 且内容含 `Server: crewbase`），就直接选 allow_once，由 Crewbase 自己的流程决定是否问人；其他请求照旧走审批。
+
 ## 参考
 
 - Claude computer use 工具：https://platform.claude.com/docs/en/agents-and-tools/tool-use/computer-use-tool
