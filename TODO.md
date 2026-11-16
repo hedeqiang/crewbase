@@ -78,7 +78,7 @@
 - [ ] 桌面（暂缓，暂无 Apple Developer ID）：Developer ID 签名与公证（暂用临时签名，首次打开需右键打开）、Windows / Linux 实机运行；私钥需加入仓库 Secrets（`gh secret set MYGO_UPDATER_PRIVATE_KEY`）
 
 ## Phase 2 — 多 Agent 协同、自动化、生态（第 7–12 周）
-- [x] `channel-local`：共享频道、单一负责人、交接工具与 Waterfall、停止 / 恢复 / 改派 / 归档（A-3 A-4 A-5）
+- [x] `channel-local`：共享频道、单一负责人、交接工具与 Waterfall、停止 / 恢复 / 改派 / 归档（A-3 A-4 A-5）；@ 成员只派这一条任务、负责人不变（改负责人走面板改派或交接），停止会一并停下被 @ 的成员（2026-11-16）
 - [x] `subagent`：local / fork（acp 提供方待接），最大深度、并发上限、取消传播、临时 Agent 清理、诊断 ≤4KB；`delegate` 工具（A-6）
 - [x] 运行模式 A 只读调研（S-1 P1）
 - [x] `schedule` / `webhook`：Cron / every / daily / weekly / at、最小间隔 60s、幂等键先落盘后投递、Webhook 独立密钥（R-1）
