@@ -291,7 +291,7 @@
 - [x] 第三期 · 团队共享：团队记忆 TEAM.md（团队每个 Agent 的提示词里都有，负责人在设置里编辑，Agent 用 team_memory_add 追加，不进其他团队）；MCP 服务器可共享给一个团队（team:<id>，一个连接，工具只给本团队 Agent）；团队默认运行权限（新 Agent 起始权限）；IM 网关可绑定团队（只能 @ 本团队 Agent，个人对话永远不能从 IM 访问）；团队用量（本期 tokens）。真实验证：主人在浏览器里建私密团队、设只读默认、写团队记忆、加入小王；小王的配对手机只看到自己的团队；真实模型（DeepSeek Flash）的客服用团队记忆回答并写入新约定，同团队的售后直接用上
 
 ## 体验修正
-- [ ] Homebrew：`brew install --cask hedeqiang/tap/crewbase`。cask 模板在 packaging/homebrew/crewbase.rb（安装后去掉隔离属性，未公证也能直接打开；退出应用后再卸载），本地 brew style / audit --strict --online / 安装到临时目录均通过；发版后 release.yml 的 homebrew 任务自动更新 tap。待办：建公开仓库 hedeqiang/homebrew-tap，并把可写部署密钥的私钥设为 HOMEBREW_TAP_DEPLOY_KEY
+- [x] Homebrew：`brew install --cask hedeqiang/tap/crewbase`。cask 模板在 packaging/homebrew/crewbase.rb（安装后去掉隔离属性，未公证也能直接打开；退出应用后再卸载），本地 brew style / audit --strict --online / 安装到临时目录均通过；发版后 release.yml 的 homebrew 任务自动更新 tap。待办：建公开仓库 hedeqiang/homebrew-tap，并把可写部署密钥的私钥设为 HOMEBREW_TAP_DEPLOY_KEY
 - [x] 输入框选目录：去掉手填路径的输入框；桌面客户端用系统选择框，浏览器 / 中继里改为逐级浏览本机文件夹（只列文件夹、不含隐藏文件夹，只有主人可以浏览，成员设备 403），选中即用；仍保留最近用过的文件夹和回到默认工作区
 - [x] 工作记忆（迭代 18 遗留，@crewbase/memory-working）：①「已告诉过你什么」——例行、目标、跟进、后台命令、委派、审批后、工作流这些主动汇报自动记入 .memory/told.jsonl（保留 40 条），提示词带最近 8 条，避免下一次汇报重复上一次；②任务进度文件——task_progress / task_progress_read，tasks/<名称>.md，提示词只列进行中任务（名称、多久前更新、第一行），完成后归档到 tasks/done/；③参考笔记——notes/ 下的 .md / .txt 只在提示词里放目录（名称、第一行、大小），用 note_read 按需分段读。右侧面板：任务页显示进行中的任务（点开看进度），Agent 页可添加 / 查看 / 删除参考笔记，查看它最近主动汇报过的内容。真实模型（DeepSeek Flash）验证：只看目录就去读了价格表并算对折扣；多日任务自己写了进度文件并设了明天的跟进；跟进回来的汇报被记下
 - [x] 审批不卡住 Agent（迭代 18 遗留）：等待批准时有别的事进来（另一个对话、IM、例行、后台结果）就先停靠这次调用，Agent 说一句在等你批准就去处理别的，审批卡片和 IM 上的请求照样有效；你批准后原对话自动接着做（同一调用一次性放行、不再重复询问，1 小时有效），拒绝则重新规划；同一对话里直接回消息仍当作拒绝；停靠记录写入 parked.json，重启后告诉 Agent 审批已丢失、需要的话重新发起。真实模型（DeepSeek Flash）验证：删除文件等批准时在另一个对话问问题，立即得到回答；批准后自动删除并汇报
@@ -331,6 +331,16 @@
 - [x] 更新后「立即重新启动」会真的重新打开（之前退出时为停 Agent 拦下了退出，重启被取消）
 - [x] 重新生成后显示为同一个问题的多个版本，回答下方「‹ 2/3 ›」切换（旧版本变淡、不能操作，模型只看到最新一版）；编辑重发仍是折叠
 - [x] 失败且没有回答的回合，错误行上有「重试」
+
+## 电脑操作（docs/computer-use.md）
+- [x] 第一版（v0.5.4，macOS 预览）：元素清单 + 窗口截图 + 按元素 / 按进程键盘的后台操作、坐标操作等你停下；computer_* 通用工具（含批量）；按 Agent × 应用授权（第一次问、可记住），默认禁止钥匙串 / 密码管理器 / 终端 / 系统设置 / 金融类，浏览器默认禁止可放开；发送 / 发布 / 删除每次确认、不填密码框；屏幕内容视为不可信；菜单栏指示、目标窗口边框、⌃⌥⌘. 停止；操作记录与截图
+- [ ] 真机验收（需要授权辅助功能）：在 Chrome 里发 X 测试帖、备忘录新建、Finder 操作
+- [ ] Claude 原生 computer_toolset_20260801 适配（第一版范围内未做，现用通用工具）
+- [ ] Electron 应用（飞书、VS Code）打开 AXManualAccessibility，读到完整元素树
+- [ ] 订阅 CLI（Claude Code、Codex、Antigravity）经 MCP 使用 Crewbase 的电脑操作（同一套授权与确认）
+- [ ] OpenAI computer、Gemini computer_use 原生适配
+- [ ] AppleScript / 快捷指令动作（按类别审批）
+- [ ] 以后：Windows（UI Automation）、虚拟显示器 / 虚拟机、操作录制与重放
 
 ## 下一轮迭代计划（2026-11-15 再修订：吸纳常驻 Agent / Super-agent 两篇文章，见 docs/references/always-on-agents.md）
 - **迭代 17 · 常驻基础（每天都会碰到的）**：连续多条消息合并成一轮、只回复一次；运行中插话并入当前运行（下一步就看到，不必等这轮结束）；Agent 给自己设跟进（`followup` 工具：到点作为新输入回来，可取消、可在界面看到）；后台命令（bash 可后台启动，立即返回，`job_output` / `job_stop`，结束后结果作为事件回到对话，期间照常响应）；卡死检测（重复相同工具调用、长时间无进展 → 提醒并可自动停止）；按信道的输出规范（IM 简短、只在需要决策或验收时说话）
