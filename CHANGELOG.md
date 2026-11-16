@@ -3,6 +3,13 @@
 Each `## <version>` section becomes the release notes of that version,
 shown in the desktop app's update window.
 
+## 0.5.6
+
+电脑操作的授权在更新后保留；Agent 打不开网站时会改用你允许的浏览器。
+
+- 应用改用固定的签名证书：「辅助功能」「屏幕录制」授权一次后，以后更新都保留（之前每个版本在 macOS 看来都是新应用，系统设置里显示已授权其实没生效）。这次更新后需要在系统设置里删掉旧的 Crewbase、重新授权一次
+- Crewbase 自带的浏览器被网站拒绝时（例如 X），Agent 会改用你在 设置 › 电脑操作 里允许的浏览器（如你的 Chrome）；没允许时告诉你在哪里打开
+
 ## 0.5.5
 
 电脑操作覆盖更多模型和应用：订阅 CLI 也能用，Claude / GPT / Gemini 用各自原生的操作方式，支持 AppleScript 和快捷指令。
