@@ -314,7 +314,7 @@ function RoutineRuns({ r }: { r: Routine }) {
           <span className="small tm">{ago(x.started)}</span>
           <span className="g small">{x.status === "quiet" ? t("auto.quietNote") : x.summary || ""}</span>
           {r.session && (
-            <button className="linkbtn" type="button" onClick={() => openSession(r.session)}>
+            <button className="btn sm ghost" type="button" onClick={() => openSession(r.session)}>
               {t("appr.open")}
             </button>
           )}

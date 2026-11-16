@@ -106,7 +106,7 @@ export function Notify() {
               {channels.map((ch) => (
                 <span key={ch} className="ntc">
                   <b>{channelName(ch, im)}</b>
-                  <button type="button" className="linkbtn" disabled={testing !== ""} onClick={() => void test(ch)}>
+                  <button type="button" className="btn sm ghost" disabled={testing !== ""} onClick={() => void test(ch)}>
                     {testing === ch ? t("nt.testing") : t("nt.test")}
                   </button>
                 </span>
@@ -146,7 +146,7 @@ export function Notify() {
             <b>{t(im?.gateways.length ? "imx.ntHave" : "imx.ntNone")}</b>
             <span>{t("imx.ntDesc")}</span>
           </span>
-          <span className="linkbtn">{t("imx.ntGo")}</span>
+          <span className="btn sm">{t("imx.ntGo")}</span>
         </button>
 
         <div className="vsec">{t("nt.when")}</div>

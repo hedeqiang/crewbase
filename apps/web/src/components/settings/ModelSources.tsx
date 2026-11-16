@@ -211,7 +211,7 @@ export function ModelCatalog() {
             onChange={(e) => setDraft(e.target.value)}
           />
           <div className="mcat-act">
-            <button type="button" className="linkbtn" onClick={() => setDraft(defaults.join("\n"))}>
+            <button type="button" className="btn sm ghost" onClick={() => setDraft(defaults.join("\n"))}>
               {t("mcat.defaults")}
             </button>
             <span className="grow" />

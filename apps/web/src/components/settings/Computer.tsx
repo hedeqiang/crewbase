@@ -226,9 +226,6 @@ function AppTable({ ov, run }: { ov: ComputerOverview; run: (p: Promise<Computer
                     </button>
                   ))}
                 </div>
-                <button className="linkbtn" type="button" title={t("cu.blockAllDesc")} onClick={() => void run(API.setComputerBlocked(a.id, true))}>
-                  {t("cu.blockAll")}
-                </button>
               </Row>
             );
           })}

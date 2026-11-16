@@ -287,7 +287,7 @@ export function NewAgent({ draft: f, setDraft }: { draft: Draft; setDraft: (d: D
               <div className="na-look">
                 <div className="na-lookh">
                   <span className="small muted">{t("na.look")}</span>
-                  <button type="button" className="linkbtn na-dice" onClick={randomLook}>
+                  <button type="button" className="btn sm ghost na-dice" onClick={randomLook}>
                     <Dices size={13} />
                     {t("na.random")}
                   </button>

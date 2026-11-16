@@ -1176,8 +1176,6 @@ const zh = {
   "cu.perm.allow": "允许",
   "cu.perm.ask": "先问我",
   "cu.perm.block": "禁止",
-  "cu.blockAll": "全部禁止",
-  "cu.blockAllDesc": "对所有 Agent 禁止这个应用",
   "cu.browsers": "浏览器（{apps}）不在这里操作：网页交给 Agent 自己的浏览器。",
   "cu.blocked": "禁止的应用",
   "cu.blockedByYou": "你禁止的",

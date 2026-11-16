@@ -1461,8 +1461,6 @@ export const en: Partial<Record<Key, string>> = {
   "cu.perm.allow": "Allow",
   "cu.perm.ask": "Ask me",
   "cu.perm.block": "Block",
-  "cu.blockAll": "Block for all",
-  "cu.blockAllDesc": "Block this app for every agent",
   "cu.browsers": "Browsers ({apps}) are not operated here: websites go to the agent's own browser.",
   "cu.blocked": "Blocked apps",
   "cu.blockedByYou": "blocked by you",

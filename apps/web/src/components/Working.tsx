@@ -105,7 +105,7 @@ export function WorkNotes({ agent }: { agent: AgentView }) {
       <div className="psec phead">
         <span>{t("work.notes", { n: w.notes.length })}</span>
         {manage && (
-          <button className="linkbtn" type="button" onClick={() => file.current?.click()}>
+          <button className="btn sm ghost" type="button" onClick={() => file.current?.click()}>
             <FilePlus2 size={12} />
             {t("work.addNote")}
           </button>

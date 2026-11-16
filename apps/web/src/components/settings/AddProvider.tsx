@@ -252,7 +252,7 @@ export function AddProviderDialog({ onClose, existing, edit }: { onClose: () => 
                     </button>
                     <span className="ap-iconhint">
                       {icon ? (
-                        <button type="button" className="linkbtn" onClick={() => setIcon("")}>
+                        <button type="button" className="btn sm ghost" onClick={() => setIcon("")}>
                           <Sparkles size={11} /> {t("ap.iconAutoBack")}
                         </button>
                       ) : (
@@ -376,7 +376,7 @@ export function AddProviderDialog({ onClose, existing, edit }: { onClose: () => 
                       </span>
                     )}
                     {edit && (
-                      <button type="button" className="linkbtn" disabled={busy !== ""} onClick={() => void runTest()}>
+                      <button type="button" className="btn sm ghost" disabled={busy !== ""} onClick={() => void runTest()}>
                         {t("ap.refetch")}
                       </button>
                     )}

@@ -211,7 +211,7 @@ function Keys() {
                       {rec === s.id ? <span className="small">{t("keys.pressKeys")}</span> : <Combo combo={binding(s.id)} />}
                     </button>
                     {isCustom(s.id) && (
-                      <button className="linkbtn" type="button" onClick={() => resetBinding(s.id)} title={t("keys.reset")}>
+                      <button className="btn sm ghost" type="button" onClick={() => resetBinding(s.id)} title={t("keys.reset")}>
                         {t("keys.reset")}
                       </button>
                     )}

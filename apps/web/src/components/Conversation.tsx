@@ -2096,7 +2096,7 @@ function DirBrowser({ start, busy, onPick, onBack }: { start: string; busy: bool
           {at ? tailPath(shortPath(at.path)) : "…"}
         </span>
         {at && !atHome && (
-          <button className="linkbtn" type="button" disabled={busy} onClick={() => onPick(at.path)}>
+          <button className="btn sm ghost" type="button" disabled={busy} onClick={() => onPick(at.path)}>
             {t("dir.useHere")}
           </button>
         )}

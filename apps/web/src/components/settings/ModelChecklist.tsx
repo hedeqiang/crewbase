@@ -123,7 +123,7 @@ export function ModelChecklist({
           {t("mc.count", { n: nPicked, m: ids.length })}
           {ql ? ` · ${t("mc.matching", { k: shown.length })}` : ""}
         </span>
-        <button type="button" className="linkbtn" disabled={!shown.length} onClick={() => setShown(!allShownOn)}>
+        <button type="button" className="btn sm ghost" disabled={!shown.length} onClick={() => setShown(!allShownOn)}>
           {allShownOn ? (ql ? t("mc.noneShown") : t("ap.none")) : ql ? t("mc.allShown") : t("ap.all")}
         </button>
       </div>

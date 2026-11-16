@@ -82,7 +82,7 @@ export function Welcome({ onTemplate }: { onTemplate: (d: Partial<Draft>) => voi
               </span>
             ))}
             {sources.length > 6 && <span className="wchip muted">+{sources.length - 6}</span>}
-            <button className="linkbtn" type="button" onClick={openConnect}>
+            <button className="btn sm ghost" type="button" onClick={openConnect}>
               {t("wel.addMore")}
             </button>
           </div>
