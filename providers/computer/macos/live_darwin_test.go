@@ -189,3 +189,25 @@ func pgrep(name string) int {
 	}
 	return pid
 }
+
+// TestLiveSelf exercises the accessibility calls on this test process
+// itself (no other app is read).
+func TestLiveSelf(t *testing.T) {
+	p := liveProvider(t)
+	el, err := p.pf.AppElement(os.Getpid())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer p.pf.Release(el)
+	p.pf.SetTimeout(el, 0.5)
+	raw, err := p.pf.Read(el)
+	t.Logf("own app element: %+v err=%v", raw, err)
+	kids, total, err := p.pf.Children(el, 10)
+	for _, k := range kids {
+		p.pf.Release(k)
+	}
+	// a test binary is no Cocoa app: "not implemented" (or "not allowed"
+	// without Accessibility) is the expected answer; the point is that the
+	// calls go through and come back with an AX error, not a crash
+	t.Logf("children: %d of %d err=%v", len(kids), total, err)
+}

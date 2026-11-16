@@ -528,19 +528,31 @@ func copyElements(el uintptr, name string, max int) ([]ref, int, error) {
 
 func (darwinPlatform) Read(r ref) (rawNode, error) {
 	el := uintptr(r)
+	values := make([]uintptr, len(nodeAttrs))
 	var arr uintptr
-	if err := axErr(axUIElementCopyMultipleAttributeValues(el, readAttrs, 0, &arr)); err != nil {
+	err := axErr(axUIElementCopyMultipleAttributeValues(el, readAttrs, 0, &arr))
+	switch {
+	case err == nil && arr != 0:
+		defer cfRelease(arr)
+		for i, c := 0, cfArrayGetCount(arr); i < c && i < len(values); i++ {
+			values[i] = cfArrayGetValueAtIndex(arr, i)
+		}
+	case errors.Is(err, errInvalid), errors.Is(err, errAPIDisabled):
 		return rawNode{}, err
+	default:
+		// some apps refuse the batch: one attribute at a time
+		for i, a := range nodeAttrs {
+			var v uintptr
+			if axUIElementCopyAttributeValue(el, cfstr(a), &v) == 0 && v != 0 {
+				values[i] = v
+				defer cfRelease(v)
+			}
+		}
 	}
-	if arr == 0 {
-		return rawNode{}, errNoValue
-	}
-	defer cfRelease(arr)
 	var n rawNode
 	got := 0
-	count := cfArrayGetCount(arr)
-	for i := 0; i < count && i < len(nodeAttrs); i++ {
-		v := cfArrayGetValueAtIndex(arr, i)
+	for i := range values {
+		v := values[i]
 		if v == 0 {
 			continue
 		}
