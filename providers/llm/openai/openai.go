@@ -99,6 +99,9 @@ type ProviderConfig struct {
 	SafetyCheck string `json:"safetyCheck,omitempty"`
 	// DefaultContextWindow is reported for fetched models whose window is unknown.
 	DefaultContextWindow int `json:"defaultContextWindow,omitempty"`
+	// Responses sends requests that use the native computer tool through
+	// the Responses API (default: on for the openai preset only).
+	Responses *bool `json:"responses,omitempty"`
 }
 
 // Config is the plugin config.
@@ -121,6 +124,7 @@ type Adapter struct {
 	defWindow    int
 	httpClient   *http.Client
 	pollEvery    time.Duration // video job polling (default 10s)
+	responses    bool          // the computer tool through the Responses API
 
 	mu       sync.Mutex
 	safety   string
@@ -183,6 +187,10 @@ func New(c *kernel.Context, pc ProviderConfig) (*Adapter, error) {
 	}
 	if pc.ShortToolIDs != nil {
 		a.shortIDs = *pc.ShortToolIDs
+	}
+	a.responses = pname == "openai"
+	if pc.Responses != nil {
+		a.responses = *pc.Responses
 	}
 	a.keys = keySource{C: c, Literal: pc.APIKey, Ref: pc.APIKeyRef, Env: env}
 	if pc.APIKey == "" && pc.APIKeyRef == "" && a.kind != "local" {
@@ -539,6 +547,9 @@ func (a *Adapter) paramsWith(req llm.Request, files map[string]string) (sdk.Chat
 // accumulator and emitted when the stream completes (JustFinishedToolCall
 // is unreliable with parallel, interleaved tool-call deltas).
 func (a *Adapter) Stream(ctx context.Context, req llm.Request, onChunk func(llm.Chunk) error) (llm.Response, error) {
+	if a.computerTool(req) {
+		return a.streamResponses(ctx, req, onChunk)
+	}
 	opts, key, err := a.options(ctx)
 	if err != nil {
 		return llm.Response{}, err

@@ -49,7 +49,7 @@ type Stats struct {
 	// as magpie, valued at the model's list price (the gateway's own
 	// billing may differ).
 	GatewayUSD float64 `json:"gatewayUsd"`
-	Reference     Price          `json:"reference"`
+	Reference  Price   `json:"reference"`
 	// PricedTokens were valued at their model's own list price (from the
 	// model catalog); the rest at Reference.
 	PricedTokens int            `json:"pricedTokens"`

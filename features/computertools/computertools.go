@@ -56,6 +56,7 @@ import (
 	"github.com/hedeqiang/crewbase/capabilities/approval"
 	"github.com/hedeqiang/crewbase/capabilities/computer"
 	"github.com/hedeqiang/crewbase/core/agent"
+	"github.com/hedeqiang/crewbase/core/agentloop"
 	"github.com/hedeqiang/crewbase/core/llm"
 	"github.com/hedeqiang/crewbase/core/session"
 	"github.com/hedeqiang/crewbase/core/tools"
@@ -215,6 +216,7 @@ type Service struct {
 	seq      int
 	live     map[string]Live // agent → what it does now
 	pending  map[string]pendingAsk
+	native   map[string]*nativeState // agent → the native computer tool's target
 }
 
 // errors of the tool layer
@@ -620,7 +622,6 @@ func (s *Service) blockedWhy(app computer.App) string {
 	return "it handles money (bank, broker or crypto); agents never operate it"
 }
 
-
 // permission is agent's effective permission for app, before the
 // conversation grant: allow, ask or block.
 func (s *Service) permission(agentID string, app computer.App) string {
@@ -669,14 +670,16 @@ func (s *Service) forget(agentID, app string) {
 // isComputerTool reports whether name is one of ours.
 func isComputerTool(name string) bool {
 	switch name {
-	case ToolApps, ToolObserve, ToolAct, ToolBatch, ToolOpen:
+	case ToolApps, ToolObserve, ToolAct, ToolBatch, ToolOpen, ToolNative:
 		return true
 	}
 	return isScriptTool(name)
 }
 
 // acts reports whether a tool changes an app (not allowed read-only).
-func acts(name string) bool { return name == ToolAct || name == ToolBatch || name == ToolOpen }
+func acts(name string) bool {
+	return name == ToolAct || name == ToolBatch || name == ToolOpen || name == ToolNative
+}
 
 // middleware is the tools/pre-execute listener enforcing the policy. It is
 // prepended, so it sees the decision after the rules engine and has the
@@ -702,7 +705,19 @@ func (s *Service) middleware(ctx context.Context, d *tools.Decision, next kernel
 	if acts(name) && toolsbasic.EffectiveMode(call.Mode) == agent.ModeReadOnly {
 		return d.DenyWith("read-only mode: you may list and observe apps (computer_apps, computer_observe) but not operate them; ask the user to switch to sandbox mode"), nil
 	}
-	app, _ := s.resolve(ctx, call.String("app"))
+	var app computer.App
+	safety := false
+	if name == ToolNative {
+		var ok bool
+		if app, ok = s.targetApp(ctx, call.Agent); !ok {
+			return d.DenyWith(NoTargetMessage), nil
+		}
+		if c, err := decodeNative(*call); err == nil {
+			safety = len(c.Safety) > 0
+		}
+	} else {
+		app, _ = s.resolve(ctx, call.String("app"))
+	}
 	if app.ID == "" {
 		return d.DenyWith("app is required"), nil
 	}
@@ -720,7 +735,7 @@ func (s *Service) middleware(ctx context.Context, d *tools.Decision, next kernel
 	}
 	ask := perm == PermAsk && !(sid != "" && s.rules.SessionGranted(call.Agent, sid, cat))
 	cons := rank(d.Category) > 0
-	if cons {
+	if cons || safety {
 		d.Rememberable = false
 	}
 	out, err := next(ctx, d)
@@ -728,6 +743,12 @@ func (s *Service) middleware(ctx context.Context, d *tools.Decision, next kernel
 		return out, err
 	}
 	switch {
+	case safety:
+		// the provider's own safety check: the person confirms every time,
+		// and only then is the acknowledgement sent back
+		out.RequireApproval("computer: the model provider asks the user to confirm this action")
+		out.Rememberable, out.ConfirmRemember = false, false
+		cons = true
 	case cons:
 		// confirmed every time, whatever was remembered for the category
 		out.RequireApproval(fmt.Sprintf("computer: %s is confirmed every time", out.Category))
@@ -973,6 +994,7 @@ var Plugin = kernel.Register(kernel.Spec{
 		tools.PreExecute.Prepend(c, s.middleware)
 		approval.Decided.Listen(c, s.onDecided)
 		session.OnEvent.Listen(c, s.onUserMessage)
+		agentloop.Request.Use(c, s.offerNative)
 		s.syncTools()
 		return c.Provide(ServiceKey, s)
 	},

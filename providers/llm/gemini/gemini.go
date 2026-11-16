@@ -288,6 +288,14 @@ func (a *Adapter) AcceptsFile(model, mime string) bool {
 
 func (a *Adapter) mapContents(model string, msgs []llm.Message) []*genai.Content {
 	names := toolNames(msgs)
+	natives := map[string]string{} // native call id → predefined function
+	for _, m := range msgs {
+		for _, tc := range m.ToolCalls() {
+			if c, ok := llm.DecodeComputerCall(tc); ok && c.Vendor == llm.ComputerGemini {
+				natives[tc.ID] = c.Action
+			}
+		}
+	}
 	needSig := strings.Contains(model, "gemini-3")
 	var out []*genai.Content
 	for _, m := range msgs {
@@ -314,9 +322,12 @@ func (a *Adapter) mapContents(model string, msgs []llm.Message) []*genai.Content
 				}
 			case "tool_call":
 				if tc := p.ToolCall; tc != nil && role == genai.RoleModel {
-					var args map[string]any
-					_ = json.Unmarshal(argsObject(tc.Args), &args)
-					fc := &genai.FunctionCall{Name: tc.Name, Args: args}
+					fc, native := nativeFunctionCall(tc)
+					if !native {
+						var args map[string]any
+						_ = json.Unmarshal(argsObject(tc.Args), &args)
+						fc = &genai.FunctionCall{Name: tc.Name, Args: args}
+					}
 					if !strings.HasPrefix(tc.ID, genIDPrefix) {
 						fc.ID = tc.ID
 					}
@@ -334,7 +345,12 @@ func (a *Adapter) mapContents(model string, msgs []llm.Message) []*genai.Content
 					if name == "" {
 						name = names[r.CallID]
 					}
-					fr := &genai.FunctionResponse{Name: name, Response: resultResponse(r)}
+					var fr *genai.FunctionResponse
+					if action, ok := natives[r.CallID]; ok {
+						fr = nativeResponse(action, r)
+					} else {
+						fr = &genai.FunctionResponse{Name: name, Response: resultResponse(r)}
+					}
 					if !strings.HasPrefix(r.CallID, genIDPrefix) {
 						fr.ID = r.CallID
 					}
@@ -380,6 +396,9 @@ func (a *Adapter) config(req llm.Request, model string) *genai.GenerateContentCo
 			decls = append(decls, &genai.FunctionDeclaration{Name: t.Name, Description: t.Description, ParametersJsonSchema: schemaOrEmpty(t.Parameters)})
 		}
 		cfg.Tools = []*genai.Tool{{FunctionDeclarations: decls}}
+	}
+	if ct := a.computerTool(req, model); ct != nil {
+		cfg.Tools = append(cfg.Tools, ct)
 	}
 	if e := strings.ToLower(req.Effort); e != "" {
 		tc := &genai.ThinkingConfig{IncludeThoughts: true}
@@ -431,6 +450,9 @@ func (a *Adapter) Stream(ctx context.Context, req llm.Request, onChunk func(llm.
 	var usage llm.Usage
 	var finish genai.FinishReason
 	blockReason := ""
+	// one reply's computer actions run as a batch
+	batch := fmt.Sprintf("gemini_turn_%d_%d", time.Now().UnixNano(), a.seq.Add(1))
+	computer := a.computerTool(req, model) != nil
 	for resp, err := range cl.Models.GenerateContentStream(ctx, model, a.mapContents(model, req.Messages), a.config(req, model)) {
 		if err != nil {
 			return llm.Response{}, a.classifyErr(ctx, err, key)
@@ -473,6 +495,9 @@ func (a *Adapter) Stream(ctx context.Context, req llm.Request, onChunk func(llm.
 					}
 				}
 				tc := &llm.ToolCall{ID: id, Name: fc.Name, Args: args}
+				if nc, ok := nativeCall(req, computer, id, fc, batch); ok {
+					tc = &nc
+				}
 				calls = append(calls, tc)
 				callSigs = append(callSigs, p.ThoughtSignature)
 				if err := onChunk(llm.Chunk{Type: "tool_call", ToolCall: tc}); err != nil {

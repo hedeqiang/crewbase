@@ -283,13 +283,19 @@ func DeriveMessages(events []Event, agent string, names map[string]string) []llm
 				if !ok {
 					r = llm.ToolResult{CallID: tc.ID, Name: tc.Name, Content: InterruptedResult, IsError: true}
 				}
-				if images[tc.ID] {
+				switch {
+				case tc.Name == llm.NativeComputer && images[tc.ID]:
+					// a provider's own computer tool carries its screenshot
+					// inside the result; the adapter places it
+				case images[tc.ID]:
 					for _, at := range r.Attachments {
 						at := at
 						seen = append(seen, llm.Part{Type: llm.PartAttachment, Attachment: &at})
 					}
+					r.Attachments = nil
+				default:
+					r.Attachments = nil
 				}
-				r.Attachments = nil
 				msgs = append(msgs, toolMsg(r))
 			}
 			// Images a tool returned follow every result of the step as one
