@@ -60,6 +60,9 @@ export interface AgentView {
   nativeTools?: string[] | null;
   /** "chat" for a blank chat (no persona, instructions or memory) */
   kind?: string;
+  /** a sub-agent made for one delegated task (lives in its parent's task panel, not in the list) */
+  ephemeral?: boolean;
+  parent?: string;
 }
 
 export interface SessionMeta {

@@ -8,6 +8,20 @@ export interface Step {
   time: string;
   /** An approval card is waiting for this call. */
   awaiting?: boolean;
+  /** delegate: the sub-agent run it started (its session) */
+  sub?: string;
+}
+
+/** A sub-agent run started from this conversation (subagent/spawned). */
+export interface SubRun {
+  session: string;
+  child: string;
+  task: string;
+  provider: string;
+  started: string;
+  finished?: string;
+  stop?: string;
+  diagnostic?: string;
 }
 
 export interface Decision {
@@ -39,7 +53,7 @@ export type FeedItem =
   /** A result that came back to the agent on its own (a sub-agent's work,
    *  a background command, a follow-up): shown as a compact card, not as
    *  a message from the person. */
-  | { k: "bg"; id: string; kind: BgKind; ok: boolean; who?: string; task?: string; title: string; body: string; time: string }
+  | { k: "bg"; id: string; kind: BgKind; ok: boolean; who?: string; task?: string; title: string; body: string; time: string; sub?: string }
   | { k: "approval"; id: string; req: ApprovalRequest; decided?: Decision; call?: ToolCall; time: string }
   | { k: "switch"; id: string; agent: string; from: ModelRef; to: ModelRef; reason: string; detail?: string }
   | { k: "mode"; id: string; agent: string; to: string; until?: string }
@@ -88,6 +102,8 @@ export interface Projection {
   lastModel: Record<string, ModelRef>;
   /** Agents whose turn is open (turn/start without turn/end). */
   openTurns: Set<string>;
+  /** Sub-agent runs started here, oldest first. */
+  subruns: SubRun[];
 }
 
 const GAP_MS = 15 * 60 * 1000;
@@ -133,6 +149,15 @@ export function project(events: SessionEvent[], cards?: ReadonlySet<string>): Pr
   const steps = new Map<string, Step>();
   const calls = new Map<string, ToolCall>();
   const delegated = new Map<string, string>(); // delegation id → its task
+  const subruns: SubRun[] = [];
+  const subOf = new Map<string, SubRun>(); // child session →
+  const pendingDelegate: Step[] = []; // delegate calls not yet matched to a run
+  const runForTask = (task?: string) => {
+    if (!task) return undefined;
+    const k = task.trim().slice(0, 60);
+    for (let i = subruns.length - 1; i >= 0; i--) if (subruns[i].task.trim().slice(0, 60) === k) return subruns[i];
+    return undefined;
+  };
   const approvals = new Map<string, Extract<FeedItem, { k: "approval" }>>();
   const videoJobs = new Map<string, Extract<FeedItem, { k: "media" }>>();
   let lastMedia: Extract<FeedItem, { k: "media" }> | null = null;
@@ -155,7 +180,8 @@ export function project(events: SessionEvent[], cards?: ReadonlySet<string>): Pr
         if (INJECTED.test(d.text ?? "")) break;
         group = null;
         if (BG_FROM.has(d.from ?? "") && /^\[[^\]]+\]/.test(d.text ?? "")) {
-          push({ k: "bg", id, time: e.time, ...parseBg(d.from as BgKind, d.text ?? "", delegated) }, e.time);
+          const bg = parseBg(d.from as BgKind, d.text ?? "", delegated);
+          push({ k: "bg", id, time: e.time, ...bg, sub: bg.kind === "delegation" ? runForTask(bg.task)?.session : undefined }, e.time);
           break;
         }
         push({ k: "user", id, text: d.text ?? "", from: d.from, time: e.time, to: d.to, attachments: d.attachments }, e.time);
@@ -182,11 +208,28 @@ export function project(events: SessionEvent[], cards?: ReadonlySet<string>): Pr
         }
         break;
       }
+      case "subagent/spawned": {
+        const r: SubRun = { session: d.childSession, child: d.child, task: d.task ?? "", provider: d.provider ?? "", started: e.time };
+        if (r.session) {
+          subruns.push(r);
+          subOf.set(r.session, r);
+          // the delegate call that started it: the oldest one not matched yet
+          const st = pendingDelegate.shift();
+          if (st) st.sub = r.session;
+        }
+        break;
+      }
+      case "subagent/finished": {
+        const r = subOf.get(d.childSession);
+        if (r) Object.assign(r, { finished: e.time, stop: d.stopReason, diagnostic: d.diagnostic });
+        break;
+      }
       case "tool/call": {
         const call: ToolCall = d.call ?? { id: id, name: "?", args: null };
         calls.set(call.id, call);
         const st: Step = { call, time: e.time };
         steps.set(call.id, st);
+        if (call.name === "delegate") pendingDelegate.push(st);
         if (!group || group.agent !== (e.agent ?? "")) {
           group = { k: "steps", id, agent: e.agent ?? "", steps: [] };
           push(group, e.time);
@@ -344,7 +387,7 @@ export function project(events: SessionEvent[], cards?: ReadonlySet<string>): Pr
         break;
     }
   }
-  return { items, context, lastModel, openTurns };
+  return { items, context, lastModel, openTurns, subruns };
 }
 
 /** Last text message in the log (for list snippets). */

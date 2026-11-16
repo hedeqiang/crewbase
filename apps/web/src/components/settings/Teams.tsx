@@ -110,7 +110,7 @@ function TeamCard({
 }) {
   const agents = useStore((s) => s.agents);
   const teams = useStore((s) => s.teams);
-  const mine = Object.values(agents).filter((a) => a.kind !== "chat" && teamOf(a) === tm.id);
+  const mine = Object.values(agents).filter((a) => a.kind !== "chat" && !a.ephemeral && teamOf(a) === tm.id);
   const more = useMenu();
   const [renaming, setRenaming] = useState(false);
   const [draft, setDraft] = useState(tm.name);

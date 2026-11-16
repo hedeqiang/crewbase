@@ -66,7 +66,8 @@ export function SessionList() {
     // Most recently active first; fall back to creation order.
     const upd = (sid: string, created: string) => summaries[sid]?.updated ?? created;
     const list = Object.values(agents).sort((a, b) => upd(b.session, b.created).localeCompare(upd(a.session, a.created)));
-    for (const a of list) if (teamOf(a) === team && match(a.name, a.role, a.folder, summaries[a.session]?.topic)) get(a.folder ?? "").agents.push(a);
+    // sub-agents live in their parent's task panel, not in the list
+    for (const a of list) if (!a.ephemeral && teamOf(a) === team && match(a.name, a.role, a.folder, summaries[a.session]?.topic)) get(a.folder ?? "").agents.push(a);
     const chs = Object.values(sessions)
       .filter((m) => m.kind === "channel" && teamOf(m) === team)
       .sort((a, b) => {

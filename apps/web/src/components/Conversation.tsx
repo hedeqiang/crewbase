@@ -43,7 +43,7 @@ import { display, enterSends, MAC } from "../shortcuts";
 import { API, desktop, parseRef, refString, type AgentView, type ChannelView, type ContextBreakdown, type ModelRef } from "../api";
 import { t, type Key } from "../i18n";
 import { argsFull, argsPreview, project, type FeedItem, type Step } from "../projection";
-import { hasModels, loadSession, openConnect, openSession, refreshAgents, refreshSessions, setState, toast, useStore, sessionAgent } from "../store";
+import { hasModels, loadSession, openConnect, openSession, openSubRun, refreshAgents, refreshSessions, setState, toast, useStore, sessionAgent } from "../store";
 import { TakeoverCard, takeoverReason } from "./Browser";
 import { cloudVoice, dictate, dictationSupported, primeVoice, speak, speaking, speakSupported } from "../voice";
 import { addFiles, clearFiles, filesFrom, MsgAttachments, PendingChips } from "./Attachments";
@@ -478,6 +478,42 @@ function AgentMsg({ it, agent, showModel, before, after }: { it: Extract<FeedIte
   );
 }
 
+/** A sub-agent's session, read-only (the right panel shows it). The
+ *  sub-agent itself is usually gone once its task is done: it is named
+ *  after its parent. */
+export function SubFeed({ sessionId, child, parent }: { sessionId: string; child: string; parent?: AgentView }) {
+  const events = useStore((s) => s.events[sessionId]);
+  const err = useStore((s) => s.loadErr[sessionId]);
+  const live = useStore((s) => s.agents);
+  useEffect(() => {
+    void loadSession(sessionId);
+  }, [sessionId]);
+  const agents = useMemo(() => {
+    if (live[child]) return live;
+    const stand = { ...(parent ?? {}), id: child, name: t("sub.name", { parent: parent?.name ?? "" }) } as AgentView;
+    return { ...live, [child]: stand };
+  }, [live, child, parent]);
+  // the task arrives as a message from the parent: name it, not its id
+  const items = useMemo(
+    () => project(events ?? []).items.map((it) => (it.k === "user" && parent && it.from === parent.id ? { ...it, from: parent.name } : it)),
+    [events, parent],
+  );
+  const ref = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (el && el.scrollHeight - el.scrollTop - el.clientHeight < 120) el.scrollTop = el.scrollHeight;
+  });
+  if (err) return <p className="small errt">{err}</p>;
+  if (!events) return <p className="small muted">{t("sub.loading")}</p>;
+  return (
+    <div className="subfeed" ref={ref}>
+      {groupFeed(items).map((g) =>
+        g.items.map((x) => <FeedRow key={x.it.id} it={x.it} agents={agents} before={x.before} after={x.after} />),
+      )}
+    </div>
+  );
+}
+
 /** Steps an agent is taking with no message yet: under its own header. */
 function WorkingTurn({ agent, id, steps }: { agent?: AgentView; id: string; steps: Step[] }) {
   return (
@@ -518,6 +554,11 @@ function BgCard({ it, agents }: { it: Extract<FeedItem, { k: "bg" }>; agents: Re
         <span className="t">{hhmm(it.time)}</span>
         {canOpen && <ChevronRight size={14} className="ch" />}
       </button>
+      {it.sub && (
+        <button className="bgsub linkbtn" type="button" onClick={() => openSubRun(it.sub!)}>
+          {t("sub.viewRun")}
+        </button>
+      )}
       {open && canOpen && (
         <div className="bgbody">
           <Markdown text={it.body} />
@@ -636,6 +677,25 @@ function StepRow({ s }: { s: Step }) {
         )}
         {toolLabel(s.call.name) ? <b>{toolLabel(s.call.name)}</b> : <b className="mono">{s.call.name}</b>}
         <span className={"pv" + (PROSE_ARGS.has(s.call.name) ? "" : " mono")}>{pv}</span>
+        {s.sub && (
+          <span
+            className="steplink"
+            role="link"
+            tabIndex={0}
+            onClick={(e) => {
+              e.stopPropagation();
+              openSubRun(s.sub!);
+            }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.stopPropagation();
+                openSubRun(s.sub!);
+              }
+            }}
+          >
+            {t("sub.view")}
+          </span>
+        )}
       </button>
       {open && (
         <div className="stepbody">

@@ -1718,3 +1718,23 @@ button.psec.toggle { width: 100%; background: none; border: 0; font-family: inhe
 .bgbody > :first-child { margin-top: 0; }
 .bgbody > :last-child { margin-bottom: 0; }
 @media (max-width: 640px) { .bgcard { margin-left: 0; } }
+
+/* sub-agent runs (task panel) */
+.subruns { display: flex; flex-direction: column; gap: 2px; margin-bottom: 4px; }
+.subrun { display: flex; align-items: center; gap: 9px; width: 100%; text-align: left; padding: 7px 8px; border-radius: 9px; }
+.subrun:hover { background: var(--hover); }
+.subrun .g { display: flex; flex-direction: column; gap: 1px; min-width: 0; flex: 1; }
+.srtask { font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.srst { width: 16px; display: grid; place-items: center; flex: none; }
+.subview { display: flex; flex-direction: column; gap: 10px; min-height: 0; }
+.subhead { display: flex; align-items: center; gap: 6px; margin: -4px 0 0 -6px; }
+.subhead .g { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+.subhead .g b { font-size: 13px; }
+.subfeed { display: flex; flex-direction: column; gap: 14px; font-size: 13px; }
+.subfeed .m-agent { grid-template-columns: 22px minmax(0, 1fr); gap: 8px; }
+.subfeed .m-agent .av, .subfeed .m-agent > :first-child { width: 22px; height: 22px; }
+.subfeed .bubble { max-width: 100%; font-size: 12.5px; }
+.subfeed .bgcard, .subfeed .qcard { margin-left: 0; }
+.steplink { margin-left: auto; flex: none; font-size: 12px; color: var(--accent-text); padding: 0 4px; border-radius: 4px; }
+.steplink:hover { text-decoration: underline; }
+.bgsub { display: block; font-size: 12px; padding: 0 12px 9px 42px; }

@@ -140,6 +140,8 @@ export interface State {
   listOpen: boolean;
   panelOpen: boolean;
   panelTab: PanelTab;
+  /** a sub-agent run (its session) shown in the right panel */
+  subView: string | null;
   theme: Theme;
   lang: Lang;
   palette: boolean;
@@ -211,6 +213,7 @@ let state: State = {
   listOpen: !narrow() || !LS.get("current"),
   panelOpen: !midWidth() && LS.get("panel") !== "0",
   panelTab: "task",
+  subView: null,
   theme: ((): Theme => {
     const v = LS.get("theme");
     return v === "light" || v === "dark" ? v : "system";
@@ -286,7 +289,7 @@ export function openSession(id: string) {
       hist = [...hist.slice(0, histPos + 1).filter((x) => x !== id), id].slice(-HIST_MAX);
       histPos = hist.length - 1;
     }
-    return { view: "chat", current: id, hist, histPos, listOpen: narrow() ? false : s.listOpen, palette: false };
+    return { view: "chat", current: id, hist, histPos, listOpen: narrow() ? false : s.listOpen, palette: false, subView: id === s.current ? s.subView : null };
   });
   void loadSession(id);
 }
@@ -398,6 +401,12 @@ export async function refreshTeams() {
 }
 
 /** 新对话: a blank chat on the default model, opened right away. */
+/** Opens a sub-agent's run in the right panel (the panel opens too). */
+export function openSubRun(session: string) {
+  setState({ subView: session, panelOpen: true, panelTab: "task" });
+  void loadSession(session);
+}
+
 export async function newChat(folder?: string) {
   // an untouched new chat in the same place is reused: ⌘N twice does not
   // leave a row of empty "新对话"s behind

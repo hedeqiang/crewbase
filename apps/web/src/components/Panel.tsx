@@ -1,17 +1,17 @@
 import { TaskBoard } from "./TaskBoard";
 import { WorkNotes, WorkTasks } from "./Working";
 import { useEffect, useMemo, useState } from "react";
-import { AlarmClock, Archive, ArrowDown, ArrowUp, Globe, GripVertical, Link2, Minimize2, Pause, Play, Plus, Shuffle, Square, Trash, UserPlus, X } from "lucide-react";
+import { AlarmClock, Archive, ArrowDown, ArrowUp, Check, ChevronLeft, ChevronRight, CircleMinus, CircleX, Globe, GripVertical, Link2, Minimize2, Pause, Play, Plus, Shuffle, Square, Trash, UserPlus, X } from "lucide-react";
 import { API, refString, type Followup, type AgentView, type ChannelView, type ContextBreakdown, type ModelRef } from "../api";
 import { t, type Key } from "../i18n";
-import { activeModel, allModels, detailLabel, effortLabel, isExhausted, kfmt, modeLabel, modelLabel, pillTone, sameRef, statusLabel, until } from "../format";
-import { project } from "../projection";
-import { refreshChannel, setState, toast, useStore, sessionAgent } from "../store";
+import { activeModel, allModels, detailLabel, effortLabel, hhmm, isExhausted, kfmt, modeLabel, modelLabel, pillTone, sameRef, statusLabel, until } from "../format";
+import { project, type SubRun } from "../projection";
+import { openSubRun, refreshChannel, setState, toast, useStore, sessionAgent } from "../store";
 import { FilesTab } from "./Files";
 import { Avatar } from "./Avatar";
 import { Popover, useMenu } from "./Popover";
 import { ProviderMark } from "./ProviderMark";
-import { shortPath } from "./Conversation";
+import { shortPath, SubFeed } from "./Conversation";
 import { PanelView, useSlot } from "./UISlots";
 import { confirmDialog } from "./Confirm";
 
@@ -24,6 +24,7 @@ export function Panel() {
   const agent = useMemo(() => sessionAgent(current), [current, agents, sessions, channels]);
   const channel = current ? channels[current] : undefined;
   const pluginTabs = useSlot("sidebar-right.tab");
+  const subView = useStore((s) => s.subView);
   if (!agent) return null;
   const tabs: [typeof tab, string][] = [
     ["task", t("panel.task")],
@@ -46,8 +47,15 @@ export function Panel() {
         </button>
       </div>
       <div className="pbody">
+        {subView && tab === "task" ? (
+          <SubRunView key={subView} session={subView} parentSession={current ?? agent.session} />
+        ) : (
+          <>
         {tab === "task" && (channel ? <ChannelTask key={channel.id} channel={channel} /> : <TaskTab agent={agent} />)}
+        {tab === "task" && <SubRuns session={current ?? agent.session} />}
         {tab === "task" && <TaskBoard key={current ?? agent.session} session={current ?? agent.session} />}
+          </>
+        )}
         {tab === "files" && <FilesTab agent={agent} />}
         {tab === "agent" && <AgentTab key={agent.id} agent={agent} sessionId={current ?? agent.session} />}
         {pluginTab && (
@@ -235,6 +243,66 @@ function ChannelTask({ channel }: { channel: ChannelView }) {
         ))}
       </Popover>
     </>
+  );
+}
+
+/** The sub-agents this conversation started: what each was asked, how it
+ *  went; click one to see its whole run. */
+function SubRuns({ session }: { session: string }) {
+  const events = useStore((s) => s.events[session]);
+  const runs = useMemo(() => project(events ?? []).subruns.slice().reverse(), [events]);
+  if (runs.length === 0) return null;
+  return (
+    <>
+      <div className="psec">{t("sub.title", { n: runs.length })}</div>
+      <div className="subruns">
+        {runs.map((r) => (
+          <button key={r.session} className="subrun" type="button" onClick={() => openSubRun(r.session)}>
+            <span className="srst">{runIcon(r)}</span>
+            <span className="g">
+              <span className="srtask">{r.task || t("sub.noTask")}</span>
+              <span className="small muted">
+                {runState(r)} · {hhmm(r.started)}
+                {r.provider && r.provider !== "local" ? " · " + r.provider : ""}
+              </span>
+            </span>
+            <ChevronRight size={14} className="muted" />
+          </button>
+        ))}
+      </div>
+    </>
+  );
+}
+
+const runIcon = (r: SubRun) =>
+  !r.finished ? <span className="spin sm" /> : r.stop === "completed" ? <Check size={13} className="okc" /> : r.stop === "cancelled" ? <CircleMinus size={13} className="muted" /> : <CircleX size={13} className="errc" />;
+const runState = (r: SubRun) => t(!r.finished ? "sub.running" : r.stop === "completed" ? "sub.done" : r.stop === "cancelled" ? "sub.cancelled" : "sub.failed");
+
+/** One sub-agent run, in the panel: what it was asked and everything it did. */
+function SubRunView({ session, parentSession }: { session: string; parentSession: string }) {
+  const parentEvents = useStore((s) => s.events[parentSession]);
+  const run = useMemo(() => project(parentEvents ?? []).subruns.find((r) => r.session === session), [parentEvents, session]);
+  useStore((s) => s.agents); // re-render when agents change
+  const parent = sessionAgent(parentSession);
+  return (
+    <div className="subview">
+      <div className="subhead">
+        <button className="ix" type="button" aria-label={t("ap.back")} onClick={() => setState({ subView: null })}>
+          <ChevronLeft size={15} />
+        </button>
+        <span className="g">
+          <b>{t("sub.run")}</b>
+          {run && (
+            <span className="small muted">
+              {runState(run)} · {hhmm(run.started)}
+            </span>
+          )}
+        </span>
+        {run && <span className="srst">{runIcon(run)}</span>}
+      </div>
+      {run?.diagnostic && run.stop !== "completed" && <p className="small errt">{run.diagnostic}</p>}
+      <SubFeed sessionId={session} child={run?.child ?? ""} parent={parent} />
+    </div>
   );
 }
 

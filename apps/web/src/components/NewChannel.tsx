@@ -22,7 +22,7 @@ function Dialog() {
   const [err, setErr] = useState<string | null>(null);
   const nameRef = useRef<HTMLInputElement>(null);
   // a channel lives in one team: the team the sidebar shows
-  const list = useMemo(() => Object.values(agents).filter((a) => a.kind !== "chat" && teamOf(a) === team).sort((a, b) => a.name.localeCompare(b.name)), [agents, team]);
+  const list = useMemo(() => Object.values(agents).filter((a) => a.kind !== "chat" && !a.ephemeral && teamOf(a) === team).sort((a, b) => a.name.localeCompare(b.name)), [agents, team]);
   const folders = useFolders();
   const close = () => setState({ newChannel: false, createIn: "" });
 

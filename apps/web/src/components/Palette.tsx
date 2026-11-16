@@ -41,7 +41,7 @@ function PaletteInner() {
   const items = useMemo(() => {
     const it: Item[] = [];
     const cur = sessionAgent(current);
-    for (const a of Object.values(agents))
+    for (const a of Object.values(agents).filter((x) => !x.ephemeral))
       it.push({ group: t("pal.agents"), icon: <Avatar agent={a} size={20} />, title: a.name, sub: [a.role, a.folder].filter(Boolean).join(" · "), run: () => openSession(a.session) });
     for (const m of Object.values(sessions))
       if (m.kind === "channel") it.push({ group: t("pal.channels"), icon: <Hash size={16} />, title: "# " + (m.title || m.id), sub: m.folder, run: () => openSession(m.id) });
