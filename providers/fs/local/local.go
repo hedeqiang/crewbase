@@ -132,6 +132,39 @@ func (l *Local) resolve(a fs.Access, p string, followFinal bool) (string, error)
 	return real, nil
 }
 
+// underFold reports whether p is root or inside it, case-insensitively
+// (".CLAUDE" is ".claude" on the default macOS file systems).
+func underFold(p, root string) bool {
+	if strings.EqualFold(p, root) {
+		return true
+	}
+	prefix := strings.TrimSuffix(root, string(filepath.Separator)) + string(filepath.Separator)
+	return len(p) > len(prefix) && strings.EqualFold(p[:len(prefix)], prefix)
+}
+
+// protect refuses a mutation of a protected path. It checks the path as
+// given (cleaned) and as resolved, against each protected path as given and
+// as resolved, so links in either direction do not get around it.
+func protect(a fs.Access, p, real string) error {
+	if len(a.Protected) == 0 {
+		return nil
+	}
+	p = filepath.Clean(p)
+	for _, pr := range a.Protected {
+		if !filepath.IsAbs(pr) {
+			continue
+		}
+		pr = filepath.Clean(pr)
+		prReal := realPath(pr)
+		for _, x := range []string{p, real} {
+			if underFold(x, pr) || underFold(x, prReal) {
+				return fmt.Errorf("%w: %s is coding-CLI configuration and stays read-only here (it could change what a CLI may do); ask the user to edit it or to grant host mode", fs.ErrProtected, p)
+			}
+		}
+	}
+	return nil
+}
+
 func (l *Local) isRoot(a fs.Access, real string) bool {
 	for _, r := range append(append([]string(nil), l.roots...), a.Roots...) {
 		if realPath(filepath.Clean(r)) == real {
@@ -257,6 +290,9 @@ func (l *Local) Write(ctx context.Context, a fs.Access, p string, content []byte
 	if err != nil {
 		return fs.WriteResult{}, err
 	}
+	if err := protect(a, p, real); err != nil {
+		return fs.WriteResult{}, err
+	}
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	st, err := os.Stat(real)
@@ -297,6 +333,9 @@ func (l *Local) Edit(ctx context.Context, a fs.Access, p, old, new string) (fs.W
 	}
 	real, err := l.resolve(a, p, true)
 	if err != nil {
+		return fs.WriteResult{}, err
+	}
+	if err := protect(a, p, real); err != nil {
 		return fs.WriteResult{}, err
 	}
 	l.mu.Lock()

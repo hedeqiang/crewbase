@@ -59,7 +59,8 @@ func PolicyFor(call tools.Call, allowHosts []string) sandbox.Policy {
 }
 
 // AccessFor maps a call to its fs access: host mode is unconfined, the
-// other modes are confined to the workspace (read-only in read-only mode).
+// other modes are confined to the workspace (read-only in read-only mode),
+// with the coding CLIs' project config in it read-only.
 func AccessFor(call tools.Call) (fs.Access, error) {
 	a := fs.Access{Agent: call.Agent}
 	switch EffectiveMode(call.Mode) {
@@ -72,6 +73,7 @@ func AccessFor(call tools.Call) (fs.Access, error) {
 		return a, errors.New("no workspace is set for this agent; file access is not allowed in this mode")
 	}
 	a.Roots = []string{call.Workspace}
+	a.Protected = agent.CLIConfigPaths(call.Workspace)
 	return a, nil
 }
 

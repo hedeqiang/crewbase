@@ -241,3 +241,43 @@ func TestReadOnlyWorkspaceUnderTemp(t *testing.T) {
 		t.Fatalf("sandbox mode write: %v", err)
 	}
 }
+
+// In sandbox mode the coding CLIs' project config in the workspace stays
+// read-only (PolicyFor's protected roots): creating it, in any letter case,
+// as a file, a directory or a symlink, or by renaming, fails; the rest of
+// the workspace and look-alike names stay writable.
+func TestSandboxProtectsCLIConfig(t *testing.T) {
+	sb := darwin(t)
+	base, err := os.MkdirTemp("/tmp", "cb-cfg-")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(base)
+	ws := filepath.Join(base, "workspaces", "a")
+	os.MkdirAll(ws, 0o755)
+	p := sandbox.PolicyFor("sandbox", ws, nil)
+	for _, script := range []string{
+		"mkdir .claude",
+		"mkdir .CLAUDE",
+		"ln -s /tmp .Claude",
+		"echo '{}' > .mcp.json",
+		"mkdir -p .gemini && echo '{}' > .gemini/settings.json",
+		"mkdir sub && echo x > sub/s.json && mv sub .codex",
+		"echo '{}' > opencode.json",
+	} {
+		if out, err, _ := run(t, sb, ws, script, p); err == nil {
+			t.Errorf("%q succeeded: %s", script, out)
+		}
+	}
+	ents, _ := os.ReadDir(ws)
+	for _, e := range ents {
+		for _, n := range []string{".claude", ".mcp.json", ".gemini", ".codex", "opencode.json"} {
+			if strings.EqualFold(e.Name(), n) {
+				t.Errorf("%s was created", e.Name())
+			}
+		}
+	}
+	if out, err, _ := run(t, sb, ws, "echo ok > notes.md && mkdir -p .claudex proj/.claude && echo y > proj/.claude/x", p); err != nil {
+		t.Fatalf("ordinary writes must work: %v %s", err, out)
+	}
+}
