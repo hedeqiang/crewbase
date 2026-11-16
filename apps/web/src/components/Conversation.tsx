@@ -1203,6 +1203,12 @@ function computerLabel(s: Step): string | null {
       return t("tool.cu.open", { app });
     case "computer_act_batch":
       return t("tool.cu.batch", { app, n: Array.isArray(a.actions) ? a.actions.length : logs.length });
+    case "computer_script":
+      return app ? t("tool.cu.scriptApp", { app }) : t("tool.cu.script");
+    case "computer_shortcut":
+      return t("tool.cu.shortcut", { name: String(a.name ?? "") });
+    case "computer_shortcuts":
+      return t("tool.cu.shortcuts");
   }
   const l = logs[logs.length - 1];
   const at = a.x != null && a.y != null ? `(${Math.round(a.x)}, ${Math.round(a.y)})` : "";
@@ -1237,6 +1243,9 @@ const TOOL_LABELS: Record<string, Key> = {
   computer_act: "tool.cuAct",
   computer_act_batch: "tool.cuBatch",
   computer_open: "tool.cuOpen",
+  computer_script: "tool.cuScript",
+  computer_shortcut: "tool.cuShortcut",
+  computer_shortcuts: "tool.cuShortcuts",
 };
 const toolLabel = (name: string) => (TOOL_LABELS[name] ? t(TOOL_LABELS[name]) : "");
 /** tools whose main argument is prose (a task, a prompt), not code */
