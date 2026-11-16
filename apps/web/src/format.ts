@@ -95,7 +95,7 @@ export function usd(n: number): string {
  *  image model priced per image; "" when unknown. */
 export function priceShort(p: ModelPricing | undefined): string {
   if (!p) return "";
-  if (p.input || p.output) return `${p.input ? usd(p.input) : "—"} / ${p.output ? usd(p.output) : "—"}`;
+  if (p.input || p.output) return t("mc.perMShort", { price: `${p.input ? usd(p.input) : "—"} / ${p.output ? usd(p.output) : "—"}` });
   if (p.image) return t("mc.perImage", { price: usd(p.image) });
   return "";
 }

@@ -526,6 +526,7 @@ const zh = {
   "mc.addPh": "手动添加模型 ID（可用逗号分隔多个）",
   "mc.add": "添加",
   "mc.badId": "「{id}」不是有效的模型 ID",
+  "mc.perMShort": "{price}/百万",
   "mc.perImage": "{price} / 张",
   "mc.in": "输入 {price}",
   "mc.out": "输出 {price}",

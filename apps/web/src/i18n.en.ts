@@ -681,6 +681,7 @@ export const en: Partial<Record<Key, string>> = {
   "mc.addPh": "Add a model id by hand (commas for several)",
   "mc.add": "Add",
   "mc.badId": "“{id}” is not a valid model id",
+  "mc.perMShort": "{price} /M",
   "mc.perImage": "{price} / image",
   "mc.in": "input {price}",
   "mc.out": "output {price}",

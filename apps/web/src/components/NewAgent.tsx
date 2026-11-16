@@ -1,13 +1,14 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import { Check, ChevronDown, Dices, FileUp, Folder, Plus, RefreshCw, Shield } from "lucide-react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
+import { Check, ChevronDown, Dices, FileUp, Folder, Plus, RefreshCw, Search, Shield } from "lucide-react";
 import { API, refString, type ModelRef } from "../api";
 import { ImportRoleDialog } from "./ImportRole";
 import { t, type Key } from "../i18n";
-import { allModels, effortLabel, modeLabel, modelMeta, sameRef, shortModel } from "../format";
+import { allModels, effortLabel, modeLabel, modelMeta, providerName, sameRef, shortModel } from "../format";
 import { openSession, refreshAgents, refreshSessions, setState, toast, useFolders, useStore, currentTeam, teamMode } from "../store";
 import { AvatarRaw, COLORS, FACES, SHAPES } from "./Avatar";
 import { Popover, useMenu } from "./Popover";
 import { ProviderMark } from "./ProviderMark";
+import { EFFORTS } from "./ModelPicker";
 
 export interface Draft {
   name: string;
@@ -23,7 +24,7 @@ export interface Draft {
 }
 
 export function emptyDraft(): Draft {
-  return { name: "", role: "", desc: "", color: COLORS[0], shape: "sq", face: "eyes", mode: teamMode("sandbox"), folder: "", model: null, effort: "medium" };
+  return { name: "", role: "", desc: "", color: COLORS[0], shape: "sq", face: "eyes", mode: teamMode("sandbox"), folder: "", model: null, effort: "" };
 }
 
 export type TemplateKey =
@@ -105,6 +106,7 @@ export function NewAgent({ draft: f, setDraft }: { draft: Draft; setDraft: (d: D
   const [busy, setBusy] = useState(false);
   const nameRef = useRef<HTMLInputElement>(null);
   const modelM = useMenu();
+  const [mq, setMq] = useState("");
   const [poke, setPoke] = useState(0);
   const folderM = useMenu();
   const [newFolder, setNewFolder] = useState("");
@@ -143,6 +145,14 @@ export function NewAgent({ draft: f, setDraft }: { draft: Draft; setDraft: (d: D
   };
   const modeM = useMenu();
   const all = useMemo(() => allModels(models), [models]);
+  // grouped by provider (the same model through two gateways is told apart
+  // by its group), filtered by the search
+  const shownModels = useMemo(() => {
+    const q = mq.trim().toLowerCase();
+    return all
+      .filter((m) => !q || [m.info.id, m.info.name, m.provider.id, providerName(m.provider.id)].some((x) => x?.toLowerCase().includes(q)))
+      .sort((a, b) => all.findIndex((x) => x.provider.id === a.provider.id) - all.findIndex((x) => x.provider.id === b.provider.id));
+  }, [all, mq]);
   const folders = useFolders();
   // the team on screen may start its agents read-only (teams load after
   // the draft was first made)
@@ -454,12 +464,27 @@ export function NewAgent({ draft: f, setDraft }: { draft: Draft; setDraft: (d: D
         />
       )}
 
-      <Popover anchor={modelM.anchor} open={modelM.open} onClose={modelM.close} width={340}>
+      <Popover
+        anchor={modelM.anchor}
+        open={modelM.open}
+        onClose={() => {
+          modelM.close();
+          setMq("");
+        }}
+        width={340}
+      >
         <div className="mlbl">{t("na.model")}</div>
+        {all.length > 8 && (
+          <label className="flsearch">
+            <Search size={13} />
+            <input autoFocus value={mq} onChange={(e) => setMq(e.target.value)} placeholder={t("comp.modelSearch")} aria-label={t("comp.modelSearch")} />
+          </label>
+        )}
         {all.length === 0 && <p className="small" style={{ margin: "4px 9px 8px" }}>{t("na.modelNone")}</p>}
-        {all.map((m) => (
+        {shownModels.map((m, i) => (
+          <Fragment key={refString(m.ref)}>
+          {(i === 0 || shownModels[i - 1].provider.id !== m.provider.id) && <div className="mlbl">{providerName(m.provider.id)}</div>}
           <button
-            key={refString(m.ref)}
             className="mi"
             type="button"
             onClick={() => {
@@ -477,13 +502,15 @@ export function NewAgent({ draft: f, setDraft }: { draft: Draft; setDraft: (d: D
             </span>
             <span className="ck">{sameRef(primary, m.ref) && <Check size={14} />}</span>
           </button>
+          </Fragment>
         ))}
+        {mq && shownModels.length === 0 && <p className="small" style={{ margin: "4px 9px 8px" }}>{t("list.noMatch")}</p>}
         <hr />
         <div className="mlbl">{t("comp.effort")}</div>
         <div className="seg">
-          {(["low", "medium", "high"] as const).map((e) => (
-            <button key={e} type="button" aria-pressed={f.effort === e} onClick={() => set({ effort: e })}>
-              {effortLabel(e)}
+          {EFFORTS.map((e) => (
+            <button key={e} type="button" aria-pressed={(f.effort || "") === e} onClick={() => set({ effort: e })}>
+              {e ? effortLabel(e) : t("effort.default")}
             </button>
           ))}
         </div>
