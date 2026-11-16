@@ -192,6 +192,10 @@ func (d *daemon) closeHost() {
 type nativeChannel struct{ d *daemon }
 
 func (nativeChannel) Name() string { return "desktop-native" }
+
+// Follows: system notifications are the desktop channel's other half, set
+// and tested with it (settings › 通知 shows one 桌面 column).
+func (nativeChannel) Follows() string { return "desktop" }
 func (c nativeChannel) Send(_ context.Context, n notify.Notification) error {
 	c.d.post(n)
 	return nil

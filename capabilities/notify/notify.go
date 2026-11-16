@@ -124,6 +124,21 @@ type Channel interface {
 	Send(ctx context.Context, n Notification) error
 }
 
+// Follower is a channel that is another channel's second half (the desktop
+// app's system notifications follow "desktop"): it is not listed on its
+// own, follows that channel's choices and is part of its test.
+type Follower interface {
+	Follows() string
+}
+
+// settingsName is the channel whose choices apply to ch.
+func settingsName(ch Channel) string {
+	if f, ok := ch.(Follower); ok && f.Follows() != "" {
+		return f.Follows()
+	}
+	return ch.Name()
+}
+
 // Service is the `notify` service.
 type Service struct {
 	mu       sync.Mutex
@@ -178,7 +193,9 @@ func (s *Service) Channels() []string {
 	defer s.mu.Unlock()
 	out := make([]string, 0, len(s.channels))
 	for _, ch := range s.channels {
-		out = append(out, ch.Name())
+		if settingsName(ch) == ch.Name() {
+			out = append(out, ch.Name())
+		}
 	}
 	return out
 }
@@ -218,14 +235,14 @@ func (s *Service) quietLocked() bool {
 // › 发送测试).
 func (s *Service) SendTo(ctx context.Context, channel string, n Notification) error {
 	s.mu.Lock()
-	var target Channel
+	var targets []Channel
 	for _, ch := range s.channels {
-		if ch.Name() == channel {
-			target = ch
+		if settingsName(ch) == channel {
+			targets = append(targets, ch)
 		}
 	}
 	s.mu.Unlock()
-	if target == nil {
+	if len(targets) == 0 {
 		return fmt.Errorf("notification channel %q is not connected", channel)
 	}
 	if n.Time.IsZero() {
@@ -233,7 +250,13 @@ func (s *Service) SendTo(ctx context.Context, channel string, n Notification) er
 	}
 	cctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
-	return target.Send(cctx, n)
+	var errs []error
+	for _, ch := range targets {
+		if err := ch.Send(cctx, n); err != nil {
+			errs = append(errs, err)
+		}
+	}
+	return errors.Join(errs...)
 }
 
 // AddChannel registers a channel for ctx's lifetime.
@@ -283,7 +306,7 @@ func (s *Service) Send(ctx context.Context, n Notification) []error {
 		if quiet {
 			break
 		}
-		if s.enabledLocked(n.Kind, ch.Name()) {
+		if s.enabledLocked(n.Kind, settingsName(ch)) {
 			targets = append(targets, ch)
 		}
 	}

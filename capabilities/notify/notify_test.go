@@ -105,3 +105,28 @@ func TestPrefsOverrideChannelConfigAndQuietKeepsUrgent(t *testing.T) {
 		t.Fatal("unknown channel")
 	}
 }
+
+type follower struct{ rec }
+
+func (f *follower) Name() string    { return "rec-native" }
+func (f *follower) Follows() string { return "rec" }
+
+// A follower channel is not listed, follows its channel's choices and is
+// part of its test.
+func TestFollowerChannel(t *testing.T) {
+	s := NewService()
+	r, f := &rec{}, &follower{}
+	s.channels = append(s.channels, r, f)
+	if ch := s.Channels(); len(ch) != 1 || ch[0] != "rec" {
+		t.Fatalf("channels %v", ch)
+	}
+	s.SetPrefs(Prefs{Matrix: map[string]map[string]bool{KindTaskDone: {"rec": false}}})
+	s.Send(context.Background(), Notification{Kind: KindTaskDone, Title: "done"})
+	s.Send(context.Background(), Notification{Kind: KindFailed, Title: "failed"})
+	if len(r.got) != 1 || len(f.got) != 1 || f.got[0] != "failed" {
+		t.Fatalf("rec %v follower %v", r.got, f.got)
+	}
+	if err := s.SendTo(context.Background(), "rec", Notification{Title: "test"}); err != nil || len(f.got) != 2 {
+		t.Fatalf("test: %v %v", err, f.got)
+	}
+}
