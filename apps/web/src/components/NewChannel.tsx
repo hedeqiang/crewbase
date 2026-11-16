@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Check, Folder, Hash, X } from "lucide-react";
+import { Folder, Hash, X } from "lucide-react";
 import { API, teamOf } from "../api";
 import { t } from "../i18n";
 import { openSession, refreshChannels, refreshSessions, setState, toast, useFolders, useStore, getState } from "../store";
@@ -99,15 +99,18 @@ function Dialog() {
               }}
             />
           </label>
-          <div className="fl">
-            {t("nc.members")} <span className="small">{t("nc.membersHint")}</span>
-          </div>
+          <div className="fl">{t("nc.members")}</div>
+          <p className="small muted ncnote">{t("nc.membersHint")}</p>
           <div className="mpick" role="listbox" aria-multiselectable="true">
             {list.length === 0 && <div className="small">{t("nc.noAgents")}</div>}
             {list.map((a) => {
               const i = members.indexOf(a.id);
               return (
                 <button key={a.id} type="button" role="option" aria-selected={i >= 0} className="mopt" onClick={() => toggle(a.id)}>
+                  {/* a checkbox (several can be picked) showing the pick order */}
+                  <span className={"mbox" + (i >= 0 ? " on" : "")} aria-hidden>
+                    {i >= 0 ? i + 1 : ""}
+                  </span>
                   <Avatar agent={a} size={26} />
                   <span className="g">
                     <b>{a.name}</b>
@@ -115,7 +118,6 @@ function Dialog() {
                   </span>
                   {i === 0 && <span className="pill blue">{t("ch.owner")}</span>}
                   {i > 0 && <span className="pill">{t("nc.member")}</span>}
-                  <span className="ck">{i >= 0 && <Check size={14} />}</span>
                 </button>
               );
             })}

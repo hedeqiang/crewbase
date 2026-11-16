@@ -1213,7 +1213,7 @@ const zh = {
   "nc.name": "频道名",
   "nc.namePh": "例如：pricing-revamp",
   "nc.members": "成员",
-  "nc.membersHint": "第一个选中的是负责人",
+  "nc.membersHint": "可以选多个。第 1 个选中的是负责人，没 @ 谁的消息都交给它。",
   "nc.member": "成员",
   "nc.noAgents": "还没有 Agent，先新建一个。",
   "nc.needName": "先给频道起个名字",

@@ -1888,3 +1888,8 @@ button.psec.toggle { width: 100%; background: none; border: 0; font-family: inhe
   .srow .c { flex: 1 1 auto; justify-content: flex-end; min-width: 0; }
 }
 .snomatch { padding: 8px 12px; }
+
+/* new channel: members are checkboxes numbered in pick order */
+.ncnote { margin: -2px 0 8px; }
+.mopt .mbox { width: 18px; height: 18px; flex: none; border-radius: 5px; border: 1.5px solid var(--border2); display: grid; place-items: center; font-size: 11px; font-weight: 600; color: #fff; transition: background .12s, border-color .12s; }
+.mopt .mbox.on { background: var(--accent); border-color: var(--accent); }

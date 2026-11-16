@@ -1073,10 +1073,12 @@ function ApprovalCard({ it, agent }: { it: Extract<FeedItem, { k: "approval" }>;
           <Markdown text={req.preview} />
         </details>
       )}
-      <div className="small">
-        {it.req.tool}
-        {it.req.category ? ` · ${it.req.category}` : ""}
-      </div>
+      {/* the friendly tool name; ids only in the tooltip (approvalWhy above says the category) */}
+      {toolLabel(it.req.tool) && (
+        <div className="small" title={[it.req.tool, it.req.category].filter(Boolean).join(" · ")}>
+          {toolLabel(it.req.tool)}
+        </div>
+      )}
       {pending ? <ApprovalActions req={req} /> : <p className="small" style={{ margin: "10px 0 0" }}>{t("appr.expired")}</p>}
     </div>
   );

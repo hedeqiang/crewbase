@@ -592,7 +592,7 @@ export const en: Partial<Record<Key, string>> = {
   "list.newChannel": "New channel",
   "nc.name": "Channel name",
   "nc.members": "Members",
-  "nc.membersHint": "the first one picked is the owner",
+  "nc.membersHint": "Pick several. The first one picked is the owner and gets every message that @mentions no one.",
   "nc.create": "Create channel",
   "ch.owner": "Owner",
   "ch.handover": "{from} handed the task to {to}",
