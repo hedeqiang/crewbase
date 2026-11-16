@@ -603,18 +603,17 @@ func (s *Service) blockedWhy(app computer.App) string {
 		return "System Settings changes security and privacy; agents never operate it"
 	case GroupSelf:
 		return "agents never operate Crewbase itself"
+	case GroupBrowser:
+		return "it is a web browser: use the browser_* tools (browser_open, browser_snapshot, browser_click, browser_type) for websites, or ask the user to allow this browser in Settings › 电脑操作"
 	}
 	return "it handles money (bank, broker or crypto); agents never operate it"
 }
 
-func browserMessage(app computer.App) string {
-	return fmt.Sprintf("%s is a web browser: computer_* tools do not operate browsers. Use the browser_* tools (browser_open, browser_snapshot, browser_click, browser_type) for websites; they run your own browser with your logins.", app.Name)
-}
 
 // permission is agent's effective permission for app, before the
 // conversation grant: allow, ask or block.
 func (s *Service) permission(agentID string, app computer.App) string {
-	if s.blockedWhy(app) != "" || IsBrowser(app.ID, app.Name) {
+	if s.blockedWhy(app) != "" {
 		return PermBlock
 	}
 	v, _ := s.rules.Evaluate(agentID, Category(app.ID))
@@ -692,9 +691,6 @@ func (s *Service) middleware(ctx context.Context, d *tools.Decision, next kernel
 	app, _ := s.resolve(ctx, call.String("app"))
 	if app.ID == "" {
 		return d.DenyWith("app is required"), nil
-	}
-	if IsBrowser(app.ID, app.Name) {
-		return d.DenyWith(browserMessage(app)), nil
 	}
 	if why := s.blockedWhy(app); why != "" {
 		return d.DenyWith(fmt.Sprintf("%s is blocked: %s. Do not try other ways to reach it; tell the user what you need.", app.Name, why)), nil

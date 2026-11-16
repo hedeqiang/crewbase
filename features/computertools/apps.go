@@ -105,8 +105,14 @@ func find(list []known, id, name string) (known, bool) {
 }
 
 // defaultBlocked reports the default-block group an app belongs to.
+// defaultBlocked reports the default-block group of an app. Browsers are
+// in it too: websites go to the browser_* tools unless the person allows a
+// browser in Settings › 电脑操作 (e.g. to use their own logged-in browser).
 func defaultBlocked(id, name string) (string, bool) {
-	k, ok := find(blockedByDefault, id, name)
+	if k, ok := find(blockedByDefault, id, name); ok {
+		return k.Group, true
+	}
+	k, ok := find(browsers, id, name)
 	return k.Group, ok
 }
 
@@ -132,7 +138,7 @@ type BlockedEntry struct {
 // DefaultBlocked lists the default block list, one row per app.
 func DefaultBlocked() []BlockedEntry {
 	var out []BlockedEntry
-	for _, k := range blockedByDefault {
+	for _, k := range append(append([]known(nil), blockedByDefault...), browsers...) {
 		id := ""
 		if len(k.IDs) > 0 {
 			id = k.IDs[0]
@@ -151,7 +157,11 @@ func DefaultBlocked() []BlockedEntry {
 // entryKey is how a default entry is unblocked: its first bundle id, or
 // "name:<name>" for name-only entries.
 func entryKey(id, name string) string {
-	if k, ok := find(blockedByDefault, id, name); ok {
+	k, ok := find(blockedByDefault, id, name)
+	if !ok {
+		k, ok = find(browsers, id, name)
+	}
+	if ok {
 		if len(k.IDs) > 0 {
 			return k.IDs[0]
 		}

@@ -242,7 +242,7 @@ func (s *Service) listApps(ctx context.Context, call tools.Call) (tools.Result, 
 			notes = append(notes, "hidden")
 		}
 		switch {
-		case IsBrowser(a.ID, a.Name):
+		case IsBrowser(a.ID, a.Name) && s.blockedWhy(a) != "":
 			notes = append(notes, "browser: use browser_* tools")
 		case s.blockedWhy(a) != "":
 			notes = append(notes, "blocked")

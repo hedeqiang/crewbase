@@ -459,6 +459,20 @@ func TestBrowsersGoToBrowserTools(t *testing.T) {
 		}
 	}
 	must(t, e.run(t, e.call(e.a, e.ss, computertools.ToolApps, nil)), "Safari (com.apple.Safari) · browser: use browser_* tools")
+
+	// the person may allow one browser (their own logged-in Chrome); it is
+	// then an app like any other: asked first, posting confirmed each time
+	if err := e.svc.SetBlocked("com.google.Chrome", false); err != nil {
+		t.Fatal(err)
+	}
+	if got := e.run(t, e.call(e.a, e.ss, computertools.ToolObserve, map[string]any{"app": "com.google.Chrome"})); strings.Contains(got.Result.Content, "browser_*") {
+		t.Fatalf("allowed Chrome still refused: %s", got.Result.Content)
+	}
+	refused(t, e.run(t, e.call(e.a, e.ss, computertools.ToolObserve, map[string]any{"app": "Safari"})), "browser_*")
+	if err := e.svc.SetBlocked("com.google.Chrome", true); err != nil {
+		t.Fatal(err)
+	}
+	refused(t, e.run(t, e.call(e.a, e.ss, computertools.ToolObserve, map[string]any{"app": "com.google.Chrome"})), "browser_*")
 }
 
 func allowNotes(t *testing.T, e *env, a *agent.Agent) {
