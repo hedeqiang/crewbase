@@ -619,6 +619,8 @@ export interface UsageStats {
   spentUsd: number;
   reference: { input: number; output: number };
   kinds: Record<string, number>;
+  /** images / videos generated per provider (billed by the provider per item) */
+  generated?: { provider: string; images: number; videos: number }[];
 }
 
 // ---------------------------------------------------------------- token

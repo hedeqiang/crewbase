@@ -62,7 +62,11 @@ func slug(prompt string) string {
 	}
 	s := strings.Trim(b.String(), "-")
 	if len(s) > 32 {
-		s = strings.TrimRight(s[:32], "-")
+		s = s[:32]
+		if i := strings.LastIndexByte(s, '-'); i >= 12 {
+			s = s[:i] // end on a whole word
+		}
+		s = strings.TrimRight(s, "-")
 	}
 	if len(s) < 3 {
 		return ""

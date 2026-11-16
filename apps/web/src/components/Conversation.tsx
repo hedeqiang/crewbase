@@ -44,6 +44,7 @@ import { hasModels, loadSession, openConnect, openSession, refreshAgents, refres
 import { TakeoverCard, takeoverReason } from "./Browser";
 import { cloudVoice, dictate, dictationSupported, primeVoice, speak, speaking, speakSupported } from "../voice";
 import { addFiles, clearFiles, filesFrom, MsgAttachments, PendingChips } from "./Attachments";
+import { MediaCard } from "./Media";
 import {
   activeModel,
   ago,
@@ -339,6 +340,8 @@ function FeedRow({ it, agents, showModel }: { it: FeedItem; agents: Record<strin
       );
     case "plugin":
       return <PluginFeedCard type={it.type} data={it.data} />;
+    case "media":
+      return <MediaCard it={it} />;
     case "sys":
       return (
         <div className={"sys " + (it.tone === "error" ? "err" : it.tone)}>

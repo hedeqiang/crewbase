@@ -41,8 +41,31 @@ export type FeedItem =
   | { k: "mode"; id: string; agent: string; to: string; until?: string }
   | { k: "compact"; id: string; summary: string; before: number; after: number }
   | { k: "sys"; id: string; tone: "info" | "error" | "muted"; text: string; key?: string; vars?: Record<string, string> }
+  /** Images / a video an agent generated (features/media). */
+  | {
+      k: "media";
+      id: string;
+      agent: string;
+      kind: "image" | "video";
+      files: MediaFile[];
+      prompt: string;
+      model: string;
+      call?: string;
+      job?: string;
+      /** pending: a video still being made */
+      status: "pending" | "done" | "failed";
+      spec?: { seconds?: number; aspect?: string; resolution?: string };
+      error?: string;
+      time: string;
+    }
   /** A plugin's event rendered by its conversation.node card. */
   | { k: "plugin"; id: string; type: string; data: any; time: string };
+
+export interface MediaFile {
+  path: string;
+  mime: string;
+  size: number;
+}
 
 export interface Citation {
   title: string;
@@ -81,6 +104,8 @@ export function project(events: SessionEvent[], cards?: ReadonlySet<string>): Pr
   const steps = new Map<string, Step>();
   const calls = new Map<string, ToolCall>();
   const approvals = new Map<string, Extract<FeedItem, { k: "approval" }>>();
+  const videoJobs = new Map<string, Extract<FeedItem, { k: "media" }>>();
+  let lastMedia: Extract<FeedItem, { k: "media" }> | null = null;
   let group: Extract<FeedItem, { k: "steps" }> | null = null;
   let lastTime = 0;
   let seenState = false;
@@ -218,6 +243,51 @@ export function project(events: SessionEvent[], cards?: ReadonlySet<string>): Pr
         }
         seenState = true;
         break;
+      case "media/generated": {
+        const f: MediaFile = { path: d.path ?? "", mime: d.mime ?? "", size: d.size ?? 0 };
+        const job = d.job ? videoJobs.get(d.job) : undefined;
+        if (job) {
+          job.files = [f];
+          job.status = "done";
+          break;
+        }
+        // several images of one call show together
+        if (lastMedia && lastMedia.kind === "image" && d.kind === "image" && d.call && lastMedia.call === d.call && items[items.length - 1] === lastMedia) {
+          lastMedia.files.push(f);
+          break;
+        }
+        group = null;
+        lastMedia = { k: "media", id, agent: e.agent ?? "", kind: d.kind === "video" ? "video" : "image", files: [f], prompt: d.prompt ?? "", model: d.model ?? "", call: d.call, job: d.job, status: "done", time: e.time };
+        push(lastMedia, e.time);
+        break;
+      }
+      case "media/video-job": {
+        const it = videoJobs.get(d.job);
+        if (d.status === "started" && !it) {
+          group = null;
+          const m: Extract<FeedItem, { k: "media" }> = {
+            k: "media",
+            id,
+            agent: e.agent ?? "",
+            kind: "video",
+            files: [],
+            prompt: d.prompt ?? "",
+            model: d.model ?? "",
+            job: d.job,
+            status: "pending",
+            spec: { seconds: d.seconds, aspect: d.aspect, resolution: d.resolution },
+            time: e.time,
+          };
+          videoJobs.set(d.job, m);
+          push(m, e.time);
+        } else if (it && d.status === "failed") {
+          it.status = "failed";
+          it.error = d.error ?? "";
+        } else if (it && d.status === "done" && it.files.length) {
+          it.status = "done";
+        }
+        break;
+      }
       case "notice":
         push({ k: "sys", id, tone: "info", text: d.text ?? "" }, e.time);
         break;
