@@ -10,6 +10,7 @@ import (
 	"runtime"
 	"sort"
 	"sync"
+	"syscall"
 	"time"
 	"unicode/utf16"
 	"unsafe"
@@ -370,31 +371,85 @@ func (darwinPlatform) IdleSeconds() float64 {
 	return cgEventSourceSecondsSinceLastEventType(kCGEventSourceStateCombinedSessionState, kCGAnyInputEventType)
 }
 
+// Apps lists the regular apps. NSWorkspace's list is updated by
+// notifications on the main run loop; where that loop does not run (a
+// headless crewd, tests) it goes stale, so apps that own windows the
+// window server lists are looked up by pid too, and dead pids are dropped.
 func (darwinPlatform) Apps() ([]computer.App, error) {
 	var out []computer.App
+	seen := map[int]bool{}
+	add := func(a objc.ID) {
+		if a == 0 || objc.Send[int](a, sel("activationPolicy")) != 0 { // NSApplicationActivationPolicyRegular
+			return
+		}
+		pid := int(objc.Send[int32](a, sel("processIdentifier")))
+		if seen[pid] || objc.Send[bool](a, sel("isTerminated")) || !alive(pid) {
+			return
+		}
+		seen[pid] = true
+		out = append(out, computer.App{
+			ID:     nsGoString(a.Send(sel("bundleIdentifier"))),
+			Name:   nsGoString(a.Send(sel("localizedName"))),
+			PID:    pid,
+			Active: objc.Send[bool](a, sel("isActive")),
+			Hidden: objc.Send[bool](a, sel("isHidden")),
+		})
+	}
+	owners := windowOwners()
 	withPool(func() {
 		ws := objc.ID(objc.GetClass("NSWorkspace")).Send(sel("sharedWorkspace"))
 		arr := ws.Send(sel("runningApplications"))
 		n := objc.Send[uint](arr, sel("count"))
 		for i := uint(0); i < n; i++ {
-			a := arr.Send(sel("objectAtIndex:"), i)
-			if objc.Send[int](a, sel("activationPolicy")) != 0 { // NSApplicationActivationPolicyRegular
-				continue
+			add(arr.Send(sel("objectAtIndex:"), i))
+		}
+		cls := objc.ID(objc.GetClass("NSRunningApplication"))
+		for _, pid := range owners {
+			if !seen[pid] {
+				add(cls.Send(sel("runningApplicationWithProcessIdentifier:"), int32(pid)))
 			}
-			if objc.Send[bool](a, sel("isTerminated")) {
-				continue
-			}
-			out = append(out, computer.App{
-				ID:     nsGoString(a.Send(sel("bundleIdentifier"))),
-				Name:   nsGoString(a.Send(sel("localizedName"))),
-				PID:    int(objc.Send[int32](a, sel("processIdentifier"))),
-				Active: objc.Send[bool](a, sel("isActive")),
-				Hidden: objc.Send[bool](a, sel("isHidden")),
-			})
 		}
 	})
 	sort.SliceStable(out, func(i, j int) bool { return out[i].Active && !out[j].Active })
 	return out, nil
+}
+
+// alive: the process exists (EPERM still means it does).
+func alive(pid int) bool {
+	err := syscall.Kill(pid, 0)
+	return err == nil || errors.Is(err, syscall.EPERM)
+}
+
+// windowOwners are the pids owning normal windows, in the window server's
+// order, each once.
+func windowOwners() []int {
+	arr := cgWindowListCopyWindowInfo(kCGWindowListExcludeDesktopElements, 0)
+	if arr == 0 {
+		return nil
+	}
+	defer cfRelease(arr)
+	var out []int
+	seen := map[int]bool{}
+	for i, n := 0, cfArrayGetCount(arr); i < n; i++ {
+		d := cfArrayGetValueAtIndex(arr, i)
+		if dictInt(d, "kCGWindowLayer") != 0 {
+			continue
+		}
+		if pid := dictInt(d, "kCGWindowOwnerPID"); pid > 0 && !seen[pid] {
+			seen[pid] = true
+			out = append(out, pid)
+		}
+	}
+	return out
+}
+
+func dictInt(d uintptr, key string) int {
+	v := cfDictionaryGetValue(d, cfstr(key))
+	if v == 0 || cfGetTypeID(v) != typeNumber {
+		return 0
+	}
+	f, _ := cfNumber(v)
+	return int(f)
 }
 
 func (darwinPlatform) AppElement(pid int) (ref, error) {
@@ -654,21 +709,13 @@ func (darwinPlatform) Windows(pid int) ([]cgWindow, error) {
 		return nil, errors.New("computer-macos: the window server listed no windows")
 	}
 	defer cfRelease(arr)
-	num := func(d uintptr, key string) int {
-		v := cfDictionaryGetValue(d, cfstr(key))
-		if v == 0 || cfGetTypeID(v) != typeNumber {
-			return 0
-		}
-		f, _ := cfNumber(v)
-		return int(f)
-	}
 	var out []cgWindow
 	for i, n := 0, cfArrayGetCount(arr); i < n; i++ {
 		d := cfArrayGetValueAtIndex(arr, i)
-		if num(d, "kCGWindowOwnerPID") != pid {
+		if dictInt(d, "kCGWindowOwnerPID") != pid {
 			continue
 		}
-		w := cgWindow{ID: num(d, "kCGWindowNumber"), PID: pid, Layer: num(d, "kCGWindowLayer")}
+		w := cgWindow{ID: dictInt(d, "kCGWindowNumber"), PID: pid, Layer: dictInt(d, "kCGWindowLayer")}
 		if b := cfDictionaryGetValue(d, cfstr("kCGWindowBounds")); b != 0 {
 			var r cgRect
 			if cgRectMakeWithDictionaryRepresentation(b, &r) {
