@@ -43,7 +43,7 @@ import {
   Pencil,
   RefreshCw,
   History,
-  Coins,
+  Hash as TokensIcon,
 } from "lucide-react";
 import { display, enterSends, MAC } from "../shortcuts";
 import { API, desktop, parseRef, refString, type AgentView, type ChannelView, type ContextBreakdown, type ModelRef } from "../api";
@@ -200,7 +200,7 @@ function ReplyStats({ stats }: { stats: TurnStats }) {
       {total > 0 && (
         <span className="rs-r">
           <span className="rs-tok" title={tokTitle} aria-label={tokTitle}>
-            <Coins size={12} aria-hidden />
+            <TokensIcon size={11} aria-hidden />
             {u.estimated ? "≈" : ""}
             {tokfmt(total)}
           </span>
