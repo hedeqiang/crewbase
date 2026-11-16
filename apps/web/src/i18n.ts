@@ -31,7 +31,7 @@ const zh = {
 
   "status.idle": "空闲",
   "status.running": "运行中",
-  "status.waiting": "等待你",
+  "status.waiting": "等你处理",
   "status.paused": "已暂停",
   "status.failed": "失败",
   "status.takeover": "等你接管浏览器 · {reason}",
@@ -627,7 +627,7 @@ const zh = {
   "hd.waitApprove": "等你批准",
   "hd.waitTakeover": "等你接管",
   "hd.owner": "负责人",
-  "list.wait": "等你",
+  "list.wait": "等你处理",
 
   "theme.system": "跟随系统",
   "theme.light": "浅色",
@@ -739,7 +739,7 @@ const zh = {
   "chat.noAgent": "选择左侧的一个 Agent 开始对话",
   "chat.noAgentDesc": "或者点 ＋ 新建一个 Agent。",
 
-  "appr.wants": "{agent} 想要：{summary}",
+  "appr.wants": "{agent} 请求：{summary}",
   "appr.byDefault": "「{cat}」默认需要你批准 · {waited}",
   "appr.byRule": "你的规则要求批准「{cat}」 · {waited}",
   "appr.waited": "已等待 {wait}",

@@ -1324,3 +1324,15 @@ func (r *Registry) Root() string { return r.root }
 
 // Sessions returns the session store.
 func (r *Registry) Sessions() *session.Store { return r.sessions }
+
+// ChatNameFrom is the name a blank chat gets from its first message, until
+// a generated topic replaces it (an agent named this way still has an
+// automatic name, which the topic may replace; a name the person typed
+// never matches it).
+func ChatNameFrom(text string) string {
+	t := strings.Join(strings.Fields(text), " ")
+	if r := []rune(t); len(r) > 24 {
+		t = string(r[:23]) + "…"
+	}
+	return t
+}

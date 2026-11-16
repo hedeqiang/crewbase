@@ -121,6 +121,14 @@ var Plugin = kernel.Register(kernel.Spec{
 					}
 					if t := clean(resp.Message.Text()); t != "" {
 						_ = ss.UpdateMeta(func(m *session.Meta) { m.Topic = t })
+						// a blank chat named after its first message takes the
+						// topic, so approvals, notifications and search use one
+						// name; a name the person gave it stays
+						if who != nil && who.IsChat() && who.Spec().Session == id {
+							if n := who.Spec().Name; n == agent.ChatDefaultName || n == agent.ChatNameFrom(user) {
+								_ = who.Update(func(s *agent.Spec) { s.Name = t })
+							}
+						}
 					}
 				}
 			}

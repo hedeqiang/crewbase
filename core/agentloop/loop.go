@@ -426,11 +426,7 @@ func nameChat(a *agent.Agent, text string) {
 	if !a.IsChat() || a.Spec().Name != agent.ChatDefaultName {
 		return
 	}
-	t := strings.Join(strings.Fields(text), " ")
-	if r := []rune(t); len(r) > 24 {
-		t = string(r[:23]) + "…"
-	}
-	if t != "" {
+	if t := agent.ChatNameFrom(text); t != "" {
 		_ = a.Update(func(s *agent.Spec) { s.Name = t })
 	}
 }

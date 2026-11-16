@@ -51,4 +51,34 @@ func TestTopicFromCheapRoute(t *testing.T) {
 	if n := len(big.(*mock.Adapter).Requests()); n != 1 {
 		t.Fatalf("main model must not be used for topics (%d requests)", n)
 	}
+	if a.Spec().Name != "Kai" {
+		t.Fatalf("an agent keeps its name: %q", a.Spec().Name)
+	}
+
+	// a blank chat named after its first message takes the topic
+	reg := kernel.Use[*agent.Registry](h.Root(), agent.ServiceKey)
+	chat, _ := reg.Create(agent.Spec{Kind: agent.KindChat})
+	chat.Enqueue(agent.Input{Text: "帮我改一下定价页，顺便看看首页的文案是不是太长了"})
+	agentloop.WaitIdle(chat, 2*time.Second)
+	deadline = time.Now().Add(2 * time.Second)
+	for chat.Spec().Name != "定价页改版" && time.Now().Before(deadline) {
+		time.Sleep(10 * time.Millisecond)
+	}
+	if chat.Spec().Name != "定价页改版" {
+		t.Fatalf("chat name %q", chat.Spec().Name)
+	}
+	// one the person renamed keeps its name
+	named, _ := reg.Create(agent.Spec{Kind: agent.KindChat})
+	named.Update(func(s *agent.Spec) { s.Name = "我的周报" })
+	named.Enqueue(agent.Input{Text: "写周报"})
+	agentloop.WaitIdle(named, 2*time.Second)
+	ns, _ := named.Session()
+	deadline = time.Now().Add(2 * time.Second)
+	for ns.Meta().Topic == "" && time.Now().Before(deadline) {
+		time.Sleep(10 * time.Millisecond)
+	}
+	time.Sleep(50 * time.Millisecond)
+	if named.Spec().Name != "我的周报" {
+		t.Fatalf("renamed chat lost its name: %q", named.Spec().Name)
+	}
 }
