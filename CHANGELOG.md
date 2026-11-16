@@ -3,6 +3,16 @@
 Each `## <version>` section becomes the release notes of that version,
 shown in the desktop app's update window.
 
+## 0.5.5
+
+电脑操作覆盖更多模型和应用：订阅 CLI 也能用，Claude / GPT / Gemini 用各自原生的操作方式，支持 AppleScript 和快捷指令。
+
+- 订阅 CLI（Claude Code、Codex、Cursor、OpenCode 等）可以使用 Crewbase 的电脑操作和浏览器工具，规则与其他模型相同（按应用授权、发送 / 删除确认、操作记录），CLI 自己的权限弹窗对这些工具自动放行，只问你一次
+- Claude（Opus 4.8、5.x）、GPT（官方 OpenAI）、Gemini（3.x / 4.x）可以用各自原生的电脑操作；厂商的「需要确认」一律转为你的审批
+- 新增 AppleScript / JXA / 快捷指令操作：备忘录、邮件、日历、提醒事项、Finder 等最稳的方式；每次运行都要你确认并显示完整脚本，点名的应用遵守禁止列表
+- 飞书、VS Code、Slack 等 Electron 应用读到的界面元素太少时，自动打开它的完整辅助功能树
+- Linux：bubblewrap / docker 沙箱里 Agent 也不能创建或修改 .claude、.mcp.json 等编码 CLI 的配置
+
 ## 0.5.4
 
 Agent 可以操作你 Mac 上的应用了（电脑操作，预览）；订阅 CLI 列出它们的全部模型，Gemini CLI 换成 Antigravity。
