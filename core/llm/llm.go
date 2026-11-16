@@ -41,6 +41,12 @@ type ToolResult struct {
 	Name    string `json:"name,omitempty"`
 	Content string `json:"content"`
 	IsError bool   `json:"isError,omitempty"`
+	// Attachments are images a tool saved in the agent workspace for the
+	// model to look at (e.g. a window screenshot). Most APIs cannot carry
+	// images inside a tool result, so the history projection hands them
+	// to the model as a user message right after the step's results, and
+	// only for the latest few (session.MaxToolImages).
+	Attachments []Attachment `json:"attachments,omitempty"`
 }
 
 // Part is one piece of a message.

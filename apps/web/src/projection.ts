@@ -10,6 +10,27 @@ export interface Step {
   awaiting?: boolean;
   /** delegate: the sub-agent run it started (its session) */
   sub?: string;
+  /** computer_*: what it did in the app, from computer/action events */
+  computer?: ComputerAction[];
+}
+
+/** One computer/action event (features/computertools ActionLog). */
+export interface ComputerAction {
+  app: string;
+  appName?: string;
+  action: string;
+  element?: number;
+  elementName?: string;
+  keys?: string;
+  menu?: string[];
+  text?: string;
+  foreground?: boolean;
+  step?: number;
+  steps?: number;
+  ok: boolean;
+  error?: string;
+  /** workspace path of the screenshot the model asked for */
+  screenshot?: string;
 }
 
 /** A sub-agent run started from this conversation (subagent/spawned). */
@@ -431,6 +452,11 @@ export function project(events: SessionEvent[], cards?: ReadonlySet<string>): Pr
         }
         seenState = true;
         break;
+      case "computer/action": {
+        const st = d.call ? steps.get(d.call) : undefined;
+        if (st) (st.computer ??= []).push(d as ComputerAction);
+        break;
+      }
       case "media/generated": {
         const f: MediaFile = { path: d.path ?? "", mime: d.mime ?? "", size: d.size ?? 0 };
         const job = d.job ? videoJobs.get(d.job) : undefined;

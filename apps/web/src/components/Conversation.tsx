@@ -46,7 +46,7 @@ import {
   Hash as TokensIcon,
 } from "lucide-react";
 import { display, enterSends, MAC } from "../shortcuts";
-import { API, desktop, parseRef, refString, type AgentView, type ChannelView, type ContextBreakdown, type ModelRef } from "../api";
+import { API, desktop, parseRef, refString, useRawURL, type AgentView, type ChannelView, type ContextBreakdown, type ModelRef } from "../api";
 import { t, type Key } from "../i18n";
 import { argsFull, argsPreview, project, type FeedItem, type Rewind, type Step, type TurnStats } from "../projection";
 import { hasModels, loadSession, setModelOverride, openConnect, openSession, openSubRun, refreshAgents, refreshSessions, setState, toast, useStore, sessionAgent } from "../store";
@@ -807,7 +807,7 @@ function AgentMsg({ it, agent, showModel, before, after }: { it: Extract<FeedIte
           </button>
         )}
         {showThink && <div className="thinking small">{it.thinking}</div>}
-        {before && <Steps steps={before} />}
+        {before && <Steps steps={before} agent={it.agent} />}
         {it.searches.map((q, i) => (
           <div className="srvtool" key={i}>
             <SearchIcon size={13} />
@@ -837,7 +837,7 @@ function AgentMsg({ it, agent, showModel, before, after }: { it: Extract<FeedIte
             ))}
           </div>
         )}
-        {after && <Steps steps={after} />}
+        {after && <Steps steps={after} agent={it.agent} />}
         {it.stats && <ReplyStats stats={it.stats} />}
         {hasActs && (
           <div className="msgacts">
@@ -925,7 +925,7 @@ function WorkingTurn({ agent, id, steps }: { agent?: AgentView; id: string; step
           <b>{agent ? speaker(agent) : id}</b>
           {steps[0]?.time && <span className="t">{hhmm(steps[0].time)}</span>}
         </div>
-        <Steps steps={steps} />
+        <Steps steps={steps} agent={agent?.id ?? id} />
       </div>
     </div>
   );
@@ -1025,7 +1025,7 @@ function outcome(s: Step): Outcome {
   return "error";
 }
 
-function Steps({ steps }: { steps: Step[] }) {
+function Steps({ steps, agent }: { steps: Step[]; agent?: string }) {
   const [open, setOpen] = useState(false);
   const running = steps.some((s) => !s.result && !s.awaiting);
   const awaiting = steps.some((s) => s.awaiting);
@@ -1035,7 +1035,7 @@ function Steps({ steps }: { steps: Step[] }) {
   if (steps.length === 1)
     return (
       <div className="stepsw one">
-        <StepRow s={steps[0]} />
+        <StepRow s={steps[0]} agent={agent} />
       </div>
     );
   return (
@@ -1051,7 +1051,7 @@ function Steps({ steps }: { steps: Step[] }) {
       {open && (
         <div className="stepsx">
           {steps.map((s) => (
-            <StepRow key={s.call.id} s={s} />
+            <StepRow key={s.call.id} s={s} agent={agent} />
           ))}
         </div>
       )}
@@ -1059,9 +1059,11 @@ function Steps({ steps }: { steps: Step[] }) {
   );
 }
 
-function StepRow({ s }: { s: Step }) {
+function StepRow({ s, agent }: { s: Step; agent?: string }) {
   const [open, setOpen] = useState(false);
-  const pv = argsPreview(s.call.args);
+  const cu = computerLabel(s);
+  const pv = cu ? "" : argsPreview(s.call.args);
+  const shots = (s.computer ?? []).filter((c) => c.screenshot).map((c) => c.screenshot!);
   return (
     <div className="step">
       <button className="stephead" type="button" aria-expanded={open} onClick={() => setOpen(!open)}>
@@ -1076,7 +1078,8 @@ function StepRow({ s }: { s: Step }) {
         ) : (
           <CircleMinus size={13} className="muted" />
         )}
-        {toolLabel(s.call.name) ? <b>{toolLabel(s.call.name)}</b> : <b className="mono">{s.call.name}</b>}
+        {cu ? <b className="cul">{cu}</b> : toolLabel(s.call.name) ? <b>{toolLabel(s.call.name)}</b> : <b className="mono">{s.call.name}</b>}
+        {cu && (s.computer ?? []).some((c) => c.foreground) && <span className="pill sm">{t("tool.cu.fg")}</span>}
         <span className={"pv" + (PROSE_ARGS.has(s.call.name) ? "" : " mono")}>{pv}</span>
         {s.sub && (
           <span
@@ -1098,8 +1101,25 @@ function StepRow({ s }: { s: Step }) {
           </span>
         )}
       </button>
+      {shots.length > 0 && agent && (
+        <div className="cushots">
+          {shots.map((p) => (
+            <CuShot key={p} agent={agent} path={p} />
+          ))}
+        </div>
+      )}
       {open && (
         <div className="stepbody">
+          {s.call.name === "computer_act_batch" && (s.computer?.length ?? 0) > 0 && (
+            <ol className="custeps small">
+              {s.computer!.map((c, i) => (
+                <li key={i} className={c.ok ? "" : "errc"}>
+                  {cuActionLabel(c.action, { target: c.elementName || (c.element ? `[${c.element}]` : ""), text: c.text ?? "", keys: c.keys ?? "", path: (c.menu ?? []).join(" › "), app: c.appName || c.app })}
+                  {c.error ? " · " + c.error : ""}
+                </li>
+              ))}
+            </ol>
+          )}
           <pre className="codeblk">{argsFull(s.call.args)}</pre>
           {s.result &&
             (s.result.content.startsWith(PARKED) ? (
@@ -1111,6 +1131,88 @@ function StepRow({ s }: { s: Step }) {
       )}
     </div>
   );
+}
+
+/** A saved screenshot of a computer_* step: a thumbnail that opens full size. */
+function CuShot({ agent, path }: { agent: string; path: string }) {
+  const src = useRawURL(agent, path);
+  const name = path.split("/").pop() ?? path;
+  return (
+    <a href={src} target="_blank" rel="noreferrer" title={t("att.open", { name })}>
+      {src ? <img src={src} alt={name} loading="lazy" /> : <span className="thumbph" />}
+    </a>
+  );
+}
+
+function parsedArgs(args: any): Record<string, any> {
+  if (typeof args === "string") {
+    try {
+      return JSON.parse(args) ?? {};
+    } catch {
+      return {};
+    }
+  }
+  return args && typeof args === "object" ? args : {};
+}
+
+type CuVars = { target: string; text: string; keys: string; path: string; app: string };
+
+/** One computer action in words: "点击 新建备忘录", "按 cmd+n". */
+function cuActionLabel(action: string, v: CuVars): string {
+  switch (action) {
+    case "press":
+    case "click":
+    case "double_click":
+    case "right_click":
+      return t(v.target ? "tool.cu.click" : "tool.cu.clickApp", v);
+    case "set_value":
+      return t("tool.cu.set", v);
+    case "focus":
+      return t("tool.cu.focus", v);
+    case "type":
+      return t("tool.cu.type", { ...v, text: v.text.length > 40 ? v.text.slice(0, 40) + "…" : v.text });
+    case "key":
+      return t("tool.cu.key", v);
+    case "menu":
+      return t("tool.cu.menu", v);
+    case "scroll":
+      return t("tool.cu.scroll", v);
+    case "drag":
+      return t("tool.cu.drag", v);
+    case "observe":
+      return t("tool.cu.observe", v);
+    case "open":
+      return t("tool.cu.open", v);
+  }
+  return t("tool.cu.act", v);
+}
+
+/** computer_* steps in words ("查看 备忘录", "点击 新建备忘录"); null for other tools. */
+function computerLabel(s: Step): string | null {
+  const n = s.call.name;
+  if (!n.startsWith("computer_")) return null;
+  const a = parsedArgs(s.call.args);
+  const logs = s.computer ?? [];
+  const app = String(logs[0]?.appName || a.app || "");
+  switch (n) {
+    case "computer_apps":
+      return t("tool.cu.apps");
+    case "computer_observe":
+      return t("tool.cu.observe", { app });
+    case "computer_open":
+      return t("tool.cu.open", { app });
+    case "computer_act_batch":
+      return t("tool.cu.batch", { app, n: Array.isArray(a.actions) ? a.actions.length : logs.length });
+  }
+  const l = logs[logs.length - 1];
+  const at = a.x != null && a.y != null ? `(${Math.round(a.x)}, ${Math.round(a.y)})` : "";
+  return cuActionLabel(String(a.action ?? ""), {
+    target: l?.elementName || (a.element ? `[${a.element}]` : at),
+    text: String(a.text ?? ""),
+    keys: String(a.keys ?? ""),
+    path: Array.isArray(a.menu) ? a.menu.join(" › ") : "",
+    app,
+  });
 }
 
 /** Readable names of common tools (others show their tool name). */
@@ -1130,6 +1232,11 @@ const TOOL_LABELS: Record<string, Key> = {
   followup_set: "tool.followup",
   task_progress: "tool.progress",
   note_read: "tool.note",
+  computer_apps: "tool.cuApps",
+  computer_observe: "tool.cuObserve",
+  computer_act: "tool.cuAct",
+  computer_act_batch: "tool.cuBatch",
+  computer_open: "tool.cuOpen",
 };
 const toolLabel = (name: string) => (TOOL_LABELS[name] ? t(TOOL_LABELS[name]) : "");
 /** tools whose main argument is prose (a task, a prompt), not code */

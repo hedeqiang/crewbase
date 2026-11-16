@@ -79,6 +79,9 @@ type Result struct {
 	// StopTurn ends the agent's turn after this step without another
 	// model call (e.g. after handing the task over).
 	StopTurn bool `json:"stopTurn,omitempty"`
+	// Attachments are workspace images the model should see with this
+	// result (references only; see llm.ToolResult.Attachments).
+	Attachments []llm.Attachment `json:"attachments,omitempty"`
 }
 
 // Text is a success result.
@@ -417,6 +420,7 @@ func (r *Registry) finish(ctx context.Context, d kernel.Dispatcher, exe Executio
 	if ss := exe.Call.Session; ss != nil {
 		_, _ = ss.Append(session.TypeToolResult, exe.Call.Agent, llm.ToolResult{
 			CallID: exe.Call.ID, Name: exe.Call.Name, Content: exe.Result.Content, IsError: exe.Result.IsError,
+			Attachments: exe.Result.Attachments,
 		})
 	}
 	return exe

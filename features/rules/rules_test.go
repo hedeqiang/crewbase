@@ -441,3 +441,38 @@ func TestDeleteNeedsConfirm(t *testing.T) {
 	}
 	t.Fatal("confirmed always-allow for delete was not remembered")
 }
+
+// A conversation grant lets one agent's calls of a category run without
+// asking in that session only; it never lifts Block or payment.
+func TestSessionGrant(t *testing.T) {
+	h, reg, ss, inbox, eng := setup(t, nil)
+	st := kernel.Use[*session.Store](h.Root(), session.ServiceKey)
+	other, _ := st.Create(session.Meta{Kind: "agent"})
+	eng.GrantSession("kai", ss.ID(), "push")
+	if !eng.SessionGranted("kai", ss.ID(), "push") {
+		t.Fatal("grant not recorded")
+	}
+	if exe := reg.Run(context.Background(), h.Root(), mkcall(ss, "kai", "do-push")); exe.Result.Content != "did push" {
+		t.Fatalf("granted call asked: %+v", exe)
+	}
+	for _, c := range []tools.Call{mkcall(other, "kai", "do-push"), mkcall(ss, "nova", "do-push")} {
+		done := runAsync(reg, h, c)
+		waitPending(t, inbox)
+		inbox.Decide(c.ID, approval.Decision{Outcome: approval.OutcomeRejected})
+		<-done
+	}
+	eng.GrantSession("kai", ss.ID(), "payment")
+	if exe := reg.Run(context.Background(), h.Root(), mkcall(ss, "kai", "do-payment")); !exe.Denied {
+		t.Fatal("payment granted")
+	}
+	if err := eng.SetAgentRule("kai", "push", rules.Block); err != nil {
+		t.Fatal(err)
+	}
+	if exe := reg.Run(context.Background(), h.Root(), mkcall(ss, "kai", "do-push")); !exe.Denied {
+		t.Fatal("grant lifted a block")
+	}
+	eng.RevokeSessions("kai", "push")
+	if eng.SessionGranted("kai", ss.ID(), "push") {
+		t.Fatal("revoke kept the grant")
+	}
+}
