@@ -259,7 +259,9 @@ input.mename { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px
 .row-btn .ch { color: var(--muted); transition: transform .15s; }
 .row-btn[aria-expanded="true"] .ch { transform: rotate(90deg); }
 .row-btn.think { font-size: 12px; color: var(--muted); margin-top: 2px; }
-.stepsw { display: flex; flex-direction: column; gap: 4px; margin-left: 38px; margin-top: -8px; }
+.stepsw { display: flex; flex-direction: column; gap: 4px; margin: 4px 0 2px; }
+.stepsw.one { margin-left: -6px; font-size: 12.5px; color: var(--text2); }
+.stepsw.one .stephead { padding: 3px 6px; }
 .stepsx { padding: 2px 0 2px 10px; margin-left: -2px; border-left: 2px solid var(--border2); font-size: 12.5px; color: var(--text2); display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .step { min-width: 0; }
 .stephead { display: flex; align-items: center; gap: 7px; width: 100%; text-align: left; padding: 3px 6px; border-radius: 6px; min-width: 0; }
@@ -1698,3 +1700,21 @@ button.psec.toggle { width: 100%; background: none; border: 0; font-family: inhe
 .imgrow .g { display: flex; flex-direction: column; gap: 1px; flex: 1; min-width: 0; }
 .imgrow .g > * { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .imgroups .linkbtn.small { align-self: flex-start; font-size: 12px; }
+
+/* a result that came back on its own (sub-agent, background command, follow-up) */
+.bgcard { flex: none; margin-left: 38px; max-width: 640px; border: 1px solid var(--border); border-radius: 12px; background: var(--raised); overflow: hidden; }
+.bgcard.bad { border-color: color-mix(in srgb, var(--danger) 35%, var(--border)); }
+.bghead { display: flex; align-items: center; gap: 8px; width: 100%; padding: 8px 12px; text-align: left; font-size: 12.5px; color: var(--text2); min-width: 0; }
+.bghead:not(:disabled):hover { background: var(--hover); }
+.bghead:disabled { cursor: default; opacity: 1; }
+.bgic { width: 22px; height: 22px; border-radius: 7px; display: grid; place-items: center; flex: none; background: var(--accent-soft); color: var(--accent-text); }
+.bgcard.bad .bgic { background: var(--danger-soft); color: var(--danger-text); }
+.bglabel { font-weight: 600; color: var(--text); flex: none; }
+.bgwhat { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); min-width: 0; flex: 1; }
+.bghead .t { margin-left: auto; color: var(--muted); font-variant-numeric: tabular-nums; flex: none; }
+.bghead .ch { color: var(--muted); transition: transform .15s; flex: none; }
+.bgcard.open .bghead .ch { transform: rotate(90deg); }
+.bgbody { border-top: 1px solid var(--border); padding: 10px 14px 12px; font-size: 13px; max-height: 420px; overflow: auto; }
+.bgbody > :first-child { margin-top: 0; }
+.bgbody > :last-child { margin-bottom: 0; }
+@media (max-width: 640px) { .bgcard { margin-left: 0; } }

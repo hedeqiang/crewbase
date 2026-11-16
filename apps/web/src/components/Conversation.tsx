@@ -12,6 +12,9 @@ import {
   ChevronLeft,
   CornerLeftUp,
   CircleX,
+  Terminal,
+  AlarmClock,
+  Users,
   CircleMinus,
   Folder,
   FolderOpen,
@@ -188,7 +191,7 @@ function Feed({
             ))}
           </div>
         ) : (
-          g.items.map((x) => <FeedRow key={x.it.id} it={x.it} agents={agents} showModel={x.showModel} />)
+          g.items.map((x) => <FeedRow key={x.it.id} it={x.it} agents={agents} showModel={x.showModel} before={x.before} after={x.after} />)
         ),
       )}
       {live.map(([k, v]) => {
@@ -239,10 +242,40 @@ function isSysItem(it: FeedItem): boolean {
 
 /** Split the feed into runs; consecutive system lines become one compact group.
  *  Agent messages show their model only when it differs from the previous one. */
-function groupFeed(items: FeedItem[]): { sys: boolean; items: { it: FeedItem; showModel?: boolean }[] }[] {
-  const out: { sys: boolean; items: { it: FeedItem; showModel?: boolean }[] }[] = [];
+type Row = { it: FeedItem; showModel?: boolean; before?: Step[]; after?: Step[] };
+
+/** Tool steps belong to the agent's message they lead to (or follow):
+ *  they are shown inside it, under its name, instead of floating between
+ *  messages. Steps with no message next to them (still working) get the
+ *  agent's header of their own. */
+function joinSteps(items: FeedItem[]): Row[] {
+  const out: Row[] = [];
+  let carry: Step[] | null = null;
+  for (let i = 0; i < items.length; i++) {
+    const it = items[i];
+    if (it.k === "steps") {
+      const next = items[i + 1];
+      const prev = out[out.length - 1];
+      if (next?.k === "agent" && next.agent === it.agent) carry = [...(carry ?? []), ...it.steps];
+      else if (prev?.it.k === "agent" && prev.it.agent === it.agent) prev.after = [...(prev.after ?? []), ...it.steps];
+      else out.push({ it });
+      continue;
+    }
+    if (it.k === "agent" && carry) {
+      out.push({ it, before: carry });
+      carry = null;
+      continue;
+    }
+    out.push({ it });
+  }
+  return out;
+}
+
+function groupFeed(items: FeedItem[]): { sys: boolean; items: Row[] }[] {
+  const out: { sys: boolean; items: Row[] }[] = [];
   let prev = "";
-  for (const it of items) {
+  for (const row of joinSteps(items)) {
+    const it = row.it;
     const sys = isSysItem(it);
     let showModel: boolean | undefined;
     if (it.k === "agent" && it.model) {
@@ -252,7 +285,7 @@ function groupFeed(items: FeedItem[]): { sys: boolean; items: { it: FeedItem; sh
     }
     const last = out[out.length - 1];
     if (last && sys && last.sys) last.items.push({ it });
-    else out.push({ sys, items: [{ it, showModel }] });
+    else out.push({ sys, items: [{ ...row, showModel }] });
   }
   return out;
 }
@@ -262,7 +295,7 @@ function PluginFeedCard({ type, data }: { type: string; data: any }) {
   return c ? <PluginCard c={c} data={data} /> : null;
 }
 
-function FeedRow({ it, agents, showModel }: { it: FeedItem; agents: Record<string, AgentView>; showModel?: boolean }) {
+function FeedRow({ it, agents, showModel, before, after }: { it: FeedItem; agents: Record<string, AgentView>; showModel?: boolean; before?: Step[]; after?: Step[] }) {
   const models = useStore((s) => s.models);
   switch (it.k) {
     case "time":
@@ -280,9 +313,11 @@ function FeedRow({ it, agents, showModel }: { it: FeedItem; agents: Record<strin
         </div>
       );
     case "agent":
-      return <AgentMsg it={it} agent={agents[it.agent]} showModel={!!showModel} />;
+      return <AgentMsg it={it} agent={agents[it.agent]} showModel={!!showModel} before={before} after={after} />;
     case "steps":
-      return <Steps steps={it.steps} />;
+      return <WorkingTurn agent={agents[it.agent]} id={it.agent} steps={it.steps} />;
+    case "bg":
+      return <BgCard it={it} agents={agents} />;
     case "approval":
       return <ApprovalCard it={it} agent={agents[it.req.agent]} />;
     case "switch": {
@@ -367,7 +402,7 @@ const REASONS: Record<string, true> = {
   "chat.reason.unavailable": true,
 };
 
-function AgentMsg({ it, agent, showModel }: { it: Extract<FeedItem, { k: "agent" }>; agent?: AgentView; showModel: boolean }) {
+function AgentMsg({ it, agent, showModel, before, after }: { it: Extract<FeedItem, { k: "agent" }>; agent?: AgentView; showModel: boolean; before?: Step[]; after?: Step[] }) {
   const models = useStore((s) => s.models);
   const [showThink, setShowThink] = useState(false);
   const [reading, setReading] = useState(false);
@@ -407,6 +442,7 @@ function AgentMsg({ it, agent, showModel }: { it: Extract<FeedItem, { k: "agent"
           </button>
         )}
         {showThink && <div className="thinking small">{it.thinking}</div>}
+        {before && <Steps steps={before} />}
         {it.searches.map((q, i) => (
           <div className="srvtool" key={i}>
             <SearchIcon size={13} />
@@ -436,7 +472,57 @@ function AgentMsg({ it, agent, showModel }: { it: Extract<FeedItem, { k: "agent"
             ))}
           </div>
         )}
+        {after && <Steps steps={after} />}
       </div>
+    </div>
+  );
+}
+
+/** Steps an agent is taking with no message yet: under its own header. */
+function WorkingTurn({ agent, id, steps }: { agent?: AgentView; id: string; steps: Step[] }) {
+  return (
+    <div className="m-agent">
+      <Avatar agent={agent} size={28} />
+      <div style={{ minWidth: 0 }}>
+        <div className="mh">
+          <b>{agent ? speaker(agent) : id}</b>
+          {steps[0]?.time && <span className="t">{hhmm(steps[0].time)}</span>}
+        </div>
+        <Steps steps={steps} />
+      </div>
+    </div>
+  );
+}
+
+/** A result that came back on its own: one line, opened on demand. */
+function BgCard({ it, agents }: { it: Extract<FeedItem, { k: "bg" }>; agents: Record<string, AgentView> }) {
+  const [open, setOpen] = useState(false);
+  const who = it.who ? (Object.values(agents).find((a) => a.id === it.who || a.name === it.who)?.name ?? it.who) : "";
+  const label =
+    it.kind === "delegation"
+      ? t(it.ok ? "bg.delegationDone" : "bg.delegationFailed", { who: who || t("bg.subAgent") })
+      : it.kind === "followup"
+        ? t("bg.followup")
+        : t(it.ok ? "bg.jobDone" : "bg.jobFailed");
+  const what = it.kind === "delegation" ? it.task || "" : it.title;
+  const Icon = it.kind === "delegation" ? Users : it.kind === "followup" ? AlarmClock : Terminal;
+  const canOpen = !!it.body;
+  return (
+    <div className={"bgcard" + (it.ok ? "" : " bad") + (open ? " open" : "")}>
+      <button className="bghead" type="button" aria-expanded={canOpen ? open : undefined} disabled={!canOpen} onClick={() => setOpen(!open)}>
+        <span className="bgic">
+          <Icon size={13} />
+        </span>
+        <span className="bglabel">{label}</span>
+        {what && <span className="bgwhat">{what}</span>}
+        <span className="t">{hhmm(it.time)}</span>
+        {canOpen && <ChevronRight size={14} className="ch" />}
+      </button>
+      {open && canOpen && (
+        <div className="bgbody">
+          <Markdown text={it.body} />
+        </div>
+      )}
     </div>
   );
 }
@@ -503,6 +589,13 @@ function Steps({ steps }: { steps: Step[] }) {
   const awaiting = steps.some((s) => s.awaiting);
   const errors = steps.filter((s) => outcome(s) === "error").length;
   const declined = steps.filter((s) => outcome(s) === "declined").length;
+  // one step needs no "ran 1 step" wrapper: the step itself is the line
+  if (steps.length === 1)
+    return (
+      <div className="stepsw one">
+        <StepRow s={steps[0]} />
+      </div>
+    );
   return (
     <div className="stepsw">
       <button className="row-btn" type="button" aria-expanded={open} onClick={() => setOpen(!open)}>
@@ -541,8 +634,8 @@ function StepRow({ s }: { s: Step }) {
         ) : (
           <CircleMinus size={13} className="muted" />
         )}
-        <b className="mono">{s.call.name}</b>
-        <span className="mono pv">{pv}</span>
+        {toolLabel(s.call.name) ? <b>{toolLabel(s.call.name)}</b> : <b className="mono">{s.call.name}</b>}
+        <span className={"pv" + (PROSE_ARGS.has(s.call.name) ? "" : " mono")}>{pv}</span>
       </button>
       {open && (
         <div className="stepbody">
@@ -558,6 +651,28 @@ function StepRow({ s }: { s: Step }) {
     </div>
   );
 }
+
+/** Readable names of common tools (others show their tool name). */
+const TOOL_LABELS: Record<string, Key> = {
+  delegate: "tool.delegate",
+  bash: "tool.bash",
+  read_file: "tool.read",
+  write_file: "tool.write",
+  edit_file: "tool.edit",
+  list_dir: "tool.list",
+  web_fetch: "tool.fetch",
+  web_search: "tool.search",
+  browser_open: "tool.browse",
+  image_generate: "tool.image",
+  video_generate: "tool.video",
+  memory_add: "tool.remember",
+  followup_set: "tool.followup",
+  task_progress: "tool.progress",
+  note_read: "tool.note",
+};
+const toolLabel = (name: string) => (TOOL_LABELS[name] ? t(TOOL_LABELS[name]) : "");
+/** tools whose main argument is prose (a task, a prompt), not code */
+const PROSE_ARGS = new Set(["delegate", "image_generate", "video_generate", "memory_add", "followup_set", "web_search"]);
 
 /** Start of tools.ParkedResult: the call stopped waiting for its approval. */
 const PARKED = "Waiting for the user's approval";

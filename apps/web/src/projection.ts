@@ -36,6 +36,10 @@ export type FeedItem =
   | { k: "owner"; id: string; owner: string; prev?: string; by?: string; reason: string }
   | { k: "chstate"; id: string; state: string; by?: string }
   | { k: "steps"; id: string; agent: string; steps: Step[] }
+  /** A result that came back to the agent on its own (a sub-agent's work,
+   *  a background command, a follow-up): shown as a compact card, not as
+   *  a message from the person. */
+  | { k: "bg"; id: string; kind: BgKind; ok: boolean; who?: string; task?: string; title: string; body: string; time: string }
   | { k: "approval"; id: string; req: ApprovalRequest; decided?: Decision; call?: ToolCall; time: string }
   | { k: "switch"; id: string; agent: string; from: ModelRef; to: ModelRef; reason: string; detail?: string }
   | { k: "mode"; id: string; agent: string; to: string; until?: string }
@@ -95,6 +99,31 @@ function textOf(parts: Part[] | null | undefined, type: string): string {
     .join("");
 }
 
+export type BgKind = "delegation" | "job" | "followup";
+const BG_FROM = new Set<string>(["delegation", "job", "followup"]);
+
+/** Splits a background result's text ("[委派结果] d1（研究员）完成：\n\n…")
+ *  into what the card shows. */
+function parseBg(from: BgKind, text: string, tasks: Map<string, string>): Omit<Extract<FeedItem, { k: "bg" }>, "k" | "id" | "time"> {
+  const nl = text.indexOf("\n");
+  const first = (nl < 0 ? text : text.slice(0, nl)).trim();
+  let body = (nl < 0 ? "" : text.slice(nl + 1)).trim();
+  const head = first.replace(/^\[[^\]]*\]\s*/, "").replace(/[：:]\s*$/, "");
+  if (from === "delegation") {
+    // "<id>（<who>）<完成|没有完成>"
+    const m = /^(\S+?)（([^）]*)）(.*)$/.exec(head);
+    const id = m?.[1] ?? "";
+    const who = m && m[2] !== "a sub-agent" ? m[2] : undefined;
+    return { kind: from, ok: !/没有完成|failed|not/i.test(m?.[3] ?? head), who, task: tasks.get(id), title: head, body };
+  }
+  if (from === "followup") {
+    // the note is the paragraph after the header; the instructions that follow are for the agent
+    const note = body.split(/\n\s*\n/)[0]?.trim() ?? "";
+    return { kind: from, ok: true, title: note || head, body: "" };
+  }
+  return { kind: from, ok: !/失败|failed/i.test(first), title: head, body };
+}
+
 /** `cards` are event types plugins render (conversation.node keys). */
 export function project(events: SessionEvent[], cards?: ReadonlySet<string>): Projection {
   const items: FeedItem[] = [];
@@ -103,6 +132,7 @@ export function project(events: SessionEvent[], cards?: ReadonlySet<string>): Pr
   const openTurns = new Set<string>();
   const steps = new Map<string, Step>();
   const calls = new Map<string, ToolCall>();
+  const delegated = new Map<string, string>(); // delegation id → its task
   const approvals = new Map<string, Extract<FeedItem, { k: "approval" }>>();
   const videoJobs = new Map<string, Extract<FeedItem, { k: "media" }>>();
   let lastMedia: Extract<FeedItem, { k: "media" }> | null = null;
@@ -124,6 +154,10 @@ export function project(events: SessionEvent[], cards?: ReadonlySet<string>): Pr
       case "message/user":
         if (INJECTED.test(d.text ?? "")) break;
         group = null;
+        if (BG_FROM.has(d.from ?? "") && /^\[[^\]]+\]/.test(d.text ?? "")) {
+          push({ k: "bg", id, time: e.time, ...parseBg(d.from as BgKind, d.text ?? "", delegated) }, e.time);
+          break;
+        }
         push({ k: "user", id, text: d.text ?? "", from: d.from, time: e.time, to: d.to, attachments: d.attachments }, e.time);
         break;
       case "message/assistant": {
@@ -165,6 +199,13 @@ export function project(events: SessionEvent[], cards?: ReadonlySet<string>): Pr
         const st = steps.get(r.callId);
         if (st) st.result = r;
         const name = r.name ?? calls.get(r.callId)?.name;
+        // a background delegation: remember its task for the result card
+        const dm = /Delegated as (\S+?)\b/.exec(r.content ?? "");
+        if (dm && name === "delegate") {
+          const a = calls.get(r.callId)?.args;
+          const task = typeof a === "string" ? (() => { try { return JSON.parse(a).task; } catch { return ""; } })() : a?.task;
+          if (task) delegated.set(dm[1], String(task));
+        }
         if (name && cards?.has("tool:" + name)) {
           let result: any;
           try {
@@ -331,7 +372,7 @@ export function argsPreview(args: any): string {
     }
   }
   if (typeof args !== "object") return String(args);
-  for (const k of ["command", "cmd", "path", "url", "query", "file", "pattern"]) {
+  for (const k of ["command", "cmd", "task", "prompt", "path", "url", "query", "file", "pattern", "text", "note"]) {
     if (typeof args[k] === "string") return args[k];
     if (Array.isArray(args[k])) return args[k].join(" ");
   }
