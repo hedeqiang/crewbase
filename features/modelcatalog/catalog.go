@@ -452,6 +452,13 @@ func (s *Service) due(now time.Time) bool {
 	}
 	for _, u := range s.settings.Sources {
 		d, ok := s.cache[u]
+		if !ok {
+			for _, e := range s.embedded.Sources {
+				if e.URL == u { // a fresh build needs no fetch on its first run
+					d, ok = e, true
+				}
+			}
+		}
 		if !ok || now.Sub(d.Fetched) >= s.refreshEvery {
 			return true
 		}
