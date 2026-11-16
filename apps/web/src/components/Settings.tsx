@@ -254,6 +254,10 @@ function KeepRunning() {
   );
 }
 
+/** Permissions without a system prompt: "Allow" opens System Settings with
+ *  the guide panel (apps/desktop/permissions.go). */
+const guidedPerms = new Set<string>(["full-disk-access", "accessibility", "screen-recording"]);
+
 /** 系统权限: what macOS lets the app do, with a way to give each. Rows
  *  refresh when the window comes back from System Settings. */
 function SystemPermissions() {
@@ -292,7 +296,7 @@ function SystemPermissions() {
             <span className="permr">
               <span className={"pill sm " + (p.status === "granted" ? "ok" : p.status === "denied" ? "red" : "")}>{t(`perm.st.${p.status}` as Key)}</span>
               {p.status !== "granted" &&
-                (p.canRequest || p.id === "full-disk-access" ? (
+                (p.canRequest || guidedPerms.has(p.id) ? (
                   <button className="btn sm" type="button" disabled={busy === p.id} onClick={() => void ask(p.id)}>
                     {p.id === "notifications" ? t("perm.test") : t("perm.allow")}
                   </button>

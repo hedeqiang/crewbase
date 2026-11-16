@@ -391,7 +391,7 @@ export interface CrewbaseDesktop {
 }
 
 export interface DesktopPermission {
-  id: "notifications" | "microphone" | "full-disk-access";
+  id: "notifications" | "microphone" | "full-disk-access" | "accessibility" | "screen-recording";
   status: "granted" | "denied" | "not-determined" | "unknown";
   canRequest: boolean;
 }
