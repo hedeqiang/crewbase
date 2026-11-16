@@ -438,7 +438,7 @@ var Plugin = kernel.Register(kernel.Spec{
 				out := []entry{}
 				for _, d := range des {
 					if d.Name() == "agent.json" || d.Name() == "browser" || d.Name() == ".remote" {
-						continue // internal
+						continue // internal (agent.json: spec of older versions, migrated out at start)
 					}
 					info, err := d.Info()
 					if err != nil {

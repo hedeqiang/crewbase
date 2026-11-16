@@ -112,6 +112,7 @@ func DeriveMessages(events []Event, agent string, names map[string]string) []llm
 			}
 		}
 	}
+	stopped := stoppedRequests(events)
 	appendUser := func(text string) {
 		if n := len(msgs); n > 0 && msgs[n-1].Role == llm.RoleUser && len(msgs[n-1].Parts) > 0 && msgs[n-1].Parts[0].Type == "text" {
 			msgs[n-1].Parts = append(msgs[n-1].Parts, llm.Part{Type: "text", Text: "\n\n" + text})
@@ -132,11 +133,14 @@ func DeriveMessages(events []Event, agent string, names map[string]string) []llm
 			if isolated && m.To != "" && m.To != agent {
 				continue
 			}
+			text := m.Text
 			if m.From != "" {
-				appendUser("[" + m.From + "]: " + m.Text)
-			} else {
-				appendUser(m.Text)
+				text = "[" + m.From + "]: " + text
 			}
+			if stopped[e.Seq] {
+				text += "\n" + StoppedNote
+			}
+			appendUser(text)
 			// Attachments follow the text of the same user message; only
 			// the addressed agent gets them (they live in its workspace).
 			if len(m.Attachments) > 0 && (m.To == "" || m.To == agent) {
@@ -201,6 +205,46 @@ func DeriveMessages(events []Event, agent string, names map[string]string) []llm
 		}
 	}
 	return msgs
+}
+
+// StoppedNote follows a user message whose turn was stopped before the
+// agent replied to it, so it is not read as a live request (adjacent user
+// messages are merged, and the next message would otherwise carry it).
+const StoppedNote = "[the user stopped this request before it was answered; do not do it unless asked again]"
+
+// turnCancelled is the turn/end status of a turn stopped by the user
+// (agentloop.TurnEnd; session cannot import agentloop).
+const turnCancelled = "cancelled"
+
+// stoppedRequests returns the seqs of user messages left unanswered by a
+// turn the user stopped: those recorded for an agent after its last
+// assistant message, when its turn then ended as cancelled. Messages the
+// agent already answered (partial output, tool calls) stay as they are.
+func stoppedRequests(events []Event) map[int64]bool {
+	pending := map[string][]int64{} // agent -> unanswered user messages
+	out := map[int64]bool{}
+	for _, e := range events {
+		switch e.Type {
+		case TypeUserMessage:
+			var m UserMessage
+			if e.Decode(&m) == nil && m.To != "" {
+				pending[m.To] = append(pending[m.To], e.Seq)
+			}
+		case TypeAssistantMessage:
+			delete(pending, e.Agent)
+		case TypeTurnEnd:
+			var te struct {
+				Status string `json:"status"`
+			}
+			if e.Decode(&te) == nil && te.Status == turnCancelled {
+				for _, seq := range pending[e.Agent] {
+					out[seq] = true
+				}
+			}
+			delete(pending, e.Agent)
+		}
+	}
+	return out
 }
 
 func toolMsg(r llm.ToolResult) llm.Message {
