@@ -244,7 +244,7 @@ func TestOfferNative(t *testing.T) {
 	}
 	e.on(t)
 	req := run("claude-opus-5-5")
-	if !slices.Contains(req.NativeTools, llm.NativeComputer) || !strings.Contains(req.System, "computer_open") {
+	if !slices.Contains(req.NativeTools, llm.NativeComputer) || req.System != "base" {
 		t.Fatalf("not offered: %+v", req)
 	}
 	for _, m := range []string{"gpt-6.1-sol", "gemini-4-carbon"} {

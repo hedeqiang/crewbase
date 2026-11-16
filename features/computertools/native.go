@@ -46,10 +46,12 @@ const (
 	noShotMessage  = "take a screenshot first: coordinates are pixels of the latest screenshot of this app's window"
 )
 
-// nativeNote tells the model how the two tool sets fit together.
-const nativeNote = "You also have the model provider's own computer tool. It acts on the app you last opened or observed with computer_open / computer_observe " +
-	"(switch apps with those), and its screenshots show that app's window only. Prefer the computer_* element actions (cheaper, background); " +
-	"use the computer tool when you need pixels: clicking what the outline lacks, drawing, dragging."
+// nativeNote tells the model how the two tool sets fit together (in
+// computer_observe's description: static, true whether or not the
+// provider's tool is declared).
+const nativeNote = "If you also have the model provider's own computer tool, it acts on the app you last opened or observed here " +
+	"(switch apps with computer_open / computer_observe), and its screenshots show that app's window only. Prefer these element actions (cheaper, background); " +
+	"use that tool when you need pixels: clicking what the outline lacks, drawing, dragging."
 
 // geometry maps native coordinates to window points.
 type geometry struct {
@@ -554,7 +556,7 @@ func MapKeys(s string) (string, error) {
 
 func (s *Service) nativeTool() *tools.Tool {
 	return &tools.Tool{Name: ToolNative, Native: true, Category: tools.CategoryWrite, Unconfined: true,
-		Description: "The model provider's own computer-use tool, on the app last opened or observed (" + nativeNote + ")",
+		Description: "The model provider's own computer-use tool, on the app last opened or observed with computer_open / computer_observe.",
 		Params: tools.Schema(map[string]any{"vendor": tools.Prop("string", "the provider"),
 			"action": tools.Prop("string", "the native action")}, "vendor"),
 		Classify: s.classifyNative, Execute: s.runNative}
@@ -763,7 +765,7 @@ func (s *Service) offerNative(ctx context.Context, x agentloop.RequestArgs, next
 	if _, ok := s.reg.Get(x.Agent.ID(), ToolNative); !ok {
 		return req, nil
 	}
+	// adapters declare it only where they can (others ignore it)
 	req.NativeTools = append(slices.Clone(req.NativeTools), llm.NativeComputer)
-	req.System = strings.TrimSpace(req.System + "\n\n" + nativeNote)
 	return req, nil
 }

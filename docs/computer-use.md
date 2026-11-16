@@ -60,13 +60,15 @@ Notes — 「购物清单」 (window 1)
 
 `observe`（元素清单 + 可选截图）、`click`、`double_click`、`right_click`、`type`、`key`、`set_value`、`select_menu`、`scroll`、`drag`、`zoom`、`wait`、`open_app`、`run_script`（AppleScript / 快捷指令，按类别审批）。
 
-- **Claude**：用原生 `computer_toolset_20260801`（Opus / Sonnet / Haiku 5.5），批量动作逐个执行、遇错即停；
-- **OpenAI**：Responses API 的 `computer` 工具（下一阶段）；
-- **Gemini**：`computer_use`，坐标是 0–999，换算在工具层统一处理（下一阶段）；
+- **Claude**：用原生 `computer_toolset_20260801`（Opus / Sonnet / Haiku 5.5、Fable，GA 无需 beta 头），同一轮的多个 tool_use 逐个执行、遇错即停，每个结果回带 `toolset_name`；做不到的成员（zoom、三击、中键、按住键等）用 configs 关掉。只支持旧版 `computer_20251124` 的模型继续用通用工具；
+- **OpenAI**：Responses API 的 `computer` 工具（GPT-5.4 及以后，仅 OpenAI 官方接口），`computer_call` 的 `actions[]` 依次执行，每次回一张截图；
+- **Gemini**：`computer_use`（desktop，Gemini 3.x / 4.x），坐标是 0–999，按窗口尺寸换算；
 - **其他模型（DeepSeek、本地模型等）**：通用函数工具 `computer_*`，以元素编号为主；
 - **订阅 CLI（Claude Code、Codex、Antigravity）**：把这套工具以 MCP 服务提供给它们（下一阶段），用的是 Crewbase 的审批和授权，而不是它们各自的电脑操作。
 
-Retina 缩放、坐标换算、按键名映射、各家的「需要确认」握手（OpenAI safety check、Gemini require_confirmation）都在这一层处理。
+Retina 缩放、坐标换算、按键名映射、各家的「需要确认」握手（OpenAI safety check、Gemini require_confirmation）都在这一层处理（`features/computertools/native.go`）。
+
+原生工具与通用工具同时提供：原生工具只作用于该智能体最近一次 `computer_open` / `computer_observe` 的应用，截图只截这个窗口；坐标点击照常经过权限、屏蔽名单、按大纲命中检测的确认（如点到「发送」）、等待空闲、停止开关和日志。厂商的安全握手每次都弹审批卡、不可记住，批准后才回传确认。
 
 ## 6. 安全
 
