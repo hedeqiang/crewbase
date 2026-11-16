@@ -37,6 +37,7 @@ import (
 	_ "github.com/hedeqiang/crewbase/features/im"
 	_ "github.com/hedeqiang/crewbase/features/imconfig"
 	_ "github.com/hedeqiang/crewbase/features/mcp"
+	_ "github.com/hedeqiang/crewbase/features/media"
 	_ "github.com/hedeqiang/crewbase/features/members"
 	_ "github.com/hedeqiang/crewbase/features/memory"
 	_ "github.com/hedeqiang/crewbase/features/plugins"
@@ -118,6 +119,9 @@ var Base = kernel.Bundle{Name: "base", Entries: []kernel.Entry{
 	{ID: "attachments", Name: "@crewbase/attachments"},
 	// DeepSeek Search / Fetch / OCR for any model, once a DeepSeek key exists.
 	{ID: "deepseek-tools", Name: "@crewbase/deepseek-tools"},
+	// image_generate / image_edit / video_generate, once an image or video
+	// model exists (OpenAI, Gemini, magpie).
+	{ID: "media", Name: "@crewbase/media"},
 	{ID: "schedule", Name: "@crewbase/schedule", Config: map[string]any{"dir": "${root}"}},
 	{ID: "routines", Name: "@crewbase/routines", Config: map[string]any{"dir": "${root}"}},
 	{ID: "followups", Name: "@crewbase/followups"},

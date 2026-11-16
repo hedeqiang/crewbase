@@ -2,8 +2,10 @@ package attachments
 
 import (
 	"context"
+	"io"
 	"os"
 	"path"
+	"strings"
 	"time"
 
 	"github.com/hedeqiang/crewbase/core/agent"
@@ -11,13 +13,17 @@ import (
 	"github.com/hedeqiang/crewbase/kernel"
 )
 
-// maxDownload caps files served from the workspace.
-const maxDownload = 64 << 20
+// maxDownload caps files served from the workspace; videos stream from
+// disk (with Range) up to maxVideo.
+const (
+	maxDownload = 64 << 20
+	maxVideo    = 1 << 30
+)
 
 // APIPlugin exposes uploads and workspace file downloads:
 //
 //	POST /api/agents/{id}/uploads?name=<file name>   raw body → llm.Attachment
-//	GET  /api/agents/{id}/raw?path=<workspace path>  the file (images inline, else as a download)
+//	GET  /api/agents/{id}/raw?path=<workspace path>  the file (images and MP4 / WebM video inline, else as a download)
 var APIPlugin = kernel.Register(kernel.Spec{
 	Name:        "@crewbase/attachments-api",
 	Inject:      []string{gateway.ServiceKey, agent.ServiceKey},
@@ -69,6 +75,24 @@ var APIPlugin = kernel.Register(kernel.Spec{
 				if err != nil || info.IsDir() {
 					return nil, gateway.NotFound()
 				}
+				name := path.Base(rel)
+				if ext := strings.ToLower(path.Ext(name)); ext == ".mp4" || ext == ".webm" {
+					if info.Size() > maxVideo {
+						return nil, gateway.BadRequest("the file is too large to download here")
+					}
+					f, err := os.Open(p)
+					if err != nil {
+						return nil, err
+					}
+					head := make([]byte, 512)
+					n, _ := f.Read(head)
+					if _, err := f.Seek(0, io.SeekStart); err != nil {
+						f.Close()
+						return nil, err
+					}
+					// the bytes decide: a renamed HTML file is a download
+					return &gateway.Blob{Name: name, Mime: MimeOf(name, head[:n]), Content: f, ModTime: info.ModTime()}, nil
+				}
 				if info.Size() > maxDownload {
 					return nil, gateway.BadRequest("the file is too large to download here")
 				}
@@ -76,7 +100,6 @@ var APIPlugin = kernel.Register(kernel.Spec{
 				if err != nil {
 					return nil, err
 				}
-				name := path.Base(rel)
 				return &gateway.Blob{Name: name, Mime: MimeOf(name, data), Data: data}, nil
 			}})
 		return nil

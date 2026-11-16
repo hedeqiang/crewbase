@@ -47,7 +47,8 @@ const (
 var byExt = map[string]string{
 	".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".gif": "image/gif", ".webp": "image/webp",
 	".bmp": "image/bmp", ".tif": "image/tiff", ".tiff": "image/tiff", ".heic": "image/heic", ".svg": "image/svg+xml",
-	".pdf":  "application/pdf",
+	".pdf": "application/pdf",
+	".mp4": "video/mp4", ".webm": "video/webm", ".mov": "video/quicktime",
 	".docx": mimeDOCX, ".pptx": mimePPTX, ".xlsx": mimeXLSX,
 	".doc": "application/msword", ".ppt": "application/vnd.ms-powerpoint", ".xls": "application/vnd.ms-excel",
 	".txt": "text/plain", ".md": "text/markdown", ".markdown": "text/markdown", ".csv": "text/csv", ".tsv": "text/tab-separated-values",
@@ -72,7 +73,7 @@ func MimeOf(name string, data []byte) string {
 			}
 			return "application/octet-stream"
 		}
-	case m == "application/pdf":
+	case m == "application/pdf", m == "video/mp4", m == "video/webm":
 		if sniff != m {
 			return "application/octet-stream"
 		}

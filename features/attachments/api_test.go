@@ -6,6 +6,8 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -144,6 +146,29 @@ func TestUploadSendDownload(t *testing.T) {
 	if r, _ := call(t, "GET", base+"/api/agents/kai/raw?path=../../etc/passwd", nil, ""); r.StatusCode != 404 {
 		t.Fatalf("escape: %d", r.StatusCode)
 	}
+	// video plays inline with Range; HTML renamed to .mp4 stays a download
+	ws := a.Workspace()
+	os.MkdirAll(filepath.Join(ws, "generated"), 0o755)
+	mp4 := append([]byte("\x00\x00\x00\x18ftypmp42\x00\x00\x00\x00mp42isom"), bytes.Repeat([]byte{7}, 1000)...)
+	os.WriteFile(filepath.Join(ws, "generated", "clip.mp4"), mp4, 0o644)
+	os.WriteFile(filepath.Join(ws, "generated", "evil.mp4"), []byte("<!doctype html><script>alert(1)</script>"), 0o644)
+	req, _ := http.NewRequest("GET", base+"/api/agents/kai/raw?path=generated/clip.mp4", nil)
+	req.Header.Set("Authorization", "Bearer "+tok)
+	req.Header.Set("Range", "bytes=0-99")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	part, _ := io.ReadAll(resp.Body)
+	resp.Body.Close()
+	if resp.StatusCode != 206 || len(part) != 100 || resp.Header.Get("Content-Type") != "video/mp4" || !strings.HasPrefix(resp.Header.Get("Content-Disposition"), "inline") ||
+		resp.Header.Get("Content-Range") != "bytes 0-99/1024" || resp.Header.Get("X-Content-Type-Options") != "nosniff" {
+		t.Fatalf("video range: %d %d %v", resp.StatusCode, len(part), resp.Header)
+	}
+	if r, _ := call(t, "GET", base+"/api/agents/kai/raw?path=generated/evil.mp4", nil, ""); r.Header.Get("Content-Type") != "application/octet-stream" || !strings.HasPrefix(r.Header.Get("Content-Disposition"), "attachment") {
+		t.Fatalf("disguised html: %v", r.Header)
+	}
+
 	// oversized uploads are refused with 413
 	big := bytes.Repeat([]byte("x"), attachments.MaxFileBytes+1)
 	if r, _ := call(t, "POST", base+"/api/agents/kai/uploads?name=big.txt", bytes.NewReader(big), "text/plain"); r.StatusCode != 413 {
