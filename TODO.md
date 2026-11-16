@@ -336,10 +336,11 @@
 ## 电脑操作（docs/computer-use.md）
 - [x] 第一版（v0.5.4，macOS 预览）：元素清单 + 窗口截图 + 按元素 / 按进程键盘的后台操作、坐标操作等你停下；computer_* 通用工具（含批量）；按 Agent × 应用授权（第一次问、可记住），默认禁止钥匙串 / 密码管理器 / 终端 / 系统设置 / 金融类，浏览器默认禁止可放开；发送 / 发布 / 删除每次确认、不填密码框；屏幕内容视为不可信；菜单栏指示、目标窗口边框、⌃⌥⌘. 停止；操作记录与截图
 - [ ] 真机验收（需要授权辅助功能）：在 Chrome 里发 X 测试帖、备忘录新建、Finder 操作
-- [ ] Claude 原生 computer_toolset_20260801 适配（第一版范围内未做，现用通用工具）
+- [x] Claude 原生 computer_toolset_20260801 适配（Opus 4.8、5.x 系列；4.5–4.7 仍用通用工具）
 - [x] Electron 应用（飞书、VS Code 等）元素太少时自动打开 AXManualAccessibility 再读（每个进程一次；待真机确认）
 - [x] 订阅 CLI 经 MCP 使用 Crewbase 的 computer_* / browser_* 工具：每个会话一个令牌，走同一条工具管线（授权、审批、记录），CLI 自己对这些工具的权限确认自动放行；Claude Code / Codex / Cursor / OpenCode 声明支持 HTTP MCP，Antigravity 未确认；均未用真实 CLI 跑过
-- [ ] OpenAI computer、Gemini computer_use 原生适配
+- [x] OpenAI computer（Responses API，仅官方 OpenAI 提供方）、Gemini computer_use（desktop）原生适配；厂商的「需要确认」一律转为审批；三家都只对照文档和固定样例验证过，未连真实接口
+- [ ] 原生工具缺的动作：缩放 zoom、三击、中键、按住修饰键点击、鼠标移动（目前返回明确错误或忽略）
 - [x] AppleScript / JXA / 快捷指令：每次确认（显示完整脚本），脚本里点名的应用遵守禁止列表，拒绝 shell / 进程 / eval / 模拟按键
 - [ ] 以后：Windows（UI Automation）、虚拟显示器 / 虚拟机、操作录制与重放
 
