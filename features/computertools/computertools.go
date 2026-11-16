@@ -24,7 +24,11 @@
 //   - typing into secure (password) fields is refused;
 //   - foreground actions (coordinates) wait until the person has not
 //     touched the keyboard or mouse for 2s, up to 15s, also between the
-//     steps of a batch.
+//     steps of a batch;
+//   - scripts and shortcuts (computer_script / computer_shortcut, when the
+//     provider is a computer.Scripter) are confirmed every time, never
+//     remembered, and refused for blocked apps and shell escapes
+//     (scripts.go).
 //
 // On-screen text reaches the model inside an untrusted <screen> block.
 // Every action is logged as a computer/action session event (no image
@@ -668,7 +672,7 @@ func isComputerTool(name string) bool {
 	case ToolApps, ToolObserve, ToolAct, ToolBatch, ToolOpen:
 		return true
 	}
-	return false
+	return isScriptTool(name)
 }
 
 // acts reports whether a tool changes an app (not allowed read-only).
@@ -689,6 +693,9 @@ func (s *Service) middleware(ctx context.Context, d *tools.Decision, next kernel
 		return d.DenyWith(StoppedMessage), nil
 	}
 	name := d.Tool.Name
+	if isScriptTool(name) {
+		return s.scriptPolicy(ctx, d, next) // scripts.go
+	}
 	if name == ToolApps {
 		return next(ctx, d)
 	}
@@ -952,7 +959,7 @@ var Plugin = kernel.Register(kernel.Spec{
 	Name:        "@crewbase/computer-tools",
 	Inject:      []string{tools.ServiceKey, computer.ServiceKey, rules.ServiceKey},
 	Optional:    []string{agent.ServiceKey, session.ServiceKey, approval.ServiceKey},
-	Description: "computer_apps / observe / act / act_batch / open: operate native apps through the accessibility outline, with per-app permission, confirmations and stop.",
+	Description: "computer_apps / observe / act / act_batch / open (and script / shortcut / shortcuts where the provider runs scripts): operate native apps through the accessibility outline and their own scripting, with per-app permission, confirmations and stop.",
 	Apply: func(c *kernel.Context) error {
 		cfg, err := kernel.Decode[Config](c)
 		if err != nil {

@@ -519,7 +519,9 @@ func truncate(s string, n int) string {
 
 // ---------------------------------------------------------------- definitions
 
-const ladder = "How to act, most reliable first: " +
+const ladderHead = "How to act, most reliable first: "
+
+const ladder = ladderHead +
 	"(1) menu (menu: [\"文件\", \"新建备忘录\"]), press and set_value on element numbers [n] from computer_observe — these run in the background without moving the user's mouse; " +
 	"(2) type (into the focused element) and key (\"cmd+n\", \"return\", \"down\") for the keyboard; " +
 	"(3) click / double_click / right_click / scroll / drag at window coordinates only when the outline lacks the target (observe with screenshot: true to see it); these bring the app to the front and wait while the user is using the computer. " +
@@ -550,7 +552,11 @@ func (s *Service) tools() []*tools.Tool {
 	appProp := tools.Prop("string", `the app's name or bundle id from computer_apps, e.g. "备忘录" or "com.apple.Notes"`)
 	act := stepProps()
 	act["app"] = appProp
-	return []*tools.Tool{
+	ladder := ladder
+	if s.scripter() != nil {
+		ladder = ladderHead + scriptLadder + strings.TrimPrefix(ladder, ladderHead)
+	}
+	return append([]*tools.Tool{
 		{Name: ToolApps, Category: tools.CategoryRead, Unconfined: true,
 			Description: "List the user's running apps (name, bundle id, which is frontmost) and whether you may operate each. Start here when asked to do something in a native app.",
 			Params:      tools.Schema(map[string]any{}), Classify: s.classify, Execute: s.listApps},
@@ -576,5 +582,5 @@ func (s *Service) tools() []*tools.Tool {
 			Description: "Open (launch or bring up) a native app by name or bundle id, then computer_observe it. Not for websites: use browser_open.",
 			Params:      tools.Schema(map[string]any{"app": appProp}, "app"),
 			Classify:    s.classify, Execute: s.open},
-	}
+	}, s.scriptTools()...)
 }
