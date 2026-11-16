@@ -175,3 +175,22 @@ func TestProbeReadsCodexList(t *testing.T) {
 		}
 	}
 }
+
+// cursor-agent models leaves a worker running with its stdout: the list is
+// read when the command itself exits, not after the timeout.
+func TestListerIgnoresLingeringChild(t *testing.T) {
+	cli := filepath.Join(t.TempDir(), "cursor-agent")
+	script := "#!/bin/sh\nsleep 30 &\nprintf 'Available models\\n\\nauto - Auto (default)\\ngpt-5.2 - GPT-5.2\\n'\n"
+	if err := os.WriteFile(cli, []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	ls := nativeLister(resolved{AgentConfig: AgentConfig{ID: "cursor"}, cliPath: cli})
+	t0 := time.Now()
+	ms, err := ls(t.Context())
+	if err != nil || len(ms) != 2 || ms[0].Name != "Auto" || ms[1].ID != "gpt-5.2" {
+		t.Fatalf("%+v %v", ms, err)
+	}
+	if time.Since(t0) > 10*time.Second {
+		t.Fatalf("waited %s for the lingering child", time.Since(t0))
+	}
+}

@@ -194,7 +194,11 @@ func cliName(cli map[string]string, g *group, rep acpModel) string {
 		}
 	}
 	for _, id := range tries {
-		if n := cli[id]; n != "" {
+		n := cli[id]
+		if n == "" {
+			n = cli["cursor-"+id] // some are listed as "cursor-grok-4.6-high"
+		}
+		if n != "" {
 			if len(g.members) > 1 {
 				n = strings.TrimSuffix(n, " Fast")
 				n = stripLevel(n)

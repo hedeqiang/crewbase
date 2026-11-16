@@ -132,7 +132,7 @@ func (a *Adapter) ProbeModels(ctx context.Context) error {
 			a.reshape()
 			a.saveModels()
 		} else if err != nil {
-			a.log.Debug("acp: CLI model list not read; using the bridge's", "agent", a.cfg.ID, "err", err)
+			a.log.Info("acp: CLI model list not read; using the bridge's", "agent", a.cfg.ID, "err", err)
 		}
 	}
 	dir, err := os.MkdirTemp("", "crewbase-acp-probe-")

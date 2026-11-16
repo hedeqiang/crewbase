@@ -247,7 +247,7 @@ var Plugin = kernel.Register(kernel.Spec{
 				pctx, cancel := context.WithTimeout(ctx, 2*time.Minute)
 				defer cancel()
 				if err := a.ProbeModels(pctx); err != nil {
-					c.Log().Debug("acp: model list not learned", "agent", r.ID, "err", err)
+					c.Log().Info("acp: model list not learned", "agent", r.ID, "err", err)
 				}
 				llm.AdaptersChanged.Emit(c.Host(), struct{}{})
 			})

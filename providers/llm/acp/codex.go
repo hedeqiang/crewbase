@@ -74,6 +74,11 @@ func listWith(path string, args []string, parse func([]byte) ([]nativeModel, err
 		var stderr bytes.Buffer
 		cmd.Stderr = &stderr
 		out, err := cmd.Output()
+		// cursor-agent leaves a worker process holding stdout: the list is
+		// complete once the command itself exited
+		if errors.Is(err, exec.ErrWaitDelay) {
+			err = nil
+		}
 		if err != nil {
 			if msg := bytes.TrimSpace(stderr.Bytes()); len(msg) > 0 {
 				return nil, errors.New(string(msg[:min(len(msg), 300)]))

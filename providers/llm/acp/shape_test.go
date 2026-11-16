@@ -262,6 +262,7 @@ func TestCursorRecorded(t *testing.T) {
 		"gpt-5.6-sol":     {"GPT-5.6 Sol 1M", "gpt-5.6-sol[context=272k,reasoning=medium,fast=false]"},
 		"gemini-3.1-pro":  {"Gemini 3.1 Pro", "gemini-3.1-pro[]"},
 		"auto-smart":      {"Auto Balance", "auto-smart[optimize_for=balanced]"},
+		"grok-4.6":        {"Grok 4.6 Fast", "grok-4.6[effort=high,fast=true]"},
 	} {
 		e, ok := by[id]
 		if !ok || e.Name != want[0] || e.wire("") != want[1] || e.wire("high") != want[1] || e.Efforts != nil {
