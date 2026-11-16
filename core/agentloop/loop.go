@@ -464,15 +464,16 @@ func (l *loop) system(a *agent.Agent) string { return System(l.prompts, a) }
 
 func (l *loop) build(a *agent.Agent, ss *session.Session, ref llm.ModelRef) llm.Request {
 	return llm.Request{
-		Model:       ref.Model,
-		Effort:      ref.Effort,
-		System:      l.system(a),
-		Messages:    session.DeriveMessages(ss.Events(), a.ID(), l.agents.Names()),
-		Tools:       l.toolsReg.SchemasFor(a.ID(), ss.Meta().Kind),
-		NativeTools: a.Spec().NativeTools,
-		Agent:       a.ID(),
-		Session:     ss.ID(),
-		Workspace:   a.Workspace(),
+		Model:        ref.Model,
+		Effort:       ref.Effort,
+		System:       l.system(a),
+		Messages:     session.DeriveMessages(ss.Events(), a.ID(), l.agents.Names()),
+		Tools:        l.toolsReg.SchemasFor(a.ID(), ss.Meta().Kind),
+		NativeTools:  a.Spec().NativeTools,
+		Agent:        a.ID(),
+		Session:      ss.ID(),
+		Workspace:    a.Workspace(),
+		OwnWorkspace: a.OwnsWorkspace(),
 	}
 }
 

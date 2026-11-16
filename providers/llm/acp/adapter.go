@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/hedeqiang/crewbase/capabilities/approval"
+	"github.com/hedeqiang/crewbase/core/agent"
 	"github.com/hedeqiang/crewbase/core/llm"
 )
 
@@ -304,11 +305,26 @@ func (a *Adapter) Stream(ctx context.Context, req llm.Request, onChunk func(llm.
 	if req.Workspace != "" {
 		cwd = req.Workspace
 	}
+	own := req.OwnWorkspace && req.Workspace != ""
 	key := convKey(req, cwd)
+	var moved []string
+	if own {
+		// CLI config in an agent's workspace was written by an agent: move
+		// it aside, and start over if a session may have loaded it
+		var qerr error
+		moved, qerr = agent.QuarantineCLIConfig(cwd, time.Now().UTC().Format("20060102T150405.000000000"))
+		if qerr != nil {
+			return llm.Response{}, &llm.Error{Kind: llm.ErrUnavailable, Provider: a.id,
+				Message: "cannot move CLI configuration out of the agent workspace: " + qerr.Error()}
+		}
+		if len(moved) > 0 {
+			a.forget(key)
+		}
+	}
 	c, prompt := a.claim(key, p, prints, req)
 	defer a.release(key, c)
 	if c.s == nil {
-		s, err := p.newSession(ctx, req.Model, cwd)
+		s, err := p.newSession(ctx, req.Model, cwd, own)
 		if err != nil {
 			a.noteQuota(err)
 			return llm.Response{}, err
@@ -322,6 +338,9 @@ func (a *Adapter) Stream(ctx context.Context, req llm.Request, onChunk func(llm.
 	t.ctx, t.agent, t.session = ctx, req.Agent, req.Session
 	c.s.setTurn(t)
 	defer c.s.setTurn(nil)
+	if len(moved) > 0 {
+		t.note(fmt.Sprintf("[Crewbase moved CLI configuration out of the agent workspace into .crewbase-quarantine/: %s]", strings.Join(moved, ", ")))
+	}
 
 	type callRes struct {
 		res promptResult
@@ -419,6 +438,16 @@ func (a *Adapter) claim(key string, p *proc, prints []string, req llm.Request) (
 	}
 	a.gcLocked()
 	return c, renderFresh(req)
+}
+
+// forget drops the idle conversation of key, so the next turn starts a new
+// ACP session.
+func (a *Adapter) forget(key string) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if c := a.convs[key]; c != nil && !c.busy {
+		delete(a.convs, key)
+	}
 }
 
 func (a *Adapter) release(key string, c *conv) {

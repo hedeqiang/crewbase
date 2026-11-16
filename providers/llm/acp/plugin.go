@@ -30,6 +30,11 @@
 // restricted to the session cwd (symlinks resolved); terminal/* and
 // everything else answer method-not-found (capability not advertised).
 //
+// CLI config: in an agent's own workspace (Request.OwnWorkspace) project
+// config the CLIs would load (.claude/, .gemini/, opencode.json, ...) is
+// moved aside before every turn, cannot be written over ACP, and Claude Code
+// loads user settings only. See cliconfig.go.
+//
 // Errors: JSON-RPC errors, limit banners in replies and the process's stderr
 // are classified: usage/5-hour/weekly limits and quota -> quota_exhausted,
 // rate limits -> rate_limited, ACP -32000 / "run /login" -> auth, process

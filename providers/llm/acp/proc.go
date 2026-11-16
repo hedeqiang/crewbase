@@ -35,6 +35,9 @@ type proc struct {
 type sessionState struct {
 	id  string
 	cwd string
+	// own: cwd is an agent's own workspace (llm.Request.OwnWorkspace); its
+	// CLI config may not be written (see cliconfig.go)
+	own bool
 
 	mu   sync.Mutex
 	turn *turn // active prompt turn, nil between turns
@@ -181,10 +184,12 @@ func (p *proc) session(id string) *sessionState {
 	return p.sessions[id]
 }
 
-// newSession runs session/new in cwd and optionally selects a model.
-func (p *proc) newSession(ctx context.Context, model, cwd string) (*sessionState, error) {
+// newSession runs session/new in cwd and optionally selects a model. own
+// marks cwd as an agent's own workspace.
+func (p *proc) newSession(ctx context.Context, model, cwd string, own bool) (*sessionState, error) {
 	var res newSessionResult
-	if err := p.conn.Call(ctx, mSessionNew, newSessionParams{Cwd: cwd, MCPServers: []any{}}, &res); err != nil {
+	params := newSessionParams{Cwd: cwd, MCPServers: []any{}, Meta: sessionMeta(p.a.cfg.ID, own)}
+	if err := p.conn.Call(ctx, mSessionNew, params, &res); err != nil {
 		return nil, p.classify(err, "")
 	}
 	if res.SessionID == "" {
@@ -193,7 +198,7 @@ func (p *proc) newSession(ctx context.Context, model, cwd string) (*sessionState
 	if res.Models != nil {
 		p.a.learnModels(res.Models.AvailableModels)
 	}
-	s := &sessionState{id: res.SessionID, cwd: cwd}
+	s := &sessionState{id: res.SessionID, cwd: cwd, own: own}
 	p.mu.Lock()
 	p.sessions[s.id] = s
 	p.mu.Unlock()
@@ -258,6 +263,12 @@ func (p *proc) onRequest(ctx context.Context, method string, params json.RawMess
 		if s == nil {
 			return nil, jsonrpc.NewError(jsonrpc.CodeInvalidParams, "unknown session", nil)
 		}
+		if s.own && touchesCLIConfig(s.cwd, []string{wp.Path}) != "" {
+			if t := s.current(); t != nil {
+				t.note(fmt.Sprintf("[write refused: %s is CLI configuration in the agent workspace]", wp.Path))
+			}
+			return nil, jsonrpc.NewError(-32001, "writing CLI configuration in this workspace is denied", map[string]string{"path": wp.Path})
+		}
 		if err := writeText(s.cwd, wp.Path, wp.Content); err != nil {
 			return nil, err
 		}
@@ -309,6 +320,23 @@ func (p *proc) permission(params json.RawMessage) (any, error) {
 	kind := pp.ToolCall.Kind
 	if kind == "" {
 		kind = seen.kind
+	}
+	if s.own && !readOnlyKind(kind) {
+		paths := append([]string(nil), seen.paths...)
+		for _, l := range pp.ToolCall.Locations {
+			paths = append(paths, l.Path)
+		}
+		paths = append(paths, editPaths(sessionUpdate{Content: pp.ToolCall.Content})...)
+		paths = append(paths, rawInputPaths(pp.ToolCall.RawInput)...)
+		if hit := touchesCLIConfig(s.cwd, paths); hit != "" {
+			// never offered, not even with autoApprove: it would let the
+			// CLI widen its own permissions on the next turn
+			t.note(fmt.Sprintf("[permission denied by Crewbase: %s changes CLI configuration (%s)]", title, hit))
+			if id := pick("reject_once", "reject_always"); id != "" {
+				return permissionResult{Outcome: permissionOutcome{Outcome: "selected", OptionID: id}}, nil
+			}
+			return permissionResult{Outcome: permissionOutcome{Outcome: "cancelled"}}, nil
+		}
 	}
 	if p.a.autoApprove {
 		if id := pick("allow_once", "allow_always"); id != "" {
