@@ -19,6 +19,9 @@ import (
 //	microphone        voice input in the composer
 //	full-disk-access  agents in host mode reading folders macOS protects
 //	                  (Desktop, Documents, Downloads, other apps' data)
+//	accessibility     agents operating native apps (computer use): reading
+//	                  their windows and pressing, typing, clicking in them
+//	screen-recording  screenshots of the app window an agent operates
 //
 // macOS has no API to read the notification setting, so its status is
 // what the last notification shown found: granted, denied, or unknown
@@ -50,7 +53,13 @@ func noteResult(err error) {
 var permIDs = map[string]permissionflow.Permission{
 	"microphone":       permissionflow.Microphone,
 	"full-disk-access": permissionflow.FullDiskAccess,
+	"accessibility":    permissionflow.Accessibility,
+	"screen-recording": permissionflow.ScreenRecording,
 }
+
+// guided permissions have no prompt of their own: "Allow" opens System
+// Settings with the guide panel (the app to drag in, the switch to turn).
+var guided = map[string]bool{"full-disk-access": true, "accessibility": true, "screen-recording": true}
 
 func statusName(s permissionflow.Status) string {
 	switch s {
@@ -71,7 +80,7 @@ func (d Desktop) Permissions() []PermState {
 	}
 	ns := map[int32]string{0: "unknown", 1: "granted", 2: "denied"}[notifyState.Load()]
 	out := []PermState{{ID: "notifications", Status: ns, CanRequest: ns == "unknown"}}
-	for _, id := range []string{"microphone", "full-disk-access"} {
+	for _, id := range []string{"microphone", "full-disk-access", "accessibility", "screen-recording"} {
 		st, err := permissionflow.Check(permIDs[id])
 		s := statusName(st)
 		if err != nil {
@@ -84,7 +93,8 @@ func (d Desktop) Permissions() []PermState {
 
 // RequestPermission asks for a permission with the system's prompt where
 // there is one: a test notification for notifications, the microphone
-// prompt, or System Settings with the app to drag in for Full Disk Access.
+// prompt, or System Settings with the app to drag in for Full Disk Access,
+// Accessibility and Screen Recording.
 // It returns the rows afterwards.
 func (d Desktop) RequestPermission(id string) []PermState {
 	switch id {
@@ -103,13 +113,16 @@ func (d Desktop) RequestPermission(id string) []PermState {
 			slog.Warn("desktop: microphone permission", "err", err)
 		}
 		cancel()
-	case "full-disk-access":
+	default:
+		if !guided[id] {
+			break
+		}
 		// the panel follows System Settings until the switch is on (or 10 min)
 		go func() {
 			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
 			defer cancel()
-			if _, err := permissionflow.Guide(ctx, permissionflow.FullDiskAccess, permissionflow.GuideOptions{}); err != nil {
-				slog.Warn("desktop: full disk access", "err", err)
+			if _, err := permissionflow.Guide(ctx, permIDs[id], permissionflow.GuideOptions{}); err != nil {
+				slog.Warn("desktop: permission guide", "id", id, "err", err)
 			}
 		}()
 	}

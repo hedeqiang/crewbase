@@ -9,6 +9,7 @@ require (
 	github.com/chromedp/cdproto v0.160.1
 	github.com/chromedp/chromedp v0.23.1
 	github.com/coder/websocket v1.8.15
+	github.com/ebitengine/purego v0.11.1
 	github.com/egoist/mygo v0.9.0
 	github.com/gorilla/websocket v1.5.3
 	github.com/larksuite/oapi-sdk-go/v3 v3.12.2
@@ -44,7 +45,6 @@ require (
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/cloudflare/circl v1.6.2 // indirect
 	github.com/dustin/go-humanize v1.1.0 // indirect
-	github.com/ebitengine/purego v0.11.1 // indirect
 	github.com/felixge/httpsnoop v1.1.0 // indirect
 	github.com/go-json-experiment/json v1.27.2 // indirect
 	github.com/go-logr/logr v1.4.4 // indirect
