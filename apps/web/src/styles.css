@@ -241,6 +241,25 @@ input.mename { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px
 .mdh { font-weight: 600; margin: 10px 0 4px; } .mdh1 { font-size: 16px; } .mdh2 { font-size: 15px; } .mdh3, .mdh4 { font-size: 14px; }
 .codeblk { background: var(--sunken); border: 1px solid var(--border); border-radius: 9px; padding: 8px 11px; margin: 6px 0; font-family: var(--mono); font-size: 12.5px; overflow-x: auto; white-space: pre; max-height: 360px; }
 .codeblk code { background: none; border: 0; padding: 0; }
+/* fenced code in messages: language + copy (always reachable by keyboard;
+   shown on hover / focus without a language, always on touch screens) */
+.codewrap { position: relative; margin: 6px 0; }
+.codewrap .codeblk { margin: 0; }
+.codewrap.haslang { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; background: var(--sunken); border: 1px solid var(--border); border-radius: 9px; overflow: hidden; }
+.codewrap.haslang .codeblk { grid-column: 1 / -1; border: 0; border-top: 1px solid var(--border); border-radius: 0; }
+.codelang { padding: 0 11px; font-family: var(--mono); font-size: 11.5px; color: var(--muted); text-transform: lowercase; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.codecopy { display: inline-flex; align-items: center; gap: 4px; height: 24px; padding: 0 7px; margin: 3px 4px; border-radius: 6px; font-size: 11.5px; color: var(--muted); }
+.codecopy:hover { background: var(--hover); color: var(--text); }
+.codecopy:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.codecopy.on { color: var(--text); }
+.codewrap:not(.haslang) .codecopy { position: absolute; top: 2px; right: 2px; margin: 0; background: var(--sunken); opacity: 0; transition: opacity .12s; }
+.codewrap:not(.haslang) .codecopy span { display: none; }
+.codewrap:not(.haslang):hover .codecopy, .codewrap:not(.haslang) .codecopy:focus-visible, .codewrap:not(.haslang) .codecopy.on { opacity: 1; }
+.codewrap:not(.haslang) .codecopy.on span { display: inline; }
+@media (hover: none) { .codewrap:not(.haslang) .codecopy { opacity: 1; } }
+.mt hr.mdhr { border: 0; border-top: 1px solid var(--border); margin: 10px 0; }
+.mt li.task { list-style: none; margin-left: -18px; }
+.mt li.task input { margin: 0 6px 0 0; vertical-align: -2px; }
 .codeblk.errblk { border-color: color-mix(in srgb, var(--danger) 40%, transparent); color: var(--danger-text); }
 .caret { display: inline-block; width: 7px; height: 15px; background: var(--text2); vertical-align: -2px; margin-left: 2px; border-radius: 1px; animation: blink 1s steps(2) infinite; }
 @keyframes blink { to { opacity: 0; } }
