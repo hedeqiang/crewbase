@@ -32,6 +32,11 @@ import (
 //	/cwd     replies with the session's cwd
 //	/meta    replies with the session/new _meta
 //	/cfgperm P requests permission to edit P (raw input file_path)
+//	/mcpservers replies with the session/new mcpServers
+//	/mcpperm T K requests permission for a tool call titled T (kind K,
+//	         "-" = none), first reporting it with _meta.claudeCode.toolName T
+//
+// With FAKE_ACP_HTTP_MCP=1 initialize advertises mcpCapabilities.http.
 //
 // Otherwise it replies "[s<n>] echo: <prompt>" in two chunks with a tool call.
 const fakeEnv = "FAKE_ACP_AGENT"
@@ -43,6 +48,7 @@ func runFakeAgent() {
 		cancels = map[string]chan struct{}{}
 		cwds    = map[string]string{}
 		metas   = map[string]string{}
+		mcps    = map[string]string{}
 		conn    *jsonrpc.Conn
 	)
 	update := func(sid string, u map[string]any) {
@@ -161,6 +167,37 @@ func runFakeAgent() {
 			}
 			chunk(sid, fmt.Sprintf("permission: %s/%s", res.Outcome.Outcome, res.Outcome.OptionID))
 			return map[string]string{"stopReason": "end_turn"}, nil
+		case strings.Contains(text, "/mcpservers"):
+			mu.Lock()
+			m := mcps[sid]
+			mu.Unlock()
+			chunk(sid, "mcp="+m)
+			return map[string]string{"stopReason": "end_turn"}, nil
+		case strings.Contains(text, "/mcpperm "):
+			i := strings.LastIndex(text, "/mcpperm ")
+			f := strings.Fields(text[i+len("/mcpperm "):])
+			title, kind := f[0], f[1]
+			if kind == "-" {
+				kind = ""
+			}
+			title = strings.ReplaceAll(title, "+", " ")
+			meta := map[string]any{"claudeCode": map[string]string{"toolName": title}}
+			update(sid, map[string]any{"sessionUpdate": "tool_call", "toolCallId": "m1", "title": title, "kind": kind, "status": "pending", "_meta": meta})
+			var res permissionResult
+			err := conn.Call(ctx, "session/request_permission", map[string]any{
+				"sessionId": sid,
+				"toolCall":  map[string]any{"toolCallId": "m1", "title": title, "kind": kind},
+				"options": []map[string]string{
+					{"optionId": "always", "name": "Always", "kind": "allow_always"},
+					{"optionId": "yes", "name": "Allow", "kind": "allow_once"},
+					{"optionId": "no", "name": "Reject", "kind": "reject_once"},
+				},
+			}, &res)
+			if err != nil {
+				return nil, err
+			}
+			chunk(sid, fmt.Sprintf("permission: %s/%s", res.Outcome.Outcome, res.Outcome.OptionID))
+			return map[string]string{"stopReason": "end_turn"}, nil
 		case strings.Contains(text, "/cwd"):
 			mu.Lock()
 			cwd := cwds[sid]
@@ -190,7 +227,11 @@ func runFakeAgent() {
 					fmt.Fprintln(os.Stderr, "Error: You've hit your weekly limit.")
 					os.Exit(1)
 				}
-				return map[string]any{"protocolVersion": 1, "agentCapabilities": map[string]any{},
+				caps := map[string]any{}
+				if os.Getenv("FAKE_ACP_HTTP_MCP") != "" {
+					caps["mcpCapabilities"] = map[string]bool{"http": true, "sse": false}
+				}
+				return map[string]any{"protocolVersion": 1, "agentCapabilities": caps,
 					"agentInfo": map[string]string{"name": "fake", "version": "9.9.9"}, "authMethods": []any{}}, nil
 			case "session/new":
 				mu.Lock()
@@ -198,12 +239,14 @@ func runFakeAgent() {
 				sid := fmt.Sprintf("s%d", nsess)
 				cancels[sid] = make(chan struct{})
 				var np struct {
-					Cwd  string
-					Meta json.RawMessage `json:"_meta"`
+					Cwd        string
+					Meta       json.RawMessage `json:"_meta"`
+					MCPServers json.RawMessage `json:"mcpServers"`
 				}
 				_ = json.Unmarshal(params, &np)
 				cwds[sid] = np.Cwd
 				metas[sid] = string(np.Meta)
+				mcps[sid] = string(np.MCPServers)
 				mu.Unlock()
 				return map[string]any{"sessionId": sid, "models": map[string]any{
 					"currentModelId":  "fast",

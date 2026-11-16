@@ -173,7 +173,7 @@ func (t *turn) update(u sessionUpdate) {
 			title = u.Kind
 		}
 		t.mu.Lock()
-		t.tools[u.ToolCallID] = toolInfo{title: title, kind: u.Kind, paths: editPaths(u)}
+		t.tools[u.ToolCallID] = toolInfo{title: title, kind: u.Kind, paths: editPaths(u), name: metaToolName(u.Meta)}
 		t.mu.Unlock()
 		if t.toolNotes {
 			t.note(fmt.Sprintf("[%s tool: %s]", t.agentName, title))
@@ -236,6 +236,7 @@ func (t *turn) result() (llm.Message, int, error) {
 
 type toolInfo struct {
 	title, kind string
+	name        string // the CLI's own tool name, when reported
 	paths       []string
 }
 

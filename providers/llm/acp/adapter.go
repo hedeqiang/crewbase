@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"log/slog"
 	"strings"
 	"sync"
 	"time"
@@ -44,8 +45,14 @@ type Options struct {
 	// Go runs background goroutines (kernel Context.Go in the plugin). It
 	// returns false when the owner is shutting down. Default: plain goroutines.
 	Go func(fn func(ctx context.Context)) bool
-	// Trace sees raw JSON-RPC traffic.
+	// Trace sees raw JSON-RPC traffic (bearer tokens redacted).
 	Trace func(dir string, msg []byte)
+	// MCP opens a grant on Crewbase's MCP server for an ACP session of an
+	// agent in a Crewbase session (see mcp.go); nil = Crewbase tools are
+	// not offered. A nil grant skips the server for that session.
+	MCP func(b MCPBinding) MCPGrant
+	// Log receives operational messages (default slog.Default()).
+	Log *slog.Logger
 }
 
 // Adapter is an llm.Adapter backed by one ACP agent process. A Crewbase
@@ -63,6 +70,8 @@ type Adapter struct {
 	goFn         func(fn func(ctx context.Context)) bool
 	trace        func(string, []byte)
 	stateDir     string // where learned model lists are cached ("" = not kept)
+	mcp          func(MCPBinding) MCPGrant
+	log          *slog.Logger
 
 	startMu sync.Mutex // serialises process start
 	mu      sync.Mutex
@@ -104,6 +113,11 @@ func newAdapter(id string, r resolved, opts Options) *Adapter {
 	a.filesChanged = opts.FilesChanged
 	a.stateDir = opts.StateDir
 	a.goFn = opts.Go
+	a.mcp = opts.MCP
+	a.log = opts.Log
+	if a.log == nil {
+		a.log = slog.Default()
+	}
 	if a.goFn == nil {
 		a.goFn = func(fn func(context.Context)) bool { go fn(context.Background()); return true }
 	}
@@ -206,6 +220,7 @@ func (a *Adapter) Close() {
 	a.mu.Unlock()
 	if p != nil {
 		p.kill()
+		p.revokeAll()
 	}
 }
 
@@ -220,6 +235,7 @@ func (a *Adapter) procExited(p *proc) {
 			delete(a.convs, k)
 		}
 	}
+	p.revokeAll()
 }
 
 // ensureProc returns a live process, starting one on demand.
@@ -333,7 +349,11 @@ func (a *Adapter) Stream(ctx context.Context, req llm.Request, onChunk func(llm.
 	c, prompt := a.claim(key, p, prints, req)
 	defer a.release(key, c)
 	if c.s == nil {
-		s, err := p.newSession(ctx, req.Model, cwd, own)
+		var bind *MCPBinding
+		if req.Agent != "" && req.Session != "" {
+			bind = &MCPBinding{Agent: req.Agent, Session: req.Session, Workspace: req.Workspace, Mode: req.Mode, Own: own}
+		}
+		s, err := p.newSession(ctx, req.Model, cwd, own, bind)
 		if err != nil {
 			a.noteQuota(err)
 			return llm.Response{}, err
@@ -347,6 +367,11 @@ func (a *Adapter) Stream(ctx context.Context, req llm.Request, onChunk func(llm.
 	t.ctx, t.agent, t.session = ctx, req.Agent, req.Session
 	c.s.setTurn(t)
 	defer c.s.setTurn(nil)
+	if g := c.s.grant; g != nil {
+		// MCP calls run while this turn does; cancelling it cancels them
+		end := g.Turn(ctx, req.Mode)
+		defer end()
+	}
 	if len(moved) > 0 {
 		t.note(fmt.Sprintf("[Crewbase moved CLI configuration out of the agent workspace into .crewbase-quarantine/: %s]", strings.Join(moved, ", ")))
 	}
@@ -436,13 +461,17 @@ func (a *Adapter) Stream(ctx context.Context, req llm.Request, onChunk func(llm.
 func (a *Adapter) claim(key string, p *proc, prints []string, req llm.Request) (*conv, string) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	if c := a.convs[key]; c != nil && !c.busy && c.p == p && c.s != nil && isPrefix(c.prints, prints) && len(prints) > len(c.prints) {
+	if c := a.convs[key]; c != nil && !c.busy && c.p == p && c.s != nil && isPrefix(c.prints, prints) && len(prints) > len(c.prints) &&
+		(c.s.grant == nil || !c.s.grant.Stale()) {
 		c.busy = true
 		c.lastUse = time.Now()
 		return c, renderDelta(req.Messages[len(c.prints):])
 	}
 	c := &conv{p: p, busy: true, lastUse: time.Now()}
 	if old := a.convs[key]; old == nil || !old.busy {
+		if old != nil {
+			old.drop()
+		}
 		a.convs[key] = c
 	}
 	a.gcLocked()
@@ -456,6 +485,7 @@ func (a *Adapter) forget(key string) {
 	defer a.mu.Unlock()
 	if c := a.convs[key]; c != nil && !c.busy {
 		delete(a.convs, key)
+		c.drop()
 	}
 }
 
@@ -463,8 +493,20 @@ func (a *Adapter) release(key string, c *conv) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	c.busy = false
-	if c.prints == nil && a.convs[key] == c {
+	switch {
+	case a.convs[key] != c:
+		c.drop() // a concurrent one-off conversation: its session is not kept
+	case c.prints == nil:
 		delete(a.convs, key)
+		c.drop()
+	}
+}
+
+// drop ends the conversation's ACP session for Crewbase: its MCP grant is
+// revoked (ACP v1 has no session close; the CLI keeps it until exit).
+func (c *conv) drop() {
+	if c.s != nil {
+		c.p.dropSession(c.s)
 	}
 }
 
@@ -482,6 +524,7 @@ func (a *Adapter) gcLocked() {
 		if oldK == "" {
 			return
 		}
+		a.convs[oldK].drop()
 		delete(a.convs, oldK)
 	}
 }
