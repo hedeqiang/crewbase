@@ -106,15 +106,23 @@ func TestOnlyOwnerCanHandOverAndLifecycle(t *testing.T) {
 	a, _ := agents.Create(agent.Spec{Name: "A"})
 	b, _ := agents.Create(agent.Spec{Name: "B"})
 	ch, _ := s.Create("x", []string{a.ID(), b.ID()}, "", "lin")
-	s.Post(ch.ID, "@b hi\n\n"+handoverCmd("a", "nope"), "lin") // b is owner after @, hands to a: ok
+	// @b gives b this task only: a stays the owner, so b cannot hand over
+	res, _ := s.Post(ch.ID, "@b hi\n\n"+handoverCmd("a", "nope"), "lin")
+	if res.Agent != "b" {
+		t.Fatalf("@b went to %q", res.Agent)
+	}
 	waitAll(a, b)
 	if v, _ := s.Get(ch.ID); v.Owner != "a" {
 		t.Fatal(v.Owner)
 	}
-	// b is no longer owner → its handover is rejected
 	if _, err := s.HandOver(t.Context(), channel.Handover{Channel: ch.ID, From: "b", To: "a"}); err == nil {
 		t.Fatal("non-owner handover must fail")
 	}
+	// a plain message still goes to the owner
+	if res, _ := s.Post(ch.ID, "next step", "lin"); res.Agent != "a" {
+		t.Fatalf("plain message went to %q", res.Agent)
+	}
+	waitAll(a, b)
 	if err := s.Reassign(ch.ID, "b", "lin", ""); err != nil {
 		t.Fatal(err)
 	}

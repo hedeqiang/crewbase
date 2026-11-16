@@ -298,8 +298,9 @@ type PostResult struct {
 	Position int    `json:"position"` // 0 = being worked on next
 }
 
-// Post sends a human message. "@agent" assigns the task to that member
-// (who becomes owner); otherwise the current owner receives it.
+// Post sends a human message. "@agent" gives this one task to that member
+// and the owner stays; otherwise the current owner receives it. Changing
+// the owner is Reassign (the channel panel) or a handover.
 func (s *Service) Post(id, text, from string) (PostResult, error) {
 	ss, err := s.channel(id)
 	if err != nil {
@@ -309,17 +310,10 @@ func (s *Service) Post(id, text, from string) (PostResult, error) {
 	case StateArchived:
 		return PostResult{}, errors.New("channel is archived")
 	}
-	s.mu.Lock()
 	target := s.resolveMention(ss, text)
-	if target != "" {
-		if err := s.setOwner(ss, target, from, "assigned"); err != nil {
-			s.mu.Unlock()
-			return PostResult{}, err
-		}
-	} else {
+	if target == "" {
 		target = Owner(ss)
 	}
-	s.mu.Unlock()
 	a, ok := s.agents.Get(target)
 	if !ok {
 		return PostResult{}, fmt.Errorf("owner %q is not available", target)
@@ -459,14 +453,29 @@ func (s *Service) Reassign(id, to, by, note string) error {
 	return err
 }
 
-// Stop halts the owner's current turn and pauses the channel.
+// Stop halts the channel's work and pauses it: the owner's turn, any
+// member working on a task given with @ here, and their queued inputs
+// for this channel.
 func (s *Service) Stop(id, by string) error {
 	ss, err := s.channel(id)
 	if err != nil {
 		return err
 	}
-	if a, ok := s.agents.Get(Owner(ss)); ok {
-		a.Stop()
+	owner := Owner(ss)
+	ids := append([]string{owner}, ss.Meta().Agents...)
+	seen := map[string]bool{}
+	for _, aid := range ids {
+		if seen[aid] {
+			continue
+		}
+		seen[aid] = true
+		a, ok := s.agents.Get(aid)
+		if !ok {
+			continue
+		}
+		if aid == owner || a.StatusSession() == id {
+			a.Stop()
+		}
 		for _, q := range a.Queue() {
 			if q.Session == id {
 				a.Cancel(q.ID)
