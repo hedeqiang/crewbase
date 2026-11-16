@@ -289,6 +289,7 @@ func (s *Service) observe(ctx context.Context, call tools.Call) (tools.Result, e
 		o.App = app
 	}
 	s.remember(call.Agent, &o)
+	s.setTarget(call.Agent, o.App.ID)
 	res := tools.Text(render(&o, s.maxChars))
 	l := ActionLog{App: o.App.ID, AppName: o.App.Name, Action: "observe", OK: true}
 	if a.Screenshot {
@@ -334,6 +335,7 @@ func (s *Service) open(ctx context.Context, call tools.Call) (tools.Result, erro
 	}
 	s.log(call, l)
 	s.forget(call.Agent, app.ID)
+	s.setTarget(call.Agent, app.ID)
 	_, _ = s.runningApps(ctx, true)
 	msg := fmt.Sprintf("Opened %s. Call computer_observe to see its window.", app.Name)
 	if r.Note != "" {
@@ -576,5 +578,6 @@ func (s *Service) tools() []*tools.Tool {
 			Description: "Open (launch or bring up) a native app by name or bundle id, then computer_observe it. Not for websites: use browser_open.",
 			Params:      tools.Schema(map[string]any{"app": appProp}, "app"),
 			Classify:    s.classify, Execute: s.open},
+		s.nativeTool(),
 	}
 }
