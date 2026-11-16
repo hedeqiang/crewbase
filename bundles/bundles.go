@@ -61,6 +61,7 @@ import (
 	_ "github.com/hedeqiang/crewbase/features/usage"
 	_ "github.com/hedeqiang/crewbase/features/workflows"
 	_ "github.com/hedeqiang/crewbase/providers/browser/chrome"
+	_ "github.com/hedeqiang/crewbase/providers/computer/macos"
 	_ "github.com/hedeqiang/crewbase/providers/fs/local"
 	_ "github.com/hedeqiang/crewbase/providers/im/discord"
 	_ "github.com/hedeqiang/crewbase/providers/im/feishu"
@@ -183,6 +184,10 @@ var Desktop = kernel.Bundle{Name: "desktop", Entries: []kernel.Entry{
 	{ID: "google-api", Name: "@crewbase/google-api"},
 	{ID: "skills-api", Name: "@crewbase/skills-api"},
 	{ID: "browser-api", Name: "@crewbase/browser-api"},
+	// Operating native apps (docs/computer-use.md): the permissions are
+	// given to Crewbase.app, so only the desktop process has it. Provides
+	// nothing off macOS.
+	{ID: "computer", Name: "@crewbase/computer-macos"},
 	{ID: "im-api", Name: "@crewbase/im-api"},
 	{ID: "im-config", Name: "@crewbase/im-config", Config: map[string]any{"dir": "${root}"}},
 	{ID: "audit-api", Name: "@crewbase/audit-api"},
