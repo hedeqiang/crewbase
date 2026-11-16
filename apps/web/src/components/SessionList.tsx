@@ -3,7 +3,7 @@ import { Bot, Check, ChevronDown, ChevronRight, FolderInput, Lock, Users, Workfl
 import type { AgentView, SessionMeta, UsageStats } from "../api";
 import { API, desktop, openExternal, setToken, teamOf, type TeamView } from "../api";
 import { t } from "../i18n";
-import { hhmm, kfmt, listTime, nextMorning, sinceLabel } from "../format";
+import { hhmm, kfmt, listTime, nextMorning, plainPreview, sinceLabel } from "../format";
 import { takeoverReason } from "./Browser";
 import { lastSnippet } from "../projection";
 import {
@@ -85,8 +85,8 @@ export function SessionList() {
   const snippet = (sid: string): { text: string; time: string; agent?: string } | null => {
     const sm = summaries[sid];
     const local = lastSnippet(events[sid]);
-    if (sm?.last && (!local || sm.last.time >= local.time)) return sm.last;
-    return local ?? (sm ? { text: "", time: sm.updated } : null);
+    const s = sm?.last && (!local || sm.last.time >= local.time) ? sm.last : local ?? (sm ? { text: "", time: sm.updated } : null);
+    return s && { ...s, text: plainPreview(s.text) };
   };
 
   const takeovers = useMemo(() => Object.values(agents).filter((a) => !!takeoverReason(a)), [agents]);

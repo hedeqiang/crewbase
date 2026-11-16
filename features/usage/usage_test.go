@@ -84,7 +84,7 @@ func TestPerModelPrices(t *testing.T) {
 		cfg map[string]any
 	}{
 		{session.Plugin, nil}, {prompt.Plugin, nil}, {tools.Plugin, nil}, {approval.Plugin, nil},
-		{llm.Plugin, nil}, {mock.Plugin, map[string]any{"ids": []string{"sub", "api"}}},
+		{llm.Plugin, nil}, {mock.Plugin, map[string]any{"ids": []string{"sub", "api", "gw"}}},
 		{agent.Plugin, map[string]any{"root": root, "defaultModels": []string{"sub/default"}}},
 		{usage.Plugin, map[string]any{"reference": map[string]float64{"input": 10, "output": 10}}},
 	} {
@@ -94,6 +94,8 @@ func TestPerModelPrices(t *testing.T) {
 	llms := kernel.Use[*llm.Registry](r, llm.ServiceKey)
 	sub, _ := llms.Get("sub")
 	sub.(*mock.Adapter).SetKind("subscription")
+	gw, _ := llms.Get("gw")
+	gw.(*mock.Adapter).SetKind("gateway")
 	llms.SetCatalog(r, fakeCatalog{
 		"cheap":     {Pricing: &llm.Pricing{Input: 1, Output: 2}},
 		"cache-pro": {Pricing: &llm.Pricing{Input: 4, Output: 20, CacheRead: 0.4}},
@@ -105,11 +107,13 @@ func TestPerModelPrices(t *testing.T) {
 		{Model: llm.ModelRef{Provider: "api", Model: "cheap"}, Usage: llm.Usage{InputTokens: M, OutputTokens: M}},  // 1 + 2
 		{Model: llm.ModelRef{Provider: "api", Model: "unknown"}, Usage: llm.Usage{InputTokens: M}},                 // reference: 10
 		{Model: llm.ModelRef{Provider: "sub", Model: "cache-pro"}, Usage: llm.Usage{InputTokens: M, CacheRead: M}}, // all cached: 0.4
+		{Model: llm.ModelRef{Provider: "gw", Model: "cheap"}, Usage: llm.Usage{InputTokens: M, OutputTokens: M}},   // gateway, list price: 3
+		{Model: llm.ModelRef{Provider: "gw", Model: "unknown"}, Usage: llm.Usage{InputTokens: M}},                  // gateway, no price: not guessed
 	} {
 		ss.Append(session.TypeAssistantMessage, a.ID(), m)
 	}
 	st := kernel.Use[*usage.Service](r, usage.ServiceKey).Compute()
-	if st.SpentUSD != 13 || st.SavedUSD < 0.399 || st.SavedUSD > 0.401 || st.PricedTokens != 3*M {
-		t.Fatalf("spent %v saved %v priced %d", st.SpentUSD, st.SavedUSD, st.PricedTokens)
+	if st.SpentUSD != 16 || st.GatewayUSD != 3 || st.SavedUSD < 0.399 || st.SavedUSD > 0.401 || st.PricedTokens != 5*M {
+		t.Fatalf("spent %v gateway %v saved %v priced %d", st.SpentUSD, st.GatewayUSD, st.SavedUSD, st.PricedTokens)
 	}
 }

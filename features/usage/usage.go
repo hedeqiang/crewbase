@@ -44,7 +44,11 @@ type Stats struct {
 	Switches      int            `json:"switches"`
 	Interventions int            `json:"interventions"` // switches that still ended in a failed turn
 	SavedUSD      float64        `json:"savedUsd"`
-	SpentUSD      float64        `json:"spentUsd"` // estimated API spend
+	SpentUSD      float64        `json:"spentUsd"` // estimated API spend (direct keys and gateways)
+	// GatewayUSD is the part of SpentUSD that went through a gateway such
+	// as magpie, valued at the model's list price (the gateway's own
+	// billing may differ).
+	GatewayUSD float64 `json:"gatewayUsd"`
 	Reference     Price          `json:"reference"`
 	// PricedTokens were valued at their model's own list price (from the
 	// model catalog); the rest at Reference.
@@ -151,8 +155,16 @@ func (s *Service) Compute() Stats {
 				}
 				switch kind {
 				case "gateway":
-					// billed (or not) inside the gateway, e.g. magpie: neither
-					// saved nor spent from Crewbase's point of view
+					// billed inside the gateway (e.g. magpie): counted as spent
+					// at the model's list price when it is known, the same
+					// figure the reply footer shows; unknown prices count 0
+					// rather than a guess at the reference price
+					if p != nil {
+						cost = p.Cost(am.Usage)
+						st.PricedTokens += n
+						st.SpentUSD += cost
+						st.GatewayUSD += cost
+					}
 				case "api":
 					if cp, ok := s.prices[am.Model.Provider]; ok {
 						cost = float64(am.Usage.InputTokens)/1e6*cp.Input + float64(am.Usage.OutputTokens)/1e6*cp.Output

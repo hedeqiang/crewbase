@@ -646,6 +646,8 @@ export interface UsageStats {
   interventions: number;
   savedUsd: number;
   spentUsd: number;
+  /** part of spentUsd that went through a gateway such as magpie */
+  gatewayUsd?: number;
   reference: { input: number; output: number };
   kinds: Record<string, number>;
   /** images / videos generated per provider (billed by the provider per item) */

@@ -1310,6 +1310,7 @@ export const en: Partial<Record<Key, string>> = {
   "prof.peakSub": "{n} tokens",
   "prof.private": "Counts only data on this computer; nothing is uploaded",
   "prof.reference": "Savings are estimated at reference prices: input ${i} / output ${o} per million tokens. Usage through a gateway (such as magpie) is not counted in savings or cost.",
+  "prof.viaGateway": " (of which {amount} through gateways such as magpie)",
   "prof.savedSub": "Compared with API pricing · estimated API cost {spent}",
   "prof.share": "Model source share",
   "prof.switches": "Automatic model switches",

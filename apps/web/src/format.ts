@@ -391,3 +391,18 @@ export function replyUsage(models: ModelsResponse | null, stats: TurnStats): Rep
   if (timing && ms >= 500 && timedOut >= 20) out.speed = timedOut / (ms / 1000);
   return out;
 }
+
+/** One line of plain text from Markdown, for list previews: no code fences,
+ *  backticks, emphasis, link syntax, heading or list markers. */
+export function plainPreview(md: string): string {
+  return md
+    .replace(/```[\s\S]*?(```|$)/g, " ")
+    .replace(/!\[([^\]]*)\]\([^)]*\)/g, "$1")
+    .replace(/\[([^\]]+)\]\([^)]*\)/g, "$1")
+    .replace(/`([^`]*)`/g, "$1")
+    .replace(/(\*\*|__|~~)(.+?)\1/g, "$2")
+    .replace(/(^|[\s(])[*_]([^*_\n]+)[*_](?=[\s).,!?:;，。！？]|$)/g, "$1$2")
+    .replace(/^\s{0,3}(#{1,6}\s+|>\s?|[-*+]\s+\[[ xX]\]\s+|[-*+]\s+|\d+[.)]\s+)/gm, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}

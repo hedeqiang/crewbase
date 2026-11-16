@@ -1554,6 +1554,7 @@ const zh = {
   "prof.switches": "自动切换模型",
   "prof.interventions": "其中 {n} 次需要人工介入",
   "prof.saved": "订阅复用节省",
+  "prof.viaGateway": "（其中经 magpie 等网关 {amount}）",
   "prof.savedSub": "对比按 API 计费 · 估算 API 花费 {spent}",
   "prof.activity": "这台电脑上的活动 · 过去 53 周",
   "prof.activityAria": "活动热力图，{n} 个活跃日",
