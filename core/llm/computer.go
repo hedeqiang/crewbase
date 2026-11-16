@@ -159,3 +159,13 @@ func openAIComputer(m string) bool {
 	}
 	return major > 5 || major == 5 && minor >= 4
 }
+
+// GeminiComputerFunctions are Gemini's predefined computer_use functions
+// (desktop environment); a function call with one of these names that is
+// not a declared function is a native computer action.
+var GeminiComputerFunctions = []string{"click", "double_click", "triple_click", "middle_click", "right_click", "mouse_down", "mouse_up", "move",
+	"type", "drag_and_drop", "wait", "press_key", "key_down", "key_up", "hotkey", "take_screenshot", "scroll"}
+
+// GeminiComputerExcluded are the predefined functions Crewbase's computer
+// cannot do (sent as excluded_predefined_functions).
+var GeminiComputerExcluded = []string{"triple_click", "middle_click", "mouse_down", "mouse_up", "key_down", "key_up"}

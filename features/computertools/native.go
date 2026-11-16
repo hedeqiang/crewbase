@@ -364,14 +364,6 @@ func translateOpenAI(raw json.RawMessage, app string, g geometry) ([]nstep, erro
 	return out, nil
 }
 
-// Gemini's predefined computer-use functions.
-var GeminiFunctions = []string{"click", "double_click", "triple_click", "middle_click", "right_click", "mouse_down", "mouse_up", "move",
-	"type", "drag_and_drop", "wait", "press_key", "key_down", "key_up", "hotkey", "take_screenshot", "scroll"}
-
-// GeminiExcluded are the predefined functions this computer cannot do
-// (sent as excluded_predefined_functions).
-var GeminiExcluded = []string{"triple_click", "middle_click", "mouse_down", "mouse_up", "key_down", "key_up"}
-
 func translateGemini(fn string, raw json.RawMessage, app string, g geometry) ([]nstep, error) {
 	var in struct {
 		X          *float64 `json:"x"`
@@ -459,7 +451,7 @@ func translateGemini(fn string, raw json.RawMessage, app string, g geometry) ([]
 	case "wait":
 		return []nstep{{wait: seconds(in.Seconds, 1)}}, nil
 	}
-	if slices.Contains(GeminiExcluded, fn) {
+	if slices.Contains(llm.GeminiComputerExcluded, fn) {
 		return nil, errUnsupported(fn)
 	}
 	return nil, fmt.Errorf("unknown computer action %q", fn)
