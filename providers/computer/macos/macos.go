@@ -74,6 +74,12 @@ type Provider struct {
 	mu     sync.Mutex
 	apps   map[string]*appState // by bundle id
 	closed bool
+
+	// IdleFor: when the provider last posted events, and the person's
+	// last input before that
+	pmu              sync.Mutex
+	postFrom, postTo time.Time
+	humanAt          time.Time
 }
 
 // appState is the latest outline of an app and the lock serialising its
@@ -161,12 +167,56 @@ func (p *Provider) Apps(ctx context.Context) ([]computer.App, error) {
 }
 
 // IdleFor is the time since the last keyboard or mouse input.
+//
+// The events the provider posts count as input to the system too, so input
+// that happened while the provider was posting (and just after) is taken
+// as its own: the person's idle time then runs from their last input
+// before it.
 func (p *Provider) IdleFor() time.Duration {
+	now := time.Now()
+	last := now.Add(-p.rawIdle())
+	p.pmu.Lock()
+	defer p.pmu.Unlock()
+	if p.ours(last) {
+		return max(0, now.Sub(p.humanAt))
+	}
+	return now.Sub(last)
+}
+
+func (p *Provider) rawIdle() time.Duration {
 	s := p.pf.IdleSeconds()
 	if s < 0 {
 		return 0
 	}
 	return time.Duration(s * float64(time.Second))
+}
+
+// ours: input at t falls in the provider's latest posting window (p.pmu
+// held).
+func (p *Provider) ours(t time.Time) bool {
+	return !p.postFrom.IsZero() && !t.Before(p.postFrom.Add(-10*time.Millisecond)) &&
+		(p.postTo.IsZero() || !t.After(p.postTo.Add(postEcho)))
+}
+
+// postEcho is how long after posting the system may still record it.
+const postEcho = 150 * time.Millisecond
+
+// posting marks the start of posting events; the returned func marks the
+// end.
+func (p *Provider) posting() func() {
+	now := time.Now()
+	last := now.Add(-p.rawIdle())
+	p.pmu.Lock()
+	if !p.ours(last) {
+		p.humanAt = last
+	}
+	p.postFrom, p.postTo = now, time.Time{}
+	p.pmu.Unlock()
+	return func() {
+		p.pmu.Lock()
+		p.postTo = time.Now()
+		p.pmu.Unlock()
+	}
 }
 
 // resolve finds a running app by bundle id, else by name.

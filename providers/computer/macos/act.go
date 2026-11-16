@@ -46,6 +46,10 @@ func (p *Provider) Act(ctx context.Context, a computer.Action) (computer.Result,
 	if err := ctx.Err(); err != nil {
 		return computer.Result{}, err
 	}
+	switch a.Kind {
+	case computer.Type, computer.Key, computer.SetValue, computer.Click, computer.DoubleClick, computer.RightClick, computer.Scroll, computer.Drag:
+		defer p.posting()() // our events are not the person's input (IdleFor)
+	}
 
 	switch a.Kind {
 	case computer.Press:

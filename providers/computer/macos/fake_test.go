@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/hedeqiang/crewbase/capabilities/computer"
 )
@@ -28,6 +29,7 @@ type fake struct {
 	performed []string
 	sets      []string
 	activated int
+	lastInput time.Time
 	// onPerform runs when an action is performed (to change the tree).
 	onPerform func(f *fake, r ref, action string)
 }
@@ -41,7 +43,7 @@ type fnode struct {
 
 func newFake() *fake {
 	return &fake{nodes: map[ref]*fnode{}, counts: map[ref]int{}, next: 100, trusted: true, screen: true, appEl: map[int]ref{},
-		screens: []computer.Rect{{X: 0, Y: 0, W: 1440, H: 900}}}
+		screens: []computer.Rect{{X: 0, Y: 0, W: 1440, H: 900}}, lastInput: time.Now().Add(-10 * time.Second)}
 }
 
 // add creates a node under parent (0 for none) and returns its ref.
@@ -113,7 +115,18 @@ func (f *fake) Children(r ref, max int) ([]ref, int, error) {
 func (f *fake) Trusted() bool                 { return f.trusted }
 func (f *fake) ScreenCapture() bool           { return f.screen }
 func (f *fake) Apps() ([]computer.App, error) { return f.apps, nil }
-func (f *fake) IdleSeconds() float64          { return 2.5 }
+func (f *fake) IdleSeconds() float64 {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return time.Since(f.lastInput).Seconds()
+}
+
+// input records input to the system (posted events count too).
+func (f *fake) input() {
+	f.mu.Lock()
+	f.lastInput = time.Now()
+	f.mu.Unlock()
+}
 
 func (f *fake) AppElement(pid int) (ref, error) {
 	f.mu.Lock()
@@ -205,18 +218,25 @@ func (f *fake) Activate(int) error                       { f.activated++; return
 func (f *fake) Launch(string) error                      { return nil }
 
 func (f *fake) PostKey(pid int, code uint16, flags uint64) error {
+	f.input()
 	f.keys = append(f.keys, keyStroke{code, flags})
 	return nil
 }
 
-func (f *fake) PostText(pid int, s string) error { f.texts = append(f.texts, s); return nil }
+func (f *fake) PostText(pid int, s string) error {
+	f.input()
+	f.texts = append(f.texts, s)
+	return nil
+}
 
 func (f *fake) PostMouse(kind mouseKind, b mouseButton, x, y float64, clicks int) error {
+	f.input()
 	f.mouse = append(f.mouse, fmt.Sprintf("%d/%d@%g,%g", kind, b, x, y))
 	return nil
 }
 
 func (f *fake) PostScroll(x, y float64, dx, dy int) error {
+	f.input()
 	f.mouse = append(f.mouse, fmt.Sprintf("scroll@%g,%g %d,%d", x, y, dx, dy))
 	return nil
 }

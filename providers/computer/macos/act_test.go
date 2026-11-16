@@ -5,6 +5,7 @@ import (
 	"errors"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/hedeqiang/crewbase/capabilities/computer"
 )
@@ -240,9 +241,25 @@ func TestActPointer(t *testing.T) {
 }
 
 func TestIdleFor(t *testing.T) {
-	p := newTestProvider(t, newFake())
-	if got := p.IdleFor().Seconds(); got != 2.5 {
-		t.Fatalf("IdleFor = %v", got)
+	n := buildNotes()
+	p := newTestProvider(t, n.f)
+	defer p.Close()
+	near := func(got, want time.Duration) bool { return got > want-time.Second && got < want+time.Second }
+	if got := p.IdleFor(); !near(got, 10*time.Second) {
+		t.Fatalf("IdleFor = %v, want about 10s", got)
+	}
+	// the provider's own keys are not the person's input
+	if _, err := p.Act(context.Background(), computer.Action{Kind: computer.Key, App: "com.apple.Notes", Keys: "down"}); err != nil {
+		t.Fatal(err)
+	}
+	if got := p.IdleFor(); !near(got, 10*time.Second) {
+		t.Fatalf("after posting, IdleFor = %v, want about 10s still", got)
+	}
+	// the person types later: idle restarts
+	time.Sleep(postEcho + 50*time.Millisecond)
+	n.f.input()
+	if got := p.IdleFor(); got > 500*time.Millisecond {
+		t.Fatalf("after the person's input, IdleFor = %v", got)
 	}
 }
 
