@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { ArrowDown, ArrowUp, Plus, RefreshCw, X } from "lucide-react";
 import { API, parseRef, refString, type ModelKind, type TaskRoute } from "../../api";
 import { t, type Key } from "../../i18n";
-import { allModels, modelLabel, modelMeta, providerName, until } from "../../format";
+import { allModels, findProvider, modelLabel, modelMeta, providerName, until } from "../../format";
 import { refreshModels, toast, useStore } from "../../store";
 import { ProviderMark } from "../ProviderMark";
 import { useSettingsData } from "../Settings";
@@ -181,6 +181,14 @@ const viaOf = (ref: string) => {
 };
 
 function Routes() {
+  const models = useStore((s) => s.models);
+  // a rule whose provider is not connected is skipped by the router: say so
+  const offline = (ref: string) => {
+    if (!ref || !models) return false;
+    const i = ref.indexOf("/");
+    const p = findProvider(models, ref.slice(0, i));
+    return !p || (p.models.length > 0 && !p.models.some((m) => m.id === ref.slice(i + 1)));
+  };
   const [routes, setRoutes] = useState<TaskRoute[] | null>(null);
   const [tasks, setTasks] = useState<string[]>([]);
   const [err, setErr] = useState<string | null>(null);
@@ -255,6 +263,11 @@ function Routes() {
               {/* the same model reached two ways (directly, through a gateway): say which this row is */}
               {r.model && routes.some((x, j) => j !== i && x.task === r.task && sameModel(x.model, r.model)) && (
                 <span className="pill sm">{viaOf(r.model)}</span>
+              )}
+              {offline(r.model) && (
+                <span className="pill sm amber" title={t("rt.offlineTip")}>
+                  {t("rt.offline")}
+                </span>
               )}
               <button className="ix" type="button" aria-label={t("panel.remove")} onClick={() => edit(routes.filter((_, j) => j !== i))}>
                 <X size={13} />

@@ -1333,6 +1333,8 @@ export const en: Partial<Record<Key, string>> = {
   "rt.task.video": "Video generation",
   "rt.pickImageModel": "Pick an image model",
   "rt.pickVideoModel": "Pick a video model",
+  "rt.offline": "Unavailable",
+  "rt.offlineTip": "This model's provider is not connected: the rule is skipped and the agent's own model order is used.",
   "rt.via": "via {name}",
   "rt.direct": "direct",
   "rt.until": "Recovers automatically in {time}",

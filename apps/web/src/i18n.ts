@@ -1323,6 +1323,8 @@ const zh = {
   "rt.task.video": "视频生成",
   "rt.pickImageModel": "选择图片模型",
   "rt.pickVideoModel": "选择视频模型",
+  "rt.offline": "不可用",
+  "rt.offlineTip": "这个模型的提供方没有连接，这条规则会被跳过，改用 Agent 自己的模型顺序。",
   "rt.via": "经 {name}",
   "rt.direct": "直连",
 

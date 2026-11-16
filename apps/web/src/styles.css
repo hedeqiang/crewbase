@@ -1498,8 +1498,12 @@ span.mediavid { aspect-ratio: 16 / 9; background: var(--sunken); }
 .na-acts { margin-top: 0; }
 @media (max-width: 980px) {
   .na-grid { grid-template-columns: minmax(0, 1fr); }
-  .na-side { position: static; max-height: none; flex-direction: row; overflow-x: auto; gap: 8px; padding-bottom: 4px; }
+  .na-side { position: static; max-height: none; flex-direction: row; align-items: flex-start; overflow-x: auto; gap: 8px; padding-bottom: 4px; scroll-snap-type: x proximity; }
   .na-sideh { display: none; }
+  /* groups flatten into the one strip; the blank card keeps its own height */
+  .na-side .tplgrp { display: contents; }
+  .na-side .tplcat { display: none; }
+  .na-side > .tpl, .na-side .tplgrp > .tpl { align-self: stretch; scroll-snap-align: start; }
   .tpl { flex: none; width: 220px; border-color: var(--border); background: var(--surface); }
   .tpl.imp { margin-top: 0; border-top: 1px solid var(--border); border-radius: 12px; padding-top: 8px; }
 }
@@ -1824,3 +1828,13 @@ button.psec.toggle { width: 100%; background: none; border: 0; font-family: inhe
 .lookpick .na-shapes, .lookpick .na-colors { margin: 0; justify-content: flex-start; }
 .permr { display: inline-flex; align-items: center; gap: 8px; flex: none; }
 .menu.flyout .flback { color: var(--muted); border-bottom: 1px solid var(--border); border-radius: 8px 8px 0 0; margin-bottom: 4px; }
+
+/* narrow screens: selects never push the page sideways */
+.ssel { min-width: 0; max-width: 100%; }
+@media (max-width: 560px) {
+  .ssel select { min-width: 0; width: 100%; }
+  .routerow .ssel, .addrow .ssel { flex: 1 1 100%; }
+  .routerow .arrow { display: none; }
+  .srow { flex-wrap: wrap; }
+  .srow .c { flex: 1 1 auto; justify-content: flex-end; min-width: 0; }
+}
