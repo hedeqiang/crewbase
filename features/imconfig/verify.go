@@ -40,33 +40,42 @@ var (
 
 var checkClient = &http.Client{Timeout: 10 * time.Second}
 
+// fill completes a check with a saved gateway's settings and stored
+// tokens (editing a gateway leaves its secrets blank). A saved gateway's
+// tokens only go to its own platform.
+func (s *Service) fill(in Check) Check {
+	in.Platform, in.Region = legacy(in.Platform, in.Region)
+	if in.ID == "" {
+		return in
+	}
+	s.mu.Lock()
+	g, ok := s.items[in.ID]
+	s.mu.Unlock()
+	if !ok || (in.Platform != "" && in.Platform != g.Platform) {
+		return in
+	}
+	if in.Platform == "" {
+		in.Platform = g.Platform
+	}
+	if in.Region == "" {
+		in.Region = g.Region
+	}
+	if in.AppID == "" {
+		in.AppID = g.AppID
+	}
+	if in.BotToken == "" {
+		in.BotToken = s.resolve(botRef(g.ID))
+	}
+	if in.AppToken == "" {
+		in.AppToken = s.resolve(appRef(g.ID))
+	}
+	return in
+}
+
 // Verify checks credentials against the platform. A rejected credential
 // is a result (OK false), not an error; tokens never appear in it.
 func (s *Service) Verify(ctx context.Context, in Check) (CheckResult, error) {
-	in.Platform, in.Region = legacy(in.Platform, in.Region)
-	if in.ID != "" {
-		s.mu.Lock()
-		g, ok := s.items[in.ID]
-		s.mu.Unlock()
-		// a saved gateway's tokens only go to its own platform
-		if ok && (in.Platform == "" || in.Platform == g.Platform) {
-			if in.Platform == "" {
-				in.Platform = g.Platform
-			}
-			if in.Region == "" {
-				in.Region = g.Region
-			}
-			if in.AppID == "" {
-				in.AppID = g.AppID
-			}
-			if in.BotToken == "" {
-				in.BotToken = s.resolve(botRef(g.ID))
-			}
-			if in.AppToken == "" {
-				in.AppToken = s.resolve(appRef(g.ID))
-			}
-		}
-	}
+	in = s.fill(in)
 	p, ok := platform(in.Platform)
 	if !ok {
 		return CheckResult{}, fmt.Errorf("unknown platform %q", in.Platform)

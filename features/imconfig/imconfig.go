@@ -537,6 +537,18 @@ var Plugin = kernel.Register(kernel.Spec{
 				}
 				return res, nil
 			}})
+		g.Handle(c, gateway.Route{Method: "POST", Path: "/api/im/config/chats",
+			Handle: func(ctx context.Context, r *gateway.Request) (any, error) {
+				var in Check
+				if err := r.Decode(&in); err != nil {
+					return nil, err
+				}
+				res, err := s.Chats(ctx, in)
+				if err != nil {
+					return nil, gateway.BadRequest("%v", err)
+				}
+				return res, nil
+			}})
 		g.Handle(c, gateway.Route{Method: "PUT", Path: "/api/im/config/{id}",
 			Handle: func(_ context.Context, r *gateway.Request) (any, error) {
 				var in Input

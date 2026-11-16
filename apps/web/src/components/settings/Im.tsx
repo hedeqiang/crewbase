@@ -320,6 +320,79 @@ function GatewayRow({ p, g, onEdit, onChanged }: { p: ImPlatform; g: ImGateway; 
 }
 
 /** A free gateway id: the product (feishu / lark, slack…), then -2, -3. */
+type Chat = { id: string; name: string; description?: string; external?: boolean };
+
+/** 飞书 / Lark: the groups the bot is in, to pick from (needs the
+ *  im:chat:readonly permission); pasting a chat_id still works. */
+function GroupPicker({ query, value, onChange, placeholder }: { query: Parameters<typeof API.imChats>[0]; value: string; onChange: (v: string) => void; placeholder: string }) {
+  const [list, setList] = useState<{ chats: Chat[]; hint?: string } | null>(null);
+  const [err, setErr] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [paste, setPaste] = useState(false);
+  const load = async () => {
+    setBusy(true);
+    setErr("");
+    try {
+      const r = await API.imChats(query);
+      setList(r);
+      // one group and nothing chosen yet: that is the one
+      if (!value && r.chats.length === 1) onChange(r.chats[0].id);
+    } catch (e: any) {
+      setErr(e?.message ?? String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+  useEffect(() => {
+    void load();
+  }, []);
+  const known = !!list?.chats.some((c) => c.id === value);
+  const typing = paste || !list || list.chats.length === 0 || (!!value && !known);
+  return (
+    <div className="imgroups">
+      {busy && !list && (
+        <div className="small muted imhint">
+          <Loader2 size={13} className="spin" /> {t("imx.groupsLoading")}
+        </div>
+      )}
+      {list && list.chats.length > 0 && (
+        <div className="imglist" role="radiogroup" aria-label={t("imx.group")}>
+          {list.chats.map((c) => (
+            <button key={c.id} type="button" role="radio" aria-checked={value === c.id} className={"imgrow" + (value === c.id ? " on" : "")} onClick={() => onChange(c.id)}>
+              <span className="g">
+                <b>{c.name || c.id}</b>
+                <span className="small muted mono">
+                  {c.id}
+                  {c.external ? " · " + t("imx.groupExternal") : ""}
+                </span>
+              </span>
+              {value === c.id && <Check size={14} />}
+            </button>
+          ))}
+        </div>
+      )}
+      {(err || list?.hint) && (
+        <div className={"small imhint" + (err ? " errt" : " muted")}>
+          {err || t(`imx.groupsHint.${list!.hint}` as Key)}{" "}
+          <button className="linkbtn" type="button" disabled={busy} onClick={() => void load()}>
+            {t("imx.groupsRetry")}
+          </button>
+        </div>
+      )}
+      {typing ? (
+        <>
+          <input className="fi sm mono" value={value} placeholder={placeholder} onChange={(e) => onChange(e.target.value)} aria-label={t("imx.group")} />
+          <div className="small muted imhint">{t("imx.chHint.feishu")}</div>
+        </>
+      ) : (
+        <button className="linkbtn small" type="button" onClick={() => setPaste(true)}>
+          {t("imx.groupPaste")}
+        </button>
+      )}
+    </div>
+  );
+}
+
 function newId(p: ImPlatform, region: string | undefined, taken: string[]) {
   const base = p.id === "feishu" && region === "intl" ? "lark" : p.id;
   if (!taken.includes(base)) return base;
@@ -539,8 +612,19 @@ function ConnectDialog({ p, g, taken, onClose, onSaved }: { p: ImPlatform; g?: I
               <label className="fl" htmlFor="im-ch">
                 {t(p.id === "slack" || p.id === "discord" ? "imx.channel" : "imx.group")}
               </label>
-              <input id="im-ch" ref={first} className="fi sm mono" value={channel} placeholder={channelPh(p)} onChange={(e) => setChannel(e.target.value)} />
-              <div className="small muted imhint">{t(`imx.chHint.${p.id}` as Key)}</div>
+              {p.id === "feishu" ? (
+                <GroupPicker
+                  query={{ platform: p.id, region, appId: appId.trim() || undefined, botToken: bot.trim() || undefined, id: g?.id }}
+                  value={channel}
+                  onChange={setChannel}
+                  placeholder={channelPh(p)}
+                />
+              ) : (
+                <>
+                  <input id="im-ch" ref={first} className="fi sm mono" value={channel} placeholder={channelPh(p)} onChange={(e) => setChannel(e.target.value)} />
+                  <div className="small muted imhint">{t(`imx.chHint.${p.id}` as Key)}</div>
+                </>
+              )}
 
               <label className="fl" htmlFor="im-users">
                 {t("imx.users")}

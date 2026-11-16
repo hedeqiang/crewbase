@@ -888,6 +888,8 @@ export const API = {
   testIm: (id: string) => api<{ ok: boolean; error?: string }>("POST", `/api/im/${enc(id)}/test`),
   verifyIm: (b: { platform?: string; region?: string; appId?: string; botToken?: string; appToken?: string; id?: string }) =>
     api<{ ok: boolean; bot?: string; error?: string }>("POST", "/api/im/config/verify", b),
+  imChats: (b: { platform?: string; region?: string; appId?: string; botToken?: string; id?: string }) =>
+    api<{ chats: { id: string; name: string; description?: string; external?: boolean }[]; hint?: "permission" | "empty" | "unsupported" }>("POST", "/api/im/config/chats", b),
   health: () => api<{ ok: boolean }>("GET", "/api/health"),
   pair: (b: { code: string; name: string; platform: string }) => api<{ token: string; device: DeviceView }>("POST", "/api/pair", b),
   whoami: () => api<{ tier: string; device?: DeviceView }>("GET", "/api/whoami"),

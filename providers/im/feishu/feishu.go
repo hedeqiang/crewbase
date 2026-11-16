@@ -13,7 +13,8 @@
 //
 // In the developer console: enable the bot, subscribe im.message.receive_v1
 // and card.action.trigger with "receive events through persistent
-// connection", and grant im:message, im:message:send_as_bot.
+// connection", and grant im:message, im:message:send_as_bot (and
+// im:chat:readonly so the setup dialog can list the bot's groups).
 package feishu
 
 import (

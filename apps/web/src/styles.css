@@ -1657,3 +1657,13 @@ button.psec.toggle { width: 100%; background: none; border: 0; font-family: inhe
 
 .mkic.brand.img { padding: 6px; box-sizing: border-box; }
 .mkic.brand.img img { width: 100%; height: 100%; object-fit: contain; display: block; }
+
+/* 即时通讯 › 飞书 / Lark: groups the bot is in */
+.imgroups { display: flex; flex-direction: column; gap: 6px; }
+.imglist { display: flex; flex-direction: column; gap: 4px; max-height: 220px; overflow: auto; border: 1px solid var(--border); border-radius: 10px; padding: 4px; }
+.imgrow { display: flex; align-items: center; gap: 10px; text-align: left; padding: 7px 10px; border-radius: 8px; background: none; border: 0; color: inherit; font: inherit; cursor: pointer; }
+.imgrow:hover { background: var(--hover); }
+.imgrow.on { background: var(--accent-soft); }
+.imgrow .g { display: flex; flex-direction: column; gap: 1px; flex: 1; min-width: 0; }
+.imgrow .g > * { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.imgroups .linkbtn.small { align-self: flex-start; font-size: 12px; }

@@ -250,3 +250,63 @@ func TestVerify(t *testing.T) {
 		t.Fatalf("verify saved something: %s", b)
 	}
 }
+
+// The connect dialog lists the groups the bot is in (飞书 / Lark), page by
+// page, without dissolved ones; a missing permission is a hint, not an
+// error; saved secrets fill in when editing.
+func TestFeishuChats(t *testing.T) {
+	mode := "ok"
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch {
+		case strings.HasSuffix(r.URL.Path, "/tenant_access_token/internal"):
+			var b map[string]string
+			json.NewDecoder(r.Body).Decode(&b)
+			if b["app_id"] == "cli_ok" && b["app_secret"] == appSecret {
+				io.WriteString(w, `{"code":0,"tenant_access_token":"t-1","expire":7200}`)
+				return
+			}
+			io.WriteString(w, `{"code":10014,"msg":"app secret invalid"}`)
+		case r.URL.Path == "/open-apis/im/v1/chats":
+			if r.Header.Get("Authorization") != "Bearer t-1" {
+				io.WriteString(w, `{"code":99991663,"msg":"Invalid access token"}`)
+				return
+			}
+			switch {
+			case mode == "denied":
+				io.WriteString(w, `{"code":99991672,"msg":"Access denied. One of the following scopes is required: [im:chat:readonly]"}`)
+			case mode == "none":
+				io.WriteString(w, `{"code":0,"data":{"items":[],"has_more":false}}`)
+			case r.URL.Query().Get("page_token") == "":
+				io.WriteString(w, `{"code":0,"data":{"items":[{"chat_id":"oc_1","name":"发布群","chat_status":"normal"},{"chat_id":"oc_gone","name":"旧群","chat_status":"dissolved"}],"has_more":true,"page_token":"p2"}}`)
+			default:
+				io.WriteString(w, `{"code":0,"data":{"items":[{"chat_id":"oc_2","name":"客户群","description":"外部","external":true,"chat_status":"normal"}],"has_more":false}}`)
+			}
+		default:
+			io.WriteString(w, `{"code":1,"msg":"fake"}`)
+		}
+	}))
+	t.Cleanup(srv.Close)
+	withRegions(t, srv.URL, "http://127.0.0.1:1")
+	s := imHost(t, t.TempDir(), nil, nil)
+	ctx := t.Context()
+
+	got, err := s.Chats(ctx, imconfig.Check{Platform: "feishu", Region: "cn", AppID: "cli_ok", BotToken: appSecret})
+	if err != nil || got.Hint != "" || len(got.Chats) != 2 || got.Chats[0].ID != "oc_1" || got.Chats[1].Name != "客户群" || !got.Chats[1].External {
+		t.Fatalf("%+v %v", got, err)
+	}
+	mode = "denied"
+	if got, err := s.Chats(ctx, imconfig.Check{Platform: "feishu", Region: "cn", AppID: "cli_ok", BotToken: appSecret}); err != nil || got.Hint != imconfig.HintNoPermission {
+		t.Fatalf("denied: %+v %v", got, err)
+	}
+	mode = "none"
+	if got, _ := s.Chats(ctx, imconfig.Check{Platform: "feishu", Region: "cn", AppID: "cli_ok", BotToken: appSecret}); got.Hint != imconfig.HintNotInGroups {
+		t.Fatalf("none: %+v", got)
+	}
+	if _, err := s.Chats(ctx, imconfig.Check{Platform: "feishu", Region: "cn", AppID: "cli_ok", BotToken: "wrong"}); err == nil || strings.Contains(err.Error(), "wrong") {
+		t.Fatalf("bad secret: %v", err)
+	}
+	if got, _ := s.Chats(ctx, imconfig.Check{Platform: "telegram", BotToken: "x"}); got.Hint != imconfig.HintNoList {
+		t.Fatalf("telegram: %+v", got)
+	}
+}
