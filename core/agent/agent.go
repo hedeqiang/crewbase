@@ -154,6 +154,11 @@ type Agent struct {
 	reg *Registry
 	ctx *kernel.Context // agent scope
 
+	// id and created never change (Update keeps them), so they are read
+	// without mu; spec is replaced as a whole by Update
+	id      string
+	created time.Time
+
 	mu            sync.Mutex
 	spec          Spec
 	status        Status
@@ -167,7 +172,7 @@ type Agent struct {
 	detail        string
 }
 
-func (a *Agent) ID() string { return a.spec.ID }
+func (a *Agent) ID() string { return a.id }
 
 // Spec returns a copy of the agent definition.
 func (a *Agent) Spec() Spec {
@@ -190,7 +195,7 @@ func (a *Agent) Workspace() string {
 	return a.ownDir()
 }
 
-func (a *Agent) ownDir() string { return filepath.Join(a.reg.root, "workspaces", a.spec.ID) }
+func (a *Agent) ownDir() string { return filepath.Join(a.reg.root, "workspaces", a.id) }
 
 func (a *Agent) whereLine() string {
 	if p := a.ProjectDir(); p != "" {
@@ -329,7 +334,7 @@ func (a *Agent) SetStatusIn(s Status, detail, sessionID string) {
 	a.status, a.detail, a.statusSession = s, detail, sessionID
 	a.mu.Unlock()
 	if changed {
-		StatusChanged.Emit(a.ctx, StatusEvent{Agent: a.spec.ID, Status: s, Detail: detail, Session: sessionID})
+		StatusChanged.Emit(a.ctx, StatusEvent{Agent: a.id, Status: s, Detail: detail, Session: sessionID})
 	}
 }
 
@@ -345,7 +350,7 @@ func (a *Agent) Update(fn func(*Spec)) error {
 	a.mu.Lock()
 	s := a.spec
 	fn(&s)
-	s.ID, s.Session, s.Created, s.Kind = a.spec.ID, a.spec.Session, a.spec.Created, a.spec.Kind
+	s.ID, s.Session, s.Created, s.Kind = a.id, a.spec.Session, a.spec.Created, a.spec.Kind
 	if s.Kind == KindChat {
 		s.Role = "" // a chat stays a chat
 	}
@@ -384,8 +389,8 @@ func (a *Agent) SetSession(sessionID string) error {
 	if err != nil {
 		return err
 	}
-	if !slices.Contains(ss.Meta().Agents, a.spec.ID) {
-		return fmt.Errorf("session %s does not belong to agent %s", sessionID, a.spec.ID)
+	if !slices.Contains(ss.Meta().Agents, a.id) {
+		return fmt.Errorf("session %s does not belong to agent %s", sessionID, a.id)
 	}
 	a.mu.Lock()
 	a.spec.Session = sessionID
@@ -401,7 +406,7 @@ func (a *Agent) SetSession(sessionID string) error {
 // Inject adds text to the agent's next model request in sess. It is recorded
 // as a session event, never slipped into a request unlogged.
 func (a *Agent) Inject(sess *session.Session, text, source string) error {
-	_, err := sess.Append(session.TypeInject, a.spec.ID, session.InjectData{Text: text, Source: source})
+	_, err := sess.Append(session.TypeInject, a.id, session.InjectData{Text: text, Source: source})
 	return err
 }
 
@@ -420,7 +425,7 @@ func (a *Agent) Enqueue(in Input) (Input, error) {
 	if err != nil {
 		return in, err
 	}
-	if _, err := ss.Append(session.TypeInputQueued, a.spec.ID, in); err != nil {
+	if _, err := ss.Append(session.TypeInputQueued, a.id, in); err != nil {
 		return in, err
 	}
 	a.mu.Lock()
@@ -431,7 +436,7 @@ func (a *Agent) Enqueue(in Input) (Input, error) {
 	}
 	a.mu.Unlock()
 	a.signal()
-	QueueChanged.Emit(a.ctx, a.spec.ID)
+	QueueChanged.Emit(a.ctx, a.id)
 	return in, nil
 }
 
@@ -451,9 +456,9 @@ func (a *Agent) Cancel(inputID string) bool {
 		return false
 	}
 	if ss, err := a.reg.sessions.Get(found.Session); err == nil {
-		_, _ = ss.Append(session.TypeInputCancelled, a.spec.ID, map[string]string{"id": inputID})
+		_, _ = ss.Append(session.TypeInputCancelled, a.id, map[string]string{"id": inputID})
 	}
-	QueueChanged.Emit(a.ctx, a.spec.ID)
+	QueueChanged.Emit(a.ctx, a.id)
 	return true
 }
 
@@ -463,9 +468,9 @@ func (a *Agent) Pause() {
 	a.paused = true
 	a.mu.Unlock()
 	if ss, err := a.Session(); err == nil {
-		_, _ = ss.Append(session.TypeQueuePaused, a.spec.ID, nil)
+		_, _ = ss.Append(session.TypeQueuePaused, a.id, nil)
 	}
-	QueueChanged.Emit(a.ctx, a.spec.ID)
+	QueueChanged.Emit(a.ctx, a.id)
 }
 
 // Resume resumes claiming inputs.
@@ -474,10 +479,10 @@ func (a *Agent) Resume() {
 	a.paused = false
 	a.mu.Unlock()
 	if ss, err := a.Session(); err == nil {
-		_, _ = ss.Append(session.TypeQueueResumed, a.spec.ID, nil)
+		_, _ = ss.Append(session.TypeQueueResumed, a.id, nil)
 	}
 	a.signal()
-	QueueChanged.Emit(a.ctx, a.spec.ID)
+	QueueChanged.Emit(a.ctx, a.id)
 }
 
 // Paused reports whether the queue is paused.
@@ -506,9 +511,9 @@ func (a *Agent) Claim() (Input, bool) {
 	a.curInput, a.stopCur = in.ID, nil
 	a.mu.Unlock()
 	if ss, err := a.reg.sessions.Get(in.Session); err == nil {
-		_, _ = ss.Append(session.TypeInputClaimed, a.spec.ID, map[string]string{"id": in.ID})
+		_, _ = ss.Append(session.TypeInputClaimed, a.id, map[string]string{"id": in.ID})
 	}
-	QueueChanged.Emit(a.ctx, a.spec.ID)
+	QueueChanged.Emit(a.ctx, a.id)
 	return in, true
 }
 
@@ -551,10 +556,10 @@ func (a *Agent) Absorb(cur Input) []Input {
 	a.mu.Unlock()
 	if ss, err := a.reg.sessions.Get(cur.Session); err == nil {
 		for _, in := range got {
-			_, _ = ss.Append(session.TypeInputClaimed, a.spec.ID, map[string]string{"id": in.ID, "joined": cur.ID})
+			_, _ = ss.Append(session.TypeInputClaimed, a.id, map[string]string{"id": in.ID, "joined": cur.ID})
 		}
 	}
-	QueueChanged.Emit(a.ctx, a.spec.ID)
+	QueueChanged.Emit(a.ctx, a.id)
 	return got
 }
 
@@ -764,7 +769,7 @@ func (r *Registry) unreserve(id string) {
 }
 
 func (r *Registry) publish(spec Spec) (*Agent, error) {
-	a := &Agent{reg: r, spec: spec, status: StatusIdle, wake: make(chan struct{}, 1)}
+	a := &Agent{reg: r, id: spec.ID, created: spec.Created, spec: spec, status: StatusIdle, wake: make(chan struct{}, 1)}
 	a.ctx = r.c.Fork(spec.ID)
 	if _, err := Setup.Run(a.ctx, a.ctx.Context(), a); err != nil {
 		a.ctx.Dispose()
@@ -786,7 +791,7 @@ func (r *Registry) restoreQueue(a *Agent) {
 	ids := map[string]bool{a.spec.Session: true}
 	for _, m := range r.sessions.List() {
 		for _, x := range m.Agents {
-			if x == a.spec.ID {
+			if x == a.id {
 				ids[m.ID] = true
 			}
 		}
@@ -802,7 +807,7 @@ func (r *Registry) restoreQueue(a *Agent) {
 		var order []string
 		running := "" // input whose turn started and has not ended
 		for _, e := range ss.Events() {
-			if e.Agent != a.spec.ID {
+			if e.Agent != a.id {
 				continue
 			}
 			switch e.Type {
@@ -920,7 +925,7 @@ func (r *Registry) List() []*Agent {
 		}
 	}
 	r.mu.Unlock()
-	sort.Slice(out, func(i, j int) bool { return out[i].spec.Created.Before(out[j].spec.Created) })
+	sort.Slice(out, func(i, j int) bool { return out[i].created.Before(out[j].created) })
 	return out
 }
 
