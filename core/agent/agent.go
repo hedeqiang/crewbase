@@ -45,6 +45,7 @@ type Spec struct {
 	ModeUntil time.Time `json:"modeUntil,omitzero"`
 	Color     string    `json:"color,omitempty"`
 	Shape     string    `json:"shape,omitempty"`
+	Face      string    `json:"face,omitempty"` // avatar face (web: FACES)
 	Folder    string    `json:"folder,omitempty"`
 	// Team the agent belongs to ("" = the default team, DefaultTeam).
 	Team string `json:"team,omitempty"`

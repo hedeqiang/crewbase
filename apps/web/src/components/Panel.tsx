@@ -8,7 +8,7 @@ import { activeModel, allModels, detailLabel, effortLabel, hhmm, isExhausted, kf
 import { project, type SubRun } from "../projection";
 import { openSubRun, refreshChannel, setState, toast, useStore, sessionAgent } from "../store";
 import { FilesTab } from "./Files";
-import { Avatar } from "./Avatar";
+import { Avatar, LookPicker } from "./Avatar";
 import { Popover, useMenu } from "./Popover";
 import { ProviderMark } from "./ProviderMark";
 import { shortPath, SubFeed } from "./Conversation";
@@ -563,11 +563,21 @@ function AgentTab({ agent, sessionId }: { agent: AgentView; sessionId: string })
     }
   };
   const candidates = allModels(models).filter((m) => !order.some((r) => sameRef(r, m.ref)));
+  const lookM = useMenu();
 
   return (
     <>
       <div className="aghead">
-        <Avatar agent={agent} size={34} status />
+        {agent.kind === "chat" ? (
+          <Avatar agent={agent} size={34} status />
+        ) : (
+          <button type="button" className="aglook" ref={lookM.ref} onClick={lookM.toggle} title={t("panel.changeLook")} aria-label={t("panel.changeLook")} aria-haspopup="dialog">
+            <Avatar agent={agent} size={34} status />
+          </button>
+        )}
+        <Popover anchor={lookM.anchor} open={lookM.open} onClose={lookM.close} width={300}>
+          <LookPicker agent={agent} onChange={(p) => void API.patchAgent(agent.id, p).catch((e) => toast(e?.message ?? String(e)))} />
+        </Popover>
         <div style={{ flex: 1, minWidth: 0 }}>
           <b>{agent.name}</b>
           <div className="small mono" style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>

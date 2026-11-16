@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { Bot, Check, ChevronDown, ChevronRight, FolderInput, Lock, Users, Workflow, FolderPlus, Hash, LifeBuoy, LogOut, Moon, Plus, Power, Search, Settings, Keyboard, MessageSquare } from "lucide-react";
 import type { AgentView, SessionMeta, UsageStats } from "../api";
 import { API, desktop, openExternal, setToken, teamOf, type TeamView } from "../api";
@@ -27,7 +27,7 @@ import {
   type Profile,
   type Theme,
 } from "../store";
-import { Avatar, MeAvatar } from "./Avatar";
+import { Avatar, channelColor, MeAvatar } from "./Avatar";
 import { ListToggle } from "./Header";
 import { RowMenuButton, RowMenuHost, openAddToFolder, openNewFolder, openRowMenu } from "./RowMenu";
 import { Popover, useMenu } from "./Popover";
@@ -131,8 +131,8 @@ export function SessionList() {
     const topic = summaries[m.id]?.topic;
     return (
       <button key={m.id} className={"ci" + (ch?.state === "archived" ? " arch" : "")} data-session={m.id} type="button" aria-current={sel(m.id)} onClick={() => openSession(m.id)} onContextMenu={(e) => openRowMenu(e, { kind: "channel", meta: m })}>
-        <span className="chav">
-          <Hash size={16} />
+        <span className="chav tint" style={{ ["--c" as string]: channelColor(m.id) } as CSSProperties}>
+          <Hash size={16} strokeWidth={2.4} />
           {owner && (
             <span className="chown">
               <Avatar agent={owner} size={14} />

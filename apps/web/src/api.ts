@@ -44,6 +44,7 @@ export interface AgentView {
   modeUntil?: string;
   color?: string;
   shape?: string;
+  face?: string;
   folder?: string;
   host?: string;
   created: string;
@@ -339,6 +340,7 @@ export interface ImportOptions {
   mode?: string;
   color?: string;
   shape?: string;
+  face?: string;
   modelRefs?: string[];
 }
 

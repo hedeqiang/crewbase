@@ -520,6 +520,7 @@ type Options struct {
 	Mode   string   `json:"mode"`
 	Color  string   `json:"color"`
 	Shape  string   `json:"shape"`
+	Face   string   `json:"face"`
 	Models []string `json:"modelRefs"`
 }
 
@@ -541,7 +542,7 @@ func Import(agents *agent.Registry, t Template, o Options) (Result, error) {
 	if o.Mode == agent.ModeHost {
 		return Result{}, errors.New("host mode cannot be enabled at creation")
 	}
-	spec := agent.Spec{Name: name, Role: firstNonEmpty(o.Role, t.Role), Folder: strings.TrimSpace(o.Folder), Mode: o.Mode, Color: o.Color, Shape: o.Shape}
+	spec := agent.Spec{Name: name, Role: firstNonEmpty(o.Role, t.Role), Folder: strings.TrimSpace(o.Folder), Mode: o.Mode, Color: o.Color, Shape: o.Shape, Face: o.Face}
 	for _, m := range o.Models {
 		ref, err := llm.ParseRef(m)
 		if err != nil {

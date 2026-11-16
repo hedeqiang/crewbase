@@ -256,6 +256,7 @@ var Plugin = kernel.Register(kernel.Spec{
 					Mode        *string   `json:"mode"`
 					Color       *string   `json:"color"`
 					Shape       *string   `json:"shape"`
+					Face        *string   `json:"face"`
 					Folder      *string   `json:"folder"`
 					Models      *[]string `json:"modelRefs"`
 					NativeTools *[]string `json:"nativeTools"`
@@ -285,6 +286,7 @@ var Plugin = kernel.Register(kernel.Spec{
 					set(&s.Role, b.Role)
 					set(&s.Color, b.Color)
 					set(&s.Shape, b.Shape)
+					set(&s.Face, b.Face)
 					set(&s.Folder, b.Folder)
 					if b.Mode != nil {
 						s.Mode = *b.Mode

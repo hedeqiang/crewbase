@@ -49,6 +49,7 @@ export function Welcome({ onTemplate }: { onTemplate: (d: Partial<Draft>) => voi
       role: t(`tpl.${key}.role` as Key),
       color: x.color,
       shape: x.shape,
+      face: x.face,
       mode: teamMode(x.mode),
     });
     openNewAgent();
@@ -130,7 +131,7 @@ export function Welcome({ onTemplate }: { onTemplate: (d: Partial<Draft>) => voi
       <div className="wtpl">
         {templatePage(page, cat).map((x) => (
           <button key={x.key} type="button" className="wcard" onClick={() => start(x.key)}>
-            <AvatarRaw color={x.color} shape={x.shape} size={36} name={t(`tpl.${x.key}.name` as Key)} />
+            <AvatarRaw color={x.color} shape={x.shape} face={x.face} size={36} name={t(`tpl.${x.key}.name` as Key)} />
             <b>{t(`tpl.${x.key}.name` as Key)}</b>
             <span>{t(`tpl.${x.key}.desc` as Key)}</span>
           </button>

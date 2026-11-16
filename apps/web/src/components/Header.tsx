@@ -37,7 +37,7 @@ export function useNeedsYou() {
 
 /** The 44px strip on top of the main column: who this conversation is with,
  *  the 需要你 pill (only when something waits) and the right-panel toggle. */
-export function ConvHeader({ draftColor, draftShape }: { draftColor: string; draftShape: string }) {
+export function ConvHeader({ draftColor, draftShape, draftFace }: { draftColor: string; draftShape: string; draftFace?: string }) {
   const current = useStore((s) => s.current);
   const view = useStore((s) => s.view);
   const sessions = useStore((s) => s.sessions);
@@ -95,7 +95,7 @@ export function ConvHeader({ draftColor, draftShape }: { draftColor: string; dra
         )}
         {view === "newAgent" && (
           <>
-            <AvatarRaw color={draftColor} shape={draftShape} size={24} />
+            <AvatarRaw color={draftColor} shape={draftShape} face={draftFace} size={24} />
             <b className="nm">{t("tb.newAgent")}</b>
           </>
         )}

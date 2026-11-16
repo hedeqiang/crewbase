@@ -5,7 +5,7 @@ import { ImportRoleDialog } from "./ImportRole";
 import { t, type Key } from "../i18n";
 import { allModels, effortLabel, modeLabel, modelMeta, sameRef, shortModel } from "../format";
 import { openSession, refreshAgents, refreshSessions, setState, toast, useFolders, useStore, currentTeam, teamMode } from "../store";
-import { AvatarRaw, COLORS, SHAPES } from "./Avatar";
+import { AvatarRaw, COLORS, FACES, SHAPES } from "./Avatar";
 import { Popover, useMenu } from "./Popover";
 import { ProviderMark } from "./ProviderMark";
 
@@ -15,6 +15,7 @@ export interface Draft {
   desc: string;
   color: string;
   shape: string;
+  face: string;
   mode: "read-only" | "sandbox";
   folder: string;
   model: ModelRef | null;
@@ -22,7 +23,7 @@ export interface Draft {
 }
 
 export function emptyDraft(): Draft {
-  return { name: "", role: "", desc: "", color: COLORS[0], shape: "sq", mode: teamMode("sandbox"), folder: "", model: null, effort: "medium" };
+  return { name: "", role: "", desc: "", color: COLORS[0], shape: "sq", face: "eyes", mode: teamMode("sandbox"), folder: "", model: null, effort: "medium" };
 }
 
 export type TemplateKey =
@@ -34,44 +35,44 @@ export const TEMPLATE_CATS: TemplateCat[] = ["general", "dev", "design", "produc
 
 /** The template library, grouped by area (开发、设计、产品、运营、运维…);
  *  the welcome page shows three at a time and can shuffle. */
-export const TEMPLATES: { key: TemplateKey; cat: TemplateCat; color: string; shape: string; mode: Draft["mode"]; instr?: boolean }[] = [
+export const TEMPLATES: { key: TemplateKey; cat: TemplateCat; color: string; shape: string; face: string; mode: Draft["mode"]; instr?: boolean }[] = [
   // General
-  { key: "lead", cat: "general", color: "#3b32c4", shape: "hex", mode: "sandbox", instr: true },
-  { key: "researcher", cat: "general", color: "#6c6cf0", shape: "blob", mode: "read-only", instr: true },
-  { key: "translator", cat: "general", color: "#1fb5a8", shape: "circle", mode: "sandbox", instr: true },
-  { key: "weekly", cat: "general", color: "#f2b33d", shape: "hex", mode: "sandbox", instr: true },
+  { key: "lead", cat: "general", color: "#3b32c4", shape: "hex", face: "smile", mode: "sandbox", instr: true },
+  { key: "researcher", cat: "general", color: "#6c6cf0", shape: "blob", face: "glasses", mode: "read-only", instr: true },
+  { key: "translator", cat: "general", color: "#1fb5a8", shape: "cloud", face: "dots", mode: "sandbox", instr: true },
+  { key: "weekly", cat: "general", color: "#f2b33d", shape: "ticket", face: "eyes", mode: "sandbox", instr: true },
   // Engineering
-  { key: "review", cat: "dev", color: "#24b07e", shape: "circle", mode: "sandbox", instr: true },
-  { key: "frontend", cat: "dev", color: "#3987e5", shape: "sq", mode: "sandbox", instr: true },
-  { key: "backend", cat: "dev", color: "#3987e5", shape: "oct", mode: "sandbox", instr: true },
-  { key: "tester", cat: "dev", color: "#ef8a45", shape: "diamond", mode: "sandbox", instr: true },
-  { key: "architect", cat: "dev", color: "#6c6cf0", shape: "shield", mode: "read-only", instr: true },
-  { key: "techdocs", cat: "dev", color: "#3987e5", shape: "ticket", mode: "sandbox", instr: true },
-  { key: "release", cat: "dev", color: "#3a4aa8", shape: "sq", mode: "sandbox", instr: true },
+  { key: "review", cat: "dev", color: "#24b07e", shape: "circle", face: "glasses", mode: "sandbox", instr: true },
+  { key: "frontend", cat: "dev", color: "#3987e5", shape: "sq", face: "eyes", mode: "sandbox", instr: true },
+  { key: "backend", cat: "dev", color: "#8b7cf6", shape: "oct", face: "visor", mode: "sandbox", instr: true },
+  { key: "tester", cat: "dev", color: "#ef8a45", shape: "bean", face: "cyclops", mode: "sandbox", instr: true },
+  { key: "architect", cat: "dev", color: "#3a4aa8", shape: "shield", face: "glasses", mode: "read-only", instr: true },
+  { key: "techdocs", cat: "dev", color: "#2db7f5", shape: "ticket", face: "sleepy", mode: "sandbox", instr: true },
+  { key: "release", cat: "dev", color: "#5b8def", shape: "star", face: "smile", mode: "sandbox", instr: true },
   // Design
-  { key: "uiux", cat: "design", color: "#d651c8", shape: "flower", mode: "sandbox", instr: true },
-  { key: "designqa", cat: "design", color: "#d651c8", shape: "drop", mode: "read-only", instr: true },
-  { key: "uxwriter", cat: "design", color: "#f07aa8", shape: "pill", mode: "sandbox", instr: true },
-  { key: "visual", cat: "design", color: "#f07aa8", shape: "spark", mode: "sandbox", instr: true },
+  { key: "uiux", cat: "design", color: "#d651c8", shape: "flower", face: "eyes", mode: "sandbox", instr: true },
+  { key: "designqa", cat: "design", color: "#f07aa8", shape: "drop", face: "glasses", mode: "read-only", instr: true },
+  { key: "uxwriter", cat: "design", color: "#b8314f", shape: "pill", face: "smile", mode: "sandbox", instr: true },
+  { key: "visual", cat: "design", color: "#ef8a45", shape: "spark", face: "dots", mode: "sandbox", instr: true },
   // Product
-  { key: "pm", cat: "product", color: "#6c6cf0", shape: "tri", mode: "sandbox", instr: true },
-  { key: "userresearch", cat: "product", color: "#24b07e", shape: "blob", mode: "read-only", instr: true },
-  { key: "watch", cat: "product", color: "#8b7cf6", shape: "blob", mode: "read-only", instr: true },
-  { key: "data", cat: "product", color: "#2db7f5", shape: "hex", mode: "sandbox", instr: true },
+  { key: "pm", cat: "product", color: "#6c6cf0", shape: "tri", face: "smile", mode: "sandbox", instr: true },
+  { key: "userresearch", cat: "product", color: "#24b07e", shape: "cat", face: "eyes", mode: "read-only", instr: true },
+  { key: "watch", cat: "product", color: "#8b7cf6", shape: "ghost", face: "cyclops", mode: "read-only", instr: true },
+  { key: "data", cat: "product", color: "#2db7f5", shape: "hex", face: "glasses", mode: "sandbox", instr: true },
   // Growth & ops
-  { key: "writer", cat: "growth", color: "#d651c8", shape: "pill", mode: "sandbox", instr: true },
-  { key: "social", cat: "growth", color: "#ef8a45", shape: "flower", mode: "sandbox", instr: true },
-  { key: "seo", cat: "growth", color: "#24b07e", shape: "tri", mode: "read-only", instr: true },
-  { key: "community", cat: "growth", color: "#1fb5a8", shape: "circle", mode: "sandbox", instr: true },
-  { key: "campaign", cat: "growth", color: "#f2b33d", shape: "ticket", mode: "sandbox", instr: true },
-  { key: "support", cat: "growth", color: "#f07aa8", shape: "pill", mode: "read-only", instr: true },
+  { key: "writer", cat: "growth", color: "#d651c8", shape: "bean", face: "sleepy", mode: "sandbox", instr: true },
+  { key: "social", cat: "growth", color: "#f07aa8", shape: "star", face: "dots", mode: "sandbox", instr: true },
+  { key: "seo", cat: "growth", color: "#8bc34a", shape: "tri", face: "glasses", mode: "read-only", instr: true },
+  { key: "community", cat: "growth", color: "#1fb5a8", shape: "cat", face: "smile", mode: "sandbox", instr: true },
+  { key: "campaign", cat: "growth", color: "#f2b33d", shape: "spark", face: "eyes", mode: "sandbox", instr: true },
+  { key: "support", cat: "growth", color: "#ef8a45", shape: "cloud", face: "smile", mode: "read-only", instr: true },
   // DevOps & SRE
-  { key: "oncall", cat: "devops", color: "#e5484d", shape: "tri", mode: "read-only", instr: true },
-  { key: "sre", cat: "devops", color: "#b8314f", shape: "shield", mode: "sandbox", instr: true },
-  { key: "cicd", cat: "devops", color: "#2db7f5", shape: "oct", mode: "sandbox", instr: true },
-  { key: "security", cat: "devops", color: "#b8314f", shape: "shield", mode: "read-only", instr: true },
-  { key: "incident", cat: "devops", color: "#b8314f", shape: "drop", mode: "sandbox", instr: true },
-  { key: "cost", cat: "devops", color: "#24b07e", shape: "hex", mode: "read-only", instr: true },
+  { key: "oncall", cat: "devops", color: "#e5484d", shape: "diamond", face: "cyclops", mode: "read-only", instr: true },
+  { key: "sre", cat: "devops", color: "#3a4aa8", shape: "oct", face: "visor", mode: "sandbox", instr: true },
+  { key: "cicd", cat: "devops", color: "#1fb5a8", shape: "sq", face: "visor", mode: "sandbox", instr: true },
+  { key: "security", cat: "devops", color: "#b8314f", shape: "shield", face: "sleepy", mode: "read-only", instr: true },
+  { key: "incident", cat: "devops", color: "#e5484d", shape: "ghost", face: "eyes", mode: "sandbox", instr: true },
+  { key: "cost", cat: "devops", color: "#24b07e", shape: "circle", face: "dots", mode: "read-only", instr: true },
 ];
 
 /** Three templates of an area ("" = all) starting at page*3, wrapping around. */
@@ -123,6 +124,7 @@ export function NewAgent({ draft: f, setDraft }: { draft: Draft; setDraft: (d: D
       role: t(`tpl.${x.key}.role` as Key),
       color: x.color,
       shape: x.shape,
+      face: x.face,
       mode: teamMode(x.mode),
     });
     nameRef.current?.focus();
@@ -137,7 +139,7 @@ export function NewAgent({ draft: f, setDraft }: { draft: Draft; setDraft: (d: D
       const rest = xs.filter((x) => x !== cur);
       return rest[Math.floor(Math.random() * rest.length)];
     };
-    set({ color: other(COLORS, f.color), shape: other(SHAPES, f.shape as (typeof SHAPES)[number]) });
+    set({ color: other(COLORS, f.color), shape: other(SHAPES, f.shape as (typeof SHAPES)[number]), face: other(FACES, (f.face || "eyes") as (typeof FACES)[number]) });
   };
   const modeM = useMenu();
   const all = useMemo(() => allModels(models), [models]);
@@ -201,6 +203,7 @@ export function NewAgent({ draft: f, setDraft }: { draft: Draft; setDraft: (d: D
         mode: f.mode,
         color: f.color,
         shape: f.shape,
+        face: f.face,
         folder: f.folder.trim() || undefined,
         team: currentTeam(),
         modelRefs: refs.length ? refs : undefined,
@@ -237,7 +240,7 @@ export function NewAgent({ draft: f, setDraft }: { draft: Draft; setDraft: (d: D
                 <div className="tplcat">{t(`tplcat.${c}` as Key)}</div>
                 {TEMPLATES.filter((x) => x.cat === c).map((x) => (
                   <button key={x.key} type="button" className={"tpl" + (picked === x.key ? " on" : "")} onClick={() => pickTemplate(x)}>
-                    <AvatarRaw color={x.color} shape={x.shape} size={34} name={t(`tpl.${x.key}.name` as Key)} />
+                    <AvatarRaw color={x.color} shape={x.shape} face={x.face} size={34} name={t(`tpl.${x.key}.name` as Key)} />
                     <span className="g">
                       <b>{t(`tpl.${x.key}.name` as Key)}</b>
                       <span>{t(`tpl.${x.key}.desc` as Key)}</span>
@@ -268,7 +271,7 @@ export function NewAgent({ draft: f, setDraft }: { draft: Draft; setDraft: (d: D
                 aria-label={t("na.poke")}
                 onClick={() => setPoke((n) => n + 1)}
               >
-                <AvatarRaw color={f.color} shape={f.shape} size={84} name={f.name} />
+                <AvatarRaw color={f.color} shape={f.shape} face={f.face} size={84} name={f.name} />
               </button>
               <div className="na-look">
                 <div className="na-lookh">
@@ -281,7 +284,14 @@ export function NewAgent({ draft: f, setDraft }: { draft: Draft; setDraft: (d: D
                 <div className="na-shapes" role="radiogroup" aria-label={t("na.shape")}>
                   {SHAPES.map((sh) => (
                     <button key={sh} type="button" className="shp" aria-pressed={f.shape === sh} aria-label={sh} onClick={() => set({ shape: sh })}>
-                      <AvatarRaw color={f.color} shape={sh} size={26} name={f.name} />
+                      <AvatarRaw color={f.color} shape={sh} face={f.face} size={26} name={f.name} />
+                    </button>
+                  ))}
+                </div>
+                <div className="na-shapes" role="radiogroup" aria-label={t("na.face")}>
+                  {FACES.map((fc) => (
+                    <button key={fc} type="button" className="shp" aria-pressed={(f.face || "eyes") === fc} aria-label={t(`face.${fc}` as Key)} title={t(`face.${fc}` as Key)} onClick={() => set({ face: fc })}>
+                      <AvatarRaw color={f.color} shape={f.shape} face={fc} size={26} name={f.name} />
                     </button>
                   ))}
                 </div>

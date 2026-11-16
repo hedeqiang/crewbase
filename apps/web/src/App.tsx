@@ -178,7 +178,7 @@ function Shell() {
             {showList && <SessionList />}
             {showList && <div className="ovscrim list-scrim" onClick={() => setState({ listOpen: false })} />}
             <div className="center">
-              <ConvHeader draftColor={draft.color} draftShape={draft.shape} />
+              <ConvHeader draftColor={draft.color} draftShape={draft.shape} draftFace={draft.face} />
               {view === "newAgent" ? (
                 <NewAgent draft={draft} setDraft={setDraft} />
               ) : (
