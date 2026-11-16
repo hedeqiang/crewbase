@@ -175,6 +175,20 @@ func resolve(cfg AgentConfig) resolved {
 	if r.Cwd == "" {
 		r.Cwd, _ = os.Getwd()
 	}
+	// The Claude ACP bridge ships its own Claude CLI and runs that one. On
+	// some Macs that bundled binary does not start ("spawn Unknown system
+	// error -88", EBADMACHO: a binary for another CPU or a broken download),
+	// while the person's own claude works. The bridge takes the CLI to run
+	// from CLAUDE_CODE_EXECUTABLE (its documented override): point it at
+	// the installed claude, unless the person or the config chose one.
+	if r.ID == "claude-code" && r.cliPath != "" && os.Getenv("CLAUDE_CODE_EXECUTABLE") == "" && r.Env["CLAUDE_CODE_EXECUTABLE"] == "" {
+		env := make(map[string]string, len(r.Env)+1)
+		for k, v := range r.Env {
+			env[k] = v
+		}
+		env["CLAUDE_CODE_EXECUTABLE"] = r.cliPath
+		r.Env = env
+	}
 	return r
 }
 

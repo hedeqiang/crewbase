@@ -329,6 +329,9 @@ func TestEffortMapping(t *testing.T) {
 	if b["reasoning_effort"] != "high" || b["max_completion_tokens"] != float64(100) {
 		t.Fatalf("body = %v", b)
 	}
+	if b := body(t, a, llm.Request{Model: "gpt-5.2", Effort: "max"}); b["reasoning_effort"] != "xhigh" {
+		t.Fatalf("max must cap at xhigh: %v", b)
+	}
 	if b := body(t, a, llm.Request{Model: "gpt-4o", Effort: "high"}); b["reasoning_effort"] != nil {
 		t.Fatalf("non-reasoning model got effort: %v", b)
 	}

@@ -59,7 +59,7 @@ export function ConfirmHost() {
     <>
       <div className="scrim" onClick={() => answer(false)} />
       <div
-        className="modal sm"
+        className="modal sm cfm"
         role="alertdialog"
         aria-modal="true"
         aria-label={title}

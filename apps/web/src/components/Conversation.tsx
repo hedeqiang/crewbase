@@ -52,17 +52,12 @@ import {
   activeModel,
   ago,
   detailLabel,
-  allModels,
   dayLabel,
-  effortLabel,
   findProvider,
   hhmm,
-  isExhausted,
   kfmt,
   modeLabel,
   modelLabel,
-  modelMeta,
-  sameRef,
   shortModelEffort,
   until,
   NO_MODEL,
@@ -72,6 +67,7 @@ import { ApprovalActions } from "./Approval";
 import { Markdown } from "./Markdown";
 import { Popover, useMenu } from "./Popover";
 import { ProviderMark } from "./ProviderMark";
+import { ModelPicker } from "./ModelPicker";
 import { PluginCard, SlotIcon, runCommand, useSlot } from "./UISlots";
 
 export function Conversation({ onTemplate }: { onTemplate?: (d: Partial<Draft>) => void } = {}) {
@@ -389,6 +385,8 @@ function FeedRow({ it, agents, showModel, before, after }: { it: FeedItem; agent
                 {t("conn.connect")}
               </button>
             </>
+          ) : it.tone === "error" && CLI_WONT_START.test(it.text) ? (
+            <span title={it.text}>{t("chat.cliWontStart")}</span>
           ) : (
             <span>{it.key ? t(it.key as Key, it.vars) : it.text}</span>
           )}
@@ -396,6 +394,10 @@ function FeedRow({ it, agents, showModel, before, after }: { it: FeedItem; agent
       );
   }
 }
+
+/** A subscription CLI's program could not be started (EBADMACHO -88: a
+ *  binary for another CPU or a broken download; ENOENT; permission). */
+const CLI_WONT_START = /spawn (Unknown system error -88|E(NOENT|ACCES|BADMACHO))|Bad CPU type|exec format error/i;
 
 const REASONS: Record<string, true> = {
   "chat.reason.quota_exhausted": true,
@@ -1040,7 +1042,6 @@ function Composer({
   const setOverride = (r: ModelRef | null) => setState((s) => ({ overrides: { ...s.overrides, [agent.id]: r ? refString(r) : null } }));
 
   const order = agent.models ?? [];
-  const others = allModels(models).filter((m) => !order.some((r) => sameRef(r, m.ref)));
   const mode = agent.effectiveMode || agent.mode || "sandbox";
 
   if (viewer)
@@ -1357,85 +1358,8 @@ function Composer({
           {t("ch.modelNote")}
         </p>
       </Popover>
-      <Popover anchor={modelM.anchor} open={modelM.open && !channel} onClose={modelM.close} placement="top" align="end" width={320}>
-        <div className="mlbl">{t("comp.modelTitle")}</div>
-        <button
-          className="mi"
-          type="button"
-          onClick={() => {
-            setOverride(null);
-            modelM.close();
-          }}
-        >
-          <Check size={16} style={{ opacity: override ? 0 : 1 }} />
-          <span className="g">
-            {t("comp.modelAuto")}
-            <span>{t("comp.modelAutoDesc")}</span>
-          </span>
-        </button>
-        {order.length > 0 && <div className="mlbl">{t("comp.modelOrder", { name: agent.name })}</div>}
-        {order.map((r, i) => {
-          const ex = isExhausted(models, r);
-          return (
-            <button
-              key={refString(r)}
-              className="mi"
-              type="button"
-              onClick={() => {
-                setOverride({ ...r, effort: overrideRef?.effort ?? r.effort });
-                modelM.close();
-              }}
-            >
-              <ProviderMark provider={r.provider} model={r.model} size={16} />
-              <span className="g">
-                {modelLabel(models, r)}
-                <span>
-                  {i === 0 ? t("comp.modelPrimary") : t("comp.modelBackup")}
-                  {r.effort ? ` · ${effortLabel(r.effort)}` : ""}
-                  {ex ? ` · ${t("comp.modelExhausted")}${ex.until ? " · " + t("set.quotaResets", { time: until(ex.until) }) : ""}` : ""}
-                </span>
-              </span>
-              <span className="ck">{overrideRef && sameRef(overrideRef, r) && <Check size={14} />}</span>
-            </button>
-          );
-        })}
-        {others.length > 0 && <div className="mlbl">{t("comp.modelAll")}</div>}
-        {others.map((m) => (
-          <button
-            key={refString(m.ref)}
-            className="mi"
-            type="button"
-            onClick={() => {
-              setOverride({ ...m.ref, effort: overrideRef?.effort });
-              modelM.close();
-            }}
-          >
-            <ProviderMark provider={m.ref.provider} model={m.ref.model} size={16} />
-            <span className="g">
-              {m.info.name || m.info.id}
-              <span>
-                {m.provider.id}
-                {modelMeta(m.info) ? ` · ${modelMeta(m.info)}` : ""}
-              </span>
-            </span>
-            <span className="ck">{overrideRef && sameRef(overrideRef, m.ref) && <Check size={14} />}</span>
-          </button>
-        ))}
-        <hr />
-        <div className="mlbl">{t("comp.effort")}</div>
-        <div className="seg">
-          {(["", "low", "medium", "high"] as const).map((e) => (
-            <button
-              key={e}
-              type="button"
-              aria-pressed={(shown?.effort ?? "") === e}
-              disabled={!shown}
-              onClick={() => shown && setOverride({ ...shown, effort: e || undefined })}
-            >
-              {e ? effortLabel(e) : t("effort.default")}
-            </button>
-          ))}
-        </div>
+      <Popover anchor={modelM.anchor} open={modelM.open && !channel} onClose={modelM.close} placement="top" align="end" width={260}>
+        <ModelPicker models={models} agent={agent} override={overrideRef} shown={shown} setOverride={setOverride} close={modelM.close} />
       </Popover>
 
       <Popover anchor={ctxM.anchor} open={ctxM.open} onClose={ctxM.close} placement="top" align="end" width={320}>

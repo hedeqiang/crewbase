@@ -1788,3 +1788,21 @@ button.psec.toggle { width: 100%; background: none; border: 0; font-family: inhe
 .wcat { font-size: 12px; padding: 4px 11px; border-radius: 999px; border: 1px solid var(--border); background: var(--surface); color: var(--text2); }
 .wcat:hover { background: var(--hover); }
 .wcat.on { background: var(--text); color: var(--surface); border-color: var(--text); }
+
+/* confirm dialog: title, optional detail, buttons, all inside one padded box */
+.modal.cfm { width: min(380px, calc(100% - 24px)); padding: 20px 20px 16px; overflow: hidden; }
+.modal.cfm .mhd { padding: 0; }
+.modal.cfm .mhd b { font-size: 15px; font-weight: 600; line-height: 1.45; word-break: break-word; }
+.modal.cfm .mbd { padding: 8px 0 0; }
+.modal.cfm .mft { margin-top: 20px; padding: 0; }
+.modal.cfm .mft .btn { min-width: 72px; justify-content: center; }
+
+/* composer model menu: 模型 › / 推理强度 › rows with flyouts */
+.menu .mi.subrow .g { flex: none; }
+.menu .mi.subrow .val { flex: 1; min-width: 0; display: flex; align-items: center; justify-content: flex-end; gap: 5px; color: var(--muted); font-size: 12px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.menu .mi.subrow .chev { color: var(--muted); flex: none; }
+.menu .mi.subrow.on { background: var(--hover); }
+.menu.flyout { z-index: 71; }
+.menu.flyout .mlbl { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.menu .flsearch { display: flex; align-items: center; gap: 6px; margin: 2px 2px 6px; padding: 6px 8px; border-radius: 8px; background: var(--hover); color: var(--muted); }
+.menu .flsearch input { flex: 1; min-width: 0; border: 0; outline: 0; background: none; font: inherit; color: var(--text); }

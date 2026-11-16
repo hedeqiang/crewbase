@@ -40,7 +40,7 @@ export function pillTone(s: string): string {
 }
 
 export function effortLabel(e?: string): string {
-  if (e === "low" || e === "medium" || e === "high") return t(`effort.${e}` as Key);
+  if (e === "low" || e === "medium" || e === "high" || e === "xhigh" || e === "max") return t(`effort.${e}` as Key);
   return "";
 }
 

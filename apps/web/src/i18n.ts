@@ -46,6 +46,10 @@ const zh = {
   "effort.low": "低",
   "effort.medium": "中",
   "effort.high": "高",
+  "effort.xhigh": "超高",
+  "effort.max": "最大",
+  "comp.model": "模型",
+  "comp.modelSearch": "搜索模型",
   "effort.default": "默认",
 
   "kind.subscription": "订阅（复用 CLI 登录）",
@@ -556,6 +560,7 @@ const zh = {
   "conn.noneDesc": "连接一个后 Agent 才能回复。",
   "conn.connect": "连接模型",
   "chat.noModelErr": "这一轮没能开始：还没有可用的模型。",
+  "chat.cliWontStart": "这一轮没能开始：订阅工具（如 Claude Code）的程序启动不了，可能是装错了芯片版本或下载损坏。请在终端里运行一次 claude 确认它能用，或重新安装后再试；Crewbase 会优先使用你自己安装的 claude。",
   "list.noMatch": "没有匹配的结果",
   "list.channels": "频道",
   "list.meSub": "本机",

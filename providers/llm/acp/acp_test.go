@@ -574,3 +574,28 @@ func TestRescanFindsNewCLI(t *testing.T) {
 		t.Fatalf("second rescan added %v", ids)
 	}
 }
+
+// The Claude bridge is pointed at the installed claude (its bundled CLI
+// may not start); a choice already made is left alone.
+func TestClaudeBridgeUsesInstalledClaude(t *testing.T) {
+	dir := t.TempDir()
+	for _, n := range []string{"claude", "claude-agent-acp"} {
+		_ = os.WriteFile(filepath.Join(dir, n), []byte("#!/bin/sh\n"), 0o755)
+	}
+	t.Setenv("PATH", dir)
+	t.Setenv("CLAUDE_CODE_EXECUTABLE", "")
+	r := resolve(AgentConfig{ID: "claude-code"})
+	if r.Env["CLAUDE_CODE_EXECUTABLE"] != filepath.Join(dir, "claude") {
+		t.Fatalf("env %v", r.Env)
+	}
+	if r := resolve(AgentConfig{ID: "claude-code", Env: map[string]string{"CLAUDE_CODE_EXECUTABLE": "/opt/my/claude"}}); r.Env["CLAUDE_CODE_EXECUTABLE"] != "/opt/my/claude" {
+		t.Fatalf("config choice replaced: %v", r.Env)
+	}
+	t.Setenv("CLAUDE_CODE_EXECUTABLE", "/from/env")
+	if r := resolve(AgentConfig{ID: "claude-code"}); r.Env["CLAUDE_CODE_EXECUTABLE"] != "" {
+		t.Fatalf("an inherited choice must win: %v", r.Env)
+	}
+	if r := resolve(AgentConfig{ID: "codex"}); r.Env["CLAUDE_CODE_EXECUTABLE"] != "" {
+		t.Fatal("only the Claude bridge")
+	}
+}

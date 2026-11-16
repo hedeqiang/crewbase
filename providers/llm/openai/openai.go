@@ -415,7 +415,7 @@ func (a *Adapter) effortFor(model string) bool {
 	return true
 }
 
-var qwenBudgets = map[string]int{"low": 2048, "medium": 8192, "high": 32768}
+var qwenBudgets = map[string]int{"low": 2048, "medium": 8192, "high": 32768, "xhigh": 38912}
 
 // params builds the request params plus extra JSON fields for
 // provider-specific knobs the SDK does not model.
@@ -448,6 +448,9 @@ func (a *Adapter) paramsWith(req llm.Request, files map[string]string) (sdk.Chat
 	}
 	if e := strings.ToLower(req.Effort); e != "" && a.effortFor(req.Model) {
 		off := e == "none" || e == "off"
+		if e == "max" {
+			e = "xhigh" // OpenAI-style APIs top out at xhigh
+		}
 		switch a.effortStyle {
 		case "openai":
 			p.ReasoningEffort = shared.ReasoningEffort(e)
