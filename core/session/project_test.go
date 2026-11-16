@@ -69,3 +69,98 @@ func TestDeriveMessagesStoppedAfterOutput(t *testing.T) {
 		}
 	}
 }
+
+// Regenerate: the earlier answer is superseded, not a second answer the
+// model also sees; the log keeps it.
+func TestDeriveMessagesRewindRegenerate(t *testing.T) {
+	st, _ := NewStore(nil, "")
+	ss, _ := st.Create(Meta{Kind: "agent"})
+	ss.Append(TypeUserMessage, "", UserMessage{Text: "hi", To: "kai"})
+	ss.Append(TypeTurnStart, "kai", map[string]any{"input": "i1"})
+	ss.Append(TypeAssistantMessage, "kai", AssistantMessage{Message: llm.TextMessage(llm.RoleAssistant, "hello")})
+	ss.Append(TypeTurnEnd, "kai", map[string]any{"status": "completed", "steps": 1})
+	q := ss.MustAppend(TypeUserMessage, "", UserMessage{Text: "a poem", To: "kai"})
+	ss.Append(TypeTurnStart, "kai", map[string]any{"input": "i2"})
+	call := llm.ToolCall{ID: "c1", Name: "bash", Args: json.RawMessage(`{"cmd":"ls"}`)}
+	ss.Append(TypeAssistantMessage, "kai", AssistantMessage{Message: llm.Message{Role: llm.RoleAssistant, Parts: []llm.Part{{Type: "tool_call", ToolCall: &call}}}})
+	ss.Append(TypeToolResult, "kai", llm.ToolResult{CallID: "c1", Content: "a.txt"})
+	ss.Append(TypeAssistantMessage, "kai", AssistantMessage{Message: llm.TextMessage(llm.RoleAssistant, "roses are red")})
+	ss.Append(TypeTurnEnd, "kai", map[string]any{"status": "completed", "steps": 2})
+	n := len(ss.Events())
+
+	ss.Append(TypeRewind, "kai", RewindData{From: q.Seq, Reason: RewindRegenerate})
+	// another agent's view is untouched
+	if m := DeriveMessages(ss.Events(), "ada", nil); len(m) != 1 || !strings.Contains(m[0].Text(), "roses") {
+		t.Fatalf("other agent: %+v", m)
+	}
+	msgs := DeriveMessages(ss.Events(), "kai", nil)
+	if len(msgs) != 2 || msgs[0].Text() != "hi" || msgs[1].Text() != "hello" {
+		t.Fatalf("after rewind: %+v", msgs)
+	}
+	ss.Append(TypeUserMessage, "", UserMessage{Text: "a poem", To: "kai"})
+	ss.Append(TypeAssistantMessage, "kai", AssistantMessage{Message: llm.TextMessage(llm.RoleAssistant, "violets are blue")})
+	msgs = DeriveMessages(ss.Events(), "kai", nil)
+	if len(msgs) != 4 || msgs[2].Text() != "a poem" || msgs[3].Text() != "violets are blue" {
+		t.Fatalf("resent: %+v", msgs)
+	}
+	for _, m := range msgs {
+		if strings.Contains(m.Text(), "roses") || len(m.ToolCalls()) > 0 {
+			t.Fatalf("superseded answer still visible: %+v", msgs)
+		}
+	}
+	if len(ss.Events()) != n+3 {
+		t.Fatal("the log must keep superseded events")
+	}
+}
+
+// Edit and resend an earlier message: it and everything after it are gone
+// for the model; the compaction summary before it is kept.
+func TestDeriveMessagesRewindEdit(t *testing.T) {
+	st, _ := NewStore(nil, "")
+	ss, _ := st.Create(Meta{Kind: "agent"})
+	ss.Append(TypeUserMessage, "", UserMessage{Text: "one", To: "kai"})
+	a1 := ss.MustAppend(TypeAssistantMessage, "kai", AssistantMessage{Message: llm.TextMessage(llm.RoleAssistant, "1")})
+	ss.Append(TypeCompaction, "kai", CompactionData{Summary: "counted to one", UptoSeq: a1.Seq})
+	two := ss.MustAppend(TypeUserMessage, "", UserMessage{Text: "two", To: "kai"})
+	ss.Append(TypeAssistantMessage, "kai", AssistantMessage{Message: llm.TextMessage(llm.RoleAssistant, "2")})
+	ss.Append(TypeUserMessage, "", UserMessage{Text: "three", To: "kai"})
+	ss.Append(TypeAssistantMessage, "kai", AssistantMessage{Message: llm.TextMessage(llm.RoleAssistant, "3")})
+	if got := CompactedUpto(ss.Events(), "kai"); got != a1.Seq {
+		t.Fatalf("CompactedUpto = %d", got)
+	}
+
+	rw := ss.MustAppend(TypeRewind, "kai", RewindData{From: two.Seq, Reason: RewindEdit})
+	ss.Append(TypeUserMessage, "", UserMessage{Text: "TWO", To: "kai"})
+	ss.Append(TypeAssistantMessage, "kai", AssistantMessage{Message: llm.TextMessage(llm.RoleAssistant, "II")})
+	msgs := DeriveMessages(ss.Events(), "kai", nil)
+	// the summary and the edited message are adjacent user text: one message
+	if len(msgs) != 2 || !strings.Contains(msgs[0].Text(), "counted to one") || !strings.HasSuffix(msgs[0].Text(), "\n\nTWO") || strings.Contains(msgs[0].Text(), "two") || msgs[1].Text() != "II" {
+		t.Fatalf("after edit: %+v", msgs)
+	}
+	for _, e := range Visible(ss.Events(), "kai") {
+		if e.Seq >= two.Seq && e.Seq < rw.Seq {
+			t.Fatalf("superseded event visible: %+v", e)
+		}
+	}
+	if len(Visible(ss.Events(), "ada")) != len(ss.Events()) {
+		t.Fatal("rewind leaked to another agent")
+	}
+}
+
+// A compaction recorded inside a rewound range (a threshold compaction
+// during the superseded turn) still applies: its summary covers only
+// history before the range.
+func TestVisibleKeepsCompaction(t *testing.T) {
+	st, _ := NewStore(nil, "")
+	ss, _ := st.Create(Meta{Kind: "agent"})
+	ss.Append(TypeUserMessage, "", UserMessage{Text: "one", To: "kai"})
+	a1 := ss.MustAppend(TypeAssistantMessage, "kai", AssistantMessage{Message: llm.TextMessage(llm.RoleAssistant, "1")})
+	q := ss.MustAppend(TypeUserMessage, "", UserMessage{Text: "two", To: "kai"})
+	ss.Append(TypeCompaction, "kai", CompactionData{Summary: "counted to one", UptoSeq: a1.Seq})
+	ss.Append(TypeAssistantMessage, "kai", AssistantMessage{Message: llm.TextMessage(llm.RoleAssistant, "2")})
+	ss.Append(TypeRewind, "kai", RewindData{From: q.Seq, Reason: RewindRegenerate})
+	msgs := DeriveMessages(ss.Events(), "kai", nil)
+	if len(msgs) != 1 || !strings.Contains(msgs[0].Text(), "counted to one") {
+		t.Fatalf("%+v", msgs)
+	}
+}

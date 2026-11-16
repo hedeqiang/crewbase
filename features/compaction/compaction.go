@@ -206,7 +206,7 @@ type Result struct {
 func (s *Service) compact(ctx context.Context, a *agent.Agent, ss *session.Session, model llm.ModelRef, reason string) (Result, error) {
 	defer s.lock(ss.ID())()
 	id := a.ID()
-	events := ss.Events()
+	events := session.Visible(ss.Events(), id) // regenerated / edited history is not summarised
 	win := s.window(ctx, model)
 	before := s.estimate(id, events)
 
@@ -251,7 +251,7 @@ func (s *Service) compact(ctx context.Context, a *agent.Agent, ss *session.Sessi
 		}
 	}
 	if keptPruned > 0 {
-		events = ss.Events()
+		events = session.Visible(ss.Events(), id)
 	}
 
 	maxTok := s.cfg.SummaryMaxTokens

@@ -51,6 +51,7 @@ const (
 	TypeQueueResumed     = "queue/resumed"
 	TypeError            = "turn/error"
 	TypeNotice           = "notice"
+	TypeRewind           = "history/rewind"
 )
 
 // Event is one log record.

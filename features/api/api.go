@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/hedeqiang/crewbase/capabilities/approval"
@@ -84,6 +85,16 @@ type sendBody struct {
 		Path string `json:"path"`
 		Name string `json:"name"`
 	} `json:"attachments,omitempty"`
+}
+
+// resendBody: POST /api/agents/{id}/resend. Seq is a user message to the
+// agent; Text unset regenerates (that message and the ones after it are
+// sent again as they were), Text set edits it (only it is sent, edited).
+type resendBody struct {
+	Session string  `json:"session"`
+	Seq     int64   `json:"seq"`
+	Text    *string `json:"text,omitempty"`
+	Model   string  `json:"model,omitempty"` // provider/model[@effort]
 }
 
 type createBody struct {
@@ -379,6 +390,112 @@ var Plugin = kernel.Register(kernel.Spec{
 					return nil, err
 				}
 				return in, nil
+			}})
+		// Regenerate / edit and resend: history from a message on is taken
+		// back for the agent's model (history/rewind; the log keeps it) and
+		// the message is sent again, as it was or edited. One-to-one
+		// conversations only, while the agent is idle.
+		var resendMu sync.Mutex
+		g.Handle(c, gateway.Route{Method: "POST", Path: "/api/agents/{id}/resend", Devices: mobile,
+			Validate: func(r *gateway.Request) error {
+				var b resendBody
+				if err := r.Decode(&b); err != nil {
+					return err
+				}
+				if b.Session == "" || b.Seq <= 0 {
+					return gateway.BadRequest("session and seq are required")
+				}
+				if b.Text != nil && strings.TrimSpace(*b.Text) == "" {
+					return gateway.BadRequest("text is required")
+				}
+				if b.Model != "" {
+					if _, err := llm.ParseRef(b.Model); err != nil {
+						return gateway.BadRequest("%v", err)
+					}
+				}
+				return nil
+			},
+			Handle: func(_ context.Context, r *gateway.Request) (any, error) {
+				a, err := getAgent(r)
+				if err != nil {
+					return nil, err
+				}
+				var b resendBody
+				_ = r.Decode(&b)
+				ss, err := sessions.Get(b.Session)
+				if err != nil || !contains(ss.Meta().Agents, a.ID()) {
+					return nil, gateway.NotFound()
+				}
+				if ss.Meta().Kind != "agent" {
+					return nil, gateway.BadRequest("regenerate and edit work in one-to-one conversations only")
+				}
+				resendMu.Lock()
+				defer resendMu.Unlock()
+				if st, _ := a.Status(); st == agent.StatusRunning || st == agent.StatusWaiting || a.CurrentInput() != "" || len(a.Queue()) > 0 || a.Paused() {
+					return nil, gateway.Conflict("the agent is busy; wait until it is idle")
+				}
+				events := ss.Events()
+				if b.Seq <= session.CompactedUpto(events, a.ID()) {
+					return nil, gateway.Conflict("that part of the conversation was compacted into a summary and cannot be resent")
+				}
+				mine := func(e session.Event) (session.UserMessage, bool) {
+					var m session.UserMessage
+					if e.Type != session.TypeUserMessage || e.Decode(&m) != nil || (m.To != "" && m.To != a.ID()) {
+						return m, false
+					}
+					return m, true
+				}
+				var ins []agent.Input
+				found := false
+				for _, e := range session.Visible(events, a.ID()) {
+					if e.Seq < b.Seq {
+						continue
+					}
+					m, ok := mine(e)
+					if e.Seq == b.Seq {
+						if !ok {
+							break
+						}
+						found = true
+					}
+					if !ok {
+						continue
+					}
+					ins = append(ins, agent.Input{Text: m.Text, From: m.From, Attachments: m.Attachments})
+					if b.Text != nil {
+						break // edit: only the edited message is sent; later ones are dropped
+					}
+				}
+				if !found {
+					return nil, gateway.BadRequest("seq is not a message to this agent that it still sees")
+				}
+				reason := session.RewindRegenerate
+				if b.Text != nil {
+					reason = session.RewindEdit
+					ins[0].Text = *b.Text
+					if who, ok := kernel.Lookup[Approver](c, "members"); ok && r.DeviceID != "" {
+						ins[0].From = who.SenderName(r.DeviceID)
+					}
+				}
+				var ref *llm.ModelRef
+				if b.Model != "" {
+					x, _ := llm.ParseRef(b.Model)
+					ref = &x
+				}
+				rw, err := ss.Append(session.TypeRewind, a.ID(), session.RewindData{From: b.Seq, Reason: reason})
+				if err != nil {
+					return nil, err
+				}
+				out := make([]agent.Input, 0, len(ins))
+				for _, in := range ins {
+					in.Session, in.Model = ss.ID(), ref
+					q, err := a.Enqueue(in)
+					if err != nil {
+						return nil, err
+					}
+					out = append(out, q)
+				}
+				return map[string]any{"rewind": rw.Seq, "from": b.Seq, "reason": reason, "inputs": out}, nil
 			}})
 		for _, action := range []string{"stop", "pause", "resume"} {
 			action := action
