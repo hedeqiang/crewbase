@@ -164,3 +164,56 @@ func TestVisibleKeepsCompaction(t *testing.T) {
 		t.Fatalf("%+v", msgs)
 	}
 }
+
+// Images a tool returned reach the model as one user message after all of
+// the step's results, only for the latest MaxToolImages results.
+func TestDeriveMessagesToolImages(t *testing.T) {
+	st, _ := NewStore(nil, "")
+	ss, _ := st.Create(Meta{Kind: "agent"})
+	ss.Append(TypeUserMessage, "", UserMessage{Text: "look", To: "kai"})
+	shot := func(id string) {
+		a := llm.ToolCall{ID: id, Name: "computer_observe", Args: json.RawMessage(`{}`)}
+		b := llm.ToolCall{ID: id + "b", Name: "computer_apps", Args: json.RawMessage(`{}`)}
+		ss.Append(TypeAssistantMessage, "kai", AssistantMessage{Message: llm.Message{Role: llm.RoleAssistant, Parts: []llm.Part{{Type: "tool_call", ToolCall: &a}, {Type: "tool_call", ToolCall: &b}}}})
+		ss.Append(TypeToolResult, "kai", llm.ToolResult{CallID: id, Content: "outline", Attachments: []llm.Attachment{{Path: "generated/" + id + ".png", Mime: "image/png"}}})
+		ss.Append(TypeToolResult, "kai", llm.ToolResult{CallID: id + "b", Content: "apps"})
+	}
+	shot("c1")
+	shot("c2")
+	shot("c3")
+	msgs := DeriveMessages(ss.Events(), "kai", nil)
+	var imgs []string
+	for i, m := range msgs {
+		for _, p := range m.Parts {
+			if p.Type == "tool_result" && len(p.ToolResult.Attachments) > 0 {
+				t.Fatal("attachments left on a tool result")
+			}
+			if p.Type == llm.PartAttachment {
+				if m.Role != llm.RoleUser || msgs[i-1].Role != llm.RoleTool || msgs[i-2].Role != llm.RoleTool {
+					t.Fatalf("image message misplaced at %d", i)
+				}
+				imgs = append(imgs, p.Attachment.Path)
+			}
+		}
+	}
+	if strings.Join(imgs, ",") != "generated/c2.png,generated/c3.png" {
+		t.Fatalf("images: %v", imgs)
+	}
+	ss.Append(TypeToolPruned, "kai", PrunedData{CallID: "c3", Content: "pruned"})
+	msgs = DeriveMessages(ss.Events(), "kai", nil)
+	n := 0
+	for _, m := range msgs {
+		for _, p := range m.Parts {
+			if p.Type == llm.PartAttachment {
+				n++
+				if p.Attachment.Path == "generated/c3.png" {
+					t.Fatal("pruned result still shows its image")
+				}
+			}
+		}
+	}
+	if n != 2 {
+		t.Fatalf("want c1 and c2 after pruning c3, got %d", n)
+	}
+}
+
