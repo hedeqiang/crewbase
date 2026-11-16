@@ -156,6 +156,8 @@ function Shell() {
         const s = getState();
         if (s.palette) setState({ palette: false });
         else if (s.newChannel) setState({ newChannel: false });
+        // the new-agent page is a step aside: Esc goes back (the draft stays)
+        else if (s.view === "newAgent" && !typing) setState({ view: "chat" });
         else if (s.hostConfirm) setState({ hostConfirm: null });
         else if (window.matchMedia("(max-width: 820px)").matches && s.listOpen) setState({ listOpen: false });
         else if (window.matchMedia("(max-width: 1100px)").matches && s.panelOpen) setState({ panelOpen: false });

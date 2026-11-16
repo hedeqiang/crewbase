@@ -135,7 +135,7 @@ function ChannelTask({ channel }: { channel: ChannelView }) {
             className="btn ghost"
             type="button"
             disabled={busy || archived}
-            onClick={async () => (await confirmDialog(t("ch.archiveConfirm", { name: channel.title || channel.id }))) && run(() => API.channelAction(channel.id, "archive"), t("ch.archivedToast"))}
+            onClick={async () => (await confirmDialog({ text: t("ch.archiveConfirm", { name: channel.title || channel.id }), danger: false })) && run(() => API.channelAction(channel.id, "archive"), t("ch.archivedToast"))}
           >
             <Archive size={12} />
             {t("ch.archive")}
@@ -167,10 +167,15 @@ function ChannelTask({ channel }: { channel: ChannelView }) {
         );
       })}
       {!archived && (
-        <button className="btn ghost addm" type="button" ref={addM.ref} onClick={addM.toggle} disabled={others.length === 0} style={{ marginTop: 6 }}>
+        <button className="btn ghost addm" type="button" ref={addM.ref} onClick={addM.toggle} disabled={others.length === 0} title={others.length === 0 ? t("ch.noOthers") : undefined} style={{ marginTop: 6 }}>
           <UserPlus size={13} />
           {t("ch.addMember")}
         </button>
+      )}
+      {!archived && others.length === 0 && (
+        <p className="small muted" style={{ margin: "4px 0 0" }}>
+          {t("ch.noOthers")}
+        </p>
       )}
 
       <div className="psec">{t("ch.settings")}</div>

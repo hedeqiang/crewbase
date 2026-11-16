@@ -333,7 +333,7 @@ export function NewAgent({ draft: f, setDraft }: { draft: Draft; setDraft: (d: D
                     }}
                     onKeyDown={(e) => e.key === "Enter" && create()}
                   />
-                  {err && <div className="ferr">{t("na.needName")}</div>}
+                  {err && !f.name.trim() && <div className="ferr">{t("na.needName")}</div>}
                 </div>
                 <div>
                   <label className="fl" htmlFor="naRole">

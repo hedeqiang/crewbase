@@ -172,7 +172,7 @@ function Preview({ agentId, path, onClose }: { agentId: string; path: string; on
         />
       ) : err ? (
         <div className="small" style={{ padding: 10 }}>
-          {err}
+          {creatable ? t(path.startsWith("MEMORY") ? "files.noMemory" : "files.noInstructions") : err}
         </div>
       ) : !f ? (
         <div className="small" style={{ padding: 10 }}>
