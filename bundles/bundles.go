@@ -38,6 +38,7 @@ import (
 	_ "github.com/hedeqiang/crewbase/features/im"
 	_ "github.com/hedeqiang/crewbase/features/imconfig"
 	_ "github.com/hedeqiang/crewbase/features/mcp"
+	_ "github.com/hedeqiang/crewbase/features/mcpserver"
 	_ "github.com/hedeqiang/crewbase/features/media"
 	_ "github.com/hedeqiang/crewbase/features/members"
 	_ "github.com/hedeqiang/crewbase/features/memory"
@@ -173,6 +174,9 @@ var Desktop = kernel.Bundle{Name: "desktop", Entries: []kernel.Entry{
 	{ID: "approval-desktop", Name: "@crewbase/approval-desktop"},
 	{ID: "gateway", Name: "@crewbase/gateway", Config: map[string]any{"addr": "127.0.0.1:7788", "tokenFile": "${root}/token"}},
 	{ID: "api", Name: "@crewbase/api"},
+	// computer_* / browser_* as an MCP server at /mcp for the ACP CLIs
+	// (per-session tokens; calls run through the normal tool pipeline).
+	{ID: "mcp-server", Name: "@crewbase/mcp-server"},
 	{ID: "channel-api", Name: "@crewbase/channel-api"},
 	{ID: "webhook", Name: "@crewbase/webhook"},
 	{ID: "routines-api", Name: "@crewbase/routines-api"},
@@ -224,6 +228,9 @@ var Server = kernel.Bundle{Name: "server", Entries: []kernel.Entry{
 	{ID: "approval-desktop", Name: "@crewbase/approval-desktop"},
 	{ID: "gateway", Name: "@crewbase/gateway", Config: map[string]any{"addr": "127.0.0.1:7788", "tokenFile": "${root}/token"}},
 	{ID: "api", Name: "@crewbase/api"},
+	// computer_* / browser_* as an MCP server at /mcp for the ACP CLIs
+	// (per-session tokens; calls run through the normal tool pipeline).
+	{ID: "mcp-server", Name: "@crewbase/mcp-server"},
 	{ID: "channel-api", Name: "@crewbase/channel-api"},
 	{ID: "devices", Name: "@crewbase/devices", Config: map[string]any{"dir": "${root}"}},
 	{ID: "members", Name: "@crewbase/members", Config: map[string]any{"dir": "${root}"}},
