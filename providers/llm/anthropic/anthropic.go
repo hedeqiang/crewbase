@@ -259,6 +259,14 @@ func (a *Adapter) mapMessages(msgs []llm.Message) []sdk.MessageParam {
 		content   []sdk.ContentBlockParamUnion
 	}
 	var turns []turn
+	native := map[string]bool{} // toolset calls: their results echo the toolset
+	for _, m := range msgs {
+		for _, tc := range m.ToolCalls() {
+			if c, ok := llm.DecodeComputerCall(tc); ok && c.Vendor == llm.ComputerAnthropic {
+				native[tc.ID] = true
+			}
+		}
+	}
 	for _, m := range msgs {
 		asst := m.Role == llm.RoleAssistant
 		var results, blocks []sdk.ContentBlockParamUnion
@@ -278,10 +286,18 @@ func (a *Adapter) mapMessages(msgs []llm.Message) []sdk.MessageParam {
 				}
 			case "tool_call":
 				if p.ToolCall != nil && asst {
+					if b, ok := nativeUse(p.ToolCall); ok {
+						blocks = append(blocks, b)
+						continue
+					}
 					blocks = append(blocks, sdk.NewToolUseBlock(p.ToolCall.ID, argsObject(p.ToolCall.Args), p.ToolCall.Name))
 				}
 			case "tool_result":
 				if r := p.ToolResult; r != nil {
+					if native[r.CallID] {
+						results = append(results, nativeResult(r))
+						continue
+					}
 					results = append(results, sdk.NewToolResultBlock(r.CallID, r.Content, r.IsError))
 				}
 			case llm.PartAttachment:
@@ -415,6 +431,9 @@ func (a *Adapter) params(req llm.Request) sdk.MessageNewParams {
 		}
 		p.Tools = append(p.Tools, sdk.ToolUnionParam{OfTool: &tp})
 	}
+	if ct := a.computerTool(req, model); ct != nil {
+		p.Tools = append(p.Tools, *ct)
+	}
 	adaptive := a.thinking && !strings.HasPrefix(model, "claude-3")
 	if meta.known {
 		adaptive = a.thinking && meta.adaptive
@@ -460,7 +479,11 @@ func (a *Adapter) Stream(ctx context.Context, req llm.Request, onChunk func(llm.
 		case "content_block_stop":
 			if i := int(ev.Index); i < len(acc.Content) && acc.Content[i].Type == "tool_use" {
 				b := acc.Content[i]
-				ch = &llm.Chunk{Type: "tool_call", ToolCall: &llm.ToolCall{ID: b.ID, Name: b.Name, Args: normalizeArgs(string(b.Input))}}
+				tc := llm.ToolCall{ID: b.ID, Name: b.Name, Args: normalizeArgs(string(b.Input))}
+				if b.ToolsetName == toolsetName {
+					tc = nativeCall(b.ID, b.Name, b.Input, acc.ID)
+				}
+				ch = &llm.Chunk{Type: "tool_call", ToolCall: &tc}
 			}
 		case "message_stop":
 			stopped = true
@@ -499,7 +522,12 @@ func (a *Adapter) Stream(ctx context.Context, req llm.Request, onChunk func(llm.
 				msg.Parts = append(msg.Parts, llm.Part{Type: "text", Text: b.Text})
 			}
 		case "tool_use":
-			msg.Parts = append(msg.Parts, llm.Part{Type: "tool_call", ToolCall: &llm.ToolCall{ID: b.ID, Name: b.Name, Args: normalizeArgs(string(b.Input))}})
+			tc := llm.ToolCall{ID: b.ID, Name: b.Name, Args: normalizeArgs(string(b.Input))}
+			if b.ToolsetName == toolsetName {
+				// several members per turn: one batch, run in order
+				tc = nativeCall(b.ID, b.Name, b.Input, acc.ID)
+			}
+			msg.Parts = append(msg.Parts, llm.Part{Type: "tool_call", ToolCall: &tc})
 		}
 	}
 	u := acc.Usage
