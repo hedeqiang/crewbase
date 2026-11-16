@@ -64,7 +64,7 @@ export function Settings() {
           <input value={q} onChange={(e) => setQ(e.target.value)} placeholder={t("set.search")} />
         </label>
         {NAV.map((g) => {
-          const items = g.items.filter((i) => (manage || MOBILE_SECTIONS.has(i.id)) && (!ql || t(`set.${i.id}` as Key).toLowerCase().includes(ql)));
+          const items = g.items.filter((i) => (manage || MOBILE_SECTIONS.has(i.id)) && (!ql || matchesSection(i.id, ql)));
           if (!items.length) return null;
           return (
             <div key={g.group} className="sgrp">
@@ -79,6 +79,9 @@ export function Settings() {
             </div>
           );
         })}
+        {ql && !NAV.some((g) => g.items.some((i) => (manage || MOBILE_SECTIONS.has(i.id)) && matchesSection(i.id, ql))) && (
+          <p className="small muted snomatch">{t("set.searchNone")}</p>
+        )}
       </nav>
       <div className="vw">
         {!manage && <p className="tiernote">{t("tier.mobileNote")}</p>}
@@ -309,6 +312,13 @@ function SystemPermissions() {
       </div>
     </>
   );
+}
+
+/** A settings section matches its title or what is on the page (set.kw.*,
+ *  comma-separated, in the current language). */
+function matchesSection(id: string, ql: string): boolean {
+  const kw = t(`set.kw.${id}` as Key);
+  return [t(`set.${id}` as Key), ...(kw.startsWith("set.kw.") ? [] : kw.split(","))].some((x) => x.trim().toLowerCase().includes(ql));
 }
 
 export function Head({ title, sub, right }: { title: string; sub?: string; right?: ReactNode }) {

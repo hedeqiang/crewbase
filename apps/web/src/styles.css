@@ -1838,3 +1838,4 @@ button.psec.toggle { width: 100%; background: none; border: 0; font-family: inhe
   .srow { flex-wrap: wrap; }
   .srow .c { flex: 1 1 auto; justify-content: flex-end; min-width: 0; }
 }
+.snomatch { padding: 8px 12px; }
