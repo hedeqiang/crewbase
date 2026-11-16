@@ -216,4 +216,3 @@ func TestDeriveMessagesToolImages(t *testing.T) {
 		t.Fatalf("want c1 and c2 after pruning c3, got %d", n)
 	}
 }
-
