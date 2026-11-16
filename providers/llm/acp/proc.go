@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -44,6 +45,15 @@ type sessionState struct {
 
 	mu   sync.Mutex
 	turn *turn // active prompt turn, nil between turns
+
+	// model selection (see selectModel); only touched by the session's
+	// turn, one at a time
+	setModel  bool           // the agent takes session/set_model
+	opts      []configOption // its config options
+	running   string         // the model id it runs (set_model agents)
+	initial   string         // the model it started with
+	chosen    string         // Crewbase model + effort applied last
+	chosenSet bool
 }
 
 // revoke ends the session's MCP grant.
@@ -215,10 +225,11 @@ func (p *proc) session(id string) *sessionState {
 	return p.sessions[id]
 }
 
-// newSession runs session/new in cwd and optionally selects a model. own
-// marks cwd as an agent's own workspace. With bind (an agent in a Crewbase
-// session) the CLI is given Crewbase's MCP server when it takes http MCP.
-func (p *proc) newSession(ctx context.Context, model, cwd string, own bool, bind *MCPBinding) (*sessionState, error) {
+// newSession runs session/new in cwd and selects model at effort. own
+// marks cwd as an agent's own workspace. With bind (an agent in a
+// Crewbase session) the CLI is given Crewbase's MCP server when it takes
+// http MCP.
+func (p *proc) newSession(ctx context.Context, model, effort, cwd string, own bool, bind *MCPBinding) (*sessionState, error) {
 	var res newSessionResult
 	params := newSessionParams{Cwd: cwd, MCPServers: []any{}, Meta: sessionMeta(p.a.cfg.ID, own)}
 	grant := p.mcpGrant(bind)
@@ -239,10 +250,19 @@ func (p *proc) newSession(ctx context.Context, model, cwd string, own bool, bind
 		}
 		return nil, &llm.Error{Kind: llm.ErrUnavailable, Provider: p.a.id, Message: "session/new returned no sessionId"}
 	}
+	s := &sessionState{id: res.SessionID, cwd: cwd, own: own, grant: grant, opts: res.ConfigOptions}
 	if res.Models != nil {
+		s.setModel, s.running, s.initial = true, res.Models.CurrentModelID, res.Models.CurrentModelID
 		p.a.learnModels(res.Models.AvailableModels)
+	} else if o := findOption(res.ConfigOptions, "model", "model"); o != nil {
+		// codex-acp >= 0.9 lists its models only as the model option
+		s.initial = o.current()
+		var ms []acpModel
+		for _, c := range o.choices() {
+			ms = append(ms, acpModel{ModelID: c.Value, Name: c.Name, Description: c.Description})
+		}
+		p.a.learnModels(ms)
 	}
-	s := &sessionState{id: res.SessionID, cwd: cwd, own: own, grant: grant}
 	p.mu.Lock()
 	p.sessions[s.id] = s
 	p.mu.Unlock()
@@ -250,19 +270,105 @@ func (p *proc) newSession(ctx context.Context, model, cwd string, own bool, bind
 		// the process went away meanwhile; its sessions were revoked already
 		s.revoke()
 	}
-	if model != "" && model != defaultModel && (res.Models == nil || res.Models.CurrentModelID != model) {
-		// unstable ACP extension; agents without it keep their default
-		err := p.conn.Call(ctx, mSessionSetModel, map[string]string{"sessionId": s.id, "modelId": model}, nil)
-		var je *jsonrpc.Error
-		if err != nil && !(errors.As(err, &je) && je.Code == jsonrpc.CodeMethodNotFound) {
-			p.dropSession(s)
-			return nil, p.classify(err, llm.ErrBadRequest)
-		}
+	if err := p.selectModel(ctx, s, model, effort); err != nil {
+		p.dropSession(s)
+		return nil, err
 	}
 	return s, nil
 }
 
-// dropSession forgets s and revokes its grant.
+// selectModel makes the session run model (a Crewbase model id of this
+// adapter, see shape.go) at effort. Agents with session/set_model get the
+// model's id for that level; agents with only config options (codex-acp
+// >= 0.9) get the model option, then the reasoning level option. Agents
+// with neither keep their default. A model already applied is not sent
+// again.
+func (p *proc) selectModel(ctx context.Context, s *sessionState, model, effort string) error {
+	if model == "" {
+		model = defaultModel
+	}
+	key := model + "@" + effort
+	if s.chosenSet && s.chosen == key {
+		return nil
+	}
+	if model == defaultModel && !s.chosenSet {
+		s.chosen, s.chosenSet = key, true
+		return nil // a new session runs the CLI's own choice
+	}
+	e, known := p.a.entry(model)
+	fail := func(err error) error {
+		var je *jsonrpc.Error
+		if errors.As(err, &je) && je.Code == jsonrpc.CodeMethodNotFound {
+			return nil // unstable ACP extension; agents without it keep their default
+		}
+		return p.classify(err, llm.ErrBadRequest)
+	}
+	if mo := findOption(s.opts, "model", "model"); !s.setModel && mo != nil {
+		val, lvl := model, effort
+		switch {
+		case model == defaultModel:
+			val, lvl = s.initial, ""
+		case known && !e.Native && e.Wire != nil:
+			val, lvl = e.wire(effort), ""
+		case known && e.Native && (lvl == "" || !slices.Contains(e.Efforts, lvl)):
+			lvl = e.DefaultEffort
+		}
+		if val != "" && val != mo.current() {
+			if err := p.setConfig(ctx, s, mo.ID, val); err != nil {
+				return fail(err)
+			}
+		}
+		if lvl != "" {
+			if th := findOption(s.opts, "thought_level", "reasoning_effort"); th != nil && th.current() != lvl {
+				for _, c := range th.choices() {
+					if c.Value == lvl {
+						if err := p.setConfig(ctx, s, th.ID, lvl); err != nil {
+							return fail(err)
+						}
+						break
+					}
+				}
+			}
+		}
+		s.chosen, s.chosenSet = key, true
+		return nil
+	}
+	wire := p.a.setModelID(model, effort)
+	if model == defaultModel {
+		wire = s.initial
+	}
+	if wire != "" && wire != s.running {
+		if err := p.conn.Call(ctx, mSessionSetModel, map[string]string{"sessionId": s.id, "modelId": wire}, nil); err != nil {
+			if err := fail(err); err != nil {
+				return err
+			}
+		} else {
+			s.running = wire
+		}
+	}
+	s.chosen, s.chosenSet = key, true
+	return nil
+}
+
+// setConfig sets a session config option and keeps the options the agent
+// reports back (a new model may take other levels).
+func (p *proc) setConfig(ctx context.Context, s *sessionState, id, value string) error {
+	var r setConfigResult
+	if err := p.conn.Call(ctx, mSessionSetConfig, setConfigParams{SessionID: s.id, ConfigID: id, Value: value}, &r); err != nil {
+		return err
+	}
+	if len(r.ConfigOptions) > 0 {
+		s.opts = r.ConfigOptions
+	} else {
+		for i := range s.opts {
+			if s.opts[i].ID == id {
+				s.opts[i].CurrentValue, _ = json.Marshal(value)
+			}
+		}
+	}
+	return nil
+}
+
 func (p *proc) dropSession(s *sessionState) {
 	p.mu.Lock()
 	if p.sessions[s.id] == s {

@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"log/slog"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -79,9 +80,18 @@ type Adapter struct {
 	active  int
 	timer   *time.Timer
 	convs   map[string]*conv
-	models  []llm.ModelInfo // learned from session/new
 	quota   llm.Quota
-	closed  bool
+
+	// model lists (see models.go, shape.go)
+	acpModels   []acpModel    // what the bridge reported
+	native      []nativeModel // the CLI's own list
+	entries     []modelEntry  // what is offered, shaped from both
+	acpEfforts  map[string]bool
+	learned     time.Time // when the lists were learned
+	learnedWith string    // the versions they were learned with
+	versions    string    // the CLI and bridge versions running now
+	bridge      *llm.Bridge
+	closed      bool
 }
 
 // conv is a Crewbase conversation mapped onto an ACP session.
@@ -112,6 +122,7 @@ func newAdapter(id string, r resolved, opts Options) *Adapter {
 	}
 	a.filesChanged = opts.FilesChanged
 	a.stateDir = opts.StateDir
+	a.bridge = bridgeOf(r)
 	a.goFn = opts.Go
 	a.mcp = opts.MCP
 	a.log = opts.Log
@@ -127,8 +138,9 @@ func newAdapter(id string, r resolved, opts Options) *Adapter {
 func (a *Adapter) ID() string   { return a.id }
 func (a *Adapter) Kind() string { return "subscription" }
 
-// Models returns configured models, else those the agent reported in its
-// last session/new, else a single "default". It never starts the process.
+// Models returns configured models, else those learned from the CLI and
+// its bridge (see shape.go), after a "default" that keeps the CLI's own
+// choice. It never starts the process.
 func (a *Adapter) Models(context.Context) ([]llm.ModelInfo, error) {
 	if len(a.cfg.Models) > 0 {
 		out := make([]llm.ModelInfo, 0, len(a.cfg.Models))
@@ -142,31 +154,90 @@ func (a *Adapter) Models(context.Context) ([]llm.ModelInfo, error) {
 		return out, nil
 	}
 	a.mu.Lock()
-	learned := append([]llm.ModelInfo(nil), a.models...)
+	es := a.entries
 	a.mu.Unlock()
-	out := []llm.ModelInfo{{ID: defaultModel, Provider: a.id, Name: a.cfg.Name, ContextWindow: a.cfg.ContextWindow, Capabilities: []string{"code"}, Efforts: llm.NoEfforts, Enabled: true}}
-	return append(out, learned...), nil
+	out := make([]llm.ModelInfo, 0, len(es)+1)
+	out = append(out, llm.ModelInfo{ID: defaultModel, Provider: a.id, Name: a.cfg.Name, ContextWindow: a.cfg.ContextWindow, Capabilities: []string{"code"}, Efforts: llm.NoEfforts, Enabled: true})
+	for _, e := range es {
+		mi := llm.ModelInfo{ID: e.ID, Provider: a.id, Name: e.Name, ContextWindow: a.cfg.ContextWindow, ContextEstimated: true, Capabilities: []string{"code"}, Efforts: llm.NoEfforts, Enabled: true}
+		if e.ContextWindow > 0 {
+			mi.ContextWindow, mi.ContextEstimated = e.ContextWindow, false
+		}
+		if e.Vision {
+			mi.Capabilities = append(mi.Capabilities, "vision")
+		}
+		if len(e.Efforts) > 0 {
+			mi.Efforts = append([]string(nil), e.Efforts...)
+		}
+		out = append(out, mi)
+	}
+	return out, nil
 }
 
+// learnModels keeps the list a session/new reported.
 func (a *Adapter) learnModels(ms []acpModel) {
 	if len(ms) == 0 {
 		return
 	}
-	a.setModels(ms)
-	writeModelCache(a.stateDir, a.cfg.ID, ms, time.Now())
+	a.mu.Lock()
+	a.acpModels, a.learned = ms, time.Now()
+	a.mu.Unlock()
+	a.reshape()
+	a.saveModels()
 }
 
-func (a *Adapter) setModels(ms []acpModel) {
-	out := make([]llm.ModelInfo, 0, len(ms))
-	for _, m := range ms {
-		if m.ModelID == "" || m.ModelID == defaultModel {
-			continue
+// reshape recomputes the offered models from the raw lists.
+func (a *Adapter) reshape() {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.entries = shapeModels(a.cfg.ID, a.acpModels, a.native)
+	// the levels the bridge itself spells in "<model>/<level>" ids
+	a.acpEfforts = map[string]bool{}
+	for _, m := range a.acpModels {
+		if _, lvl, ok := strings.Cut(m.ModelID, "/"); ok && effortOf(lvl) != "" {
+			a.acpEfforts[effortOf(lvl)] = true
 		}
-		out = append(out, llm.ModelInfo{ID: m.ModelID, Provider: a.id, Name: m.Name, ContextWindow: a.cfg.ContextWindow, Capabilities: []string{"code"}, Efforts: llm.NoEfforts, Enabled: true})
+	}
+}
+
+// entry returns the offered model id, if known.
+func (a *Adapter) entry(id string) (modelEntry, bool) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if e := findEntry(a.entries, id); e != nil {
+		return *e, true
+	}
+	return modelEntry{}, false
+}
+
+// setModelID is the id session/set_model takes for model at effort. Old
+// ids (a variant someone picked before variants were folded) pass as is.
+func (a *Adapter) setModelID(model, effort string) string {
+	e, ok := a.entry(model)
+	if !ok {
+		return model
+	}
+	if e.Native {
+		return a.codexWire(e, effort)
+	}
+	return e.wire(effort)
+}
+
+// codexWire is the "<slug>/<effort>" id codex-acp < 0.9 takes for a model
+// of the CLI's own list. The level goes along only when the bridge spells
+// it itself (its copy of Codex may not know newer ones; a bare slug then
+// keeps the configured level).
+func (a *Adapter) codexWire(e modelEntry, effort string) string {
+	if effort == "" || !slices.Contains(e.Efforts, effort) {
+		effort = e.DefaultEffort
 	}
 	a.mu.Lock()
-	a.models = out
+	ok := a.acpEfforts[effort]
 	a.mu.Unlock()
+	if effort == "" || !ok {
+		return e.ID
+	}
+	return e.ID + "/" + effort
 }
 
 // Quota is known only after the CLI reported a limit (ACP has no quota API):
@@ -353,12 +424,16 @@ func (a *Adapter) Stream(ctx context.Context, req llm.Request, onChunk func(llm.
 		if req.Agent != "" && req.Session != "" {
 			bind = &MCPBinding{Agent: req.Agent, Session: req.Session, Workspace: req.Workspace, Mode: req.Mode, Own: own}
 		}
-		s, err := p.newSession(ctx, req.Model, cwd, own, bind)
+		s, err := p.newSession(ctx, req.Model, req.Effort, cwd, own, bind)
 		if err != nil {
 			a.noteQuota(err)
 			return llm.Response{}, err
 		}
 		c.s = s
+	} else if err := p.selectModel(ctx, c.s, req.Model, req.Effort); err != nil {
+		// another model or level in the same conversation
+		c.prints = nil
+		return llm.Response{}, err
 	}
 
 	t := newTurn(a.cfg.Name, a.toolNotes, onChunk, func() {

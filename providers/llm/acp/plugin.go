@@ -227,23 +227,30 @@ var Plugin = kernel.Register(kernel.Spec{
 			svc.adapters[r.ID] = a
 			svc.mu.Unlock()
 			// the model picker lists the CLI's own models, not only
-			// "default": from the cache, else learned in the background
-			if !a.loadCachedModels() && probe {
-				goFn(func(ctx context.Context) {
-					select {
-					case <-ctx.Done():
-						return
-					case <-time.After(probeDelay):
-					}
-					pctx, cancel := context.WithTimeout(ctx, 2*time.Minute)
-					defer cancel()
-					if err := a.ProbeModels(pctx); err != nil {
-						c.Log().Debug("acp: model list not learned", "agent", r.ID, "err", err)
-					} else {
-						llm.AdaptersChanged.Emit(c.Host(), struct{}{})
-					}
-				})
-			}
+			// "default": from the cache at once, then learned again in the
+			// background when the cache is old or was learned with another
+			// CLI or bridge version
+			a.loadCachedModels()
+			goFn(func(ctx context.Context) {
+				if !probe {
+					return
+				}
+				a.SetVersions(versionKey(versionOf(ctx, r.cliPath), a.Bridge()))
+				if a.cacheFresh() {
+					return
+				}
+				select {
+				case <-ctx.Done():
+					return
+				case <-time.After(probeDelay):
+				}
+				pctx, cancel := context.WithTimeout(ctx, 2*time.Minute)
+				defer cancel()
+				if err := a.ProbeModels(pctx); err != nil {
+					c.Log().Debug("acp: model list not learned", "agent", r.ID, "err", err)
+				}
+				llm.AdaptersChanged.Emit(c.Host(), struct{}{})
+			})
 			return nil
 		}
 		for _, ac := range agentList(cfg) {

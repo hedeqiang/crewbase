@@ -9,6 +9,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/hedeqiang/crewbase/core/llm"
 )
 
 // CLIInfo describes one subscription CLI for the settings UI.
@@ -24,6 +26,8 @@ type CLIInfo struct {
 	LoggedIn     string   `json:"loggedIn"` // yes | no | unknown (best effort, no network)
 	LoginCommand string   `json:"loginCommand"`
 	Running      bool     `json:"running"` // ACP process currently up
+	// Bridge is the ACP bridge package, when it is a known npm one.
+	Bridge *llm.Bridge `json:"bridge,omitempty"`
 }
 
 // Logged-in states.
@@ -100,7 +104,7 @@ func Detect(ctx context.Context, cfg Config) []CLIInfo {
 	for i, ac := range agents {
 		r := resolve(ac)
 		out[i] = CLIInfo{ID: r.ID, Provider: providerID(r.ID), Name: r.Name, Path: r.cliPath, Installed: r.cliPath != "",
-			ACPCommand: r.Command, ACPNote: r.entryNote, LoginCommand: r.LoginCommand, LoggedIn: LoggedInUnknown}
+			ACPCommand: r.Command, ACPNote: r.entryNote, LoginCommand: r.LoginCommand, LoggedIn: LoggedInUnknown, Bridge: bridgeOf(r)}
 		if !out[i].Installed {
 			out[i].LoggedIn = LoggedInNo
 			continue

@@ -299,6 +299,27 @@ func ModelCap(ms []ModelInfo, model, c string) (has, known bool) {
 	return false, false
 }
 
+// Bridge is the separately installed program an adapter drives a CLI
+// through (e.g. an ACP bridge npm package), when it is known.
+type Bridge struct {
+	Package string `json:"package"`
+	Version string `json:"version"`
+	// MinVersion is the oldest version known to work well ("" = any).
+	MinVersion string `json:"minVersion,omitempty"`
+	// ReplacedBy names the package that superseded this one upstream.
+	ReplacedBy string `json:"replacedBy,omitempty"`
+	// Outdated: older than MinVersion, or replaced.
+	Outdated bool `json:"outdated,omitempty"`
+	// UpdateCommand updates it (set when Outdated).
+	UpdateCommand string `json:"updateCommand,omitempty"`
+}
+
+// BridgeReporter is optionally implemented by adapters that drive a CLI
+// through a bridge (nil when unknown).
+type BridgeReporter interface {
+	Bridge() *Bridge
+}
+
 // QuotaReporter is optionally implemented by adapters that know their quota.
 type QuotaReporter interface {
 	Quota(ctx context.Context) Quota

@@ -32,6 +32,7 @@ import (
 //	/write P fs/write_text_file P
 //	/spawn   starts a grandchild `sleep 300` and reports its pid
 //	/cwd     replies with the session's cwd
+//	/picks   replies with the session's set_model / set_config_option calls
 //	/meta    replies with the session/new _meta
 //	/cfgperm P requests permission to edit P (raw input file_path)
 //	/mcpservers replies with the session/new mcpServers
@@ -40,6 +41,8 @@ import (
 //	         "-" = none), first reporting it with _meta.claudeCode.toolName T
 //
 // With FAKE_ACP_HTTP_MCP=1 initialize advertises mcpCapabilities.http.
+// FAKE_ACP_SESSION is a JSON object merged into every session/new result
+// (e.g. {"models":null,"configOptions":[...]}: a null key is dropped).
 //
 // Otherwise it replies "[s<n>] echo: <prompt>" in two chunks with a tool call.
 const fakeEnv = "FAKE_ACP_AGENT"
@@ -96,6 +99,7 @@ func runFakeAgent() {
 		cwds    = map[string]string{}
 		metas   = map[string]string{}
 		mcps    = map[string]string{}
+		picks   = map[string][]string{}
 		conn    *jsonrpc.Conn
 	)
 	update := func(sid string, u map[string]any) {
@@ -252,6 +256,12 @@ func runFakeAgent() {
 			}
 			chunk(sid, fmt.Sprintf("permission: %s/%s", res.Outcome.Outcome, res.Outcome.OptionID))
 			return map[string]string{"stopReason": "end_turn"}, nil
+		case strings.Contains(text, "/picks"):
+			mu.Lock()
+			got := strings.Join(picks[sid], " ")
+			mu.Unlock()
+			chunk(sid, "picks="+got)
+			return map[string]string{"stopReason": "end_turn"}, nil
 		case strings.Contains(text, "/cwd"):
 			mu.Lock()
 			cwd := cwds[sid]
@@ -302,12 +312,39 @@ func runFakeAgent() {
 				metas[sid] = string(np.Meta)
 				mcps[sid] = string(np.MCPServers)
 				mu.Unlock()
-				return map[string]any{"sessionId": sid, "models": map[string]any{
+				res := map[string]any{"sessionId": sid, "models": map[string]any{
 					"currentModelId":  "fast",
 					"availableModels": []map[string]string{{"modelId": "fast", "name": "Fast"}, {"modelId": "smart", "name": "Smart"}},
-				}}, nil
+				}}
+				if extra := os.Getenv("FAKE_ACP_SESSION"); extra != "" {
+					var m map[string]any
+					_ = json.Unmarshal([]byte(extra), &m)
+					for k, v := range m {
+						if v == nil {
+							delete(res, k)
+						} else {
+							res[k] = v
+						}
+					}
+				}
+				return res, nil
 			case "session/set_model":
+				var sp struct{ SessionID, ModelID string }
+				_ = json.Unmarshal(params, &sp)
+				mu.Lock()
+				picks[sp.SessionID] = append(picks[sp.SessionID], "model:"+sp.ModelID)
+				mu.Unlock()
 				return map[string]any{}, nil
+			case "session/set_config_option":
+				var sp struct{ SessionID, ConfigID, Value string }
+				_ = json.Unmarshal(params, &sp)
+				if os.Getenv("FAKE_ACP_SESSION") == "" {
+					return nil, jsonrpc.ErrMethodNotFound
+				}
+				mu.Lock()
+				picks[sp.SessionID] = append(picks[sp.SessionID], sp.ConfigID+"="+sp.Value)
+				mu.Unlock()
+				return map[string]any{"configOptions": []any{}}, nil
 			case "session/prompt":
 				return prompt(ctx, params)
 			}
