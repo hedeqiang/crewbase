@@ -3,7 +3,7 @@ import { runShortcut } from "../actions";
 import { keyLabel } from "../shortcuts";
 import { catLabel } from "./Settings";
 import type { Draft } from "./NewAgent";
-import { createContext, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { createContext, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { useCopy } from "../clipboard";
 import {
   ArrowUp,
@@ -72,7 +72,7 @@ import {
   NO_MODEL,
   providerName,
 } from "../format";
-import { Avatar } from "./Avatar";
+import { Avatar, channelColor, colorFor, ink } from "./Avatar";
 import { ApprovalActions } from "./Approval";
 import { Markdown } from "./Markdown";
 import { Popover, useMenu } from "./Popover";
@@ -473,6 +473,7 @@ function Feed({
   const stick = useRef(true);
   const streams = useStore((s) => s.streams);
   const agents = useStore((s) => s.agents);
+  const bubbles = useStore((s) => s.bubbles);
   const live = Object.entries(streams).filter(([k]) => k.startsWith(sessionId + "|"));
   const waitingApproval = useStore((s) => s.approvals.some((a) => a.agent === agent.id && a.session === sessionId));
   const typing = agent.status === "running" && !waitingApproval && !live.some(([k, v]) => k.endsWith("|" + agent.id) && v.text);
@@ -498,8 +499,16 @@ function Feed({
     if (el && stick.current) el.scrollTop = el.scrollHeight;
   });
 
+  // your bubbles can take the agent's colour (a channel's own colour)
+  const bubbleColor = channel ? channelColor(channel.id) : agent.kind === "chat" ? channelColor(agent.id) : agent.color || colorFor(agent.id);
   return (
-    <div className="feed" ref={ref} onScroll={onScroll}>
+    <div
+      className="feed"
+      ref={ref}
+      onScroll={onScroll}
+      data-bubbles={bubbles}
+      style={bubbles === "neutral" ? undefined : ({ "--ac": bubbleColor, "--ac-ink": ink(bubbleColor) } as CSSProperties)}
+    >
       {error && (
         <div className="sys err">
           <span className="dot err" />

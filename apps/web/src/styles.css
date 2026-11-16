@@ -1240,7 +1240,7 @@ span.mediavid { aspect-ratio: 16 / 9; background: var(--sunken); }
 @media (max-width: 560px) { .ap-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .ap-ident { flex-direction: column; align-items: stretch; } .ap-iconpick { flex-direction: row; width: auto; } }
 
 /* blank chats: a neutral speech-bubble tile instead of an agent avatar */
-.chatav { width: 32px; height: 32px; flex: none; border-radius: 10px; display: grid; place-items: center; background: var(--sunken); color: var(--text2); box-shadow: inset 0 0 0 1px var(--border); }
+.chatav { width: 32px; height: 32px; flex: none; border-radius: 10px; display: grid; place-items: center; background: color-mix(in srgb, var(--c, var(--muted)) 16%, var(--page)); color: color-mix(in srgb, var(--c, var(--muted)) 88%, var(--text)); }
 .wacts { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
 .thumbph { display: block; width: 120px; height: 90px; background: var(--sunken); }
 .pairsec { display: flex; align-items: center; gap: 6px; justify-content: center; color: var(--ok-text); font-size: 12.5px; margin: -4px 0 4px; }
@@ -1899,3 +1899,12 @@ button.psec.toggle { width: 100%; background: none; border: 0; font-family: inhe
 .vswitch .ib { width: 22px; height: 22px; }
 .vswitch .ib:disabled { opacity: .35; }
 .versions.old .supbody { opacity: .7; }
+
+/* your bubbles in the agent's (channel's) colour: settings › 通用 › 外观 */
+.feed[data-bubbles="tint"] .m-user .bubble { background: color-mix(in srgb, var(--ac) 18%, var(--page)); }
+.feed[data-bubbles="solid"] .m-user .bubble { background: var(--ac); color: var(--ac-ink); }
+.feed[data-bubbles="solid"] .m-user .bubble .from { color: inherit; opacity: .75; }
+.feed[data-bubbles="solid"] .m-user .bubble a { color: inherit; text-decoration: underline; }
+.bubseg .sw { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 6px; vertical-align: -1px; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .feed[data-bubbles="tint"] .m-user .bubble { background: color-mix(in srgb, var(--ac) 28%, var(--page)); } }
+:root[data-theme="dark"] .feed[data-bubbles="tint"] .m-user .bubble { background: color-mix(in srgb, var(--ac) 28%, var(--page)); }

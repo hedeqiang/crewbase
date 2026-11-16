@@ -6,7 +6,7 @@ import { NAV, SECTION_ICONS } from "./settings/nav";
 import { API, desktop, type DesktopPermission, type DesktopUpdates, type UpdateInfo, type ApprovalHistoryItem, type ProviderView, type RememberedChoice, type Settings as SettingsData, type UserProvider } from "../api";
 import { getLang, t, type Key, type Lang } from "../i18n";
 import { ago, kfmt, modeLabel, modelKind, priceLong, priceShort, providerName, until } from "../format";
-import { openSession, setLang, setState, toast, useStore, type SettingsSection, resync } from "../store";
+import { openSession, setBubbles, setLang, setState, toast, useStore, type Bubbles, type SettingsSection, resync } from "../store";
 import { Automation } from "./settings/Automation";
 import { Extensions } from "./settings/Extensions";
 import { Profile } from "./settings/Profile";
@@ -254,6 +254,23 @@ function KeepRunning() {
   );
 }
 
+/** Your message bubbles: grey, or the agent's colour (light / solid). */
+function BubbleSeg() {
+  const v = useStore((s) => s.bubbles);
+  const sw = (b: Bubbles) =>
+    b === "neutral" ? "var(--bubble)" : b === "tint" ? "color-mix(in srgb, var(--accent) 22%, var(--page))" : "var(--accent)";
+  return (
+    <div className="seg bubseg">
+      {(["neutral", "tint", "solid"] as const).map((b) => (
+        <button key={b} type="button" aria-pressed={v === b} onClick={() => setBubbles(b)}>
+          <span className="sw" style={{ background: sw(b) }} aria-hidden />
+          {t(`set.bubbles.${b}` as Key)}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 /** 系统权限: what macOS lets the app do, with a way to give each. Rows
  *  refresh when the window comes back from System Settings. */
 function SystemPermissions() {
@@ -387,6 +404,9 @@ function General() {
         <div className="sbox">
           <Row title={t("set.theme")} desc={t("set.themeDesc")}>
             <ThemeSeg theme={theme} />
+          </Row>
+          <Row title={t("set.bubbles")} desc={t("set.bubblesDesc")}>
+            <BubbleSeg />
           </Row>
           <Row title={t("set.language")} desc={t("set.languageDesc")}>
             <span className="ssel">

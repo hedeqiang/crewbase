@@ -143,6 +143,8 @@ export interface State {
   /** a sub-agent run (its session) shown in the right panel */
   subView: string | null;
   theme: Theme;
+  /** your bubbles: neutral grey, or the agent's (channel's) colour, light or solid */
+  bubbles: Bubbles;
   lang: Lang;
   palette: boolean;
   overrides: Record<string, string | null>; // agentId → model ref for next messages
@@ -242,6 +244,10 @@ let state: State = {
     const v = LS.get("theme");
     return v === "light" || v === "dark" ? v : "system";
   })(),
+  bubbles: ((): Bubbles => {
+    const v = LS.get("bubbles");
+    return v === "tint" || v === "solid" ? v : "neutral";
+  })(),
   lang: getLang(),
   palette: false,
   overrides: loadOverrides(),
@@ -288,6 +294,13 @@ export function toast(text: string) {
 export function applyTheme(t: Theme) {
   if (t === "system") delete document.documentElement.dataset.theme;
   else document.documentElement.dataset.theme = t;
+}
+
+export type Bubbles = "neutral" | "tint" | "solid";
+
+export function setBubbles(b: Bubbles) {
+  LS.set("bubbles", b === "neutral" ? null : b);
+  setState({ bubbles: b });
 }
 
 export function setTheme(t: Theme) {

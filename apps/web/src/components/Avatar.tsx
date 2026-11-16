@@ -67,7 +67,7 @@ const STROKED: Partial<Record<Shape, number>> = { star: 4.5 };
 
 
 /** Readable ink on an identity colour. */
-function ink(hex: string): string {
+export function ink(hex: string): string {
   const m = /^#?([0-9a-f]{6})$/i.exec(hex);
   if (!m) return "#fff";
   const n = parseInt(m[1], 16);
@@ -232,8 +232,12 @@ export function Avatar({ agent, size = 30, status = false }: { agent?: AgentView
   // blank chats have no persona: a neutral speech-bubble tile
   const raw =
     agent?.kind === "chat" ? (
-      <span className="chatav" style={{ width: size, height: size, borderRadius: Math.round(size * 0.3) }} aria-hidden>
-        <MessageSquare size={Math.round(size * 0.5)} />
+      <span
+        className="chatav"
+        style={{ width: size, height: size, borderRadius: Math.round(size * 0.3), ["--c" as string]: channelColor(agent.id) } as CSSProperties}
+        aria-hidden
+      >
+        <MessageSquare size={Math.round(size * 0.5)} strokeWidth={2.2} />
       </span>
     ) : (
       <AvatarRaw color={color} shape={agent?.shape} face={agent?.face} size={size} name={agent?.name} />
