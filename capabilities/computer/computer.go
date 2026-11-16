@@ -198,3 +198,25 @@ type Computer interface {
 	// mouse (for pausing foreground actions while they use the machine).
 	IdleFor() time.Duration
 }
+
+// Script languages of Scripter.RunScript.
+const (
+	AppleScript = "applescript"
+	JavaScript  = "javascript" // JXA
+)
+
+// Scripter is optionally implemented by a provider: running AppleScript /
+// JXA and Shortcuts, the apps' own interfaces (the most reliable way to
+// drive scriptable apps such as Notes, Mail, Calendar, Finder or Music).
+// Policy (asking every time, blocked apps, no shell) is the caller's.
+type Scripter interface {
+	// RunScript runs source in lang (AppleScript or JavaScript) and returns
+	// what it printed or returned. A failing script's error is its error
+	// text.
+	RunScript(ctx context.Context, lang, source string) (string, error)
+	// RunShortcut runs the person's shortcut name with text input ("" =
+	// none) and returns its output as text.
+	RunShortcut(ctx context.Context, name, input string) (string, error)
+	// Shortcuts lists the person's shortcuts by name.
+	Shortcuts(ctx context.Context) ([]string, error)
+}
