@@ -24,6 +24,12 @@
 gh secret set MYGO_UPDATER_PRIVATE_KEY < ~/Library/Application\ Support/mygo/update-keys/mygo-update.key
 ```
 
+macOS 签名用一张固定的自签名代码签名证书（`MACOS_SIGNING_P12`，base64 的 .p12；`MACOS_SIGNING_P12_PASSWORD`）。
+它让每个版本在 macOS 眼里是同一个应用，辅助功能、屏幕录制等授权在更新后保留（ad-hoc 签名把身份绑在每次构建的哈希上）。
+证书只在 CI 的临时钥匙串里使用；没有这两个 Secret 时退回 ad-hoc。换证书等同于换应用，用户需要重新授权一次。
+
+两个 Secret 已于 2026-11-17 设置（证书有效期 20 年，生成后本地私钥已删除，只存在于仓库 Secrets）。
+
 **请另存一份到密码管理器**：已安装的客户端只接受这把密钥签名的更新，丢了就无法再给它们推送更新。
 
 ## 发一个版本

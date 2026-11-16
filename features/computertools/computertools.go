@@ -617,7 +617,7 @@ func (s *Service) blockedWhy(app computer.App) string {
 	case GroupSelf:
 		return "agents never operate Crewbase itself"
 	case GroupBrowser:
-		return "it is a web browser: use the browser_* tools (browser_open, browser_snapshot, browser_click, browser_type) for websites, or ask the user to allow this browser in Settings › 电脑操作"
+		return "it is a web browser, blocked by default: use the browser_* tools for websites; if a site does not work there, ask the user to allow this browser in Settings › 电脑操作 (浏览器 in the blocked list), then try again"
 	}
 	return "it handles money (bank, broker or crypto); agents never operate it"
 }

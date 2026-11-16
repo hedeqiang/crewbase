@@ -529,7 +529,7 @@ const ladder = ladderHead +
 	"(3) click / double_click / right_click / scroll / drag at window coordinates only when the outline lacks the target (observe with screenshot: true to see it); these bring the app to the front and wait while the user is using the computer. " +
 	"After anything that changes the window, call computer_observe again: element numbers belong to one outline. " +
 	"Sending, deleting and paying are confirmed by the user every time; password fields are never typed into (ask the user). " +
-	"Websites are not for these tools: use browser_* for anything in a browser."
+	"Websites: prefer browser_* (your own browser). If a site will not load or rejects your browser, and computer_apps shows the user's own browser (Chrome, Safari…) as allowed or ask, you may operate that browser with these tools instead (it has the user's logins); if it shows blocked, tell the user they can allow it in Settings › 电脑操作. Never say you cannot operate the user's browser without checking computer_apps."
 
 func stepProps() map[string]any {
 	num := func(d string) map[string]any { return tools.Prop("number", d) }
@@ -581,7 +581,7 @@ func (s *Service) tools() []*tools.Tool {
 					"items": map[string]any{"type": "object", "properties": stepProps(), "required": []string{"action"}}}}, "app", "actions"),
 			Classify: s.classify, Execute: s.act},
 		{Name: ToolOpen, Category: tools.CategoryWrite, Unconfined: true,
-			Description: "Open (launch or bring up) a native app by name or bundle id, then computer_observe it. Not for websites: use browser_open.",
+			Description: "Open (launch or bring up) a native app by name or bundle id, then computer_observe it. For websites prefer browser_open; open the user's own browser only when computer_apps shows it allowed.",
 			Params:      tools.Schema(map[string]any{"app": appProp}, "app"),
 			Classify:    s.classify, Execute: s.open},
 		s.nativeTool(),

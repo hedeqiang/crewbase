@@ -9,9 +9,11 @@
 # crew / crew-relay archives; the server image goes to ghcr.io. The release
 # is published once every job uploaded, and installed apps update to it.
 #
-# macOS apps are signed ad hoc until a Developer ID is configured
-# (docs/release.md): on other Macs, the first launch needs right-click →
-# Open, or `xattr -dr com.apple.quarantine /Applications/Crewbase.app`.
+# macOS apps are signed with a stable self-signed certificate (secrets
+# MACOS_SIGNING_P12 / _PASSWORD, so permissions survive updates) until a
+# Developer ID is configured (docs/release.md); they are not notarized, so
+# the first launch needs right-click → Open, or
+# `xattr -dr com.apple.quarantine /Applications/Crewbase.app`.
 # Updates are signed with MYGO_UPDATER_PRIVATE_KEY either way.
 name: Release
 
@@ -110,12 +112,42 @@ jobs:
       - name: Install NSIS, for the Windows installers
         if: matrix.name == 'Windows'
         run: sudo apt-get update && sudo apt-get install -y nsis
+      # A stable self-signed certificate (secrets MACOS_SIGNING_P12 /
+      # _PASSWORD; docs/release.md): every version keeps the same code
+      # identity, so macOS permissions (Accessibility, Screen Recording)
+      # survive updates. Ad-hoc signing pinned the identity to each build's
+      # hash. Without the secret the app is signed ad hoc as before.
+      - name: Signing certificate (macOS)
+        id: sign
+        if: matrix.name == 'macOS'
+        env:
+          P12: ${{ secrets.MACOS_SIGNING_P12 }}
+          P12_PASSWORD: ${{ secrets.MACOS_SIGNING_P12_PASSWORD }}
+        run: |
+          if [ -z "$P12" ]; then echo "identity=" >> "$GITHUB_OUTPUT"; exit 0; fi
+          kc="$RUNNER_TEMP/crewbase-sign.keychain-db"
+          kcpw=$(openssl rand -hex 16)
+          printf '%s' "$P12" | base64 --decode > "$RUNNER_TEMP/sign.p12"
+          security create-keychain -p "$kcpw" "$kc"
+          security set-keychain-settings -lut 3600 "$kc"
+          security unlock-keychain -p "$kcpw" "$kc"
+          security import "$RUNNER_TEMP/sign.p12" -k "$kc" -P "$P12_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$kcpw" "$kc" > /dev/null
+          security list-keychains -d user -s "$kc" $(security list-keychains -d user | tr -d '"')
+          rm -f "$RUNNER_TEMP/sign.p12"
+          echo "identity=Crewbase Self-Signed Code Signing" >> "$GITHUB_OUTPUT"
       - name: Build and upload
         env:
           GH_TOKEN: ${{ github.token }}
           CGO_ENABLED: "0"
           MYGO_UPDATER_PRIVATE_KEY: ${{ secrets.MYGO_UPDATER_PRIVATE_KEY }}
-        run: go tool mygo build -platform "${{ matrix.platform }}" -upload apps/desktop
+          SIGN_IDENTITY: ${{ steps.sign.outputs.identity }}
+        run: |
+          if [ -n "$SIGN_IDENTITY" ]; then
+            go tool mygo build -platform "${{ matrix.platform }}" -sign "$SIGN_IDENTITY" -upload apps/desktop
+          else
+            go tool mygo build -platform "${{ matrix.platform }}" -upload apps/desktop
+          fi
       - name: Updates for macOS apps installed per architecture
         if: matrix.name == 'macOS'
         env:
