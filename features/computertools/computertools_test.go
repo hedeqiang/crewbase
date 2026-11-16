@@ -465,6 +465,9 @@ func TestBrowsersGoToBrowserTools(t *testing.T) {
 	if err := e.svc.SetBlocked("com.google.Chrome", false); err != nil {
 		t.Fatal(err)
 	}
+	if err := e.svc.SetPermission(e.a.ID(), "com.google.Chrome", computertools.PermAllow); err != nil {
+		t.Fatal(err)
+	}
 	if got := e.run(t, e.call(e.a, e.ss, computertools.ToolObserve, map[string]any{"app": "com.google.Chrome"})); strings.Contains(got.Result.Content, "browser_*") {
 		t.Fatalf("allowed Chrome still refused: %s", got.Result.Content)
 	}
