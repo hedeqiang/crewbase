@@ -88,7 +88,7 @@ var Base = kernel.Bundle{Name: "base", Entries: []kernel.Entry{
 	{ID: "tools", Name: "@crewbase/tools", Config: map[string]any{"requirePolicy": "rules"}},
 	{ID: "approval", Name: "@crewbase/approval"},
 	{ID: "rules", Name: "@crewbase/rules", Config: map[string]any{"dir": "${root}"}},
-	{ID: "credentials", Name: "@crewbase/credentials"},
+	{ID: "credentials", Name: "@crewbase/credentials", Config: map[string]any{"root": "${root}"}},
 	{ID: "redact", Name: "@crewbase/redact"},
 	{ID: "llm", Name: "@crewbase/llm"},
 	// Subscriptions first: logged-in CLIs over ACP, then local models.

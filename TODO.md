@@ -45,7 +45,7 @@
 - [x] 运行模式预设 A / B / C（C 限时 24h，到期记 mode/changed）+ 守卫（只读、路径越界）（S-1）
 - [x] 规则引擎：动作类别 Allow / Ask / Block 默认表、Agent 只能收紧、记住的选择（S-2）
 - [x] `approval` 能力：闭合结果集、无应答方 = unavailable、never 策略、审计写入失败即失败（S-3）
-- [x] `credentials`：引用 + macOS Keychain / libsecret / 内存（测试）、post-execute 脱敏（S-4）
+- [x] `credentials`：引用 + macOS Keychain / libsecret / 内存（测试）、post-execute 脱敏（S-4）；钥匙串条目按数据目录隔离：~/.crewbase 保持原名，其他目录存为 crewbase-<目录 id>，旧目录首次读取时从原名复制一次、不删原条目（keychain-scope.json，2026-11-16）
 - [x] `browser` 能力：chromedp + 本机 Chrome、每 Agent 独立 Profile（登录态持久）、空闲回收、进程树清理；接管期间工具全部拒绝、页面内容不入日志；逐帧截图接管（S-5）
 
 ## 迭代 5 — 守护进程与 Agent 持久化（第 5–6 周）

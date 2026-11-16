@@ -360,13 +360,27 @@ func (Env) Get(_ context.Context, name string) (string, error) {
 func (Env) Set(context.Context, string, string) error { return ErrReadOnly }
 func (Env) Delete(context.Context, string) error      { return ErrReadOnly }
 
-// Plugin provides the `credentials` service. No config.
+// Config of the plugin.
+type Config struct {
+	// Root is the data root. Keychain entries of any root but ~/.crewbase
+	// are stored under a root-specific name (see Scope).
+	Root string `json:"root"`
+}
+
+// Plugin provides the `credentials` service.
 var Plugin = kernel.Register(kernel.Spec{
 	Name:        "@crewbase/credentials",
 	Description: "Credential references: keychain, env, memory (credentials service).",
 	Apply: func(c *kernel.Context) error {
+		cfg, err := kernel.Decode[Config](c)
+		if err != nil {
+			return err
+		}
 		s := New()
 		s.host = c.Host()
+		if kc, ok := s.backends["keychain"]; ok && cfg.Root != "" {
+			s.backends["keychain"] = Scope(kc, cfg.Root)
+		}
 		return c.Provide(ServiceKey, s)
 	},
 })
