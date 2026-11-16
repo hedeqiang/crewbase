@@ -568,7 +568,7 @@ export async function refreshApprovals() {
 /** Whether any model can answer: null while the list is still loading. */
 export function hasModels(s: State = state): boolean | null {
   if (!s.models) return null;
-  return (s.models.providers ?? []).some((p) => (p.models ?? []).some((m) => modelKind(m) === "chat"));
+  return (s.models.providers ?? []).some((p) => (p.models ?? []).some((m) => m.enabled !== false && modelKind(m) === "chat"));
 }
 
 export const openConnect = () => setState({ connecting: true });

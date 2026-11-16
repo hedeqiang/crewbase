@@ -3,10 +3,10 @@ import { MagpieModelsDialog, ModelCatalog } from "./settings/ModelSources";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { ChevronLeft, Info, ListChecks, Pencil, Plus, Search, Workflow } from "lucide-react";
 import { NAV, SECTION_ICONS } from "./settings/nav";
-import { API, desktop, type DesktopPermission, type DesktopUpdates, type UpdateInfo, type ApprovalHistoryItem, type ProviderView, type RememberedChoice, type Settings as SettingsData, type UserProvider } from "../api";
+import { API, desktop, type DesktopPermission, type DesktopUpdates, type UpdateInfo, type ApprovalHistoryItem, type ModelInfo, type ProviderView, type RememberedChoice, type Settings as SettingsData, type UserProvider } from "../api";
 import { getLang, t, type Key, type Lang } from "../i18n";
 import { ago, kfmt, modeLabel, modelKind, priceLong, priceShort, providerName, until } from "../format";
-import { openSession, setBubbles, setLang, setState, toast, useStore, type Bubbles, type SettingsSection, resync } from "../store";
+import { openSession, refreshModels, setBubbles, setLang, setState, toast, useStore, type Bubbles, type SettingsSection, resync } from "../store";
 import { Automation } from "./settings/Automation";
 import { Extensions } from "./settings/Extensions";
 import { Profile } from "./settings/Profile";
@@ -627,6 +627,36 @@ function Models() {
     return out;
   }, [providers, q]);
   const cur = providers.find((p) => p.id === sel) ?? groups[0]?.[1][0];
+  // every model of the selected provider with its on/off switch (the
+  // pickers' list leaves out what magpie / added providers have off)
+  const [sw, setSw] = useState<{ provider: string; models: ModelInfo[] } | null>(null);
+  const [swBusy, setSwBusy] = useState<string | null>(null);
+  useEffect(() => {
+    if (!cur) return;
+    let live = true;
+    API.modelSwitches(cur.id).then(
+      (r) => live && setSw({ provider: cur.id, models: r.models ?? [] }),
+      () => live && setSw(null),
+    );
+    return () => {
+      live = false;
+    };
+  }, [cur?.id, cur?.models]);
+  const listed = cur ? (sw?.provider === cur.id && sw.models.length ? sw.models : cur.models) : [];
+  const flip = async (m: ModelInfo) => {
+    if (!cur) return;
+    setSwBusy(m.id);
+    try {
+      const r = await API.setModelSwitch(cur.id, m.id, m.enabled === false);
+      setSw({ provider: cur.id, models: r.models ?? [] });
+      toast(t(m.enabled === false ? "set.modelOnToast" : "set.modelOffToast", { name: m.name || m.id }));
+      void refreshModels();
+    } catch (e: any) {
+      toast(e?.message ?? String(e));
+    } finally {
+      setSwBusy(null);
+    }
+  };
   const users = cur ? Object.values(agents).filter((a) => (a.models ?? []).some((r) => r.provider === cur.id)) : [];
 
   return (
@@ -729,6 +759,16 @@ function Models() {
                 )}
               </div>
               {cur.error && <div className="confirmbar errbar">{cur.error}</div>}
+              {cur.bridge?.outdated && (
+                <div className="confirmbar warnbar" role="status">
+                  <p>
+                    {cur.bridge.replacedBy
+                      ? t("set.bridgeReplaced", { pkg: cur.bridge.package, v: cur.bridge.version, next: cur.bridge.replacedBy })
+                      : t("set.bridgeOld", { pkg: cur.bridge.package, v: cur.bridge.version, min: cur.bridge.minVersion ?? "" })}
+                  </p>
+                  {cur.bridge.updateCommand && <code className="mono">{cur.bridge.updateCommand}</code>}
+                </div>
+              )}
               {(() => {
                 const up = userProv.find((u) => u.id === cur.id);
                 if (!up) return null;
@@ -776,7 +816,10 @@ function Models() {
                 )}
               </div>
               <div className="psec2 psec2r">
-                <span>{t("set.availableModels", { n: cur.models.length })}</span>
+                <span>
+                  {t("set.availableModels", { n: listed.length })}
+                  {listed.some((m) => m.enabled === false) && <span className="small"> · {t("set.modelsOff", { n: listed.filter((m) => m.enabled === false).length })}</span>}
+                </span>
                 {cur.id === "magpie" && (
                   <button className="btn sm" type="button" onClick={() => setChoosingMagpie(true)}>
                     <ListChecks size={13} />
@@ -790,7 +833,8 @@ function Models() {
                   </button>
                 )}
               </div>
-              {cur.models.length === 0 ? <div className="empty">{t("set.noModels")}</div> : <ModelTable provider={cur} />}
+              {listed.length > 0 && <p className="small mswnote">{t("set.modelSwitchNote")}</p>}
+              {listed.length === 0 ? <div className="empty">{t("set.noModels")}</div> : <ModelTable provider={cur} models={listed} busy={swBusy} onFlip={flip} />}
             </div>
           )}
         </div>
@@ -800,13 +844,13 @@ function Models() {
 }
 
 /** A provider's models, grouped by what they produce (chat / image / video)
- *  when it serves more than one kind. */
-function ModelTable({ provider }: { provider: ProviderView }) {
-  const kinds = (["chat", "image", "video"] as const).filter((k) => provider.models.some((m) => modelKind(m) === k));
+ *  when it serves more than one kind, each with its on/off switch. */
+function ModelTable({ provider, models, busy, onFlip }: { provider: ProviderView; models: ModelInfo[]; busy: string | null; onFlip: (m: ModelInfo) => void }) {
+  const kinds = (["chat", "image", "video"] as const).filter((k) => models.some((m) => modelKind(m) === k));
   return (
     <>
       {kinds.map((kind) => {
-        const list = provider.models.filter((m) => modelKind(m) === kind);
+        const list = models.filter((m) => modelKind(m) === kind);
         return (
           <div key={kind} className="mkgroup">
             {kinds.length > 1 && (
@@ -818,32 +862,51 @@ function ModelTable({ provider }: { provider: ProviderView }) {
               </div>
             )}
             <div className="mtable">
-              {list.map((m) => (
-                <div className="mrow" key={m.id}>
-                  <ProviderMark provider={provider.id} size={18} />
-                  <span className="g">
-                    <b>{m.name || m.id}</b>
-                    <span className="mono">{m.id}</span>
-                  </span>
-                  <span className="caps">
-                    {(m.capabilities ?? []).map((c) => (
-                      <span key={c} className={"cap c-" + c.split("-")[0]}>
-                        {t(`set.cap.${c}` as Key) === `set.cap.${c}` ? c : t(`set.cap.${c}` as Key)}
-                      </span>
-                    ))}
-                  </span>
-                  <span className="mprice" title={priceLong(m.pricing) || t("mc.noPrice")}>
-                    {priceShort(m.pricing) || "—"}
-                  </span>
-                  {kind === "chat" ? (
-                    <span className="mctx" title={m.maxOutput ? t("mc.maxOut", { n: kfmt(m.maxOutput) }) : undefined}>
-                      {m.contextWindow ? kfmt(m.contextWindow) : "—"}
+              {list.map((m) => {
+                const on = m.enabled !== false;
+                const levels = (m.efforts ?? []).length;
+                return (
+                  <div className={"mrow" + (on ? "" : " off")} key={m.id}>
+                    <ProviderMark provider={provider.id} size={18} />
+                    <span className="g">
+                      <b>{m.name || m.id}</b>
+                      <span className="mono">{m.id}</span>
                     </span>
-                  ) : (
-                    <span className={"mkind sm k-" + kind}>{t(`set.kind.${kind}`)}</span>
-                  )}
-                </div>
-              ))}
+                    <span className="caps">
+                      {(m.capabilities ?? []).map((c) => (
+                        <span key={c} className={"cap c-" + c.split("-")[0]}>
+                          {t(`set.cap.${c}` as Key) === `set.cap.${c}` ? c : t(`set.cap.${c}` as Key)}
+                        </span>
+                      ))}
+                      {levels > 1 && (
+                        <span className="cap c-reasoning" title={(m.efforts ?? []).join(" · ")}>
+                          {t("set.capLevels", { n: levels })}
+                        </span>
+                      )}
+                    </span>
+                    <span className="mprice" title={priceLong(m.pricing) || t("mc.noPrice")}>
+                      {priceShort(m.pricing) || "—"}
+                    </span>
+                    {kind === "chat" ? (
+                      <span className="mctx" title={m.maxOutput ? t("mc.maxOut", { n: kfmt(m.maxOutput) }) : undefined}>
+                        {m.contextWindow ? kfmt(m.contextWindow) : "—"}
+                      </span>
+                    ) : (
+                      <span className={"mkind sm k-" + kind}>{t(`set.kind.${kind}`)}</span>
+                    )}
+                    <button
+                      className="tg"
+                      type="button"
+                      role="switch"
+                      aria-checked={on}
+                      aria-disabled={busy === m.id}
+                      aria-label={t("set.modelSwitch", { name: m.name || m.id })}
+                      title={on ? t("set.modelOnTitle") : t("set.modelOffTitle")}
+                      onClick={() => busy !== m.id && onFlip(m)}
+                    />
+                  </div>
+                );
+              })}
             </div>
           </div>
         );

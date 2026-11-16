@@ -210,6 +210,22 @@ export interface ProviderView {
   models: ModelInfo[];
   quota?: Quota;
   error?: string;
+  /** the program a subscription CLI is driven through (an ACP bridge), when known */
+  bridge?: Bridge;
+}
+export interface Bridge {
+  package: string;
+  version: string;
+  minVersion?: string;
+  replacedBy?: string;
+  /** older than minVersion, or replaced upstream */
+  outdated?: boolean;
+  updateCommand?: string;
+}
+export interface ModelSwitches {
+  provider: string;
+  /** every model of the provider; enabled = its switch */
+  models: ModelInfo[];
 }
 export interface ModelState {
   model: string;
@@ -1061,6 +1077,9 @@ export const API = {
   addProvider: (b: ProviderInput & { models: string[]; kinds?: Record<string, ModelKind> }) => api<UserProvider>("POST", "/api/providers", b),
   removeProvider: (id: string) => api("DELETE", `/api/providers/${enc(id)}`),
   updateProvider: (id: string, b: ProviderPatch) => api<UserProvider>("PATCH", `/api/providers/${enc(id)}`, b),
+  modelSwitches: (provider: string) => api<ModelSwitches>("GET", `/api/models/${encodeURIComponent(provider)}/switches`),
+  setModelSwitch: (provider: string, model: string, enabled: boolean) =>
+    api<ModelSwitches>("PUT", `/api/models/${encodeURIComponent(provider)}/switches`, { model, enabled }),
   magpieModels: () => api<MagpieChoice>("GET", "/api/providers/magpie/models"),
   setMagpieModels: (enabled: string[] | null) => api<MagpieChoice>("PUT", "/api/providers/magpie/models", { enabled }),
   modelCatalog: () => api<CatalogStatus>("GET", "/api/model-catalog"),

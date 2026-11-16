@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { ArrowDown, ArrowUp, Plus, RefreshCw, X } from "lucide-react";
 import { API, parseRef, refString, type ModelKind, type TaskRoute } from "../../api";
 import { t, type Key } from "../../i18n";
-import { allModels, findProvider, modelLabel, modelMeta, providerName, until } from "../../format";
+import { allModels, findProvider, modelLabel, modelMeta, modelOff, providerName, until } from "../../format";
 import { refreshModels, toast, useStore } from "../../store";
 import { ProviderMark } from "../ProviderMark";
 import { useSettingsData } from "../Settings";
@@ -61,6 +61,7 @@ function ModelSelect({ value, onChange, placeholder, kind = "chat" }: { value: s
 }
 
 function DefaultOrder() {
+  const models = useStore((s) => s.models);
   const [st, patch] = useSettingsData();
   const [adding, setAdding] = useState("");
   const order = st?.defaultModels ?? [];
@@ -80,11 +81,18 @@ function DefaultOrder() {
       </p>
       <div className="route wide">
         {!st && <div className="small">{t("common.loading")}</div>}
-        {order.map((m, i) => (
-          <div className="rt" key={m + i}>
+        {order.map((m, i) => {
+          const r = parseRef(m);
+          const off = !!r && modelOff(models, r);
+          return (
+          <div className={"rt" + (off ? " off" : "")} key={m + i}>
             <span className="n">{i + 1}</span>
             <ModelName ref_={m} />
-            <span className="pill">{i === 0 ? t("comp.modelPrimary") : t("comp.modelBackup")}</span>
+            {off ? (
+              <span className="pill" title={t("set.modelOffHint")}>{t("set.modelOffSkipped")}</span>
+            ) : (
+              <span className="pill">{i === 0 ? t("comp.modelPrimary") : t("comp.modelBackup")}</span>
+            )}
             <button className="ix" type="button" aria-label={t("panel.up")} disabled={i === 0} onClick={() => move(i, i - 1)}>
               <ArrowUp size={13} />
             </button>
@@ -95,7 +103,8 @@ function DefaultOrder() {
               <X size={13} />
             </button>
           </div>
-        ))}
+          );
+        })}
         {st && (
           <div className="addrow">
             <ModelSelect value={adding} onChange={setAdding} placeholder={t("panel.addModel")} />
@@ -187,7 +196,7 @@ function Routes() {
     if (!ref || !models) return false;
     const i = ref.indexOf("/");
     const p = findProvider(models, ref.slice(0, i));
-    return !p || (p.models.length > 0 && !p.models.some((m) => m.id === ref.slice(i + 1)));
+    return !p || (p.models.length > 0 && !p.models.some((m) => m.id === ref.slice(i + 1) && m.enabled !== false));
   };
   const [routes, setRoutes] = useState<TaskRoute[] | null>(null);
   const [tasks, setTasks] = useState<string[]>([]);

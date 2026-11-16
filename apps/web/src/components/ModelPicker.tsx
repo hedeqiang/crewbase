@@ -2,7 +2,7 @@ import { useLayoutEffect, useRef, useState, type ReactNode, type RefObject } fro
 import { Check, ChevronLeft, ChevronRight, Search } from "lucide-react";
 import type { AgentView, ModelRef, ModelsResponse } from "../api";
 import { t } from "../i18n";
-import { allModels, effortLabel, findModel, isExhausted, modelLabel, modelMeta, sameRef, until } from "../format";
+import { allModels, effortLabel, findModel, isExhausted, modelLabel, modelMeta, modelOff, sameRef, until } from "../format";
 import { ProviderMark } from "./ProviderMark";
 
 /** Levels offered in the menu ("" = the model's own default). */
@@ -76,7 +76,8 @@ export function ModelPicker({
   const [q, setQ] = useState("");
   const modelRow = useRef<HTMLButtonElement>(null);
   const effortRow = useRef<HTMLButtonElement>(null);
-  const order = agent.models ?? [];
+  // models switched off in Settings › Models are not offered
+  const order = (agent.models ?? []).filter((r) => !modelOff(models, r));
   const others = allModels(models).filter((m) => !order.some((r) => sameRef(r, m.ref)));
   const total = order.length + others.length;
   const needle = q.trim().toLowerCase();

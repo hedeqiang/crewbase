@@ -226,6 +226,13 @@ export function allModels(models: ModelsResponse | null, kind: ModelKind | "all"
   return out;
 }
 
+/** Whether ref's model was switched off in Settings › Models (listed with
+ *  enabled=false). Off models are offered by no picker. */
+export function modelOff(models: ModelsResponse | null, ref: ModelRef): boolean {
+  const p = models?.providers?.find((x) => x.id === ref.provider);
+  return !!p?.models?.some((m) => m.id === ref.model && m.enabled === false);
+}
+
 export function sameRef(a: ModelRef | null | undefined, b: ModelRef | null | undefined): boolean {
   return !!a && !!b && a.provider === b.provider && a.model === b.model;
 }
