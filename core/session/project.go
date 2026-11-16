@@ -55,6 +55,72 @@ type ModelSwitchData struct {
 	Detail string       `json:"detail,omitempty"`
 }
 
+// RewindData takes history back for the event's agent: every event with
+// From <= Seq < the rewind's own seq no longer reaches that agent's model
+// (regenerate a reply, edit and resend a message). The events stay in the
+// log, and the UI shows them as superseded. Compaction summaries in the
+// range are kept: a rewind never reaches back past one (see CompactedUpto).
+type RewindData struct {
+	From   int64  `json:"from"`
+	Reason string `json:"reason,omitempty"` // regenerate | edit
+}
+
+// Rewind reasons.
+const (
+	RewindRegenerate = "regenerate"
+	RewindEdit       = "edit"
+)
+
+// Visible returns events without those a rewind took back for agent. It
+// returns events itself when no rewind applies.
+func Visible(events []Event, agent string) []Event {
+	type span struct{ from, to int64 }
+	var spans []span
+	for _, e := range events {
+		if e.Type != TypeRewind || (e.Agent != agent && e.Agent != "") {
+			continue
+		}
+		var r RewindData
+		if e.Decode(&r) == nil && r.From > 0 && r.From < e.Seq {
+			spans = append(spans, span{r.From, e.Seq})
+		}
+	}
+	if len(spans) == 0 {
+		return events
+	}
+	out := make([]Event, 0, len(events))
+	for _, e := range events {
+		hidden := false
+		if e.Type != TypeCompaction {
+			for _, s := range spans {
+				if e.Seq >= s.from && e.Seq < s.to {
+					hidden = true
+					break
+				}
+			}
+		}
+		if !hidden {
+			out = append(out, e)
+		}
+	}
+	return out
+}
+
+// CompactedUpto is the UptoSeq of agent's latest compaction (0 = none):
+// history up to it is a summary, so it cannot be rewound to.
+func CompactedUpto(events []Event, agent string) int64 {
+	for i := len(events) - 1; i >= 0; i-- {
+		if events[i].Type == TypeCompaction && (events[i].Agent == agent || events[i].Agent == "") {
+			var c CompactionData
+			if events[i].Decode(&c) == nil {
+				return c.UptoSeq
+			}
+			return 0
+		}
+	}
+	return 0
+}
+
 // IsolatedKinds are session kinds whose agents do not share history.
 var IsolatedKinds = map[string]bool{"workflow": true}
 
@@ -67,6 +133,8 @@ const InterruptedResult = "interrupted: the tool call did not complete (process 
 // Tool calls without results are closed with InterruptedResult, so callers
 // must only build requests once every call of the last step has a result.
 func DeriveMessages(events []Event, agent string, names map[string]string) []llm.Message {
+	// regenerated / edited history is not part of the model's view
+	events = Visible(events, agent)
 	// find the latest compaction for this agent
 	var comp *CompactionData
 	for i := len(events) - 1; i >= 0; i-- {

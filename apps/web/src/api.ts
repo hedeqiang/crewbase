@@ -956,6 +956,11 @@ export const API = {
   deleteAgent: (id: string) => api("DELETE", `/api/agents/${enc(id)}`),
   send: (id: string, b: { text: string; model?: string; session?: string; front?: boolean; attachments?: { path: string; name: string }[] }) =>
     api<Input>("POST", `/api/agents/${enc(id)}/messages`, b),
+  /** Regenerate (no text: resend seq and the messages after it as they
+   *  were) or edit and resend (text: only seq, edited). History from seq on
+   *  no longer reaches the agent's model; the log keeps it. */
+  resend: (id: string, b: { session: string; seq: number; text?: string; model?: string }) =>
+    api<{ rewind: number; from: number; reason: string; inputs: Input[] }>("POST", `/api/agents/${enc(id)}/resend`, b),
   action: (id: string, a: "stop" | "pause" | "resume") => api<AgentView>("POST", `/api/agents/${enc(id)}/${a}`),
   cancelInput: (id: string, input: string) => api<AgentView>("DELETE", `/api/agents/${enc(id)}/queue/${enc(input)}`),
   sessions: () => api<{ sessions: SessionMeta[] }>("GET", "/api/sessions"),

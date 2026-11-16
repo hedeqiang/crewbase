@@ -244,3 +244,94 @@ func TestProjectDir(t *testing.T) {
 		t.Fatalf("reset: %d %v", code, out)
 	}
 }
+
+// Regenerate and edit-and-resend: the model sees the resent message and
+// not the superseded answer; the log keeps both.
+func TestResend(t *testing.T) {
+	base, h := start(t)
+	do(t, base, tok, "POST", "/api/agents", map[string]any{"name": "Kai"})
+	a, _ := kernel.Use[*agent.Registry](h.Root(), agent.ServiceKey).Get("kai")
+	st := kernel.Use[*session.Store](h.Root(), session.ServiceKey)
+	sid := a.Spec().Session
+	send := func(text string) {
+		t.Helper()
+		if code, out := do(t, base, tok, "POST", "/api/agents/kai/messages", map[string]any{"text": text}); code != 200 {
+			t.Fatal(code, out)
+		}
+		if !agentloop.WaitIdle(a, 5*time.Second) {
+			t.Fatal("not idle")
+		}
+	}
+	userSeq := func(text string) int64 {
+		ss, _ := st.Get(sid)
+		var seq int64
+		for _, e := range ss.Events() {
+			var m session.UserMessage
+			if e.Type == session.TypeUserMessage && e.Decode(&m) == nil && m.Text == text {
+				seq = e.Seq
+			}
+		}
+		return seq
+	}
+	view := func() []string {
+		ss, _ := st.Get(sid)
+		var out []string
+		for _, m := range session.DeriveMessages(ss.Events(), "kai", nil) {
+			out = append(out, string(m.Role)+":"+m.Text())
+		}
+		return out
+	}
+	send("one")
+	send("two")
+
+	// regenerate the last reply
+	code, out := do(t, base, tok, "POST", "/api/agents/kai/resend", map[string]any{"session": sid, "seq": userSeq("two")})
+	if code != 200 || out["reason"] != "regenerate" {
+		t.Fatal(code, out)
+	}
+	agentloop.WaitIdle(a, 5*time.Second)
+	got := strings.Join(view(), "|")
+	if got != "user:one|assistant:default: one|user:two|assistant:default: two" {
+		t.Fatalf("after regenerate: %s", got)
+	}
+	ss, _ := st.Get(sid)
+	replies := 0
+	for _, e := range ss.Events() {
+		if e.Type == session.TypeAssistantMessage {
+			replies++
+		}
+	}
+	if replies != 3 {
+		t.Fatalf("log should keep the superseded reply: %d replies", replies)
+	}
+
+	// edit the first message: everything after it is superseded
+	code, out = do(t, base, tok, "POST", "/api/agents/kai/resend", map[string]any{"session": sid, "seq": userSeq("one"), "text": "uno"})
+	if code != 200 || out["reason"] != "edit" {
+		t.Fatal(code, out)
+	}
+	agentloop.WaitIdle(a, 5*time.Second)
+	if got := strings.Join(view(), "|"); got != "user:uno|assistant:default: uno" {
+		t.Fatalf("after edit: %s", got)
+	}
+
+	// a message the model no longer sees cannot be resent
+	if code, _ := do(t, base, tok, "POST", "/api/agents/kai/resend", map[string]any{"session": sid, "seq": userSeq("two")}); code != 400 {
+		t.Fatalf("superseded message resent: %d", code)
+	}
+	if code, _ := do(t, base, tok, "POST", "/api/agents/kai/resend", map[string]any{"session": sid, "seq": userSeq("uno"), "text": "  "}); code != 400 {
+		t.Fatalf("empty edit: %d", code)
+	}
+	// not while the agent is busy
+	a.Pause()
+	if code, _ := do(t, base, tok, "POST", "/api/agents/kai/resend", map[string]any{"session": sid, "seq": userSeq("uno")}); code != 409 {
+		t.Fatalf("busy: %d", code)
+	}
+	a.Resume()
+	// not in channels
+	ch, _ := st.Create(session.Meta{Kind: "channel", Agents: []string{"kai"}})
+	m := ch.MustAppend(session.TypeUserMessage, "", session.UserMessage{Text: "hi", To: "kai"})
+	if code, _ := do(t, base, tok, "POST", "/api/agents/kai/resend", map[string]any{"session": ch.ID(), "seq": m.Seq}); code != 400 {
+		t.Fatalf("channel: %d", code)
+	}
+}

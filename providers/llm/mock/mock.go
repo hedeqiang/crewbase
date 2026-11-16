@@ -171,7 +171,8 @@ func text(s string) llm.Response {
 	return llm.Response{StopReason: "end", Message: llm.TextMessage(llm.RoleAssistant, s)}
 }
 
-// Plugin registers mock adapters. Config: {"ids": ["mock"], "delayMs": 0}.
+// Plugin registers mock adapters. Config: {"ids": ["mock"], "delayMs": 0,
+// "kind": "api", "pricing": {"input": 3, "output": 15}}.
 var Plugin = kernel.Register(kernel.Spec{
 	Name:        "@crewbase/llm-mock",
 	Inject:      []string{llm.ServiceKey},
@@ -180,6 +181,11 @@ var Plugin = kernel.Register(kernel.Spec{
 		cfg, err := kernel.Decode[struct {
 			IDs     []string `json:"ids"`
 			DelayMs int      `json:"delayMs"`
+			// Kind and Pricing let demos show a priced API model or a
+			// subscription (the UI's cost display); unset: an API model
+			// with no known price.
+			Kind    string       `json:"kind"`
+			Pricing *llm.Pricing `json:"pricing"`
 		}](c)
 		if err != nil {
 			return err
@@ -191,6 +197,12 @@ var Plugin = kernel.Register(kernel.Spec{
 		for _, id := range cfg.IDs {
 			a := New(id, 0)
 			a.delay = time.Duration(cfg.DelayMs) * time.Millisecond
+			if cfg.Kind != "" {
+				a.kind = cfg.Kind
+			}
+			if cfg.Pricing != nil {
+				a.models[0].Pricing = cfg.Pricing
+			}
 			if err := reg.Register(c, a); err != nil {
 				return err
 			}

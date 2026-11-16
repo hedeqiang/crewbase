@@ -3,7 +3,8 @@ import { runShortcut } from "../actions";
 import { keyLabel } from "../shortcuts";
 import { catLabel } from "./Settings";
 import type { Draft } from "./NewAgent";
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { createContext, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useCopy } from "../clipboard";
 import {
   ArrowUp,
   Check,
@@ -38,11 +39,16 @@ import {
   MicOff,
   Volume2,
   Square,
+  Copy,
+  Pencil,
+  RefreshCw,
+  History,
+  Coins,
 } from "lucide-react";
 import { display, enterSends, MAC } from "../shortcuts";
 import { API, desktop, parseRef, refString, type AgentView, type ChannelView, type ContextBreakdown, type ModelRef } from "../api";
 import { t, type Key } from "../i18n";
-import { argsFull, argsPreview, project, type FeedItem, type Step } from "../projection";
+import { argsFull, argsPreview, project, type FeedItem, type Rewind, type Step, type TurnStats } from "../projection";
 import { hasModels, loadSession, setModelOverride, openConnect, openSession, openSubRun, refreshAgents, refreshSessions, setState, toast, useStore, sessionAgent } from "../store";
 import { TakeoverCard, takeoverReason } from "./Browser";
 import { cloudVoice, dictate, dictationSupported, primeVoice, speak, speaking, speakSupported } from "../voice";
@@ -59,6 +65,9 @@ import {
   modeLabel,
   modelLabel,
   shortModelEffort,
+  replyUsage,
+  tokfmt,
+  costfmt,
   until,
   NO_MODEL,
 } from "../format";
@@ -97,12 +106,255 @@ function ConversationView({ sessionId, agent, channel }: { sessionId: string; ag
   const cardTypes = useMemo(() => new Set(nodeSlots.map((c) => c.key)), [nodeSlots]);
   const proj = useMemo(() => project(events ?? [], cardTypes), [events, cardTypes]);
   const ctx = proj.context[agent.id];
+  const kind = useStore((s) => s.sessions[sessionId]?.kind);
+  const override = useStore((s) => s.overrides[agent.id] ?? null);
+  const oneToOne = !channel && kind === "agent";
+  const idle = agent.status !== "running" && agent.status !== "waiting" && !agent.paused && agent.queue.length === 0;
+  const actions = useMemo<MsgActions | null>(
+    () =>
+      oneToOne
+        ? {
+            agent,
+            idle,
+            compactedUpto: proj.compactedUpto[agent.id] ?? 0,
+            lastTurn: proj.lastTurn[agent.id],
+            resend: async (seq, text) => {
+              try {
+                await API.resend(agent.id, { session: sessionId, seq, text, model: override ?? undefined });
+                return true;
+              } catch (e: any) {
+                toast(t("msg.resendFailed", { error: e?.message ?? String(e) }));
+                return false;
+              }
+            },
+          }
+        : null,
+    [oneToOne, agent, idle, proj, sessionId, override],
+  );
   return (
     <section className="main">
-      <Feed sessionId={sessionId} agent={agent} channel={channel} items={proj.items} loading={!events} error={err} />
+      <MsgCtx.Provider value={actions}>
+        <Feed sessionId={sessionId} agent={agent} channel={channel} items={proj.items} loading={!events} error={err} />
+      </MsgCtx.Provider>
       <Composer sessionId={sessionId} agent={agent} channel={channel} ctx={ctx} lastModel={proj.lastModel[agent.id]} />
     </section>
   );
+}
+
+// ---------------------------------------------------------------- message actions
+
+/** Regenerate / edit in a one-to-one conversation (null elsewhere: channels
+ *  and sub-agent runs offer copy only). */
+interface MsgActions {
+  agent: AgentView;
+  /** the agent is not working and has nothing queued */
+  idle: boolean;
+  /** history up to this seq is a compaction summary: no resending from it */
+  compactedUpto: number;
+  /** the last finished turn, when nothing came after it */
+  lastTurn?: { item: string; from: number };
+  /** regenerate (no text) or edit and resend from the user message seq */
+  resend: (seq: number, text?: string) => Promise<boolean>;
+}
+
+const MsgCtx = createContext<MsgActions | null>(null);
+
+function CopyBtn({ text }: { text: string }) {
+  const { copied, copy } = useCopy();
+  const label = copied ? t("msg.copied") : t("msg.copy");
+  return (
+    <button type="button" className={"ix mact" + (copied ? " on" : "")} aria-label={label} title={label} onClick={() => void copy(text).then((ok) => ok || toast(t("msg.copyFailed")))}>
+      {copied ? <Check size={14} /> : <Copy size={14} />}
+    </button>
+  );
+}
+
+/** Model · speed on the left; tokens and cost of the whole turn on the right. */
+function ReplyStats({ stats }: { stats: TurnStats }) {
+  const models = useStore((s) => s.models);
+  const u = replyUsage(models, stats);
+  const total = u.input + u.output;
+  const name = u.model ? shortModelEffort(models, u.model) : null;
+  const tokTitle = t("msg.tokensTitle", {
+    calls: u.calls,
+    input: u.input.toLocaleString(),
+    cache: u.cacheRead ? t("msg.cacheRead", { n: u.cacheRead.toLocaleString() }) : "",
+    output: u.output.toLocaleString(),
+  }) + (u.estimated ? " · " + t("msg.estimated") : "");
+  return (
+    <div className="replystats">
+      <span className="rs-l">
+        {name && u.model && (
+          <span className="rs-model" title={modelLabel(models, u.model)}>
+            {name.name}
+            {name.effort && <span className="effs">{name.effort}</span>}
+          </span>
+        )}
+        {u.speed !== undefined && (
+          <span title={t("msg.speedTitle")}>
+            {name ? " · " : ""}
+            {t("msg.speed", { n: u.speed >= 100 ? Math.round(u.speed) : u.speed.toFixed(1) })}
+          </span>
+        )}
+      </span>
+      {total > 0 && (
+        <span className="rs-r">
+          <span className="rs-tok" title={tokTitle} aria-label={tokTitle}>
+            <Coins size={12} aria-hidden />
+            {u.estimated ? "≈" : ""}
+            {tokfmt(total)}
+          </span>
+          {u.cost !== undefined && (
+            <span className="rs-cost" title={t("msg.costTitle")}>
+              {costfmt(u.cost)}
+            </span>
+          )}
+          {u.billing && (
+            <span className="rs-cost free" title={t(u.billing === "local" ? "msg.localTitle" : "msg.subTitle")}>
+              {t(u.billing === "local" ? "msg.local" : "msg.subscription")}
+            </span>
+          )}
+        </span>
+      )}
+    </div>
+  );
+}
+
+/** A user message: copy, and edit and resend in a one-to-one conversation. */
+function UserMsg({ it }: { it: Extract<FeedItem, { k: "user" }> }) {
+  const acts = useContext(MsgCtx);
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(it.text);
+  const [busy, setBusy] = useState(false);
+  const ta = useRef<HTMLTextAreaElement>(null);
+  const editable = !!acts && !it.superseded && it.seq > acts.compactedUpto && (!it.to || it.to === acts.agent.id) && !!it.text;
+  useLayoutEffect(() => {
+    const el = ta.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = Math.min(el.scrollHeight, 320) + "px";
+  }, [draft, editing]);
+  useEffect(() => {
+    if (editing) {
+      const el = ta.current;
+      el?.focus();
+      el?.setSelectionRange(el.value.length, el.value.length);
+    }
+  }, [editing]);
+  const submit = async () => {
+    if (!acts || !draft.trim() || busy || !acts.idle) return;
+    setBusy(true);
+    const ok = await acts.resend(it.seq, draft);
+    setBusy(false);
+    if (ok) setEditing(false);
+  };
+  if (editing && acts)
+    return (
+      <div className="m-user">
+        <div className="bubble editing">
+          <textarea
+            ref={ta}
+            value={draft}
+            aria-label={t("msg.edit")}
+            onChange={(e) => setDraft(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Escape") {
+                e.preventDefault();
+                setEditing(false);
+              } else if (e.key === "Enter" && (e.metaKey || e.ctrlKey) && !e.nativeEvent.isComposing) {
+                e.preventDefault();
+                void submit();
+              }
+            }}
+          />
+          <div className="editfoot">
+            <span className="small">{t("msg.editHint")}</span>
+            <span className="editbtns">
+              <button type="button" className="btn ghost" onClick={() => setEditing(false)}>
+                {t("common.cancel")}
+              </button>
+              <button
+                type="button"
+                className="btn pri"
+                disabled={!draft.trim() || busy || !acts.idle}
+                title={acts.idle ? t("msg.editKeys", { key: MAC ? "⌘↩" : "Ctrl+↩" }) : t("msg.busy", { name: acts.agent.name })}
+                onClick={() => void submit()}
+              >
+                {t("msg.send")}
+              </button>
+            </span>
+          </div>
+        </div>
+      </div>
+    );
+  return (
+    <div className="m-user">
+      {it.attachments?.length ? <MsgAttachments agent={it.to} items={it.attachments} /> : null}
+      {(it.text || !it.attachments?.length) && (
+        <div className="bubble">
+          {it.from && <span className="from">{it.from}</span>}
+          {it.text}
+        </div>
+      )}
+      {it.text && (
+        <div className="msgacts">
+          {editable && (
+            <button
+              type="button"
+              className="ix mact"
+              disabled={!acts!.idle}
+              aria-label={t("msg.edit")}
+              title={acts!.idle ? t("msg.editTitle") : t("msg.busy", { name: acts!.agent.name })}
+              onClick={() => {
+                setDraft(it.text);
+                setEditing(true);
+              }}
+            >
+              <Pencil size={14} />
+            </button>
+          )}
+          <CopyBtn text={it.text} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Messages a regenerate / edit took back from the model: one line,
+ *  opened on demand, shown dimmed. */
+function Superseded({ rw, rows, agents }: { rw: Rewind; rows: FeedItem[]; agents: Record<string, AgentView> }) {
+  const [open, setOpen] = useState(false);
+  const n = rows.filter((x) => x.k === "user" || x.k === "agent").length;
+  return (
+    <div className={"supd" + (open ? " open" : "")}>
+      <button type="button" className="supline" aria-expanded={open} onClick={() => setOpen(!open)}>
+        <History size={13} aria-hidden />
+        <span>{t(rw.reason === "edit" ? "msg.supEdit" : "msg.supRegen")}</span>
+        <span className="muted">· {t("msg.supHint", { n })}</span>
+        <ChevronRight size={13} className="ch" aria-hidden />
+      </button>
+      {open && (
+        <div className="supbody">
+          <MsgCtx.Provider value={null}>
+            {groupFeed(rows).map((g) =>
+              g.items.map((x) => <FeedRow key={x.it.id} it={x.it} agents={agents} showModel={x.showModel} before={x.before} after={x.after} />),
+            )}
+          </MsgCtx.Provider>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** The feed split into runs the model still sees and runs it does not. */
+function segments(items: FeedItem[]): { sup?: Rewind; items: FeedItem[] }[] {
+  const out: { sup?: Rewind; items: FeedItem[] }[] = [];
+  for (const it of items) {
+    const last = out[out.length - 1];
+    if (last && last.sup?.at === it.superseded?.at) last.items.push(it);
+    else out.push({ sup: it.superseded, items: [it] });
+  }
+  return out;
 }
 
 // ---------------------------------------------------------------- feed
@@ -182,15 +434,21 @@ function Feed({
           <span className="small">{t("ch.emptyDesc", { owner: agents[channel.owner]?.name ?? channel.owner })}</span>
         </div>
       )}
-      {groupFeed(items).map((g) =>
-        g.sys ? (
-          <div className="sysgrp" key={g.items[0].it.id}>
-            {g.items.map((x) => (
-              <FeedRow key={x.it.id} it={x.it} agents={agents} />
-            ))}
-          </div>
+      {segments(items).map((seg) =>
+        seg.sup ? (
+          <Superseded key={"sup" + seg.items[0].id} rw={seg.sup} rows={seg.items} agents={agents} />
         ) : (
-          g.items.map((x) => <FeedRow key={x.it.id} it={x.it} agents={agents} showModel={x.showModel} before={x.before} after={x.after} />)
+          groupFeed(seg.items).map((g) =>
+            g.sys ? (
+              <div className="sysgrp" key={g.items[0].it.id}>
+                {g.items.map((x) => (
+                  <FeedRow key={x.it.id} it={x.it} agents={agents} />
+                ))}
+              </div>
+            ) : (
+              g.items.map((x) => <FeedRow key={x.it.id} it={x.it} agents={agents} showModel={x.showModel} before={x.before} after={x.after} />)
+            ),
+          )
         ),
       )}
       {live.map(([k, v]) => {
@@ -300,17 +558,7 @@ function FeedRow({ it, agents, showModel, before, after }: { it: FeedItem; agent
     case "time":
       return <div className="tmark">{dayLabel(it.time)}</div>;
     case "user":
-      return (
-        <div className="m-user">
-          {it.attachments?.length ? <MsgAttachments agent={it.to} items={it.attachments} /> : null}
-          {(it.text || !it.attachments?.length) && (
-            <div className="bubble">
-              {it.from && <span className="from">{it.from}</span>}
-              {it.text}
-            </div>
-          )}
-        </div>
-      );
+      return <UserMsg it={it} />;
     case "agent":
       return <AgentMsg it={it} agent={agents[it.agent]} showModel={!!showModel} before={before} after={after} />;
     case "steps":
@@ -411,33 +659,25 @@ function AgentMsg({ it, agent, showModel, before, after }: { it: Extract<FeedIte
   const models = useStore((s) => s.models);
   const [showThink, setShowThink] = useState(false);
   const [reading, setReading] = useState(false);
+  const acts = useContext(MsgCtx);
+  const [regen, setRegen] = useState(false);
   const sm = it.model ? shortModelEffort(models, it.model) : null;
+  // regenerate: the last finished turn of a one-to-one conversation
+  const canRegen = !!acts && !it.superseded && acts.lastTurn?.item === it.id && acts.lastTurn.from > acts.compactedUpto;
+  const hasActs = !!it.text || canRegen;
   return (
-    <div className="m-agent">
+    <div className={"m-agent" + (it.stats ? " final" : "")}>
       <Avatar agent={agent} size={28} />
       <div style={{ minWidth: 0 }}>
         <div className="mh">
           <b>{agent ? speaker(agent) : it.agent}</b>
           <span className="t">{hhmm(it.time)}</span>
-          {sm && it.model && (
+          {/* the turn's last reply names its model in the footer */}
+          {sm && it.model && !it.stats && (
             <span className={"via" + (showModel ? "" : " hov")} title={modelLabel(models, it.model)}>
               {sm.name}
               {sm.effort && <span className="effs">{sm.effort}</span>}
             </span>
-          )}
-          {it.text && speakSupported() && (
-            <button
-              type="button"
-              className={"ix readout" + (reading ? " on" : "")}
-              aria-label={reading ? t("voice.stop") : t("voice.read")}
-              title={reading ? t("voice.stop") : t("voice.read")}
-              onClick={() => {
-                setReading(!speaking(it.id));
-                speak(it.id, it.text, () => setReading(false));
-              }}
-            >
-              {reading ? <Square size={11} /> : <Volume2 size={13} />}
-            </button>
           )}
         </div>
         {it.thinking && (
@@ -478,6 +718,42 @@ function AgentMsg({ it, agent, showModel, before, after }: { it: Extract<FeedIte
           </div>
         )}
         {after && <Steps steps={after} />}
+        {it.stats && <ReplyStats stats={it.stats} />}
+        {hasActs && (
+          <div className="msgacts">
+            {it.text && <CopyBtn text={it.text} />}
+            {canRegen && (
+              <button
+                type="button"
+                className="ix mact"
+                disabled={!acts!.idle || regen}
+                aria-label={t("msg.regenerate")}
+                title={acts!.idle ? t("msg.regenerateTitle") : t("msg.busy", { name: acts!.agent.name })}
+                onClick={async () => {
+                  setRegen(true);
+                  await acts!.resend(acts!.lastTurn!.from);
+                  setRegen(false);
+                }}
+              >
+                <RefreshCw size={14} />
+              </button>
+            )}
+            {it.text && speakSupported() && (
+              <button
+                type="button"
+                className={"ix mact" + (reading ? " on" : "")}
+                aria-label={reading ? t("voice.stop") : t("voice.read")}
+                title={reading ? t("voice.stop") : t("voice.read")}
+                onClick={() => {
+                  setReading(!speaking(it.id));
+                  speak(it.id, it.text, () => setReading(false));
+                }}
+              >
+                {reading ? <Square size={12} /> : <Volume2 size={14} />}
+              </button>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );
