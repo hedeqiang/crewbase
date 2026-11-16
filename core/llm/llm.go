@@ -163,6 +163,12 @@ type Request struct {
 	Agent     string `json:"-"`
 	Session   string `json:"-"`
 	Workspace string `json:"-"`
+	// OwnWorkspace says Workspace is a directory Crewbase made for an agent
+	// (<root>/workspaces/<id>), not a project folder the person chose.
+	// Adapters that start a coding CLI there (ACP) must not let it load the
+	// project-level config the agent could have written
+	// (agent.CLIConfigNames).
+	OwnWorkspace bool `json:"-"`
 }
 
 // Provider-hosted tools an agent may enable. They run on the provider's

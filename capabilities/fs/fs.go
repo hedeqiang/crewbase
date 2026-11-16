@@ -27,6 +27,10 @@ type Access struct {
 	// consumers must pass the workspace in confined modes.
 	Roots    []string `json:"roots,omitempty"`
 	ReadOnly bool     `json:"readOnly,omitempty"`
+	// Protected paths (and everything under them) may be read but not
+	// written or edited, compared case-insensitively and with symlinks
+	// resolved (the coding CLIs' project config, agent.CLIConfigNames).
+	Protected []string `json:"protected,omitempty"`
 }
 
 // Info describes a file or directory.
@@ -75,6 +79,7 @@ type FS interface {
 var (
 	ErrOutsideRoots = errors.New("path is outside the allowed roots")
 	ErrReadOnly     = errors.New("file system is read-only in this mode")
+	ErrProtected    = errors.New("path is protected in this mode")
 	ErrNotRead      = errors.New("file has not been read yet; read it before editing")
 	ErrStale        = errors.New("file changed since it was last read; read it again before editing")
 	ErrNoMatch      = errors.New("old text not found in file")

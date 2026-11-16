@@ -164,7 +164,10 @@ func PolicyFor(runMode, workspace string, allowHosts []string) Policy {
 	case agent.ModeHost:
 		p = Policy{Mode: ModeFull, Network: NetworkOpen}
 	case agent.ModeSandbox:
-		p = Policy{Mode: ModeWorkspaceWrite, WritableRoots: []string{workspace}, Network: NetworkNone}
+		// The coding CLIs' project config in the workspace stays read-only:
+		// a command must not hand the next CLI turn hooks, MCP servers or
+		// an allow-list (agent.CLIConfigNames).
+		p = Policy{Mode: ModeWorkspaceWrite, WritableRoots: []string{workspace}, ProtectedRoots: agent.CLIConfigPaths(workspace), Network: NetworkNone}
 	default: // read-only and anything unknown
 		p = Policy{Mode: ModeReadOnly, Network: NetworkNone}
 		if workspace != "" {

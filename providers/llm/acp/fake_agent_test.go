@@ -30,6 +30,8 @@ import (
 //	/write P fs/write_text_file P
 //	/spawn   starts a grandchild `sleep 300` and reports its pid
 //	/cwd     replies with the session's cwd
+//	/meta    replies with the session/new _meta
+//	/cfgperm P requests permission to edit P (raw input file_path)
 //
 // Otherwise it replies "[s<n>] echo: <prompt>" in two chunks with a tool call.
 const fakeEnv = "FAKE_ACP_AGENT"
@@ -40,6 +42,7 @@ func runFakeAgent() {
 		nsess   int
 		cancels = map[string]chan struct{}{}
 		cwds    = map[string]string{}
+		metas   = map[string]string{}
 		conn    *jsonrpc.Conn
 	)
 	update := func(sid string, u map[string]any) {
@@ -135,6 +138,29 @@ func runFakeAgent() {
 			update(sid, map[string]any{"sessionUpdate": "tool_call_update", "toolCallId": "e3", "status": "completed"})
 			chunk(sid, "edited")
 			return map[string]string{"stopReason": "end_turn"}, nil
+		case strings.Contains(text, "/meta"):
+			mu.Lock()
+			meta := metas[sid]
+			mu.Unlock()
+			chunk(sid, "["+sid+"] meta="+meta)
+			return map[string]string{"stopReason": "end_turn"}, nil
+		case strings.Contains(text, "/cfgperm "):
+			path, _ := arg(text, "/cfgperm")
+			var res permissionResult
+			err := conn.Call(ctx, "session/request_permission", map[string]any{
+				"sessionId": sid,
+				"toolCall": map[string]any{"toolCallId": "w1", "title": "Write settings", "kind": "edit",
+					"rawInput": map[string]string{"file_path": path}},
+				"options": []map[string]string{
+					{"optionId": "yes", "name": "Allow", "kind": "allow_once"},
+					{"optionId": "no", "name": "Reject", "kind": "reject_once"},
+				},
+			}, &res)
+			if err != nil {
+				return nil, err
+			}
+			chunk(sid, fmt.Sprintf("permission: %s/%s", res.Outcome.Outcome, res.Outcome.OptionID))
+			return map[string]string{"stopReason": "end_turn"}, nil
 		case strings.Contains(text, "/cwd"):
 			mu.Lock()
 			cwd := cwds[sid]
@@ -171,9 +197,13 @@ func runFakeAgent() {
 				nsess++
 				sid := fmt.Sprintf("s%d", nsess)
 				cancels[sid] = make(chan struct{})
-				var np struct{ Cwd string }
+				var np struct {
+					Cwd  string
+					Meta json.RawMessage `json:"_meta"`
+				}
 				_ = json.Unmarshal(params, &np)
 				cwds[sid] = np.Cwd
+				metas[sid] = string(np.Meta)
 				mu.Unlock()
 				return map[string]any{"sessionId": sid, "models": map[string]any{
 					"currentModelId":  "fast",

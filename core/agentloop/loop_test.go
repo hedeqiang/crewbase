@@ -303,6 +303,9 @@ func TestBlankChat(t *testing.T) {
 		t.Fatal("no request")
 	}
 	r := reqs[0]
+	if r.Workspace != c.Workspace() || !r.OwnWorkspace {
+		t.Fatalf("request workspace %q own=%v", r.Workspace, r.OwnWorkspace)
+	}
 	if !strings.Contains(r.System, "Crewbase") || !strings.Contains(r.System, c.Workspace()) {
 		t.Fatalf("chat lost the base rules / workspace: %q", r.System)
 	}

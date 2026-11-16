@@ -334,3 +334,49 @@ func TestTooLarge(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+// Protected paths (the coding CLIs' project config) are readable but not
+// writable: as given, in another letter case, through a link to them, and
+// when the protected directory is itself a link.
+func TestProtectedPaths(t *testing.T) {
+	e := setup(t, nil)
+	ctx := context.Background()
+	e.a.Protected = []string{e.p(".claude"), e.p(".mcp.json")}
+	for _, rel := range []string{".claude/settings.local.json", ".CLAUDE/settings.json", ".Claude", ".mcp.json", ".MCP.json"} {
+		if _, err := e.fs.Write(ctx, e.a, e.p(rel), []byte("{}")); !errors.Is(err, fs.ErrProtected) {
+			t.Errorf("write %s: %v", rel, err)
+		}
+	}
+	// a link inside the workspace pointing at the protected directory
+	os.MkdirAll(e.p(".claude"), 0o755)
+	if err := os.Symlink(e.p(".claude"), e.p("cfg")); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := e.fs.Write(ctx, e.a, e.p("cfg/settings.json"), []byte("{}")); !errors.Is(err, fs.ErrProtected) {
+		t.Errorf("write through link: %v", err)
+	}
+	// the protected name is a link to a writable directory
+	os.MkdirAll(e.p("real"), 0o755)
+	if err := os.Symlink(e.p("real"), e.p(".mcp.json")); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := e.fs.Write(ctx, e.a, e.p(".mcp.json/x"), []byte("{}")); !errors.Is(err, fs.ErrProtected) {
+		t.Errorf("write via protected link: %v", err)
+	}
+	// edit of an existing protected file is refused too, reads still work
+	if err := os.WriteFile(e.p(".claude/settings.json"), []byte(`{"a":1}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := e.fs.Read(ctx, e.a, e.p(".claude/settings.json")); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := e.fs.Edit(ctx, e.a, e.p(".claude/settings.json"), `"a":1`, `"a":2`); !errors.Is(err, fs.ErrProtected) {
+		t.Errorf("edit: %v", err)
+	}
+	// look-alikes are ordinary files
+	for _, rel := range []string{".claudex/a", "sub/.claude/settings.json", "notes.md"} {
+		if _, err := e.fs.Write(ctx, e.a, e.p(rel), []byte("x")); err != nil {
+			t.Errorf("write %s: %v", rel, err)
+		}
+	}
+}

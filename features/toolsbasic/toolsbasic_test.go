@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -258,6 +259,13 @@ func TestMappings(t *testing.T) {
 	}
 	if a, _ := toolsbasic.AccessFor(tools.Call{Mode: "weird", Workspace: "/w"}); !a.ReadOnly {
 		t.Fatal("unknown mode fails closed to read-only")
+	}
+	// sandbox mode: the coding CLIs' project config is read-only
+	if a, _ := toolsbasic.AccessFor(tools.Call{Mode: "sandbox", Workspace: "/w"}); a.ReadOnly || !slices.Contains(a.Protected, filepath.Join("/w", ".claude")) || !slices.Contains(a.Protected, filepath.Join("/w", ".gemini")) {
+		t.Fatal(a)
+	}
+	if p := toolsbasic.PolicyFor(tools.Call{Mode: "sandbox", Workspace: "/w"}, nil); !slices.Contains(p.ProtectedRoots, filepath.Join("/w", ".codex")) {
+		t.Fatal(p)
 	}
 	if p := toolsbasic.PolicyFor(tools.Call{Mode: "sandbox", Workspace: "/w"}, nil); p.Mode != sandbox.ModeWorkspaceWrite || p.WritableRoots[0] != "/w" {
 		t.Fatal(p)

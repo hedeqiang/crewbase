@@ -49,8 +49,9 @@ type initializeResult struct {
 }
 
 type newSessionParams struct {
-	Cwd        string `json:"cwd"`
-	MCPServers []any  `json:"mcpServers"`
+	Cwd        string         `json:"cwd"`
+	MCPServers []any          `json:"mcpServers"`
+	Meta       map[string]any `json:"_meta,omitempty"`
 }
 
 type acpModel struct {
@@ -122,6 +123,12 @@ type permissionParams struct {
 		ToolCallID string `json:"toolCallId"`
 		Title      string `json:"title,omitempty"`
 		Kind       string `json:"kind,omitempty"`
+		// files the call works on (locations, diff content, raw input)
+		Locations []struct {
+			Path string `json:"path"`
+		} `json:"locations,omitempty"`
+		Content  json.RawMessage `json:"content,omitempty"`
+		RawInput json.RawMessage `json:"rawInput,omitempty"`
 	} `json:"toolCall"`
 	Options []permissionOption `json:"options"`
 }
