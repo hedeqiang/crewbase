@@ -33,6 +33,8 @@ type Options struct {
 	// FilesChanged is told which workspace files a turn's CLI tools changed
 	// (edit / delete / move tool calls and fs/write_text_file).
 	FilesChanged func(agent, session string, paths []string)
+	// StateDir keeps learned model lists across restarts (see models.go).
+	StateDir string
 	// CancelGrace is how long a cancelled turn waits for the agent to
 	// acknowledge session/cancel (default 5s).
 	CancelGrace time.Duration
@@ -60,6 +62,7 @@ type Adapter struct {
 	initTimeout  time.Duration
 	goFn         func(fn func(ctx context.Context)) bool
 	trace        func(string, []byte)
+	stateDir     string // where learned model lists are cached ("" = not kept)
 
 	startMu sync.Mutex // serialises process start
 	mu      sync.Mutex
@@ -99,6 +102,7 @@ func newAdapter(id string, r resolved, opts Options) *Adapter {
 		a.initTimeout = 90 * time.Second
 	}
 	a.filesChanged = opts.FilesChanged
+	a.stateDir = opts.StateDir
 	a.goFn = opts.Go
 	if a.goFn == nil {
 		a.goFn = func(fn func(context.Context)) bool { go fn(context.Background()); return true }
@@ -134,6 +138,11 @@ func (a *Adapter) learnModels(ms []acpModel) {
 	if len(ms) == 0 {
 		return
 	}
+	a.setModels(ms)
+	writeModelCache(a.stateDir, a.cfg.ID, ms, time.Now())
+}
+
+func (a *Adapter) setModels(ms []acpModel) {
 	out := make([]llm.ModelInfo, 0, len(ms))
 	for _, m := range ms {
 		if m.ModelID == "" || m.ModelID == defaultModel {

@@ -23,6 +23,7 @@ func TestMain(m *testing.M) {
 		runFakeAgent()
 		os.Exit(0)
 	}
+	probe = false // tests start CLIs themselves
 	os.Exit(m.Run())
 }
 
@@ -430,7 +431,7 @@ func TestResolveAndDetect(t *testing.T) {
 	bin("claude")
 	bin("claude-code-acp")
 	bin("codex") // installed, but no ACP adapter and no npx
-	bin("gemini")
+	bin("agy")
 	t.Setenv("PATH", dir)
 	home := t.TempDir()
 	_ = os.MkdirAll(filepath.Join(home, ".codex"), 0o755)
@@ -442,7 +443,7 @@ func TestResolveAndDetect(t *testing.T) {
 	t.Setenv("GEMINI_API_KEY", "")
 	t.Setenv("GOOGLE_API_KEY", "")
 
-	infos := Detect(context.Background(), Config{Agents: []AgentConfig{{ID: "gemini-cli", Cwd: "/work"}}})
+	infos := Detect(context.Background(), Config{Agents: []AgentConfig{{ID: "antigravity", Cwd: "/work"}}})
 	by := map[string]CLIInfo{}
 	for _, i := range infos {
 		by[i.ID] = i
@@ -455,9 +456,9 @@ func TestResolveAndDetect(t *testing.T) {
 	if !cx.Installed || len(cx.ACPCommand) != 0 || cx.LoggedIn != LoggedInYes {
 		t.Fatalf("codex %+v", cx)
 	}
-	gm := by["gemini-cli"]
-	if !gm.Installed || strings.Join(gm.ACPCommand[1:], " ") != "--experimental-acp" || gm.LoggedIn != LoggedInUnknown {
-		t.Fatalf("gemini %+v", gm)
+	gm := by["antigravity"]
+	if !gm.Installed || strings.Join(gm.ACPCommand[1:], " ") != "acp" || gm.LoggedIn != LoggedInUnknown {
+		t.Fatalf("antigravity %+v", gm)
 	}
 	if op := by["opencode"]; op.Installed || op.LoggedIn != LoggedInNo {
 		t.Fatalf("opencode %+v", op)
@@ -483,7 +484,7 @@ func TestResolveAndDetect(t *testing.T) {
 			t.Fatal("kind")
 		}
 	}
-	if strings.Join(ids, ",") != "acp-claude-code,acp-gemini-cli" {
+	if strings.Join(ids, ",") != "acp-antigravity,acp-claude-code" {
 		t.Fatalf("registered %v", ids)
 	}
 	svc := kernel.Use[*Service](h.Root(), ServiceKey)
@@ -560,14 +561,14 @@ func TestRescanFindsNewCLI(t *testing.T) {
 	}
 	reg := kernel.Use[*llm.Registry](h.Root(), llm.ServiceKey)
 	svc := kernel.Use[*Service](h.Root(), ServiceKey)
-	if _, ok := reg.Get("acp-gemini-cli"); ok {
+	if _, ok := reg.Get("acp-antigravity"); ok {
 		t.Fatal("registered before install")
 	}
-	os.WriteFile(filepath.Join(dir, "gemini"), []byte("#!/bin/sh\necho 'gemini 1.0.0'\n"), 0o755)
-	if ids := svc.Rescan(); len(ids) != 1 || ids[0] != "gemini-cli" {
+	os.WriteFile(filepath.Join(dir, "agy"), []byte("#!/bin/sh\necho 'agy 1.0.0'\n"), 0o755)
+	if ids := svc.Rescan(); len(ids) != 1 || ids[0] != "antigravity" {
 		t.Fatalf("rescan %v", ids)
 	}
-	if _, ok := reg.Get("acp-gemini-cli"); !ok {
+	if _, ok := reg.Get("acp-antigravity"); !ok {
 		t.Fatal("not registered after rescan")
 	}
 	if ids := svc.Rescan(); len(ids) != 0 {

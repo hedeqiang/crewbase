@@ -159,7 +159,7 @@ function providerTitle(id: string): string {
   const m: Record<string, string> = {
     "acp-claude-code": "Claude Code",
     "acp-codex": "Codex",
-    "acp-gemini-cli": "Gemini CLI",
+    "acp-antigravity": "Antigravity",
     "acp-cursor": "Cursor",
     "acp-opencode": "OpenCode",
     "acp-grok": "Grok CLI",

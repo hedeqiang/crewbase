@@ -1025,6 +1025,10 @@ func (r *Registry) loadAll() {
 		if !ok {
 			continue
 		}
+		if ms := renameProviders(s.Models); ms != nil {
+			s.Models = ms
+			_ = r.persist(s)
+		}
 		r.mu.Lock()
 		r.agents[s.ID] = nil
 		r.mu.Unlock()
@@ -1132,6 +1136,9 @@ var Plugin = kernel.Register(kernel.Spec{
 				return err
 			}
 			r.defaults = append(r.defaults, ref)
+		}
+		if ms := renameProviders(r.defaults); ms != nil {
+			r.defaults = ms
 		}
 		// team-scoped tools (a team's shared MCP servers) need the agent's team
 		if tr, ok := kernel.Lookup[*tools.Registry](c, tools.ServiceKey); ok {
@@ -1340,4 +1347,32 @@ func ChatNameFrom(text string) string {
 		t = string(r[:23]) + "…"
 	}
 	return t
+}
+
+// renamedProviders maps providers that were replaced to their successors:
+// Gemini CLI became Antigravity (agy).
+var renamedProviders = map[string]string{"acp-gemini-cli": "acp-antigravity"}
+
+// renameProviders returns ms with renamed providers replaced (dropping a
+// duplicate the rename creates), or nil when nothing changed.
+func renameProviders(ms []llm.ModelRef) []llm.ModelRef {
+	changed := false
+	for _, m := range ms {
+		if _, ok := renamedProviders[m.Provider]; ok {
+			changed = true
+		}
+	}
+	if !changed {
+		return nil
+	}
+	out := make([]llm.ModelRef, 0, len(ms))
+	for _, m := range ms {
+		if to, ok := renamedProviders[m.Provider]; ok {
+			m.Provider = to
+		}
+		if !slices.ContainsFunc(out, func(x llm.ModelRef) bool { return x.Provider == m.Provider && x.Model == m.Model }) {
+			out = append(out, m)
+		}
+	}
+	return out
 }

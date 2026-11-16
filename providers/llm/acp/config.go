@@ -8,7 +8,7 @@ import (
 
 // AgentConfig configures one ACP agent (a subscription CLI).
 //
-// For a built-in id (claude-code, codex, gemini-cli, cursor, opencode, grok)
+// For a built-in id (claude-code, codex, antigravity, cursor, opencode, grok)
 // every field is optional and overrides the default. Other ids need Command.
 type AgentConfig struct {
 	ID   string `json:"id"`
@@ -50,6 +50,8 @@ type ModelConfig struct {
 //	}
 type Config struct {
 	Agents []AgentConfig `json:"agents"`
+	// StateDir keeps learned model lists across restarts ("" = not kept).
+	StateDir string `json:"stateDir"`
 	// AutoApprove answers session/request_permission with the agent's
 	// "allow" option without asking (explicit override). Default false:
 	// requests go to the Crewbase approval service.
@@ -90,9 +92,10 @@ var builtins = []builtin{
 		{bin: "codex-acp"},
 		{bin: "npx", args: []string{"-y", "@zed-industries/codex-acp"}, note: "via npx (downloaded on first use)"},
 	}},
-	{id: "gemini-cli", name: "Gemini CLI", cli: "gemini", login: "gemini (choose \"Login with Google\")", window: 1000000, entries: []entrypoint{
-		// --acp since ~0.6x; --experimental-acp is the deprecated alias
-		{bin: "gemini", args: []string{"--experimental-acp"}},
+	// Google's coding CLI (formerly Gemini CLI); serves Gemini, Claude and
+	// GPT-OSS models over ACP
+	{id: "antigravity", name: "Antigravity", cli: "agy", login: "agy (sign in with Google)", window: 1000000, entries: []entrypoint{
+		{bin: "agy", args: []string{"acp"}},
 	}},
 	{id: "cursor", name: "Cursor CLI", cli: "cursor-agent", login: "cursor-agent login", window: 200000, entries: []entrypoint{
 		{bin: "cursor-agent", args: []string{"acp"}, note: "hidden `acp` subcommand"},

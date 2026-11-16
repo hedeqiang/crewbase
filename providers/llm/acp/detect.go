@@ -81,11 +81,8 @@ func loggedIn(id string) string {
 			return LoggedInYes
 		}
 		return LoggedInNo
-	case "gemini-cli":
-		if os.Getenv("GEMINI_API_KEY") != "" || os.Getenv("GOOGLE_API_KEY") != "" || exists(filepath.Join(home, ".gemini", "oauth_creds.json")) {
-			return LoggedInYes
-		}
-		return LoggedInUnknown
+	case "antigravity":
+		return LoggedInUnknown // signs in with Google in its own app data
 	case "cursor":
 		if os.Getenv("CURSOR_API_KEY") != "" {
 			return LoggedInYes

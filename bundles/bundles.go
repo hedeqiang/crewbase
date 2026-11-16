@@ -94,7 +94,7 @@ var Base = kernel.Bundle{Name: "base", Entries: []kernel.Entry{
 	// Subscriptions first: logged-in CLIs over ACP, then local models.
 	// API providers (llm-openai / llm-anthropic / llm-gemini) are added by
 	// the user ("add provider"), which writes a patch entry.
-	{ID: "llm-acp", Name: "@crewbase/llm-acp"},
+	{ID: "llm-acp", Name: "@crewbase/llm-acp", Config: map[string]any{"stateDir": "${root}"}},
 	{ID: "llm-local", Name: "@crewbase/llm-local"},
 	// magpie gateway, registered only while magpie runs (github.com/yetone/magpie).
 	{ID: "llm-magpie", Name: "@crewbase/llm-magpie", Config: map[string]any{"stateDir": "${root}"}},
@@ -110,7 +110,7 @@ var Base = kernel.Bundle{Name: "base", Entries: []kernel.Entry{
 	// Cheap chores go to DeepSeek Flash when it is reachable (directly or
 	// through magpie); otherwise the agent's own model order applies.
 	{ID: "router", Name: "@crewbase/router-default", Config: map[string]any{"routes": cheapRoutes()}},
-	{ID: "agents", Name: "@crewbase/agents", Config: map[string]any{"root": "${root}", "defaultModels": []string{"acp-claude-code/default", "acp-codex/default", "acp-gemini-cli/default"}}},
+	{ID: "agents", Name: "@crewbase/agents", Config: map[string]any{"root": "${root}", "defaultModels": []string{"acp-claude-code/default", "acp-codex/default", "acp-antigravity/default"}}},
 	{ID: "agent-loop", Name: "@crewbase/agent-loop"},
 	{ID: "channel", Name: "@crewbase/channel-local"},
 	{ID: "sandbox", Name: defaultSandbox()},

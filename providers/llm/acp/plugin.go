@@ -1,5 +1,5 @@
-// Package acp bridges subscription coding CLIs (Claude Code, Codex, Gemini
-// CLI, Cursor CLI, OpenCode, Grok CLI) into Crewbase as llm adapters by
+// Package acp bridges subscription coding CLIs (Claude Code, Codex,
+// Antigravity, Cursor CLI, OpenCode, Grok CLI) into Crewbase as llm adapters by
 // driving them over the Agent Client Protocol (JSON-RPC 2.0 on stdio,
 // https://agentclientprotocol.com). The user's existing CLI login and
 // subscription quota are reused; no API keys are involved.
@@ -47,7 +47,7 @@
 //
 //	claude-code  claude-agent-acp | claude-code-acp | npx -y @agentclientprotocol/claude-agent-acp
 //	codex        codex-acp | npx -y @zed-industries/codex-acp
-//	gemini-cli   gemini --experimental-acp
+//	antigravity  agy acp
 //	cursor       cursor-agent acp
 //	opencode     opencode acp
 //	grok         grok agent stdio (unverified)
@@ -87,6 +87,13 @@ func approver(c *kernel.Context) func(context.Context, approval.Request) approva
 
 // rescanEvery is how often PATH is checked for newly installed CLIs.
 var rescanEvery = time.Minute
+
+// probeDelay is how long after start a CLI's models are probed (out of the
+// way of start-up); probe is off in tests.
+var (
+	probeDelay = 5 * time.Second
+	probe      = true
+)
 
 // FilesChange reports files a CLI changed in a workspace (its own edit
 // tools or fs/write_text_file), so views of the workspace refresh.
@@ -159,7 +166,7 @@ func (s *Service) Adapter(agentID string) (*Adapter, bool) {
 var Plugin = kernel.Register(kernel.Spec{
 	Name:        "@crewbase/llm-acp",
 	Inject:      []string{llm.ServiceKey},
-	Description: "Subscription CLIs (Claude Code, Codex, Gemini CLI, ...) over ACP.",
+	Description: "Subscription CLIs (Claude Code, Codex, Antigravity, ...) over ACP.",
 	Apply: func(c *kernel.Context) error {
 		cfg, err := kernel.Decode[Config](c)
 		if err != nil {
@@ -182,7 +189,7 @@ var Plugin = kernel.Register(kernel.Spec{
 			return true
 		}
 		svc.add = func(r resolved) error {
-			a := newAdapter(providerID(r.ID), r, Options{AutoApprove: cfg.AutoApprove, Approve: approver(c), IdleTimeout: idle, ToolNotes: notes, Go: goFn,
+			a := newAdapter(providerID(r.ID), r, Options{AutoApprove: cfg.AutoApprove, Approve: approver(c), IdleTimeout: idle, ToolNotes: notes, Go: goFn, StateDir: cfg.StateDir,
 				FilesChanged: func(agent, sess string, paths []string) {
 					FilesChanged.Emit(c.Host(), FilesChange{Agent: agent, Session: sess, Paths: paths})
 				}})
@@ -195,6 +202,24 @@ var Plugin = kernel.Register(kernel.Spec{
 			svc.mu.Lock()
 			svc.adapters[r.ID] = a
 			svc.mu.Unlock()
+			// the model picker lists the CLI's own models, not only
+			// "default": from the cache, else learned in the background
+			if !a.loadCachedModels() && probe {
+				goFn(func(ctx context.Context) {
+					select {
+					case <-ctx.Done():
+						return
+					case <-time.After(probeDelay):
+					}
+					pctx, cancel := context.WithTimeout(ctx, 2*time.Minute)
+					defer cancel()
+					if err := a.ProbeModels(pctx); err != nil {
+						c.Log().Debug("acp: model list not learned", "agent", r.ID, "err", err)
+					} else {
+						llm.AdaptersChanged.Emit(c.Host(), struct{}{})
+					}
+				})
+			}
 			return nil
 		}
 		for _, ac := range agentList(cfg) {

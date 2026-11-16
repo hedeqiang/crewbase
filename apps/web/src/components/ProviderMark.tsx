@@ -45,12 +45,13 @@ import azure from "@lobehub/icons-static-svg/icons/azure-color.svg?raw";
 import bedrock from "@lobehub/icons-static-svg/icons/bedrock-color.svg?raw";
 import vertexai from "@lobehub/icons-static-svg/icons/vertexai-color.svg?raw";
 import cloudflare from "@lobehub/icons-static-svg/icons/cloudflare-color.svg?raw";
+import antigravity from "@lobehub/icons-static-svg/icons/antigravity-color.svg?raw";
 
 const ICONS: Record<string, string> = {
   anthropic, claude, codex, cursor, deepseek, doubao, gemini, grok, groq, kimi, lmstudio, magpie,
   minimax, mistral, moonshot, ollama, openai, opencode, openrouter, qwen, siliconcloud, vllm, zhipu,
   xai, volcengine, baichuan, hunyuan, stepfun, yi, wenxin, spark, together, fireworks, perplexity,
-  cohere, nvidia, azure, bedrock, vertexai, cloudflare,
+  cohere, nvidia, azure, bedrock, vertexai, cloudflare, antigravity,
 };
 
 /** Icons a person can pick for a custom provider (vendor icons, then "mono"). */
@@ -151,8 +152,8 @@ const BY_PROVIDER: Record<string, string> = {
   codex: "codex",
   gemini: "gemini",
   google: "gemini",
-  "acp-gemini-cli": "gemini",
-  "gemini-cli": "gemini",
+  "acp-antigravity": "antigravity",
+  antigravity: "antigravity",
   deepseek: "deepseek",
   ollama: "ollama",
   lmstudio: "lmstudio",
