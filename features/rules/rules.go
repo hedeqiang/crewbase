@@ -13,7 +13,8 @@
 //     can forbid remembering a category.
 //
 // External payment is always Block and can never be remembered. Remembering
-// "publish" requires that the card carried ConfirmRemember. Rules apply in
+// "publish", "delete" or "spend" requires that the card carried
+// ConfirmRemember (a second confirmation). Rules apply in
 // every run mode, including host.
 package rules
 
@@ -432,9 +433,15 @@ func (e *Engine) Revoke(agent, category string) error {
 
 func armKey(agent, cat string) string { return agent + "\x00" + cat }
 
-// onAsked tracks publish cards that carried ConfirmRemember.
+// confirmTwice are the categories remembered only after a second
+// confirmation on the card (irreversible or paid).
+func confirmTwice(cat string) bool {
+	return cat == tools.CategoryPublish || cat == tools.CategoryDelete || cat == tools.CategorySpend
+}
+
+// onAsked tracks cards that carried ConfirmRemember.
 func (e *Engine) onAsked(req approval.Request) {
-	if req.Category != tools.CategoryPublish || !req.ConfirmRemember || !req.Rememberable {
+	if !confirmTwice(req.Category) || !req.ConfirmRemember || !req.Rememberable {
 		return
 	}
 	k := armKey(req.Agent, req.Category)
@@ -468,7 +475,7 @@ func (e *Engine) disarmLocked(k string) {
 
 // onRemember handles tools/remembered.
 func (e *Engine) onRemember(log interface{ Warn(string, ...any) }, r tools.Remembered) {
-	if r.Category == tools.CategoryPublish {
+	if confirmTwice(r.Category) {
 		k := armKey(r.Agent, r.Category)
 		e.mu.Lock()
 		ok := e.armed[k] > 0 && r.Confirmed
@@ -477,7 +484,7 @@ func (e *Engine) onRemember(log interface{ Warn(string, ...any) }, r tools.Remem
 		}
 		e.mu.Unlock()
 		if !ok {
-			log.Warn("rules: ignoring publish remember without second confirmation", "agent", r.Agent)
+			log.Warn("rules: ignoring remember without second confirmation", "agent", r.Agent, "category", r.Category)
 			return
 		}
 	}
@@ -503,7 +510,9 @@ func (e *Engine) Middleware(ctx context.Context, d *tools.Decision, next kernel.
 		if !r.rememberable || r.preRemember != tools.Ask {
 			x.Rememberable = false
 		}
-		if x.Category == tools.CategoryPublish {
+		// what cannot be undone (publishing, deleting) or costs money asks
+		// twice before it is allowed for good
+		if confirmTwice(x.Category) {
 			x.ConfirmRemember = true
 		}
 		if x.Category == tools.CategoryPayment {

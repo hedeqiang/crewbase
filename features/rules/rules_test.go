@@ -226,7 +226,7 @@ func setup(t *testing.T, cfg map[string]any) (*kernel.Host, *tools.Registry, *se
 		t.Fatal(err)
 	}
 	reg := kernel.Use[*tools.Registry](h.Root(), tools.ServiceKey)
-	for _, cat := range []string{"read", "push", "publish", "payment"} {
+	for _, cat := range []string{"read", "push", "publish", "payment", "delete"} {
 		cat := cat
 		reg.Register(h.Root(), &tools.Tool{Name: "do-" + cat, Category: cat, Execute: func(context.Context, tools.Call) (tools.Result, error) {
 			return tools.Text("did " + cat), nil
@@ -411,4 +411,33 @@ func TestPluginConfig(t *testing.T) {
 	if _, err := rules.ParseVerdict("maybe"); err == nil {
 		t.Fatal("bad verdict")
 	}
+}
+
+// Deleting cannot be undone: "always allow" needs the second confirmation.
+func TestDeleteNeedsConfirm(t *testing.T) {
+	h, reg, ss, inbox, eng := setup(t, nil)
+	c := mkcall(ss, "kai", "do-delete")
+	done := runAsync(reg, h, c)
+	req := waitPending(t, inbox)
+	if !req.ConfirmRemember || !req.Rememberable {
+		t.Fatalf("%+v", req)
+	}
+	inbox.Decide(c.ID, approval.Decision{Outcome: approval.OutcomeAllowedOnce, Remember: true})
+	<-done
+	if v, _ := eng.Evaluate("kai", "delete"); v != tools.Ask {
+		t.Fatal("delete remembered without second confirmation", v)
+	}
+	c = mkcall(ss, "kai", "do-delete")
+	done = runAsync(reg, h, c)
+	waitPending(t, inbox)
+	inbox.Decide(c.ID, approval.Decision{Outcome: approval.OutcomeAllowedOnce, Remember: true, Confirmed: true})
+	<-done
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		if v, _ := eng.Evaluate("kai", "delete"); v == tools.Allow {
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatal("confirmed always-allow for delete was not remembered")
 }
