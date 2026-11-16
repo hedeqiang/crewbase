@@ -154,6 +154,9 @@ type Decision struct {
 	// Rememberable / ConfirmRemember shape the approval card.
 	Rememberable    bool
 	ConfirmRemember bool
+	// Preview is longer context the card shows on demand (Markdown), e.g.
+	// the full source of a script.
+	Preview string
 }
 
 // DenyWith short-circuit helper: marks the decision denied.
@@ -354,7 +357,7 @@ func (r *Registry) Run(ctx context.Context, c *kernel.Context, call Call) Execut
 			} else {
 				req := approval.Request{
 					CallID: call.ID, Session: ss.ID(), Agent: call.Agent, Tool: call.Name,
-					Category: dec.Category, Summary: dec.Summary, Reason: dec.Reason,
+					Category: dec.Category, Summary: dec.Summary, Reason: dec.Reason, Preview: dec.Preview,
 					Rememberable: dec.Rememberable, ConfirmRemember: dec.ConfirmRemember,
 				}
 				var parked bool

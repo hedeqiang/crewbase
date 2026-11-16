@@ -39,6 +39,10 @@ type fake struct {
 	idle  func() time.Duration
 	hook  func(ctx context.Context, a computer.Action) error
 	shots int
+	// scripts (scripts_test.go)
+	ran       []string // "lang: source" / "shortcut: name <- input"
+	scriptOut string
+	scriptErr error
 }
 
 func newFake() *fake {

@@ -37,6 +37,12 @@ type Config struct {
 	// ObserveTimeout bounds a whole outline (default 4s); the outline is
 	// truncated when it runs out.
 	ObserveTimeout string `json:"observeTimeout,omitempty"`
+	// ScriptTimeout bounds one AppleScript / JXA script or shortcut (Go
+	// duration, default 30s).
+	ScriptTimeout string `json:"scriptTimeout,omitempty"`
+	// MaxScriptOutput caps what a script or shortcut returns (bytes,
+	// default 64 KiB).
+	MaxScriptOutput int `json:"maxScriptOutput,omitempty"`
 }
 
 // Plugin provides `computer` on macOS.
@@ -74,6 +80,17 @@ type Provider struct {
 	mu     sync.Mutex
 	apps   map[string]*appState // by bundle id
 	closed bool
+	// axTried: pids whose accessibility was switched on (or tried), so an
+	// Electron app is switched once and other apps never
+	axTried map[int]bool
+	axWait  time.Duration
+	axPoll  time.Duration
+	sleep   func(time.Duration)
+
+	// scripts
+	run           runner
+	scriptTimeout time.Duration
+	maxOutput     int
 
 	// IdleFor: when the provider last posted events, and the person's
 	// last input before that
@@ -119,7 +136,12 @@ var _ computer.Computer = (*Provider)(nil)
 // New returns a provider on pf.
 func New(pf platform, cfg Config) (*Provider, error) {
 	p := &Provider{pf: pf, maxNodes: cfg.MaxNodes, maxEdge: cfg.MaxEdge, msgTimeout: time.Second, obsTimeout: 4 * time.Second,
-		settle: 200 * time.Millisecond, apps: map[string]*appState{}}
+		settle: 200 * time.Millisecond, apps: map[string]*appState{},
+		axTried: map[int]bool{}, axWait: axWait, axPoll: axPoll, sleep: time.Sleep,
+		run: execRun, scriptTimeout: DefaultScriptTimeout, maxOutput: cfg.MaxScriptOutput}
+	if p.maxOutput <= 0 {
+		p.maxOutput = DefaultMaxScriptOutput
+	}
 	if p.maxNodes <= 0 {
 		p.maxNodes = DefaultMaxNodes
 	}
@@ -129,7 +151,7 @@ func New(pf platform, cfg Config) (*Provider, error) {
 	for _, d := range []struct {
 		s   string
 		dst *time.Duration
-	}{{cfg.MessagingTimeout, &p.msgTimeout}, {cfg.ObserveTimeout, &p.obsTimeout}} {
+	}{{cfg.MessagingTimeout, &p.msgTimeout}, {cfg.ObserveTimeout, &p.obsTimeout}, {cfg.ScriptTimeout, &p.scriptTimeout}} {
 		if d.s == "" {
 			continue
 		}
@@ -349,6 +371,23 @@ func (p *Provider) Observe(ctx context.Context, appID string, maxNodes int) (com
 	}
 	frame := computer.Rect{X: raw.X, Y: raw.Y, W: raw.W, H: raw.H}
 	root, elems, truncated := buildOutline(p.pf, win, raw, frame, maxNodes, deadline)
+	if p.claimManualAX(app.PID, len(elems), frame) && p.enableAX(st.appEl) != "" {
+		// give the tree a moment to build, then read it again
+		for waited := time.Duration(0); waited < p.axWait && ctx.Err() == nil && time.Now().Before(deadline); waited += p.axPoll {
+			p.sleep(p.axPoll)
+			if r, err := p.pf.Read(win); err == nil {
+				raw = r
+				frame = computer.Rect{X: raw.X, Y: raw.Y, W: raw.W, H: raw.H}
+			}
+			for _, e := range elems {
+				p.pf.Release(e.ref)
+			}
+			root, elems, truncated = buildOutline(p.pf, win, raw, frame, maxNodes, deadline)
+			if !sparse(len(elems), frame) {
+				break
+			}
+		}
+	}
 	if err := ctx.Err(); err != nil {
 		for _, e := range elems {
 			p.pf.Release(e.ref)

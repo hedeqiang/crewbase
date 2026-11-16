@@ -32,6 +32,9 @@ type fake struct {
 	lastInput time.Time
 	// onPerform runs when an action is performed (to change the tree).
 	onPerform func(f *fake, r ref, action string)
+	// setErr fails SetBool for an attribute; onSet runs after a SetBool.
+	setErr map[string]error
+	onSet  func(f *fake, r ref, attr string, v bool)
 }
 
 type fnode struct {
@@ -202,10 +205,18 @@ func (f *fake) SetString(r ref, attr, v string) error {
 
 func (f *fake) SetBool(r ref, attr string, v bool) error {
 	f.mu.Lock()
-	defer f.mu.Unlock()
 	f.sets = append(f.sets, fmt.Sprintf("%d:%s=%t", r, attr, v))
+	if err := f.setErr[attr]; err != nil {
+		f.mu.Unlock()
+		return err
+	}
 	if attr == "AXFocused" {
 		f.nodes[r].raw.Focused = v
+	}
+	cb := f.onSet
+	f.mu.Unlock()
+	if cb != nil {
+		cb(f, r, attr, v)
 	}
 	return nil
 }
