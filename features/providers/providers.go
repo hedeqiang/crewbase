@@ -28,6 +28,7 @@ import (
 	"github.com/hedeqiang/crewbase/kernel"
 	"github.com/hedeqiang/crewbase/providers/llm/anthropic"
 	"github.com/hedeqiang/crewbase/providers/llm/gemini"
+	"github.com/hedeqiang/crewbase/providers/llm/magpie"
 	"github.com/hedeqiang/crewbase/providers/llm/openai"
 )
 
@@ -328,8 +329,23 @@ func (s *Service) Test(ctx context.Context, in Input) TestResult {
 		return res
 	}
 	sort.Slice(ms, func(i, j int) bool { return ms[i].ID < ms[j].ID })
-	res.OK, res.Models = true, ms
+	res.OK, res.Models = true, s.describe(in.ID, ms)
 	return res
+}
+
+// describe fills in catalog metadata (context, price) for the model
+// checklist, and the catalog's kind for ids the listing does not classify,
+// so image / video models are pre-marked when added.
+func (s *Service) describe(provider string, ms []llm.ModelInfo) []llm.ModelInfo {
+	for i, m := range ms {
+		if m.Kind != "" {
+			continue
+		}
+		if e, ok := s.llms.Lookup(m.ID); ok && (e.Kind == llm.KindImage || e.Kind == llm.KindVideo) {
+			ms[i].Kind, ms[i].ContextWindow, ms[i].ContextEstimated = e.Kind, 0, false
+		}
+	}
+	return s.llms.Enrich(provider, ms)
 }
 
 func scrub(msg, secret string) string {
@@ -376,6 +392,89 @@ func (s *Service) Add(in Input) (Provider, error) {
 	}
 	return p, s.mount(p)
 }
+
+// Patch edits an added provider; nil fields are left as they are.
+type Patch struct {
+	Name    *string `json:"name"`
+	Icon    *string `json:"icon"`
+	BaseURL *string `json:"baseURL"`
+	// APIKey replaces the stored key; "" keeps the one in the keychain.
+	APIKey string    `json:"apiKey"`
+	Models *[]string `json:"models"`
+	// Kinds replaces the per-model kind marks (with Models or alone).
+	Kinds *map[string]string `json:"kinds"`
+}
+
+// Update edits provider id (name, icon, base URL, key, models, kinds)
+// and re-mounts it at once. Its id, API and preset do not change.
+func (s *Service) Update(id string, pt Patch) (Provider, error) {
+	cur, ok := s.Get(id)
+	if !ok {
+		return Provider{}, errNotFound
+	}
+	in := Input{ID: cur.ID, Name: cur.Name, Preset: cur.Preset, API: cur.API, BaseURL: cur.BaseURL,
+		Models: append([]string(nil), cur.Models...), Kinds: map[string]string{}, Icon: cur.Icon}
+	for m, k := range cur.Kinds {
+		in.Kinds[m] = k
+	}
+	if pt.Name != nil {
+		in.Name = strings.TrimSpace(*pt.Name)
+	}
+	if pt.Icon != nil {
+		in.Icon = *pt.Icon
+	}
+	if pt.BaseURL != nil {
+		in.BaseURL = *pt.BaseURL
+		if strings.TrimSpace(in.BaseURL) == "" {
+			if pr, ok := presetByID(cur.Preset); ok {
+				in.BaseURL = pr.BaseURL
+			} else {
+				return Provider{}, errors.New("a base URL is required")
+			}
+		}
+	}
+	if pt.Models != nil {
+		in.Models = append([]string{}, (*pt.Models)...)
+		for m := range in.Kinds { // marks of removed models go
+			if !slices.Contains(in.Models, strings.TrimSpace(m)) {
+				delete(in.Kinds, m)
+			}
+		}
+	}
+	if pt.Kinds != nil {
+		in.Kinds = *pt.Kinds
+	}
+	if len(in.Name) > 80 {
+		return Provider{}, errors.New("name too long")
+	}
+	if err := in.normalize(); err != nil {
+		return Provider{}, err
+	}
+	if len(in.Kinds) == 0 {
+		in.Kinds = nil
+	}
+	p := cur
+	p.Name, p.Icon, p.BaseURL, p.Models, p.Kinds = in.Name, in.Icon, in.BaseURL, in.Models, in.Kinds
+	if pt.APIKey != "" {
+		cs, err := s.creds()
+		if err != nil {
+			return Provider{}, err
+		}
+		p.KeyRef = keyRef(p.ID)
+		if err := cs.Set(p.KeyRef, pt.APIKey); err != nil {
+			return Provider{}, fmt.Errorf("store API key: %w", err)
+		}
+	}
+	s.mu.Lock()
+	s.items[p.ID] = p
+	s.mu.Unlock()
+	if err := s.save(); err != nil {
+		return p, err
+	}
+	return p, s.mount(p)
+}
+
+var errNotFound = errors.New("provider not found")
 
 // Remove unregisters a provider and deletes its stored key.
 func (s *Service) Remove(id string) error {
@@ -525,6 +624,70 @@ func registerAPI(c *kernel.Context, g *gateway.Gateway, s *Service) {
 				}
 			}
 			return p, nil
+		}})
+	g.Handle(c, gateway.Route{Method: "PATCH", Path: "/api/providers/{id}",
+		Handle: func(_ context.Context, r *gateway.Request) (any, error) {
+			var pt Patch
+			if err := r.Decode(&pt); err != nil {
+				return nil, err
+			}
+			p, err := s.Update(r.Params["id"], pt)
+			if errors.Is(err, errNotFound) {
+				return nil, gateway.NotFound()
+			}
+			if err != nil {
+				return nil, gateway.BadRequest("%s", scrub(err.Error(), pt.APIKey))
+			}
+			for _, v := range s.List() {
+				if v.ID == p.ID {
+					return v, nil
+				}
+			}
+			return p, nil
+		}})
+	// magpie (auto-detected): every model it lists, and which are enabled.
+	magpieD := func() (*magpie.Discovery, error) {
+		d, ok := kernel.Lookup[*magpie.Discovery](c, magpie.ServiceKey)
+		if !ok {
+			return nil, gateway.NotFound()
+		}
+		return d, nil
+	}
+	g.Handle(c, gateway.Route{Method: "GET", Path: "/api/providers/magpie/models",
+		Handle: func(context.Context, *gateway.Request) (any, error) {
+			d, err := magpieD()
+			if err != nil {
+				return nil, err
+			}
+			ch := d.Choice()
+			ch.Models = s.llms.Enrich(magpie.ProviderID, ch.Models)
+			return ch, nil
+		}})
+	g.Handle(c, gateway.Route{Method: "PUT", Path: "/api/providers/magpie/models",
+		Handle: func(_ context.Context, r *gateway.Request) (any, error) {
+			d, err := magpieD()
+			if err != nil {
+				return nil, err
+			}
+			var body struct {
+				Enabled *[]string `json:"enabled"` // null = all
+			}
+			if err := r.Decode(&body); err != nil {
+				return nil, err
+			}
+			var ids []string
+			if body.Enabled != nil {
+				ids = append([]string{}, (*body.Enabled)...)
+				if len(ids) > 2000 {
+					return nil, gateway.BadRequest("too many models")
+				}
+			}
+			if err := d.SetEnabled(ids); err != nil {
+				return nil, err
+			}
+			ch := d.Choice()
+			ch.Models = s.llms.Enrich(magpie.ProviderID, ch.Models)
+			return ch, nil
 		}})
 	g.Handle(c, gateway.Route{Method: "DELETE", Path: "/api/providers/{id}",
 		Handle: func(_ context.Context, r *gateway.Request) (any, error) {
