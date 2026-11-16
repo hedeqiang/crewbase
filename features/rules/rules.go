@@ -4,8 +4,8 @@
 //
 // Layers, from weakest to strongest:
 //
-//  1. defaults (read/exec/install/write/none → Allow; push/delete/publish →
-//     Ask; payment → Block), optionally overridden by config "global";
+//  1. defaults (read/exec/install/write/none → Allow; push/delete/publish/
+//     spend → Ask; payment → Block), optionally overridden by config "global";
 //  2. per-agent rules, which may only tighten (Allow → Ask/Block, Ask → Block);
 //  3. remembered choices ("always allow" on an approval card): an
 //     agent-scoped Ask → Allow, never touching Block or payment;
@@ -57,6 +57,7 @@ func Defaults() map[string]tools.Verdict {
 		tools.CategoryPush:    tools.Ask,
 		tools.CategoryDelete:  tools.Ask,
 		tools.CategoryPublish: tools.Ask,
+		tools.CategorySpend:   tools.Ask,
 		tools.CategoryPayment: Block,
 	}
 }

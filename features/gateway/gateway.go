@@ -99,6 +99,10 @@ type Blob struct {
 	Name string
 	Mime string
 	Data []byte
+	// Content, when set, is served instead of Data with Range support
+	// (video playback seeks); it is closed after the response.
+	Content io.ReadSeeker
+	ModTime time.Time
 	// NoStore: never cache (live frames).
 	NoStore bool
 	// Meta becomes X-Crewbase-<Key> response headers (ASCII values; others
@@ -115,7 +119,14 @@ func hdrSafe(s string) bool {
 	return len(s) <= 2048
 }
 
-func writeBlob(w http.ResponseWriter, b *Blob) {
+// inlineTypes are the only types shown in the app's origin: raster images
+// and video. Everything else (HTML, SVG, PDF, …) is a download.
+var inlineTypes = map[string]bool{"image/png": true, "image/jpeg": true, "image/gif": true, "image/webp": true, "video/mp4": true, "video/webm": true}
+
+func writeBlob(w http.ResponseWriter, r *http.Request, b *Blob) {
+	if c, ok := b.Content.(io.Closer); ok {
+		defer c.Close()
+	}
 	h := w.Header()
 	h.Set("X-Content-Type-Options", "nosniff")
 	h.Set("Content-Security-Policy", "default-src 'none'; sandbox")
@@ -128,13 +139,16 @@ func writeBlob(w http.ResponseWriter, b *Blob) {
 			h.Set("X-Crewbase-"+k, v)
 		}
 	}
-	switch b.Mime {
-	case "image/png", "image/jpeg", "image/gif", "image/webp":
+	if inlineTypes[b.Mime] {
 		h.Set("Content-Type", b.Mime)
 		h.Set("Content-Disposition", "inline; filename*=UTF-8''"+url.PathEscape(b.Name))
-	default:
+	} else {
 		h.Set("Content-Type", "application/octet-stream")
 		h.Set("Content-Disposition", "attachment; filename*=UTF-8''"+url.PathEscape(b.Name))
+	}
+	if b.Content != nil {
+		http.ServeContent(w, r, "", b.ModTime, b.Content) // Range, If-Modified-Since
+		return
 	}
 	w.WriteHeader(200)
 	_, _ = w.Write(b.Data)
@@ -427,7 +441,7 @@ func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		out = map[string]bool{"ok": true}
 	}
 	if b, ok := out.(*Blob); ok {
-		writeBlob(w, b)
+		writeBlob(w, r, b)
 		return
 	}
 	if rd, ok := out.(*Redirect); ok {

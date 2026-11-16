@@ -47,7 +47,21 @@ type Stats struct {
 	SpentUSD      float64        `json:"spentUsd"` // estimated API spend
 	Reference     Price          `json:"reference"`
 	Kinds         map[string]int `json:"kinds"` // subscription/api/local → tokens
+	// Generated counts images and videos made per provider (media/generated
+	// events; providers bill these per image / per second, not counted in
+	// SpentUSD).
+	Generated []GenShare `json:"generated"`
 }
+
+// GenShare is generated files per provider.
+type GenShare struct {
+	Provider string `json:"provider"`
+	Images   int    `json:"images"`
+	Videos   int    `json:"videos"`
+}
+
+// typeGenerated is features/media's event (not imported: usage only reads logs).
+const typeGenerated = "media/generated"
 
 // Share is tokens per provider.
 type Share struct {
@@ -98,6 +112,7 @@ func (s *Service) Compute() Stats {
 	st := Stats{From: from, Days: map[string]int{}, Kinds: map[string]int{}, Reference: s.ref}
 	byProv := map[string]int{}
 	byAgent := map[string]*AgentShare{}
+	gens := map[string]*GenShare{}
 	for _, m := range s.sessions.List() {
 		ss, err := s.sessions.Get(m.ID)
 		if err != nil {
@@ -142,6 +157,25 @@ func (s *Service) Compute() Stats {
 				}
 				as.Tokens += n
 				as.Model = am.Model.String()
+			case typeGenerated:
+				var g struct {
+					Kind  string `json:"kind"`
+					Model string `json:"model"`
+				}
+				if e.Decode(&g) != nil {
+					continue
+				}
+				prov, _, _ := strings.Cut(g.Model, "/")
+				gs := gens[prov]
+				if gs == nil {
+					gs = &GenShare{Provider: prov}
+					gens[prov] = gs
+				}
+				if g.Kind == "video" {
+					gs.Videos++
+				} else {
+					gs.Images++
+				}
 			case session.TypeModelSwitched:
 				st.Switches++
 			case session.TypeTurnEnd:
@@ -174,6 +208,17 @@ func (s *Service) Compute() Stats {
 	if st.ByAgent == nil {
 		st.ByAgent = []AgentShare{}
 	}
+	st.Generated = []GenShare{}
+	for _, g := range gens {
+		st.Generated = append(st.Generated, *g)
+	}
+	sort.Slice(st.Generated, func(i, j int) bool {
+		a, b := st.Generated[i], st.Generated[j]
+		if a.Images+a.Videos != b.Images+b.Videos {
+			return a.Images+a.Videos > b.Images+b.Videos
+		}
+		return a.Provider < b.Provider
+	})
 	s.mu.Lock()
 	s.cached, s.at = &st, time.Now()
 	s.mu.Unlock()

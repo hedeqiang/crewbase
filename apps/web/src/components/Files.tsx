@@ -98,9 +98,10 @@ function Preview({ agentId, path, onClose }: { agentId: string; path: string; on
   }, [agentId, path]);
 
   const image = /\.(png|jpe?g|gif|webp)$/i.test(path);
+  const video = /\.(mp4|webm)$/i.test(path);
   // documents may look like text (an ASCII PDF) but must never be edited as text
   const doc = /\.(pdf|docx?|xlsx?|pptx?|zip|gz|tar|heic|bmp|tiff?|svg)$/i.test(path);
-  const text = !!f && !f.binary && !f.tooLarge && !doc && !image;
+  const text = !!f && !f.binary && !f.tooLarge && !doc && !image && !video;
   const dirty = edit !== null && edit !== (f?.content ?? "");
   const save = async () => {
     if (edit === null) return;
@@ -181,6 +182,10 @@ function Preview({ agentId, path, onClose }: { agentId: string; path: string; on
         <div className="fbody fimg">
           <RawImg agent={agentId} path={path} />
         </div>
+      ) : video ? (
+        <div className="fbody fimg">
+          <RawVideo agent={agentId} path={path} />
+        </div>
       ) : f.tooLarge ? (
         <div className="small" style={{ padding: 10 }}>
           {t("files.tooLarge")}
@@ -202,6 +207,11 @@ function Preview({ agentId, path, onClose }: { agentId: string; path: string; on
       )}
     </div>
   );
+}
+
+function RawVideo({ agent, path }: { agent: string; path: string }) {
+  const src = useRawURL(agent, path);
+  return src ? <video src={src} controls preload="metadata" playsInline /> : <span className="small">{t("common.loading")}</span>;
 }
 
 function RawImg({ agent, path }: { agent: string; path: string }) {

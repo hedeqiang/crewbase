@@ -1,7 +1,9 @@
 package router
 
 import (
+	"context"
 	"strings"
+	"time"
 
 	"github.com/hedeqiang/crewbase/core/agent"
 	"github.com/hedeqiang/crewbase/core/llm"
@@ -14,8 +16,27 @@ const (
 	TaskCode      = "code"
 	TaskLongDoc   = "long-doc"
 	TaskTitle     = "title" // short session topics (cheap model)
-	TaskDefault   = ""
+	// Media tasks route to image / video models (features/media). They are
+	// never picked by Classify: the generation tools ask for them.
+	TaskImage   = "image"
+	TaskVideo   = "video"
+	TaskDefault = ""
 )
+
+// Tasks lists every routable task kind (the settings UI offers these).
+var Tasks = []string{TaskTitle, TaskRoutine, TaskSummarize, TaskCode, TaskLongDoc, TaskImage, TaskVideo}
+
+// TaskKind is the model kind a task needs: image / video for the media
+// tasks, chat for everything else.
+func TaskKind(task string) string {
+	switch task {
+	case TaskImage:
+		return llm.KindImage
+	case TaskVideo:
+		return llm.KindVideo
+	}
+	return llm.KindChat
+}
 
 // Route sends a task kind to a model. Routes only apply when the model is
 // usable; otherwise the agent's normal order is used.
@@ -116,12 +137,24 @@ func (r *Router) RouteForAgent(task string, a *agent.Agent) (llm.ModelRef, bool)
 		if rt.Task != task {
 			continue
 		}
-		if ref, err := llm.ParseRef(rt.Model); err == nil && r.usable(ref) && r.allowed(a, ref) {
+		if ref, err := llm.ParseRef(rt.Model); err == nil && r.usable(ref) && r.allowed(a, ref) && r.kindOf(ref) == TaskKind(task) {
 			return ref, true
 		}
 	}
 	return llm.ModelRef{}, false
 }
+
+// kindOf is the model's output kind (from its provider's listing, else
+// its id), so a chat task never lands on an image model and back.
+func (r *Router) kindOf(ref llm.ModelRef) string {
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	return r.llms.KindOf(ctx, ref)
+}
+
+// Allowed reports whether a's content may go to ref (a local-only agent
+// only uses local models).
+func (r *Router) Allowed(a *agent.Agent, ref llm.ModelRef) bool { return r.allowed(a, ref) }
 
 // SetRoutes replaces the task routes.
 func (r *Router) SetRoutes(routes []Route) {

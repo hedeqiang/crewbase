@@ -207,6 +207,7 @@
 - [x] 与模型无关的 web / OCR 工具（features/deepseek）：有 DeepSeek Key 即给所有 Agent 加 web_search（支持 site: / lang: / after: 等语法）/ web_fetch（只读、沙箱模式按 allowHosts 限制，403/404 引导改用浏览器）/ ocr_file；Key 取自已添加的 DeepSeek 提供方（或 keychain:crewbase/deepseek、DEEPSEEK_API_KEY），加 / 删 Key 后工具自动出现 / 消失
 - [x] 附件 OCR：不能看图的模型收到图片 OCR 文字；扫描版 PDF（几乎无文字层）与 .doc / .ppt 走 OCR；结果缓存在 uploads/.ocr/<sha256>.txt（同一文件只识别、计费一次），失败 10 分钟内不重试
 - [x] 文件输入：图片内联（deepseek-flash 视觉，经 magpie 真实验证）；PDF / Word / PowerPoint 直连上传 Files API（purpose 在 file 之前、30 天过期、file_id 按工作区缓存）；经 magpie 无 /files 时用本地提取文字
+- [x] 生成图片 / 视频（features/media）：模型按产出分为对话 / 图片 / 视频（ModelInfo.Kind，按官方模型 ID 归类，magpie 列出图片 / 视频模型，自加提供方可手动标注），对话选择器与路由只用对话模型、新增「图片生成 / 视频生成」路由；image_generate / image_edit（写入）与 video_generate（付费生成，默认需批准，后台运行、完成后回报）+ video_status；OpenAI Images / Videos 形态（直连与经 magpie）、Gemini Interactions（Nano Banana / Omni）；结果存 generated/，对话内联缩略图与播放器，用量按提供方计数。真实验证：经 magpie 用 gpt-image-1-mini 生成 1 张（low，1024²）；视频与 Gemini 仅假服务端
 - [x] 语音：输入框麦克风听写（浏览器 Web Speech API，中间结果实时显示、最终文本追加到草稿，按语言选中文 / 英文，权限被拒有明确提示）；回复旁「朗读」（系统语音，跳过代码块与 Markdown 记号，再点停止）
 - [x] 语音云端：有 DeepSeek Key 时麦克风录 16 kHz WAV（≤ 2 分钟）→ /api/voice/transcribe → DeepSeek ASR；「朗读」→ DeepSeek TTS（stella，过滤 Markdown），失败回落系统语音；无 Key 仍用浏览器语音。音频只透传不落盘。真实 Chrome + 假麦克风 + 假 DeepSeek 服务端验证：录音转写进输入框、朗读请求与播放
 - [x] DeepSeek 真实调用（`go test -tags live ./test/live -run DeepSeek`）：Search / Fetch、TTS → ASR 往返原话一致、OCR；直连 Files API 读 PDF。真实调用发现并修复：文件引用须为扁平的 {"type":"file","file_id"}（SDK 默认嵌套在 file 下，DeepSeek 返回 400）

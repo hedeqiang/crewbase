@@ -35,7 +35,10 @@ const (
 	CategoryDelete  = "delete"  // delete files
 	CategoryPublish = "publish" // send messages / publish externally
 	CategoryPayment = "payment" // external payment
-	CategoryNone    = "none"    // pure / internal tools
+	// CategorySpend is work billed per call that is not a payment (e.g.
+	// generating a video): Ask by default, rememberable.
+	CategorySpend = "spend"
+	CategoryNone  = "none" // pure / internal tools
 )
 
 // Call is one tool invocation.

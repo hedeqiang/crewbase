@@ -661,7 +661,7 @@ type Registrations struct {
 var (
 	toolNameRe = regexp.MustCompile(`^[a-zA-Z][a-zA-Z0-9_-]{0,63}$`)
 	categories = []string{tools.CategoryRead, tools.CategoryExec, tools.CategoryInstall, tools.CategoryWrite,
-		tools.CategoryPush, tools.CategoryDelete, tools.CategoryPublish, tools.CategoryPayment, tools.CategoryNone}
+		tools.CategoryPush, tools.CategoryDelete, tools.CategoryPublish, tools.CategorySpend, tools.CategoryPayment, tools.CategoryNone}
 )
 
 func (g *generation) handshake() error {

@@ -199,3 +199,33 @@ func TestManualModelsAndIcon(t *testing.T) {
 		t.Fatalf("preset icon %q", p.Icon)
 	}
 }
+
+// Typed model ids are classified like listed ones; ids the rules do not
+// know can be marked by hand.
+func TestModelKinds(t *testing.T) {
+	srv := fakeOpenAI(t)
+	defer srv.Close()
+	_, s, reg, _ := setup(t)
+	in := providers.Input{ID: "gw", BaseURL: srv.URL, APIKey: secret,
+		Models: []string{"deepseek-flash", "gpt-image-1-mini", "acme-painter", "acme-film"},
+		Kinds:  map[string]string{"acme-painter": "image", "acme-film": "video"}}
+	if _, err := s.Add(in); err != nil {
+		t.Fatal(err)
+	}
+	a, _ := reg.Get("gw")
+	ms, _ := a.Models(context.Background())
+	got := map[string]string{}
+	for _, m := range ms {
+		got[m.ID] = m.OutputKind()
+	}
+	if got["deepseek-flash"] != "chat" || got["gpt-image-1-mini"] != "image" || got["acme-painter"] != "image" || got["acme-film"] != "video" {
+		t.Fatalf("%v", got)
+	}
+	for _, bad := range []map[string]string{{"acme-painter": "audio"}, {"not-listed": "image"}} {
+		x := in
+		x.Kinds = bad
+		if _, err := s.Add(x); err == nil {
+			t.Fatalf("accepted kinds %v", bad)
+		}
+	}
+}

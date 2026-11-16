@@ -48,7 +48,15 @@ func TestUsageAndSavings(t *testing.T) {
 	a.Enqueue(agent.Input{Text: "fail"}) // nothing left → needs a person
 	agentloop.WaitIdle(a, 2*time.Second)
 
+	ss, _ := a.Session()
+	for _, g := range []map[string]string{{"kind": "image", "model": "magpie/openai/gpt-image-1-mini"}, {"kind": "image", "model": "magpie/openai/gpt-image-2"}, {"kind": "video", "model": "gemini/gemini-omni-1.2-flash"}} {
+		ss.Append("media/generated", a.ID(), g)
+	}
+
 	st := kernel.Use[*usage.Service](r, usage.ServiceKey).Compute()
+	if len(st.Generated) != 2 || st.Generated[0] != (usage.GenShare{Provider: "magpie", Images: 2}) || st.Generated[1] != (usage.GenShare{Provider: "gemini", Videos: 1}) {
+		t.Fatalf("generated %+v", st.Generated)
+	}
 	if st.Messages != 2 || st.Tokens == 0 || st.PeakDay != time.Now().Format("2006-01-02") /* the host's own day */ {
 		t.Fatalf("%+v", st)
 	}

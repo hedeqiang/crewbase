@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { ArrowDown, ArrowUp, Plus, RefreshCw, X } from "lucide-react";
-import { API, parseRef, refString, type TaskRoute } from "../../api";
+import { API, parseRef, refString, type ModelKind, type TaskRoute } from "../../api";
 import { t, type Key } from "../../i18n";
 import { allModels, modelLabel, providerName, until } from "../../format";
 import { refreshModels, toast, useStore } from "../../store";
@@ -38,9 +38,12 @@ function ModelName({ ref_ }: { ref_: string }) {
   );
 }
 
-function ModelSelect({ value, onChange, placeholder }: { value: string; onChange: (v: string) => void; placeholder?: string }) {
+/** Image / video tasks pick image / video models; every other task a chat model. */
+const taskKind = (task: string): ModelKind => (task === "image" || task === "video" ? task : "chat");
+
+function ModelSelect({ value, onChange, placeholder, kind = "chat" }: { value: string; onChange: (v: string) => void; placeholder?: string; kind?: ModelKind }) {
   const models = useStore((s) => s.models);
-  const all = useMemo(() => allModels(models), [models]);
+  const all = useMemo(() => allModels(models, kind), [models, kind]);
   return (
     <span className="ssel">
       <select value={value} onChange={(e) => onChange(e.target.value)}>
@@ -226,7 +229,14 @@ function Routes() {
           {routes.map((r, i) => (
             <div className="srow routerow" key={i}>
               <span className="ssel">
-                <select value={r.task} onChange={(e) => edit(routes.map((x, j) => (j === i ? { ...x, task: e.target.value } : x)))}>
+                <select
+                  value={r.task}
+                  onChange={(e) => {
+                    const task = e.target.value;
+                    // a model of the wrong kind cannot stay on the row
+                    edit(routes.map((x, j) => (j === i ? { task, model: taskKind(task) === taskKind(x.task) ? x.model : "" } : x)));
+                  }}
+                >
                   {[...new Set([...tasks, r.task])].filter(Boolean).map((k) => (
                     <option key={k} value={k}>
                       {taskLabel(k)}
@@ -235,7 +245,12 @@ function Routes() {
                 </select>
               </span>
               <span className="arrow">→</span>
-              <ModelSelect value={r.model} onChange={(v) => edit(routes.map((x, j) => (j === i ? { ...x, model: v } : x)))} placeholder={t("rt.pickModel")} />
+              <ModelSelect
+                kind={taskKind(r.task)}
+                value={r.model}
+                onChange={(v) => edit(routes.map((x, j) => (j === i ? { ...x, model: v } : x)))}
+                placeholder={taskKind(r.task) === "chat" ? t("rt.pickModel") : t(taskKind(r.task) === "image" ? "rt.pickImageModel" : "rt.pickVideoModel")}
+              />
               {/* the same model reached two ways (directly, through a gateway): say which this row is */}
               {r.model && routes.some((x, j) => j !== i && x.task === r.task && sameModel(x.model, r.model)) && (
                 <span className="pill sm">{viaOf(r.model)}</span>

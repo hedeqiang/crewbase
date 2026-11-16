@@ -72,6 +72,22 @@ export function Profile() {
             <Heatmap days={u.days} />
             <div className="vsec">{t("prof.share")}</div>
             <Share u={u} />
+            {(u.generated?.length ?? 0) > 0 && (
+              <>
+                <div className="vsec">{t("prof.generated")}</div>
+                <div className="htable">
+                  {u.generated!.map((g) => (
+                    <div key={g.provider} className="hrow">
+                      <ProviderMark provider={g.provider} size={20} />
+                      <span className="g">
+                        <b>{providerName(g.provider)}</b>
+                      </span>
+                      <span className="num">{t("prof.generatedN", { i: g.images, v: g.videos })}</span>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
             <div className="vsec">{t("prof.top")}</div>
             {u.byAgent.length === 0 ? (
               <p className="small">{t("prof.none")}</p>

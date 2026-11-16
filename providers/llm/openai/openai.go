@@ -120,6 +120,7 @@ type Adapter struct {
 	shortIDs     bool
 	defWindow    int
 	httpClient   *http.Client
+	pollEvery    time.Duration // video job polling (default 10s)
 
 	mu       sync.Mutex
 	safety   string
@@ -278,7 +279,11 @@ func (a *Adapter) FetchModels(ctx context.Context) ([]llm.ModelInfo, error) {
 		if fld, ok := m.JSON.ExtraFields["name"]; ok {
 			_ = json.Unmarshal([]byte(fld.Raw()), &name)
 		}
-		out = append(out, llm.ModelInfo{ID: m.ID, Provider: a.id, Name: name, ContextWindow: w, Enabled: true})
+		mi := llm.ModelInfo{ID: m.ID, Provider: a.id, Name: name, ContextWindow: w, Enabled: true}
+		if k := extraString(m.JSON.ExtraFields, "kind"); k == llm.KindImage || k == llm.KindVideo {
+			mi.Kind = k // gateways that list media models say so
+		}
+		out = append(out, mediaInfo(mi))
 	}
 	if err := it.Err(); err != nil {
 		return nil, a.classifyErr(ctx, err, key)

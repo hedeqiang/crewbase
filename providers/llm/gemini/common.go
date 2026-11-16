@@ -36,4 +36,5 @@ var (
 	estimateUsage    = common.EstimateUsage
 	findSpec         = common.FindSpec
 	hasCap           = common.HasCap
+	mediaInfo        = common.MediaInfo
 )

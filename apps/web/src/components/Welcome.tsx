@@ -1,6 +1,7 @@
 import { keyLabel } from "../shortcuts";
 import { Check, KeyRound, Loader2, MessageSquare, Plus } from "lucide-react";
 import { useMemo, useState } from "react";
+import { modelKind } from "../format";
 import { t, type Key } from "../i18n";
 import { newChat, openConnect, openNewAgent, openSettings, useStore, teamMode } from "../store";
 import { AvatarRaw } from "./Avatar";
@@ -21,8 +22,9 @@ export function Welcome({ onTemplate }: { onTemplate: (d: Partial<Draft>) => voi
   const sources = useMemo(() => {
     const ps = models?.providers ?? [];
     return ps
-      .filter((p) => p.id !== "mock" && (p.models?.length ?? 0) > 0)
-      .map((p) => ({ id: p.id, kind: p.kind, n: p.models.length, model: p.models[0]?.id }));
+      .map((p) => ({ p, chat: (p.models ?? []).filter((m) => modelKind(m) === "chat") }))
+      .filter(({ p, chat }) => p.id !== "mock" && chat.length > 0)
+      .map(({ p, chat }) => ({ id: p.id, kind: p.kind, n: chat.length, model: chat[0]?.id }));
   }, [models]);
 
   const ready = sources.length > 0 || (models?.providers ?? []).some((p) => (p.models?.length ?? 0) > 0);

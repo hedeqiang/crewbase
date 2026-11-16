@@ -69,6 +69,7 @@ type Adapter struct {
 	static                            []ModelSpec
 	budgets                           map[string]int
 	httpClient                        *http.Client
+	pollEvery                         time.Duration // URI-delivered video files (default 5s)
 
 	mu       sync.Mutex
 	cached   []llm.ModelInfo
@@ -151,7 +152,7 @@ func (a *Adapter) Models(ctx context.Context) ([]llm.ModelInfo, error) {
 		out := make([]llm.ModelInfo, 0, len(a.static))
 		for _, m := range a.static {
 			mi := m.Info(a.id, nil)
-			if mi.Capabilities == nil {
+			if mi.Capabilities == nil && mi.Kind == "" {
 				mi.Capabilities = []string{"tools", "vision", "long-context"}
 			}
 			out = append(out, mi)
@@ -188,6 +189,13 @@ func (a *Adapter) fetchModels(ctx context.Context) ([]llm.ModelInfo, error) {
 		if err != nil {
 			return nil, a.classifyErr(ctx, err, key)
 		}
+		id := strings.TrimPrefix(m.Name, "models/")
+		if k := llm.ClassifyModel(id); k != llm.KindChat {
+			// image / video models (generateContent, predict,
+			// predictLongRunning or the Interactions API alike)
+			out = append(out, mediaInfo(llm.ModelInfo{ID: id, Provider: a.id, Name: m.DisplayName, Kind: k, Enabled: true}))
+			continue
+		}
 		gen := len(m.SupportedActions) == 0
 		embed := false
 		for _, act := range m.SupportedActions {
@@ -214,7 +222,7 @@ func (a *Adapter) fetchModels(ctx context.Context) ([]llm.ModelInfo, error) {
 		if m.InputTokenLimit >= 500000 {
 			caps = append(caps, "long-context")
 		}
-		out = append(out, llm.ModelInfo{ID: strings.TrimPrefix(m.Name, "models/"), Provider: a.id, Name: m.DisplayName,
+		out = append(out, llm.ModelInfo{ID: id, Provider: a.id, Name: m.DisplayName,
 			ContextWindow: int(m.InputTokenLimit), Capabilities: caps, Enabled: true})
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].ID < out[j].ID })

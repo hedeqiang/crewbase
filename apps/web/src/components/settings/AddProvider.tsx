@@ -1,6 +1,7 @@
 import { AlertTriangle, Check, ChevronDown, ExternalLink, KeyRound, Loader2, Search, Sparkles, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { API, desktop, type ProviderPreset, type ProviderTestResult } from "../../api";
+import { API, desktop, type ModelKind, type ProviderPreset, type ProviderTestResult } from "../../api";
+import { classifyModelId, modelKind } from "../../format";
 import { t } from "../../i18n";
 import { resync, toast } from "../../store";
 import { autoIcon, IconMark, PICKABLE, ProviderMark } from "../ProviderMark";
@@ -34,6 +35,8 @@ export function AddProviderDialog({ onClose, existing }: { onClose: () => void; 
   const [manual, setManual] = useState("");
   const [busy, setBusy] = useState<"" | "test" | "add">("");
   const [picked, setPicked] = useState<Set<string>>(new Set());
+  /** model kinds chosen by hand (otherwise: the listing's, else by id) */
+  const [kinds, setKinds] = useState<Record<string, ModelKind>>({});
   const keyRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -67,6 +70,7 @@ export function AddProviderDialog({ onClose, existing }: { onClose: () => void; 
     setIcon(p?.icon ?? "");
     setTest(null);
     setManual("");
+    setKinds({});
     setStep("key");
   };
 
@@ -84,7 +88,8 @@ export function AddProviderDialog({ onClose, existing }: { onClose: () => void; 
       const r = await API.testProvider(input());
       r.models = r.models ?? [];
       setTest(r);
-      if (r.ok) setPicked(new Set(r.models.slice(0, 2).map((m) => m.id)));
+      // start with two chat models; image / video models are opt-in
+      if (r.ok) setPicked(new Set(r.models.filter((m) => modelKind(m) === "chat").slice(0, 2).map((m) => m.id)));
     } catch (e: any) {
       setTest({ ok: false, latencyMs: 0, models: [], error: e?.message ?? String(e) });
     } finally {
@@ -95,7 +100,11 @@ export function AddProviderDialog({ onClose, existing }: { onClose: () => void; 
   const add = async () => {
     setBusy("add");
     try {
-      await API.addProvider({ ...input(), models: manualMode ? manualIds : [...picked] });
+      const models = manualMode ? manualIds : [...picked];
+      // send only kinds the daemon would not derive from the id itself
+      const marks: Record<string, ModelKind> = {};
+      for (const m of models) if (kindOf(m) !== classifyModelId(m)) marks[m] = kindOf(m);
+      await API.addProvider({ ...input(), models, kinds: marks });
       toast(t("ap.added", { name: name || id }));
       await resync();
       onClose();
@@ -105,6 +114,15 @@ export function AddProviderDialog({ onClose, existing }: { onClose: () => void; 
       setBusy("");
     }
   };
+
+  const kindOf = (m: string): ModelKind => kinds[m] ?? (test?.models?.find((x) => x.id === m) ? modelKind(test.models.find((x) => x.id === m)) : classifyModelId(m));
+  const kindSelect = (m: string) => (
+    <select className="ap-kind" aria-label={t("ap.kindOf", { id: m })} value={kindOf(m)} onChange={(e) => setKinds((k) => ({ ...k, [m]: e.target.value as ModelKind }))}>
+      <option value="chat">{t("set.kind.chat")}</option>
+      <option value="image">{t("set.kind.image")}</option>
+      <option value="video">{t("set.kind.video")}</option>
+    </select>
+  );
 
   const open = (url?: string) => {
     if (!url) return;
@@ -324,6 +342,16 @@ export function AddProviderDialog({ onClose, existing }: { onClose: () => void; 
                     placeholder={pre?.modelHint || t("ap.manualPh")}
                     onChange={(e) => setManual(e.target.value)}
                   />
+                  {manualIds.length > 0 && (
+                    <div className="ap-ml">
+                      {manualIds.map((m) => (
+                        <div key={m} className="ap-m">
+                          <span className="mono">{m}</span>
+                          {kindSelect(m)}
+                        </div>
+                      ))}
+                    </div>
+                  )}
                   <p className="small">
                     {t("ap.manualNote")}
                     {test?.error ? <span className="mono ap-err"> {test.error}</span> : null}
@@ -345,6 +373,7 @@ export function AddProviderDialog({ onClose, existing }: { onClose: () => void; 
                       <label key={m.id} className="ap-m">
                         <input type="checkbox" checked={picked.has(m.id)} onChange={() => toggle(m.id)} />
                         <span className="mono">{m.id}</span>
+                        {kindSelect(m.id)}
                       </label>
                     ))}
                   </div>

@@ -16,6 +16,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -48,6 +49,10 @@ type Provider struct {
 	BaseURL string   `json:"baseURL,omitempty"`
 	KeyRef  string   `json:"keyRef,omitempty"`
 	Models  []string `json:"models,omitempty"` // enabled models; empty = all listed
+	// Kinds marks models by hand as chat | image | video, for ids the
+	// built-in rules (llm.ClassifyModel) do not recognise. Only models in
+	// Models can be marked.
+	Kinds map[string]string `json:"kinds,omitempty"`
 	// Icon is a vendor icon key, "mono" for a letter tile, "" = auto.
 	Icon    string    `json:"icon,omitempty"`
 	Created time.Time `json:"created"`
@@ -133,14 +138,14 @@ func (s *Service) adapter(ctx *kernel.Context, p Provider) (llm.Adapter, error) 
 	case APIAnthropic:
 		return anthropic.New(ctx, anthropic.ProviderConfig{ID: p.ID, BaseURL: p.BaseURL, APIKeyRef: p.KeyRef, Models: specsAnthropic(p.Models)}), nil
 	case APIGemini:
-		return gemini.New(ctx, gemini.ProviderConfig{ID: p.ID, BaseURL: p.BaseURL, APIKeyRef: p.KeyRef, Models: specsGemini(p.Models)}), nil
+		return gemini.New(ctx, gemini.ProviderConfig{ID: p.ID, BaseURL: p.BaseURL, APIKeyRef: p.KeyRef, Models: specsGemini(p.Models, p.Kinds)}), nil
 	default:
 		pc := openai.ProviderConfig{ID: p.ID, BaseURL: p.BaseURL, APIKeyRef: p.KeyRef}
 		if _, ok := openai.Presets[p.Preset]; ok {
 			pc.Preset = p.Preset
 		}
 		for _, m := range p.Models {
-			pc.Models = append(pc.Models, openai.ModelSpec{ID: m})
+			pc.Models = append(pc.Models, openai.ModelSpec{ID: m, Kind: p.Kinds[m]})
 		}
 		return openai.New(ctx, pc)
 	}
@@ -207,7 +212,9 @@ type Input struct {
 	BaseURL string   `json:"baseURL"`
 	APIKey  string   `json:"apiKey"` // write-only; never echoed or stored in config
 	Models  []string `json:"models"`
-	Icon    string   `json:"icon"`
+	// Kinds: see Provider.Kinds.
+	Kinds map[string]string `json:"kinds,omitempty"`
+	Icon  string            `json:"icon"`
 }
 
 func (in *Input) normalize() error {
@@ -238,6 +245,16 @@ func (in *Input) normalize() error {
 		in.Models[i] = strings.TrimSpace(m)
 		if !modelRe.MatchString(in.Models[i]) {
 			return fmt.Errorf("invalid model id %q", m)
+		}
+	}
+	for m, k := range in.Kinds {
+		switch k {
+		case llm.KindChat, llm.KindImage, llm.KindVideo:
+		default:
+			return fmt.Errorf("model kind must be chat, image or video (got %q)", k)
+		}
+		if !slices.Contains(in.Models, m) {
+			return fmt.Errorf("model %q is marked %s but not in the model list", m, k)
 		}
 	}
 	if in.API == "" {
@@ -329,7 +346,7 @@ func (s *Service) Add(in Input) (Provider, error) {
 		return Provider{}, err
 	}
 	prev, exists := s.Get(in.ID)
-	p := Provider{ID: in.ID, Name: in.Name, API: in.API, Preset: in.Preset, BaseURL: in.BaseURL, Models: in.Models, Icon: in.Icon, Created: time.Now().UTC()}
+	p := Provider{ID: in.ID, Name: in.Name, API: in.API, Preset: in.Preset, BaseURL: in.BaseURL, Models: in.Models, Kinds: in.Kinds, Icon: in.Icon, Created: time.Now().UTC()}
 	if exists {
 		p.Created, p.KeyRef = prev.Created, prev.KeyRef
 	}
@@ -418,10 +435,10 @@ func specsAnthropic(ids []string) []anthropic.ModelSpec {
 	return out
 }
 
-func specsGemini(ids []string) []gemini.ModelSpec {
+func specsGemini(ids []string, kinds map[string]string) []gemini.ModelSpec {
 	var out []gemini.ModelSpec
 	for _, m := range ids {
-		out = append(out, gemini.ModelSpec{ID: m})
+		out = append(out, gemini.ModelSpec{ID: m, Kind: kinds[m]})
 	}
 	return out
 }

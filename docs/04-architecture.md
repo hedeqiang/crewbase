@@ -144,7 +144,18 @@ crewbase/
   - 不能：用本地提取的文字（PDF、docx、pptx、xlsx、文本文件），附上工作区路径。超过 12 万字时截断，并提示模型用工具读取全文。看不了图片的模型只拿到一条说明。
   - 原生通道失败（例如上传出错）时，退回同样的文字。
 - ACP（CLI 订阅）：只给工作区路径，由 CLI 自己的读文件工具读取。
-- 下载：`GET /api/agents/{id}/raw?path=` 提供工作区文件。只有 png / jpeg / gif / webp 内联显示，其他类型一律作为附件下载（nosniff，CSP sandbox），所以上传的 HTML / SVG 不会在应用的源里执行。
+- 下载：`GET /api/agents/{id}/raw?path=` 提供工作区文件。只有 png / jpeg / gif / webp 与 mp4 / webm 视频内联显示（类型按文件字节判断，视频从磁盘流式提供并支持 Range），其他类型一律作为附件下载（nosniff，CSP sandbox），所以上传的 HTML / SVG 不会在应用的源里执行。
+
+### 6.5.1 模型分类与图片 / 视频生成（features/media）
+
+- **模型按产出分类**：`llm.ModelInfo.Kind` = `chat`（空值即对话）/ `image` / `video`。适配器为列出的模型归类：按官方模型 ID（2026-11 核对）——图片：`gpt-image-*`、`chatgpt-image-*`、`dall-e-*`（OpenAI Images API）、`imagen-*`、`gemini-*-image*`、`gemini-nano-banana*`；视频：`sora-*`、`veo-*`、`gemini-omni-*`；其余为对话。magpie 用 `GET /v1/models?kind=chat,image,video` 列出并标明 kind；自加提供方可在添加时手动标注（`Provider.Kinds`）。能编辑 / 参考输入图片的图片模型带能力 `image-edit`。
+- **路由**：对话任务与 Agent 的模型顺序只用对话模型；新增任务 `image` / `video`，只接受对应类型的模型。所有对话模型选择器（新建 Agent、输入框、模型顺序、路由的对话任务）不列出图片 / 视频模型。
+- **适配器约定**：`llm.ImageGenerator`（`GenerateImages`）与 `llm.VideoGenerator`（`GenerateVideo`，内部轮询直到完成）。实现：OpenAI 兼容适配器（`POST /images/generations`、multipart `POST /images/edits`、`POST /videos` → `GET /videos/{id}` → `GET /videos/{id}/content`；GPT 图片模型只返回 base64，其他网关返回链接时下载，不带 Key）；magpie 委托给它；Gemini 适配器走 Interactions API（`POST /v1beta/interactions`，`Api-Revision: 2026-05-20`，`response_format` 指定 image / video、比例、尺寸、时长；同步返回 base64，1080p / 4k 视频按 URI 交付，轮询文件 ACTIVE 后下载，Key 只发往 API 自己的主机）。Imagen 与 Veo 3.1 预览已在 Gemini API 下线，OpenAI Videos API（Sora）已于 2026-09-24 下线，后者的形态保留给网关的视频模型。
+- **选模型**：工具参数 `model` → 路由 `image` / `video` → 第一个可用的同类模型；只用本地模型的 Agent 不会被送到云端模型。
+- **结果**：存到工作区 `generated/<时间>-<提示词摘要>.<扩展名>`，类型按字节判断（PNG / JPEG / WebP / GIF、MP4 / WebM，其他拒绝），大小上限（图片 40 MB、视频 512 MB），不覆盖已有文件，`generated/` 若被链接到工作区外则拒绝。模型只收到路径和一句说明，不收到图片字节；会话事件 `media/generated`（以及视频任务的 `media/video-job`）让对话内联显示缩略图 / 播放器，文件面板可预览。
+- **视频在后台**：`video_generate` 立即返回任务号（每个 Agent 同时最多 2 个，默认 20 分钟超时），完成或失败后以 `job:` 输入回到原对话（与后台命令相同的机制）；`video_status` 查看进度。任务随宿主结束（重启后丢失，提供方可能仍会计费）。
+- **工具随模型出现**：有图片模型才注册 `image_generate`（有可改图模型才有 `image_edit`），有视频模型才注册 `video_generate` / `video_status`；适配器变化时与每分钟重新检查。
+- **用量**：`/api/usage` 的 `generated` 按提供方统计生成的图片与视频数量（提供方按张 / 按秒计费，不计入 SpentUSD 估算）。
 
 ### 6.6 DeepSeek 工具 API（与模型无关）
 
