@@ -7,6 +7,7 @@ import (
 	"errors"
 	"os/exec"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/hedeqiang/crewbase/core/llm"
@@ -47,16 +48,27 @@ type nativeModel struct {
 var nativeTimeout = 20 * time.Second
 
 // nativeLister returns how to read the CLI's own model list, nil when it
-// has none (every CLI but Codex) or is not installed.
+// has none or is not installed: Codex (`codex debug models`, its models)
+// and Cursor (`cursor-agent models`, names for its ACP variants; see
+// shape.go). Both only list.
 func nativeLister(r resolved) func(context.Context) ([]nativeModel, error) {
-	if r.ID != "codex" || r.cliPath == "" || len(r.Models) > 0 {
+	if r.cliPath == "" || len(r.Models) > 0 {
 		return nil
 	}
-	path := r.cliPath
+	switch r.ID {
+	case "codex":
+		return listWith(r.cliPath, []string{"debug", "models"}, parseCodexModels)
+	case "cursor":
+		return listWith(r.cliPath, []string{"models"}, parseCursorModels)
+	}
+	return nil
+}
+
+func listWith(path string, args []string, parse func([]byte) ([]nativeModel, error)) func(context.Context) ([]nativeModel, error) {
 	return func(ctx context.Context) ([]nativeModel, error) {
 		ctx, cancel := context.WithTimeout(ctx, nativeTimeout)
 		defer cancel()
-		cmd := exec.CommandContext(ctx, path, "debug", "models")
+		cmd := exec.CommandContext(ctx, path, args...)
 		setProcessGroup(cmd)
 		cmd.WaitDelay = time.Second
 		var stderr bytes.Buffer
@@ -68,8 +80,32 @@ func nativeLister(r resolved) func(context.Context) ([]nativeModel, error) {
 			}
 			return nil, err
 		}
-		return parseCodexModels(out)
+		return parse(out)
 	}
+}
+
+// parseCursorModels reads `cursor-agent models`: "id - Name" lines.
+func parseCursorModels(b []byte) ([]nativeModel, error) {
+	var out []nativeModel
+	for _, line := range strings.Split(string(b), "\n") {
+		line = strings.TrimSpace(strings.Map(func(r rune) rune {
+			if r == '\u200b' || r == '\ufeff' {
+				return -1
+			}
+			return r
+		}, line))
+		id, name, ok := strings.Cut(line, " - ")
+		if !ok || id == "" || strings.ContainsAny(id, " \t") {
+			continue
+		}
+		name = strings.Join(strings.Fields(name), " ")
+		name = strings.TrimSuffix(name, " (default)")
+		out = append(out, nativeModel{ID: id, Name: name})
+	}
+	if len(out) == 0 {
+		return nil, errors.New("cursor-agent models: no model list")
+	}
+	return out, nil
 }
 
 // parseCodexModels reads `codex debug models` output.

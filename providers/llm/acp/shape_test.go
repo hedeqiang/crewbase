@@ -2,6 +2,7 @@ package acp
 
 import (
 	"bufio"
+	"encoding/json"
 	"os"
 	"slices"
 	"strings"
@@ -134,8 +135,9 @@ func TestAntigravityFoldsLevels(t *testing.T) {
 	}
 }
 
-// cursor-agent's ACP ids (variant strings; formats as reported on
-// 2026-11-17, list made up): one model per base + non-level parameters.
+// cursor-agent's ACP ids (variant strings; format as reported on
+// 2026-11-17, list made up to have several levels per model): one model
+// per base + non-level parameters.
 func TestCursorFoldsVariants(t *testing.T) {
 	ms := []acpModel{
 		{ModelID: "auto-smart[optimize_for=balanced]", Name: "Auto"},
@@ -150,7 +152,7 @@ func TestCursorFoldsVariants(t *testing.T) {
 		{ModelID: "gpt-5.2", Name: "GPT-5.2"},
 	}
 	es := shapeModels("cursor", ms, nil)
-	if !slices.Equal(ids(es), []string{"auto-smart-balanced", "claude-opus-5-5", "claude-opus-5-5-fast", "composer-2.5", "gpt-5.2"}) {
+	if !slices.Equal(ids(es), []string{"auto-smart", "claude-opus-5-5", "claude-opus-5-5-fast", "composer-2.5", "gpt-5.2"}) {
 		t.Fatalf("offered %v", ids(es))
 	}
 	o := es[1]
@@ -220,5 +222,50 @@ func TestBridgeVersion(t *testing.T) {
 	}
 	if !versionLess("0.9.5", "0.16.0") || versionLess("0.16.0", "0.16.0") || versionLess("1.0.0-beta", "0.16.0") {
 		t.Fatal("versionLess")
+	}
+}
+
+// Recorded: cursor-agent 2026.09.26's session/new availableModels
+// (testdata/cursor-acp-models.json, one variant per model, named by bare
+// base id) and `cursor-agent models` (testdata/cursor-models.txt).
+func TestCursorRecorded(t *testing.T) {
+	var ms []acpModel
+	b, err := os.ReadFile("testdata/cursor-acp-models.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := json.Unmarshal(b, &ms); err != nil {
+		t.Fatal(err)
+	}
+	txt, err := os.ReadFile("testdata/cursor-models.txt")
+	if err != nil {
+		t.Fatal(err)
+	}
+	cli, err := parseCursorModels(txt)
+	if err != nil || len(cli) < 200 || cli[0].ID != "auto" || cli[0].Name != "Auto" {
+		t.Fatalf("cursor-agent models %v %+v", err, cli[:1])
+	}
+	es := shapeModels("cursor", ms, cli)
+	if len(es) != len(ms) {
+		t.Fatalf("%d models from %d variants", len(es), len(ms))
+	}
+	by := map[string]modelEntry{}
+	for _, e := range es {
+		if strings.ContainsAny(e.ID, "[]=") {
+			t.Errorf("id not cleaned: %s", e.ID)
+		}
+		by[e.ID] = e
+	}
+	for id, want := range map[string][2]string{
+		"claude-opus-5-5": {"Claude Opus 5.5 1M", "claude-opus-5-5[context=300k,effort=medium,fast=false]"},
+		"composer-2.5":    {"Composer 2.5 Fast", "composer-2.5[fast=true]"},
+		"gpt-5.6-sol":     {"GPT-5.6 Sol 1M", "gpt-5.6-sol[context=272k,reasoning=medium,fast=false]"},
+		"gemini-3.1-pro":  {"Gemini 3.1 Pro", "gemini-3.1-pro[]"},
+		"auto-smart":      {"Auto Balance", "auto-smart[optimize_for=balanced]"},
+	} {
+		e, ok := by[id]
+		if !ok || e.Name != want[0] || e.wire("") != want[1] || e.wire("high") != want[1] || e.Efforts != nil {
+			t.Errorf("%s: %+v", id, e)
+		}
 	}
 }

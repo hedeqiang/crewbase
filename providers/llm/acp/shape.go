@@ -60,7 +60,11 @@ func shapeModels(agentID string, acp []acpModel, native []nativeModel) []modelEn
 		}
 		return foldSlash(acp)
 	case "cursor":
-		return foldVariants(acp)
+		names := map[string]string{}
+		for _, n := range native {
+			names[n.ID] = n.Name
+		}
+		return foldVariants(acp, names)
 	case "antigravity":
 		return foldSuffix(acp)
 	case claudeCodeID:
@@ -157,6 +161,53 @@ type group struct {
 	efforts []string // parallel to members ("" = none)
 }
 
+// lvlOf returns a variant's level value as spelled ("medium", "high").
+func lvlOf(params [][2]string) string {
+	for _, kv := range params {
+		if isEffortKey(kv[0]) {
+			return kv[1]
+		}
+	}
+	return ""
+}
+
+// cliName finds a variant's name in `cursor-agent models`, whose ids are
+// the base plus level and "-fast" ("claude-opus-5-5-high-fast"). The level
+// word is dropped when the model offers several.
+func cliName(cli map[string]string, g *group, rep acpModel) string {
+	if len(cli) == 0 || g.params == nil {
+		return ""
+	}
+	_, params, _ := variant(rep.ModelID)
+	lvl := lvlOf(params)
+	fast := g.params["fast"] == "true"
+	var tries []string
+	for _, l := range []string{lvl, ""} {
+		id := g.base
+		if l != "" {
+			id += "-" + l
+		}
+		if fast {
+			tries = append(tries, id+"-fast")
+		} else {
+			tries = append(tries, id)
+		}
+	}
+	for _, id := range tries {
+		if n := cli[id]; n != "" {
+			if len(g.members) > 1 {
+				n = strings.TrimSuffix(n, " Fast")
+				n = stripLevel(n)
+				if fast {
+					n += " Fast"
+				}
+			}
+			return n
+		}
+	}
+	return ""
+}
+
 // fold turns groups into entries: a group whose members all carry a
 // distinct level becomes one model with those levels; otherwise its
 // members stay separate models.
@@ -173,7 +224,17 @@ func fold(groups []*group, id func(g *group) string, name func(g *group, rep acp
 			}
 			levels[e] = m.ModelID
 		}
-		if !ok || len(levels) == 0 {
+		if len(g.members) == 1 {
+			// one variant: its own model, under the short id
+			m := g.members[0]
+			e := modelEntry{ID: m.ModelID, Name: m.Name, Description: m.Description}
+			if gid := id(g); gid != m.ModelID {
+				e.ID, e.Name, e.Wire = gid, name(g, m), map[string]string{"": m.ModelID}
+			}
+			out = append(out, e)
+			continue
+		}
+		if !ok || len(levels) < 2 {
 			for _, m := range g.members {
 				out = append(out, modelEntry{ID: m.ModelID, Name: m.Name, Description: m.Description})
 			}
@@ -285,6 +346,9 @@ func variant(id string) (base string, params [][2]string, ok bool) {
 	if i <= 0 || !strings.HasSuffix(id, "]") {
 		return "", nil, false
 	}
+	if id[i+1:len(id)-1] == "" {
+		return id[:i], nil, true // "gemini-3.1-pro[]"
+	}
 	for _, kv := range strings.Split(id[i+1:len(id)-1], ",") {
 		k, v, ok := strings.Cut(kv, "=")
 		k, v = strings.TrimSpace(k), strings.TrimSpace(v)
@@ -304,8 +368,11 @@ func isEffortKey(k string) bool {
 	return false
 }
 
-// foldVariants folds cursor-agent's variant ids.
-func foldVariants(ms []acpModel) []modelEntry {
+// foldVariants folds cursor-agent's variant ids. Its ACP names are the
+// bare base ids, so names come from `cursor-agent models` (cli: short id
+// -> name, e.g. "claude-opus-5-5-high" -> "Claude Opus 5.5 1M High") when
+// read.
+func foldVariants(ms []acpModel, cli map[string]string) []modelEntry {
 	var groups []*group
 	by := map[string]*group{}
 	for _, m := range ms {
@@ -389,6 +456,9 @@ func foldVariants(ms []acpModel) []modelEntry {
 		return out
 	}
 	name := func(g *group, rep acpModel) string {
+		if n := cliName(cli, g, rep); n != "" {
+			return n
+		}
 		n := rep.Name
 		if len(g.members) > 1 {
 			n = stripLevel(n)
