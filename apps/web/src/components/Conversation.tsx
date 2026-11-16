@@ -70,6 +70,7 @@ import {
   costfmt,
   until,
   NO_MODEL,
+  providerName,
 } from "../format";
 import { Avatar } from "./Avatar";
 import { ApprovalActions } from "./Approval";
@@ -1556,7 +1557,7 @@ function Composer({
         {shown && quota !== null && (
           <span className={"quota" + (quota <= 10 ? " warnq" : "")}>
             <ProviderMark provider={shown.provider} model={shown.model} size={11} />
-            {t("comp.quota", { model: shortModelEffort(models, shown).name, pct: quota })}
+            {t("comp.quota", { model: providerName(shown.provider), pct: quota })}
           </span>
         )}
         <button

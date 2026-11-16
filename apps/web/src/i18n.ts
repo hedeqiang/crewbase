@@ -839,7 +839,7 @@ const zh = {
   "comp.modelExhausted": "已达上限",
   "comp.effort": "推理强度",
   "comp.workdir": "工作目录：{dir}",
-  "comp.quota": "{model} 剩余 {pct}%",
+  "comp.quota": "{model} 额度剩余 {pct}%",
   "comp.context": "上下文 {pct}%",
   "comp.contextNone": "上下文 —",
   "comp.copied": "已复制路径",

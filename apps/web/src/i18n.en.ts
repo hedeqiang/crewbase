@@ -1044,7 +1044,7 @@ export const en: Partial<Record<Key, string>> = {
   "comp.modelTitle": "Which model handles this message",
   "comp.permRules": "Ask / Block rules stay in effect in every mode",
   "comp.permTitle": "Run mode for {name} · {host}",
-  "comp.quota": "{model} {pct}% left",
+  "comp.quota": "{model} quota {pct}% left",
   "comp.workdir": "Working directory: {dir}",
   "conn.offline": "Lost connection to the daemon; reconnecting…",
   "ctx.breakdownSoon": "A breakdown (system prompt, memory, tool definitions, messages…) needs support from the daemon and is coming soon.",
