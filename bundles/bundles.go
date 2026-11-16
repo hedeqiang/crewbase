@@ -27,6 +27,7 @@ import (
 	_ "github.com/hedeqiang/crewbase/features/catalog"
 	_ "github.com/hedeqiang/crewbase/features/channel"
 	_ "github.com/hedeqiang/crewbase/features/compaction"
+	_ "github.com/hedeqiang/crewbase/features/computertools"
 	_ "github.com/hedeqiang/crewbase/features/console"
 	_ "github.com/hedeqiang/crewbase/features/deepseek"
 	_ "github.com/hedeqiang/crewbase/features/devices"
@@ -183,6 +184,12 @@ var Desktop = kernel.Bundle{Name: "desktop", Entries: []kernel.Entry{
 	{ID: "google-api", Name: "@crewbase/google-api"},
 	{ID: "skills-api", Name: "@crewbase/skills-api"},
 	{ID: "browser-api", Name: "@crewbase/browser-api"},
+	// Operating native apps (docs/computer-use.md): the tools and their policy
+	// wait for a computer provider (macOS only) and register nothing until
+	// the switch in Settings › 电脑操作 is on; without a provider the API is
+	// absent too and the page says it is unavailable.
+	{ID: "computer-tools", Name: "@crewbase/computer-tools", Config: map[string]any{"dir": "${root}"}},
+	{ID: "computer-api", Name: "@crewbase/computer-api"},
 	{ID: "im-api", Name: "@crewbase/im-api"},
 	{ID: "im-config", Name: "@crewbase/im-config", Config: map[string]any{"dir": "${root}"}},
 	{ID: "audit-api", Name: "@crewbase/audit-api"},
