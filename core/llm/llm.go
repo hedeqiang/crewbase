@@ -226,7 +226,15 @@ type ModelInfo struct {
 	// or a default) instead of the provider reporting it; the model
 	// catalog may replace it.
 	ContextEstimated bool `json:"contextEstimated,omitempty"`
+	// Efforts are the reasoning levels the model takes (a subset of
+	// Efforts, in that order). Nil means the adapter does not say, so all
+	// levels are offered; empty means it takes none (pickers hide the
+	// choice).
+	Efforts []string `json:"efforts"`
 }
+
+// NoEfforts marks a model that takes no reasoning level.
+var NoEfforts = []string{}
 
 // Quota is remaining subscription/API allowance, when known.
 type Quota struct {

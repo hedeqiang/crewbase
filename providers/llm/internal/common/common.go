@@ -398,6 +398,9 @@ type ModelSpec struct {
 	Capabilities  []string `json:"capabilities,omitempty"`
 	// Kind overrides the output kind derived from the id (chat | image | video).
 	Kind string `json:"kind,omitempty"`
+	// Efforts are the reasoning levels the model takes (see
+	// llm.ModelInfo.Efforts); nil = unknown.
+	Efforts []string `json:"efforts,omitempty"`
 }
 
 func (m *ModelSpec) UnmarshalJSON(b []byte) error {
@@ -420,7 +423,7 @@ func (m ModelSpec) Info(provider string, defWindow func(string) int) llm.ModelIn
 	if w == 0 && defWindow != nil {
 		w, guessed = defWindow(m.ID), true
 	}
-	mi := llm.ModelInfo{ID: m.ID, Provider: provider, Name: m.Name, ContextWindow: w, ContextEstimated: guessed && w > 0, Capabilities: m.Capabilities, Kind: m.Kind, Enabled: true}
+	mi := llm.ModelInfo{ID: m.ID, Provider: provider, Name: m.Name, ContextWindow: w, ContextEstimated: guessed && w > 0, Capabilities: m.Capabilities, Kind: m.Kind, Efforts: m.Efforts, Enabled: true}
 	return MediaInfo(mi)
 }
 

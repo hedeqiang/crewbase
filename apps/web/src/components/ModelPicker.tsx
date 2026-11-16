@@ -2,11 +2,20 @@ import { useLayoutEffect, useRef, useState, type ReactNode, type RefObject } fro
 import { Check, ChevronLeft, ChevronRight, Search } from "lucide-react";
 import type { AgentView, ModelRef, ModelsResponse } from "../api";
 import { t } from "../i18n";
-import { allModels, effortLabel, isExhausted, modelLabel, modelMeta, sameRef, until } from "../format";
+import { allModels, effortLabel, findModel, isExhausted, modelLabel, modelMeta, sameRef, until } from "../format";
 import { ProviderMark } from "./ProviderMark";
 
 /** Levels offered in the menu ("" = the model's own default). */
 export const EFFORTS = ["", "low", "medium", "high", "xhigh", "max"] as const;
+
+/** The levels to offer for a model: those it takes (always with 默认),
+ *  every level when the provider does not say, none when it takes none. */
+export function effortsFor(info: { efforts?: string[] | null } | undefined): string[] {
+  const e = info?.efforts;
+  if (e == null) return [...EFFORTS];
+  if (e.length === 0) return [];
+  return ["", ...EFFORTS.filter((x) => x && e.includes(x))];
+}
 
 const KEY = "crewbase.modelEfforts";
 const plain = (r: ModelRef) => `${r.provider}/${r.model}`;
@@ -73,6 +82,7 @@ export function ModelPicker({
   const needle = q.trim().toLowerCase();
   const hit = (...s: (string | undefined)[]) => !needle || s.some((x) => x?.toLowerCase().includes(needle));
   const effort = shown?.effort ?? "";
+  const levels = shown ? effortsFor(findModel(models, shown)) : [];
 
   const pick = (r: ModelRef | null) => {
     setOverride(r ? withEffort(r) : null);
@@ -124,7 +134,9 @@ export function ModelPicker({
           t("comp.modelAuto")
         ),
       )}
-      {row("effort", effortRow, t("comp.effort"), effort ? effortLabel(effort) : t("effort.default"), !shown)}
+      {/* a model that takes no reasoning level (a coding CLI, most media
+          and non-reasoning models) has no such choice */}
+      {levels.length > 0 && row("effort", effortRow, t("comp.effort"), effort ? effortLabel(effort) : t("effort.default"), !shown)}
 
       {sub === "model" && (
         <Flyout anchor={modelRow.current} onBack={() => setSub(null)} width={300}>
@@ -192,7 +204,7 @@ export function ModelPicker({
           <div className="mlbl" title={modelLabel(models, shown)}>
             {modelLabel(models, shown)}
           </div>
-          {EFFORTS.map((e) => (
+          {levels.map((e) => (
             <button key={e} className="mi" type="button" aria-pressed={effort === e} onClick={() => setEffort(e)}>
               <span className="g">{e ? effortLabel(e) : t("effort.default")}</span>
               <span className="ck">{effort === e && <Check size={14} />}</span>

@@ -3,12 +3,12 @@ import { Check, ChevronDown, Dices, FileUp, Folder, Plus, RefreshCw, Search, Shi
 import { API, refString, type ModelRef } from "../api";
 import { ImportRoleDialog } from "./ImportRole";
 import { t, type Key } from "../i18n";
-import { allModels, effortLabel, modeLabel, modelMeta, providerName, sameRef, shortModel } from "../format";
+import { allModels, effortLabel, findModel, modeLabel, modelMeta, providerName, sameRef, shortModel } from "../format";
 import { openSession, refreshAgents, refreshSessions, setState, toast, useFolders, useStore, currentTeam, teamMode } from "../store";
 import { AvatarRaw, COLORS, FACES, SHAPES } from "./Avatar";
 import { Popover, useMenu } from "./Popover";
 import { ProviderMark } from "./ProviderMark";
-import { EFFORTS } from "./ModelPicker";
+import { effortsFor } from "./ModelPicker";
 
 export interface Draft {
   name: string;
@@ -185,6 +185,7 @@ export function NewAgent({ draft: f, setDraft }: { draft: Draft; setDraft: (d: D
     return all[0]?.ref ?? null;
   }, [all, settingsDefault]);
   const primary = f.model ?? preferred;
+  const primaryLevels = effortsFor(primary ? findModel(models, primary) : undefined);
   const backup = all.find((m) => primary && !sameRef(m.ref, primary))?.ref ?? null;
   const set = (p: Partial<Draft>) => setDraft({ ...f, ...p });
   const [importing, setImporting] = useState(false);
@@ -505,15 +506,19 @@ export function NewAgent({ draft: f, setDraft }: { draft: Draft; setDraft: (d: D
           </Fragment>
         ))}
         {mq && shownModels.length === 0 && <p className="small" style={{ margin: "4px 9px 8px" }}>{t("list.noMatch")}</p>}
+        {primaryLevels.length > 0 && (
+          <>
         <hr />
         <div className="mlbl">{t("comp.effort")}</div>
         <div className="seg">
-          {EFFORTS.map((e) => (
+          {primaryLevels.map((e) => (
             <button key={e} type="button" aria-pressed={(f.effort || "") === e} onClick={() => set({ effort: e })}>
               {e ? effortLabel(e) : t("effort.default")}
             </button>
           ))}
         </div>
+          </>
+        )}
       </Popover>
       <Popover anchor={modeM.anchor} open={modeM.open} onClose={modeM.close} width={320}>
         <div className="mlbl">{t("na.mode")}</div>

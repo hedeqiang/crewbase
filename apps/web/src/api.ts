@@ -185,6 +185,8 @@ export interface ModelInfo {
   maxOutput?: number;
   /** API list price (USD per million tokens; image: per image), from the model catalog */
   pricing?: ModelPricing;
+  /** reasoning levels it takes; null/absent = not known (all offered), [] = none */
+  efforts?: string[] | null;
 }
 export interface ModelPricing {
   input?: number;

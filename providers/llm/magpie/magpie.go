@@ -352,8 +352,20 @@ func (a *Adapter) refresh(ctx context.Context) (bool, error) {
 		if w >= 500000 {
 			caps = append(caps, "long-context")
 		}
-		infos = append(infos, llm.ModelInfo{ID: m.ID, Provider: ProviderID, Name: name, ContextWindow: w, ContextEstimated: guessed, MaxOutput: m.MaxOutputTokens, Capabilities: caps, Enabled: true})
-		specs = append(specs, openai.ModelSpec{ID: m.ID, Name: name, ContextWindow: w, Capabilities: caps, Kind: llm.KindChat})
+		var efforts []string // nil: let the OpenAI adapter decide
+		if len(m.ReasoningLevels) > 0 {
+			efforts = []string{}
+			for _, l := range m.ReasoningLevels {
+				if e := strings.ToLower(l.Effort); slices.Contains(llm.Efforts, e) && !slices.Contains(efforts, e) {
+					efforts = append(efforts, e)
+				}
+			}
+			slices.SortFunc(efforts, func(x, y string) int { return slices.Index(llm.Efforts, x) - slices.Index(llm.Efforts, y) })
+		} else if !m.Reasoning {
+			efforts = llm.NoEfforts
+		}
+		infos = append(infos, llm.ModelInfo{ID: m.ID, Provider: ProviderID, Name: name, ContextWindow: w, ContextEstimated: guessed, MaxOutput: m.MaxOutputTokens, Capabilities: caps, Efforts: efforts, Enabled: true})
+		specs = append(specs, openai.ModelSpec{ID: m.ID, Name: name, ContextWindow: w, Capabilities: caps, Kind: llm.KindChat, Efforts: efforts})
 	}
 	inner, err := openai.New(a.c, openai.ProviderConfig{
 		ID: ProviderID, BaseURL: a.root + "/v1", APIKey: AppKey, Kind: Kind,

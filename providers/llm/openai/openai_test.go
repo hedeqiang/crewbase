@@ -452,3 +452,41 @@ func TestForeignThinkingSkipped(t *testing.T) {
 		t.Fatalf("messages = %s", b)
 	}
 }
+
+// Models say which reasoning levels they take: none for a model the
+// adapter sends no effort to, the API's levels otherwise; OpenRouter's
+// supported_parameters decide per model.
+func TestModelEfforts(t *testing.T) {
+	a, _ := New(nil, ProviderConfig{ID: "openai", Models: []ModelSpec{{ID: "gpt-5.2"}, {ID: "gpt-4o"}, {ID: "gpt-image-2"}}})
+	ms, _ := a.Models(context.Background())
+	got := map[string][]string{}
+	for _, m := range ms {
+		got[m.ID] = m.Efforts
+	}
+	if e := got["gpt-5.2"]; len(e) == 0 || e[len(e)-1] != "xhigh" {
+		t.Fatalf("gpt-5.2 %v", e)
+	}
+	if e := got["gpt-4o"]; e == nil || len(e) != 0 {
+		t.Fatalf("gpt-4o takes no effort: %v", e)
+	}
+	if e := got["gpt-image-2"]; e == nil || len(e) != 0 {
+		t.Fatalf("image model: %v", e)
+	}
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprint(w, `{"object":"list","data":[{"id":"x/thinker","object":"model","supported_parameters":["tools","reasoning"]},{"id":"x/plain","object":"model","supported_parameters":["tools"]}]}`)
+	}))
+	defer srv.Close()
+	or, _ := New(nil, ProviderConfig{ID: "openrouter", BaseURL: srv.URL, APIKey: "k"})
+	ms, err := or.Models(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, m := range ms {
+		got[m.ID] = m.Efforts
+	}
+	if len(got["x/thinker"]) == 0 || got["x/plain"] == nil || len(got["x/plain"]) != 0 {
+		t.Fatalf("openrouter: thinker %v plain %v", got["x/thinker"], got["x/plain"])
+	}
+}

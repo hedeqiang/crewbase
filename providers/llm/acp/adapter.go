@@ -118,14 +118,14 @@ func (a *Adapter) Models(context.Context) ([]llm.ModelInfo, error) {
 			if w == 0 {
 				w = a.cfg.ContextWindow
 			}
-			out = append(out, llm.ModelInfo{ID: m.ID, Provider: a.id, Name: m.Name, ContextWindow: w, Capabilities: []string{"code"}, Enabled: true})
+			out = append(out, llm.ModelInfo{ID: m.ID, Provider: a.id, Name: m.Name, ContextWindow: w, Capabilities: []string{"code"}, Efforts: llm.NoEfforts, Enabled: true})
 		}
 		return out, nil
 	}
 	a.mu.Lock()
 	learned := append([]llm.ModelInfo(nil), a.models...)
 	a.mu.Unlock()
-	out := []llm.ModelInfo{{ID: defaultModel, Provider: a.id, Name: a.cfg.Name, ContextWindow: a.cfg.ContextWindow, Capabilities: []string{"code"}, Enabled: true}}
+	out := []llm.ModelInfo{{ID: defaultModel, Provider: a.id, Name: a.cfg.Name, ContextWindow: a.cfg.ContextWindow, Capabilities: []string{"code"}, Efforts: llm.NoEfforts, Enabled: true}}
 	return append(out, learned...), nil
 }
 
@@ -138,7 +138,7 @@ func (a *Adapter) learnModels(ms []acpModel) {
 		if m.ModelID == "" || m.ModelID == defaultModel {
 			continue
 		}
-		out = append(out, llm.ModelInfo{ID: m.ModelID, Provider: a.id, Name: m.Name, ContextWindow: a.cfg.ContextWindow, Capabilities: []string{"code"}, Enabled: true})
+		out = append(out, llm.ModelInfo{ID: m.ModelID, Provider: a.id, Name: m.Name, ContextWindow: a.cfg.ContextWindow, Capabilities: []string{"code"}, Efforts: llm.NoEfforts, Enabled: true})
 	}
 	a.mu.Lock()
 	a.models = out

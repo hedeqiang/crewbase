@@ -228,7 +228,7 @@ func (a *Adapter) Models(ctx context.Context) ([]llm.ModelInfo, error) {
 	if len(a.static) > 0 {
 		out := make([]llm.ModelInfo, 0, len(a.static))
 		for _, m := range a.static {
-			out = append(out, m.Info(a.id, a.windowFor))
+			out = append(out, a.withEfforts(m.Info(a.id, a.windowFor)))
 		}
 		return out, nil
 	}
@@ -284,7 +284,20 @@ func (a *Adapter) FetchModels(ctx context.Context) ([]llm.ModelInfo, error) {
 		if k := extraString(m.JSON.ExtraFields, "kind"); k == llm.KindImage || k == llm.KindVideo {
 			mi.Kind = k // gateways that list media models say so
 		}
-		out = append(out, mediaInfo(mi))
+		if raw, ok := m.JSON.ExtraFields["supported_parameters"]; ok {
+			// OpenRouter lists what a model accepts: "reasoning" /
+			// "include_reasoning" mean it takes an effort
+			var ps []string
+			if json.Unmarshal([]byte(raw.Raw()), &ps) == nil {
+				mi.Efforts = llm.NoEfforts
+				for _, p := range ps {
+					if p == "reasoning" || p == "reasoning_effort" {
+						mi.Efforts = nil // decided by withEfforts below
+					}
+				}
+			}
+		}
+		out = append(out, a.withEfforts(mediaInfo(mi)))
 	}
 	if err := it.Err(); err != nil {
 		return nil, a.classifyErr(ctx, err, key)
@@ -393,6 +406,34 @@ func (a *Adapter) mapMessages(system string, msgs []llm.Message, files map[strin
 		}
 	}
 	return out
+}
+
+// withEfforts fills the reasoning levels mi takes when the adapter knows:
+// none for a model it sends no effort to; for OpenAI-style APIs the levels
+// they accept (max is sent as xhigh, so it is not offered twice); qwen and
+// deepseek take on / off-like levels. A list the model already carries
+// (magpie's own) wins.
+func (a *Adapter) withEfforts(mi llm.ModelInfo) llm.ModelInfo {
+	if mi.Efforts != nil || mi.OutputKind() != llm.KindChat {
+		if mi.OutputKind() != llm.KindChat {
+			mi.Efforts = llm.NoEfforts
+		}
+		return mi
+	}
+	if !a.effortFor(mi.ID) {
+		mi.Efforts = llm.NoEfforts
+		return mi
+	}
+	switch a.effortStyle {
+	case "openai", "openrouter", "auto":
+		mi.Efforts = []string{"minimal", "low", "medium", "high", "xhigh"}
+	case "qwen":
+		mi.Efforts = []string{"low", "medium", "high", "xhigh"}
+	case "zhipu", "deepseek":
+		// thinking on or off: minimal turns it off, anything else on
+		mi.Efforts = []string{"minimal", "high"}
+	}
+	return mi
 }
 
 func (a *Adapter) effortFor(model string) bool {
