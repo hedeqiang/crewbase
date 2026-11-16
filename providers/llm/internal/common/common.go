@@ -396,6 +396,8 @@ type ModelSpec struct {
 	Name          string   `json:"name,omitempty"`
 	ContextWindow int      `json:"contextWindow,omitempty"`
 	Capabilities  []string `json:"capabilities,omitempty"`
+	// Kind overrides the output kind derived from the id (chat | image | video).
+	Kind string `json:"kind,omitempty"`
 }
 
 func (m *ModelSpec) UnmarshalJSON(b []byte) error {
@@ -418,7 +420,25 @@ func (m ModelSpec) Info(provider string, defWindow func(string) int) llm.ModelIn
 	if w == 0 && defWindow != nil {
 		w = defWindow(m.ID)
 	}
-	return llm.ModelInfo{ID: m.ID, Provider: provider, Name: m.Name, ContextWindow: w, Capabilities: m.Capabilities, Enabled: true}
+	mi := llm.ModelInfo{ID: m.ID, Provider: provider, Name: m.Name, ContextWindow: w, Capabilities: m.Capabilities, Kind: m.Kind, Enabled: true}
+	return MediaInfo(mi)
+}
+
+// MediaInfo classifies mi by id (unless its kind is set, "chat" included)
+// and gives image / video models their media capabilities instead of chat
+// ones.
+func MediaInfo(mi llm.ModelInfo) llm.ModelInfo {
+	mi = llm.WithKind(mi)
+	switch mi.Kind {
+	case llm.KindImage:
+		if llm.EditsByID(mi.ID) && !HasCap(mi.Capabilities, llm.CapImageEdit) {
+			mi.Capabilities = append(append([]string(nil), mi.Capabilities...), llm.CapImageEdit)
+		}
+		mi.ContextWindow = 0
+	case llm.KindVideo:
+		mi.ContextWindow = 0
+	}
+	return mi
 }
 
 func FindSpec(specs []ModelSpec, id string) (ModelSpec, bool) {

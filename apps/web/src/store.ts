@@ -27,7 +27,7 @@ import {
 import { tunnelEvents, viaRelay } from "./tunnel";
 import { notifyApprovals } from "./companion";
 import { getLang, loadLang, setLang as setLangRaw, t, type Lang } from "./i18n";
-import { setUserProviders } from "./format";
+import { modelKind, setUserProviders } from "./format";
 
 export type View = "chat" | "newAgent" | "settings";
 /** Built-in tabs, or `ui:<key>` for a plugin's sidebar-right.tab. */
@@ -518,7 +518,7 @@ export async function refreshApprovals() {
 /** Whether any model can answer: null while the list is still loading. */
 export function hasModels(s: State = state): boolean | null {
   if (!s.models) return null;
-  return (s.models.providers ?? []).some((p) => (p.models?.length ?? 0) > 0);
+  return (s.models.providers ?? []).some((p) => (p.models ?? []).some((m) => modelKind(m) === "chat"));
 }
 
 export const openConnect = () => setState({ connecting: true });

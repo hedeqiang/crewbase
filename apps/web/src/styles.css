@@ -568,6 +568,13 @@ kbd { font-family: var(--font); font-size: 11px; min-width: 22px; height: 20px; 
 .cap.c-tools { background: var(--accent-soft); color: var(--accent-text); }
 .cap.c-long { background: var(--amber-soft); color: var(--amber-text); }
 .mctx { font-size: 12px; color: var(--text2); font-variant-numeric: tabular-nums; }
+.mkgroup + .mkgroup { margin-top: 14px; }
+.mkh { display: flex; align-items: center; gap: 8px; margin: 0 0 6px; }
+.mkind { font-size: 11px; font-weight: 600; padding: 0 7px; line-height: 20px; border-radius: 6px; background: var(--active); color: var(--text2); justify-self: start; white-space: nowrap; }
+.mkind.sm { font-size: 10.5px; font-weight: 500; line-height: 18px; padding: 0 6px; }
+.mkind.k-chat { background: var(--accent-soft); color: var(--accent-text); }
+.mkind.k-image { background: color-mix(in srgb, #e0679a 16%, transparent); color: #c04a7f; }
+.mkind.k-video { background: color-mix(in srgb, #8b7cf6 16%, transparent); color: #7a6ae0; }
 
 /* palette */
 .scrim { position: fixed; inset: 0; background: rgba(0, 0, 0, .18); z-index: 45; }
@@ -1000,6 +1007,8 @@ button.tg:disabled { opacity: .5; cursor: not-allowed; }
 .okt { color: var(--ok-text); display: inline-flex; align-items: center; gap: 5px; }
 .ap-ml { max-height: 200px; overflow: auto; margin: 8px 0 4px; display: flex; flex-direction: column; gap: 2px; }
 .ap-m { display: flex; align-items: center; gap: 8px; padding: 4px 2px; cursor: pointer; }
+.ap-m .mono { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ap-kind { font: inherit; font-size: 11.5px; padding: 1px 4px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface); color: var(--text2); }
 .dngt { color: var(--danger-text); }
 .spin { animation: spin 1s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }

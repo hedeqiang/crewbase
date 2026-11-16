@@ -1,4 +1,4 @@
-import type { AgentView, ModelInfo, ModelRef, ModelsResponse, ProviderView } from "./api";
+import type { AgentView, ModelInfo, ModelKind, ModelRef, ModelsResponse, ProviderView } from "./api";
 import { t, type Key } from "./i18n";
 
 export function modeLabel(m: string | undefined): string {
@@ -159,12 +159,27 @@ export function activeModel(models: ModelsResponse | null, a: AgentView | undefi
   return order[0] ?? null;
 }
 
-/** All enabled models from every provider as refs. */
-export function allModels(models: ModelsResponse | null): { ref: ModelRef; info: ModelInfo; provider: ProviderView }[] {
+/** What a model produces (chat when the provider does not say). */
+export function modelKind(m: Pick<ModelInfo, "kind"> | undefined): ModelKind {
+  return m?.kind === "image" || m?.kind === "video" ? m.kind : "chat";
+}
+
+/** The daemon's id rules (core/llm ClassifyModel), for ids typed by hand. */
+export function classifyModelId(id: string): ModelKind {
+  const l = id.toLowerCase().split("/").pop() ?? "";
+  if (/^(gpt-image|chatgpt-image|dall-e|imagen|gemini-nano-banana)/.test(l) || (l.startsWith("gemini-") && l.includes("-image"))) return "image";
+  if (/^(sora-|veo-|gemini-omni)/.test(l)) return "video";
+  return "chat";
+}
+
+/** Enabled models of one kind (chat by default: conversation pickers never
+ *  offer image / video models) from every provider, as refs. */
+export function allModels(models: ModelsResponse | null, kind: ModelKind | "all" = "chat"): { ref: ModelRef; info: ModelInfo; provider: ProviderView }[] {
   const out: { ref: ModelRef; info: ModelInfo; provider: ProviderView }[] = [];
   for (const p of models?.providers ?? []) {
     for (const m of p.models ?? []) {
       if (m.enabled === false) continue;
+      if (kind !== "all" && modelKind(m) !== kind) continue;
       out.push({ ref: { provider: p.id, model: m.id }, info: m, provider: p });
     }
   }

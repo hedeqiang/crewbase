@@ -65,12 +65,16 @@ func (r *Router) Select(a *agent.Agent) (llm.ModelRef, bool) {
 		return llm.ModelRef{}, false
 	}
 	for _, m := range ms {
-		if r.usable(m) {
+		if r.usable(m) && chatID(m) {
 			return m, true
 		}
 	}
 	return ms[0], true
 }
+
+// chatID: an agent's order is for conversation, so a model whose id says
+// it only draws or films (left there by hand) is skipped.
+func chatID(m llm.ModelRef) bool { return llm.ClassifyModel(m.Model) == llm.KindChat }
 
 func backoff(err error, now time.Time) (time.Time, string) {
 	var le *llm.Error
@@ -123,7 +127,7 @@ func (r *Router) nextInOrder(a *agent.Agent, failed llm.ModelRef) (llm.ModelRef,
 	// after the failed one first, then wrap to earlier ones
 	for i := 0; i < len(ms); i++ {
 		m := ms[(start+i)%len(ms)]
-		if m.String() != failed.String() && r.usable(m) {
+		if m.String() != failed.String() && r.usable(m) && chatID(m) {
 			return m, true
 		}
 	}

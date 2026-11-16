@@ -630,7 +630,7 @@ var Plugin = kernel.Register(kernel.Spec{
 				if routes == nil {
 					routes = []router.Route{}
 				}
-				return map[string]any{"routes": routes, "tasks": []string{router.TaskTitle, router.TaskRoutine, router.TaskSummarize, router.TaskCode, router.TaskLongDoc}}, nil
+				return map[string]any{"routes": routes, "tasks": router.Tasks}, nil
 			}})
 		g.Handle(c, gateway.Route{Method: "PUT", Path: "/api/router/routes",
 			Validate: func(r *gateway.Request) error {

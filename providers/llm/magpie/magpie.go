@@ -7,8 +7,11 @@
 //   - the port is read (never written) from magpie's settings.json
 //     (`$XDG_CONFIG_HOME/magpie` or `~/.config/magpie`), default 3425;
 //   - `GET /api/hello` must answer {"name":"magpie"};
-//   - models come from `GET /v1/models` (ids are `provider/model` or a
-//     routing group name, sent as they are);
+//   - models come from `GET /v1/models?kind=chat,image,video` (ids are
+//     `provider/model` or a routing group name, sent as they are); image
+//     and video models are marked "kind" and served by
+//     `/v1/images/generations`, `/v1/images/edits` and `/v1/videos` in
+//     OpenAI's shapes;
 //   - requests use OpenAI Chat Completions at `/v1`, with the key
 //     `magpie-crewbase` so magpie's Usage counts them as Crewbase;
 //   - subscription allowances come from `GET /v1/magpie/quotas` (cached
@@ -26,6 +29,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -94,6 +98,9 @@ type modelEntry struct {
 		Effort string `json:"effort"`
 	} `json:"supported_reasoning_levels"`
 	Modalities json.RawMessage `json:"modalities"`
+	// Endpoints lists what a media model serves ("image-generation",
+	// "image-edit", ...).
+	Endpoints []string `json:"supported_endpoint_types"`
 }
 
 // Adapter is the magpie provider. Streaming is delegated to an
@@ -150,6 +157,35 @@ func (a *Adapter) Stream(ctx context.Context, req llm.Request, onChunk func(llm.
 	return resp, err
 }
 
+func (a *Adapter) innerOrErr() (*openai.Adapter, error) {
+	a.mu.RLock()
+	inner := a.inner
+	a.mu.RUnlock()
+	if inner == nil {
+		return nil, &llm.Error{Kind: llm.ErrUnavailable, Provider: ProviderID, Message: "magpie is not running"}
+	}
+	return inner, nil
+}
+
+// GenerateImages goes through magpie's /v1/images/generations and
+// /v1/images/edits (OpenAI's shapes).
+func (a *Adapter) GenerateImages(ctx context.Context, req llm.ImageRequest) (llm.ImageResult, error) {
+	inner, err := a.innerOrErr()
+	if err != nil {
+		return llm.ImageResult{}, err
+	}
+	return inner.GenerateImages(ctx, req)
+}
+
+// GenerateVideo goes through magpie's /v1/videos (OpenAI's shape).
+func (a *Adapter) GenerateVideo(ctx context.Context, req llm.VideoRequest, progress func(llm.VideoProgress)) (llm.Video, error) {
+	inner, err := a.innerOrErr()
+	if err != nil {
+		return llm.Video{}, err
+	}
+	return inner.GenerateVideo(ctx, req, progress)
+}
+
 // AcceptsFile follows the model's input modalities in magpie's catalog.
 func (a *Adapter) AcceptsFile(model, mime string) bool {
 	a.mu.RLock()
@@ -180,7 +216,7 @@ func hello(ctx context.Context, client *http.Client, root string) (string, error
 }
 
 func (a *Adapter) fetchModels(ctx context.Context) ([]modelEntry, error) {
-	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, a.root+"/v1/models", nil)
+	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, a.root+"/v1/models?kind=chat,image,video", nil)
 	req.Header.Set("Authorization", "Bearer "+AppKey)
 	req.Header.Set("User-Agent", "Crewbase")
 	resp, err := a.client.Do(req)
@@ -199,8 +235,13 @@ func (a *Adapter) fetchModels(ctx context.Context) ([]modelEntry, error) {
 	}
 	var out []modelEntry
 	for _, m := range body.Data {
-		if m.ID == "" || (m.Kind != "" && m.Kind != "chat") {
-			continue // chat models only
+		switch m.Kind {
+		case "", llm.KindChat, llm.KindImage, llm.KindVideo:
+		default:
+			continue // embeddings, audio, ... are not used
+		}
+		if m.ID == "" {
+			continue
 		}
 		out = append(out, m)
 	}
@@ -231,6 +272,22 @@ func (a *Adapter) refresh(ctx context.Context) (bool, error) {
 			provs[pv] = true
 			modelProv[m.ID] = pv
 		}
+		name := m.Label
+		if name == "" {
+			name = m.DisplayName
+		}
+		if name == "" {
+			name = m.ID
+		}
+		if m.Kind == llm.KindImage || m.Kind == llm.KindVideo {
+			var caps []string
+			if slices.Contains(m.Endpoints, "image-edit") {
+				caps = append(caps, llm.CapImageEdit)
+			}
+			infos = append(infos, llm.ModelInfo{ID: m.ID, Provider: ProviderID, Name: name, Kind: m.Kind, Capabilities: caps, Enabled: true})
+			specs = append(specs, openai.ModelSpec{ID: m.ID, Name: name, Kind: m.Kind, Capabilities: caps})
+			continue
+		}
 		w := m.ContextWindow
 		if w == 0 {
 			w = a.window
@@ -251,15 +308,8 @@ func (a *Adapter) refresh(ctx context.Context) (bool, error) {
 		if w >= 500000 {
 			caps = append(caps, "long-context")
 		}
-		name := m.Label
-		if name == "" {
-			name = m.DisplayName
-		}
-		if name == "" {
-			name = m.ID
-		}
 		infos = append(infos, llm.ModelInfo{ID: m.ID, Provider: ProviderID, Name: name, ContextWindow: w, Capabilities: caps, Enabled: true})
-		specs = append(specs, openai.ModelSpec{ID: m.ID, Name: name, ContextWindow: w, Capabilities: caps})
+		specs = append(specs, openai.ModelSpec{ID: m.ID, Name: name, ContextWindow: w, Capabilities: caps, Kind: llm.KindChat})
 	}
 	inner, err := openai.New(a.c, openai.ProviderConfig{
 		ID: ProviderID, BaseURL: a.root + "/v1", APIKey: AppKey, Kind: Kind,

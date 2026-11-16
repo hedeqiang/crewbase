@@ -73,6 +73,45 @@ func TestTaskRoutingFallsBackWhenUnusable(t *testing.T) {
 	}
 }
 
+// Media tasks only route to models of their kind, chat tasks never to
+// image / video models, and an agent's order skips media ids.
+func TestRoutesFollowModelKind(t *testing.T) {
+	h := kernel.NewHost(nil)
+	t.Cleanup(h.Close)
+	h.Load(session.Plugin, kernel.LoadOptions{})
+	h.Load(prompt.Plugin, kernel.LoadOptions{})
+	h.Load(tools.Plugin, kernel.LoadOptions{})
+	h.Load(llm.Plugin, kernel.LoadOptions{})
+	h.Load(mock.Plugin, kernel.LoadOptions{Config: map[string]any{"ids": []string{"gw"}}})
+	llms := kernel.Use[*llm.Registry](h.Root(), llm.ServiceKey)
+	gw, _ := llms.Get("gw")
+	gw.(*mock.Adapter).AddModel(llm.ModelInfo{ID: "painter", Kind: llm.KindImage, Enabled: true})
+	gw.(*mock.Adapter).AddModel(llm.ModelInfo{ID: "gpt-image-2", Enabled: true}) // kind from the id
+	rt := router.New(h.Root(), llms, nil)
+	rt.SetRoutes([]router.Route{
+		{Task: router.TaskSummarize, Model: "gw/painter"}, // wrong kind: skipped
+		{Task: router.TaskSummarize, Model: "gw/default"},
+		{Task: router.TaskImage, Model: "gw/default"}, // a chat model cannot draw
+		{Task: router.TaskImage, Model: "gw/painter"},
+		{Task: router.TaskVideo, Model: "gw/gpt-image-2"},
+	})
+	if ref, ok := rt.RouteFor(router.TaskSummarize); !ok || ref.Model != "default" {
+		t.Fatalf("summarize → %v %v", ref, ok)
+	}
+	if ref, ok := rt.RouteFor(router.TaskImage); !ok || ref.Model != "painter" {
+		t.Fatalf("image → %v %v", ref, ok)
+	}
+	if ref, ok := rt.RouteFor(router.TaskVideo); ok {
+		t.Fatalf("an image model must not serve video: %v", ref)
+	}
+	h.Load(agent.Plugin, kernel.LoadOptions{Config: map[string]any{"root": t.TempDir()}})
+	a, _ := kernel.Use[*agent.Registry](h.Root(), agent.ServiceKey).Create(agent.Spec{Name: "Ana",
+		Models: []llm.ModelRef{{Provider: "gw", Model: "gpt-image-2"}, {Provider: "gw", Model: "default"}}})
+	if ref, _ := rt.Select(a); ref.Model != "default" {
+		t.Fatalf("chat order picked %v", ref)
+	}
+}
+
 func TestClassifierIsConservative(t *testing.T) {
 	for _, txt := range []string{"Implement the summary view", "在摘要页加一个按钮", "the log cleanup job failed"} {
 		if got := router.Classify(agent.Input{Text: txt}); got == router.TaskSummarize {

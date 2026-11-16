@@ -33,11 +33,16 @@ func (f *fakeMagpie) handler() http.Handler {
 		fmt.Fprint(w, `{"name":"magpie","version":"9.9.9"}`)
 	})
 	mux.HandleFunc("/v1/models", func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Query().Get("kind") != "chat,image,video" {
+			http.Error(w, "want every kind", 400)
+			return
+		}
 		fmt.Fprint(w, `{"object":"list","data":[
 		 {"id":"claude/claude-opus-5-5","display_name":"Claude Opus 5.5","owned_by":"claude","reasoning":true,
 		  "supported_reasoning_levels":[{"effort":"low"},{"effort":"high"}],"context_window":1000000,"modalities":{"input":["text","image"]}},
 		 {"id":"opus-anywhere","display_name":"opus-anywhere","owned_by":"group"},
-		 {"id":"flux/flux-2","kind":"image"}]}`)
+		 {"id":"flux/flux-2","kind":"image","supported_endpoint_types":["image-generation","image-edit"]},
+		 {"id":"x/embed","kind":"embedding"}]}`)
 	})
 	mux.HandleFunc("/v1/chat/completions", func(w http.ResponseWriter, r *http.Request) {
 		b, _ := io.ReadAll(r.Body)
@@ -83,9 +88,13 @@ func TestDiscoveryModelsStreamAndDisappear(t *testing.T) {
 		t.Fatal(ad.Kind())
 	}
 	ms, _ := ad.Models(context.Background())
-	if len(ms) != 2 { // image model filtered out
+	if len(ms) != 3 { // embeddings left out
 		t.Fatalf("%+v", ms)
 	}
+	if img := ms[1]; img.ID != "flux/flux-2" || img.Kind != llm.KindImage || len(img.Capabilities) != 1 || img.Capabilities[0] != llm.CapImageEdit {
+		t.Fatalf("image model: %+v", img)
+	}
+	ms = append(ms[:1], ms[2])
 	opus := ms[0]
 	if opus.ID != "claude/claude-opus-5-5" || opus.ContextWindow != 1000000 || !strings.Contains(strings.Join(opus.Capabilities, ","), "reasoning") || !strings.Contains(strings.Join(opus.Capabilities, ","), "vision") {
 		t.Fatalf("%+v", opus)
@@ -112,7 +121,7 @@ func TestDiscoveryModelsStreamAndDisappear(t *testing.T) {
 	f.mu.Unlock()
 
 	st := kernel.Use[*magpie.Discovery](h.Root(), magpie.ServiceKey).Status()
-	if !st.Running || st.Version != "9.9.9" || st.Models != 2 {
+	if !st.Running || st.Version != "9.9.9" || st.Models != 3 {
 		t.Fatalf("%+v", st)
 	}
 

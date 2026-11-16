@@ -172,8 +172,11 @@ export interface ModelInfo {
   name?: string;
   contextWindow: number;
   capabilities?: string[];
+  /** What the model produces: chat (default), image or video. */
+  kind?: ModelKind | string;
   enabled: boolean;
 }
+export type ModelKind = "chat" | "image" | "video";
 export interface Quota {
   known: boolean;
   remaining: number;
@@ -962,7 +965,7 @@ export const API = {
     api<{ agent: string; input: string; position: number }>("POST", `/api/channels/${enc(id)}/messages`, { text }),
   providers: () => api<{ providers: UserProvider[]; presets: ProviderPreset[] }>("GET", "/api/providers"),
   testProvider: (b: ProviderInput) => api<ProviderTestResult>("POST", "/api/providers/test", b),
-  addProvider: (b: ProviderInput & { models: string[] }) => api<UserProvider>("POST", "/api/providers", b),
+  addProvider: (b: ProviderInput & { models: string[]; kinds?: Record<string, ModelKind> }) => api<UserProvider>("POST", "/api/providers", b),
   removeProvider: (id: string) => api("DELETE", `/api/providers/${enc(id)}`),
   updateChannel: (id: string, b: { title?: string; folder?: string; handoverConfirm?: boolean }) => api<ChannelView>("PATCH", `/api/channels/${enc(id)}`, b),
   deleteChannel: (id: string) => api("DELETE", `/api/channels/${enc(id)}`),

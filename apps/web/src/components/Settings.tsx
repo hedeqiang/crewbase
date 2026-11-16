@@ -4,7 +4,7 @@ import { ChevronLeft, Info, Plus, Search, Workflow } from "lucide-react";
 import { NAV, SECTION_ICONS } from "./settings/nav";
 import { API, desktop, type DesktopUpdates, type UpdateInfo, type ApprovalHistoryItem, type ProviderView, type RememberedChoice, type Settings as SettingsData, type UserProvider } from "../api";
 import { getLang, t, type Key, type Lang } from "../i18n";
-import { ago, kfmt, modeLabel, providerName, until } from "../format";
+import { ago, kfmt, modeLabel, modelKind, providerName, until } from "../format";
 import { openSession, setLang, setState, toast, useStore, type SettingsSection, resync } from "../store";
 import { Automation } from "./settings/Automation";
 import { Extensions } from "./settings/Extensions";
@@ -656,34 +656,60 @@ function Models() {
                 )}
               </div>
               <div className="psec2">{t("set.availableModels", { n: cur.models.length })}</div>
-              {cur.models.length === 0 ? (
-                <div className="empty">{t("set.noModels")}</div>
-              ) : (
-                <div className="mtable">
-                  {cur.models.map((m) => (
-                    <div className="mrow" key={m.id}>
-                      <ProviderMark provider={cur.id} size={18} />
-                      <span className="g">
-                        <b>{m.name || m.id}</b>
-                        <span className="mono">{m.id}</span>
-                      </span>
-                      <span className="caps">
-                        {(m.capabilities ?? []).map((c) => (
-                          <span key={c} className={"cap c-" + c.split("-")[0]}>
-                            {t(`set.cap.${c}` as Key) === `set.cap.${c}` ? c : t(`set.cap.${c}` as Key)}
-                          </span>
-                        ))}
-                      </span>
-                      <span className="mctx">{m.contextWindow ? kfmt(m.contextWindow) : "—"}</span>
-                      <span className={"tg" + (m.enabled ? "" : "")} role="switch" aria-checked={m.enabled} aria-disabled="true" title={t("common.soon")} />
-                    </div>
-                  ))}
-                </div>
-              )}
+              {cur.models.length === 0 ? <div className="empty">{t("set.noModels")}</div> : <ModelTable provider={cur} />}
             </div>
           )}
         </div>
       )}
+    </>
+  );
+}
+
+/** A provider's models, grouped by what they produce (chat / image / video)
+ *  when it serves more than one kind. */
+function ModelTable({ provider }: { provider: ProviderView }) {
+  const kinds = (["chat", "image", "video"] as const).filter((k) => provider.models.some((m) => modelKind(m) === k));
+  return (
+    <>
+      {kinds.map((kind) => {
+        const list = provider.models.filter((m) => modelKind(m) === kind);
+        return (
+          <div key={kind} className="mkgroup">
+            {kinds.length > 1 && (
+              <div className="mkh">
+                <span className={"mkind k-" + kind}>{t(`set.kind.${kind}`)}</span>
+                <span className="small">
+                  {t(`set.kindDesc.${kind}`)} · {list.length}
+                </span>
+              </div>
+            )}
+            <div className="mtable">
+              {list.map((m) => (
+                <div className="mrow" key={m.id}>
+                  <ProviderMark provider={provider.id} size={18} />
+                  <span className="g">
+                    <b>{m.name || m.id}</b>
+                    <span className="mono">{m.id}</span>
+                  </span>
+                  <span className="caps">
+                    {(m.capabilities ?? []).map((c) => (
+                      <span key={c} className={"cap c-" + c.split("-")[0]}>
+                        {t(`set.cap.${c}` as Key) === `set.cap.${c}` ? c : t(`set.cap.${c}` as Key)}
+                      </span>
+                    ))}
+                  </span>
+                  {kind === "chat" ? (
+                    <span className="mctx">{m.contextWindow ? kfmt(m.contextWindow) : "—"}</span>
+                  ) : (
+                    <span className={"mkind sm k-" + kind}>{t(`set.kind.${kind}`)}</span>
+                  )}
+                  <span className="tg" role="switch" aria-checked={m.enabled} aria-disabled="true" title={t("common.soon")} />
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      })}
     </>
   );
 }

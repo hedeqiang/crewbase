@@ -126,7 +126,7 @@ type Server struct {
 // knownCategories are the categories a Categories override may name.
 var knownCategories = map[string]bool{
 	tools.CategoryRead: true, tools.CategoryExec: true, tools.CategoryInstall: true, tools.CategoryWrite: true,
-	tools.CategoryPush: true, tools.CategoryDelete: true, tools.CategoryPublish: true, tools.CategoryPayment: true,
+	tools.CategoryPush: true, tools.CategoryDelete: true, tools.CategoryPublish: true, tools.CategorySpend: true, tools.CategoryPayment: true,
 	tools.CategoryNone: true,
 }
 

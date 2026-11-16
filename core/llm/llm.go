@@ -212,9 +212,12 @@ type ModelInfo struct {
 	Provider      string   `json:"provider"`
 	Name          string   `json:"name,omitempty"`
 	ContextWindow int      `json:"contextWindow"`
-	Capabilities  []string `json:"capabilities,omitempty"` // tools, vision, reasoning, long-context, code, embedding
-	Enabled       bool     `json:"enabled"`
-	SizeBytes     int64    `json:"sizeBytes,omitempty"` // local models
+	Capabilities  []string `json:"capabilities,omitempty"` // tools, vision, reasoning, long-context, code, embedding, image-edit
+	// Kind is what the model produces: "" / chat, image or video (see
+	// media.go). Chat pickers and routes only use chat models.
+	Kind      string `json:"kind,omitempty"`
+	Enabled   bool   `json:"enabled"`
+	SizeBytes int64  `json:"sizeBytes,omitempty"` // local models
 }
 
 // Quota is remaining subscription/API allowance, when known.

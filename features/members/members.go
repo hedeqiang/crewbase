@@ -47,7 +47,7 @@ var Roles = []string{RoleAdmin, RoleMember, RoleViewer}
 // approve. Payment is never approvable remotely.
 var Approvable = []string{
 	tools.CategoryRead, tools.CategoryWrite, tools.CategoryExec, tools.CategoryInstall,
-	tools.CategoryDelete, tools.CategoryPush, tools.CategoryPublish, tools.CategoryNone,
+	tools.CategoryDelete, tools.CategoryPush, tools.CategoryPublish, tools.CategorySpend, tools.CategoryNone,
 }
 
 // DefaultApprove is what each role may approve unless changed.

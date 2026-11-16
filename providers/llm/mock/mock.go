@@ -47,7 +47,17 @@ func New(id string, window int) *Adapter {
 func (a *Adapter) ID() string   { return a.id }
 func (a *Adapter) Kind() string { return a.kind }
 func (a *Adapter) Models(context.Context) ([]llm.ModelInfo, error) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
 	return append([]llm.ModelInfo(nil), a.models...), nil
+}
+
+// AddModel lists one more model (e.g. an image model in tests).
+func (a *Adapter) AddModel(m llm.ModelInfo) {
+	m.Provider = a.id
+	a.mu.Lock()
+	a.models = append(a.models, m)
+	a.mu.Unlock()
 }
 
 // SetKind sets the provider kind reported by Kind (subscription/api/local).
