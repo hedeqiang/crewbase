@@ -48,8 +48,8 @@ type Router struct {
 }
 
 func (r *Router) usable(ref llm.ModelRef) bool {
-	if _, ok := r.llms.Get(ref.Provider); !ok {
-		return false
+	if _, ok := r.llms.Get(ref.Provider); !ok || r.llms.ModelOff(ref) {
+		return false // not connected, or switched off in Settings › Models
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -58,7 +58,8 @@ func (r *Router) usable(ref llm.ModelRef) bool {
 }
 
 // Select returns the first usable model in the agent's order (falling back
-// to the first model so the failure is reported rather than hidden).
+// to the first model not switched off, then the first, so the failure is
+// reported rather than hidden).
 func (r *Router) Select(a *agent.Agent) (llm.ModelRef, bool) {
 	ms := a.Spec().Models
 	if len(ms) == 0 {
@@ -66,6 +67,11 @@ func (r *Router) Select(a *agent.Agent) (llm.ModelRef, bool) {
 	}
 	for _, m := range ms {
 		if r.usable(m) && chatID(m) {
+			return m, true
+		}
+	}
+	for _, m := range ms {
+		if !r.llms.ModelOff(m) {
 			return m, true
 		}
 	}

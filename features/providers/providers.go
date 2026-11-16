@@ -126,6 +126,8 @@ type Service struct {
 	items map[string]Provider
 	live  map[string]*kernel.Context
 	errs  map[string]string
+
+	switches *switchStore // see switches.go
 }
 
 func (s *Service) creds() (*credentials.Service, error) {
@@ -639,11 +641,20 @@ var Plugin = kernel.Register(kernel.Spec{
 				}
 			}
 		}
+		swPath := ""
+		if cfg.Dir != "" {
+			swPath = filepath.Join(cfg.Dir, switchesFile)
+		}
+		if s.switches, err = loadSwitches(swPath); err != nil {
+			c.Log().Warn("model switches not read; all models are on", "err", err)
+			s.switches = &switchStore{path: swPath, off: map[string][]string{}}
+		}
 		for _, p := range s.List() {
 			if err := s.mount(p.Provider); err != nil {
 				c.Log().Warn("provider not mounted", "provider", p.ID, "err", err)
 			}
 		}
+		s.llms.SetSwitches(c, s)
 		return c.Provide(ServiceKey, s)
 	},
 })
@@ -753,6 +764,44 @@ func registerAPI(c *kernel.Context, g *gateway.Gateway, s *Service) {
 			ch := d.Choice()
 			ch.Models = s.llms.Enrich(magpie.ProviderID, ch.Models)
 			return ch, nil
+		}})
+	// per-model switches of any provider (see switches.go)
+	switches := func(ctx context.Context, provider string) (any, error) {
+		ms, err := s.ModelSwitches(ctx, provider)
+		if errors.Is(err, errNotFound) {
+			return nil, gateway.NotFound()
+		}
+		if err != nil {
+			return nil, err
+		}
+		if ms == nil {
+			ms = []llm.ModelInfo{}
+		}
+		return map[string]any{"provider": provider, "models": ms}, nil
+	}
+	g.Handle(c, gateway.Route{Method: "GET", Path: "/api/models/{provider}/switches",
+		Handle: func(ctx context.Context, r *gateway.Request) (any, error) {
+			return switches(ctx, r.Params["provider"])
+		}})
+	g.Handle(c, gateway.Route{Method: "PUT", Path: "/api/models/{provider}/switches",
+		Handle: func(ctx context.Context, r *gateway.Request) (any, error) {
+			var body struct {
+				Model   string `json:"model"`
+				Enabled bool   `json:"enabled"`
+			}
+			if err := r.Decode(&body); err != nil {
+				return nil, err
+			}
+			err := s.SetModelEnabled(ctx, r.Params["provider"], body.Model, body.Enabled)
+			switch {
+			case errors.Is(err, errNotFound):
+				return nil, gateway.NotFound()
+			case errors.Is(err, errLastModel):
+				return nil, gateway.BadRequest("%s", err.Error())
+			case err != nil:
+				return nil, err
+			}
+			return switches(ctx, r.Params["provider"])
 		}})
 	g.Handle(c, gateway.Route{Method: "DELETE", Path: "/api/providers/{id}",
 		Handle: func(_ context.Context, r *gateway.Request) (any, error) {

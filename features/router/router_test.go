@@ -151,3 +151,39 @@ func TestLocalOnlyAgentNeverRoutedToCloud(t *testing.T) {
 		t.Fatalf("local-only agent's content was sent to a cloud model (%d requests)", n)
 	}
 }
+
+type offSwitch map[string]bool
+
+func (s offSwitch) Off(provider, model string) bool { return s[provider+"/"+model] }
+
+// A model switched off in Settings › Models is never chosen automatically:
+// the agent's order skips it.
+func TestSwitchedOffModelSkipped(t *testing.T) {
+	h := kernel.NewHost(nil)
+	t.Cleanup(h.Close)
+	root := t.TempDir()
+	for _, x := range []struct {
+		s   kernel.Spec
+		cfg map[string]any
+	}{
+		{session.Plugin, nil}, {prompt.Plugin, nil}, {tools.Plugin, nil},
+		{llm.Plugin, nil}, {mock.Plugin, map[string]any{"ids": []string{"claude-code", "ollama"}}},
+		{router.Plugin, nil},
+		{agent.Plugin, map[string]any{"root": root, "defaultModels": []string{"claude-code/default", "ollama/default"}}},
+		{agentloop.Plugin, nil},
+	} {
+		h.Load(x.s, kernel.LoadOptions{Config: x.cfg})
+	}
+	r := h.Root()
+	kernel.Use[*llm.Registry](r, llm.ServiceKey).SetSwitches(r, offSwitch{"claude-code/default": true})
+	a, _ := kernel.Use[*agent.Registry](r, agent.ServiceKey).Create(agent.Spec{Name: "Iris"})
+	ss, _ := a.Session()
+	a.Enqueue(agent.Input{Text: "hello"})
+	agentloop.WaitIdle(a, 2*time.Second)
+	e, _ := ss.Last(session.TypeAssistantMessage)
+	var m session.AssistantMessage
+	e.Decode(&m)
+	if m.Model.Provider != "ollama" {
+		t.Fatalf("switched-off model chosen: %s", m.Model.Provider)
+	}
+}

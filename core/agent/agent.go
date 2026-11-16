@@ -1222,7 +1222,7 @@ func (r *Registry) availableDefaults() []llm.ModelRef {
 func (r *Registry) computeDefaults(reg *llm.Registry, defs []llm.ModelRef) []llm.ModelRef {
 	var out []llm.ModelRef
 	for _, m := range defs {
-		if _, ok := reg.Get(m.Provider); ok {
+		if _, ok := reg.Get(m.Provider); ok && !reg.ModelOff(m) {
 			out = append(out, m)
 		}
 	}
@@ -1235,7 +1235,7 @@ func (r *Registry) computeDefaults(reg *llm.Registry, defs []llm.ModelRef) []llm
 		if ad.ID() == "mock" {
 			continue
 		}
-		ms, err := ad.Models(ctx)
+		ms, err := reg.ModelsOf(ctx, ad) // switched-off models are not enabled
 		if err != nil {
 			continue
 		}

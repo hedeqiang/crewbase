@@ -445,6 +445,14 @@ func (d *Discovery) Choice() Choice {
 	return ch
 }
 
+// IsEnabled reports whether model id is enabled (all are unless the
+// person chose).
+func (d *Discovery) IsEnabled(id string) bool {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	return d.enabled == nil || slices.Contains(d.enabled, id)
+}
+
 // SetEnabled chooses which magpie models Crewbase offers (nil = all,
 // the default). It applies at once and is kept in magpie.json. Ids
 // magpie does not list right now are kept, so a model that is briefly

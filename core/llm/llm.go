@@ -409,6 +409,7 @@ type Registry struct {
 	mu       sync.RWMutex
 	adapters map[string]Adapter
 	catalog  Catalog
+	switches Switches
 }
 
 func NewRegistry() *Registry { return &Registry{adapters: map[string]Adapter{}} }

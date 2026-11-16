@@ -121,13 +121,55 @@ func (r *Registry) Enrich(provider string, ms []ModelInfo) []ModelInfo {
 	return out
 }
 
-// ModelsOf lists a's models enriched from the catalog.
+// ModelsOf lists a's models enriched from the catalog, with the ones
+// switched off (see Switches) marked Enabled=false.
 func (r *Registry) ModelsOf(ctx context.Context, a Adapter) ([]ModelInfo, error) {
 	ms, err := a.Models(ctx)
 	if err != nil {
 		return ms, err
 	}
-	return r.Enrich(a.ID(), ms), nil
+	ms = r.Enrich(a.ID(), ms)
+	r.mu.RLock()
+	sw := r.switches
+	r.mu.RUnlock()
+	if sw != nil {
+		for i := range ms {
+			if ms[i].Enabled && sw.Off(a.ID(), ms[i].ID) {
+				ms[i].Enabled = false
+			}
+		}
+	}
+	return ms, nil
+}
+
+// Switches turn single models off (Settings › Models): an off model is
+// offered by no picker and never chosen automatically (routing, default
+// model orders). Adapters keep listing it, with Enabled=false.
+type Switches interface {
+	Off(provider, model string) bool
+}
+
+// SetSwitches installs the model switches for c's lifetime.
+func (r *Registry) SetSwitches(c *kernel.Context, s Switches) {
+	r.mu.Lock()
+	r.switches = s
+	r.mu.Unlock()
+	AdaptersChanged.Emit(c.Host(), struct{}{})
+	c.Defer(func() {
+		r.mu.Lock()
+		if r.switches == s {
+			r.switches = nil
+		}
+		r.mu.Unlock()
+	})
+}
+
+// ModelOff reports whether the person switched ref's model off.
+func (r *Registry) ModelOff(ref ModelRef) bool {
+	r.mu.RLock()
+	sw := r.switches
+	r.mu.RUnlock()
+	return sw != nil && sw.Off(ref.Provider, ref.Model)
 }
 
 // PriceOf returns the list price of ref when the catalog knows it (nil
