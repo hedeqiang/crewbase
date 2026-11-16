@@ -175,6 +175,10 @@ type Request struct {
 	// project-level config the agent could have written
 	// (agent.CLIConfigNames).
 	OwnWorkspace bool `json:"-"`
+	// Mode is the effective run mode of the turn (the stricter of the
+	// agent's and the input's). Adapters that run Crewbase tools on the
+	// model's behalf outside the agent loop (ACP's MCP bridge) pass it on.
+	Mode string `json:"-"`
 }
 
 // Provider-hosted tools an agent may enable. They run on the provider's

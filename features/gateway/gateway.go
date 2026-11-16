@@ -167,6 +167,7 @@ type Gateway struct {
 	host      *kernel.Host
 	addr      string // bound address (host:port)
 	guard     Guard
+	mounts    map[string]http.Handler // exact path → handler (see Mount)
 }
 
 // Addr is the address the gateway listens on ("" before it is bound).
@@ -213,6 +214,33 @@ type AuthFailure struct {
 
 // AuthFailed fires when a request carries a token that is not accepted.
 var AuthFailed = kernel.NewEmit[AuthFailure]("gateway/auth-failed")
+
+// Mount serves h at exactly path (outside /api/, e.g. "/mcp") for ctx's
+// lifetime. Mounted handlers skip the gateway entirely: no token check, no
+// device classes, no guard. They must authenticate every request
+// themselves, with credentials of their own: gateway tokens are not
+// accepted there, and their credentials never reach the /api/ routes.
+func (g *Gateway) Mount(c *kernel.Context, path string, h http.Handler) {
+	g.mu.Lock()
+	if g.mounts == nil {
+		g.mounts = map[string]http.Handler{}
+	}
+	g.mounts[path] = h
+	g.mu.Unlock()
+	c.Defer(func() {
+		g.mu.Lock()
+		if g.mounts[path] == h {
+			delete(g.mounts, path)
+		}
+		g.mu.Unlock()
+	})
+}
+
+func (g *Gateway) mounted(path string) http.Handler {
+	g.mu.RLock()
+	defer g.mu.RUnlock()
+	return g.mounts[path]
+}
 
 // Kick closes the event streams of a device (after it is revoked).
 func (g *Gateway) Kick(deviceID string) { g.hub.kick(deviceID) }
@@ -635,9 +663,17 @@ var Plugin = kernel.Register(kernel.Spec{
 		if cfg.WebDir != "" {
 			static = os.DirFS(cfg.WebDir)
 		}
+		var ui http.Handler = http.NotFoundHandler()
 		if static != nil {
-			mux.Handle("/", spa.Handler(static))
+			ui = spa.Handler(static)
 		}
+		mux.Handle("/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if h := g.mounted(r.URL.Path); h != nil {
+				h.ServeHTTP(w, r)
+				return
+			}
+			ui.ServeHTTP(w, r)
+		}))
 		ln, err := net.Listen("tcp", cfg.Addr)
 		if err != nil {
 			return err

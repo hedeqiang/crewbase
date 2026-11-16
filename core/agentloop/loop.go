@@ -288,7 +288,7 @@ func (l *loop) turn(parent context.Context, a *agent.Agent, in agent.Input) {
 		}
 		steps++
 		var resp llm.Response
-		ref, resp, err = l.step(ctx, a, ss, ref, steps)
+		ref, resp, err = l.step(ctx, a, ss, ref, steps, agent.Stricter(a.Mode(), in.Mode))
 		if err != nil {
 			if ctx.Err() != nil {
 				l.endTurn(a, ss, in, TurnEnd{Status: stopStatus(parent), Steps: steps})
@@ -462,7 +462,7 @@ func System(p *prompt.Assembler, a *agent.Agent) string {
 
 func (l *loop) system(a *agent.Agent) string { return System(l.prompts, a) }
 
-func (l *loop) build(a *agent.Agent, ss *session.Session, ref llm.ModelRef) llm.Request {
+func (l *loop) build(a *agent.Agent, ss *session.Session, ref llm.ModelRef, mode string) llm.Request {
 	return llm.Request{
 		Model:        ref.Model,
 		Effort:       ref.Effort,
@@ -474,12 +474,13 @@ func (l *loop) build(a *agent.Agent, ss *session.Session, ref llm.ModelRef) llm.
 		Session:      ss.ID(),
 		Workspace:    a.Workspace(),
 		OwnWorkspace: a.OwnsWorkspace(),
+		Mode:         mode,
 	}
 }
 
 // step performs one model request with failover; returns the model that
 // finally answered.
-func (l *loop) step(ctx context.Context, a *agent.Agent, ss *session.Session, ref llm.ModelRef, n int) (llm.ModelRef, llm.Response, error) {
+func (l *loop) step(ctx context.Context, a *agent.Agent, ss *session.Session, ref llm.ModelRef, n int, mode string) (llm.ModelRef, llm.Response, error) {
 	d := kernel.For(l.c, a.ID())
 	tried := map[string]bool{}
 	compacted := false
@@ -494,7 +495,7 @@ func (l *loop) step(ctx context.Context, a *agent.Agent, ss *session.Session, re
 			ref = next
 			continue
 		}
-		req := l.build(a, ss, ref)
+		req := l.build(a, ss, ref, mode)
 		if h, ok := kernel.Lookup[Hydrator](l.c, AttachmentsKey); ok {
 			h.Hydrate(ctx, a.Workspace(), ad, ref.Model, &req)
 		}
