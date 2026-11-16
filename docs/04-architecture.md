@@ -101,6 +101,8 @@ crewbase/
 │   └── session.v1.jsonl.zst    会话日志（唯一真源）
 ├── index.sqlite                会话索引、全文检索、队列、定时任务、审批状态
 ├── parked.json                 停靠中的审批调用（重启后告诉 Agent 重新发起）
+├── model-catalog.json          模型资料缓存（上下文、价格；见 §6.5.2）及 model-catalog.settings.json
+├── magpie.json                 启用的 magpie 模型（不存在 = 全部）
 └── audit/                      审计日志（Phase 3，哈希链）
 ```
 
@@ -156,6 +158,24 @@ crewbase/
 - **视频在后台**：`video_generate` 立即返回任务号（每个 Agent 同时最多 2 个，默认 20 分钟超时），完成或失败后以 `job:` 输入回到原对话（与后台命令相同的机制）；`video_status` 查看进度。任务随宿主结束（重启后丢失，提供方可能仍会计费）。
 - **工具随模型出现**：有图片模型才注册 `image_generate`（有可改图模型才有 `image_edit`），有视频模型才注册 `video_generate` / `video_status`；适配器变化时与每分钟重新检查。
 - **用量**：`/api/usage` 的 `generated` 按提供方统计生成的图片与视频数量（提供方按张 / 按秒计费，不计入 SpentUSD 估算）。
+
+### 6.5.2 模型资料（features/modelcatalog）与提供方编辑
+
+很多提供方的模型列表不报告上下文长度和价格（magpie 只报告一部分，OpenAI 兼容接口往往都不报告）。`@crewbase/model-catalog` 从两个公开来源补上：
+
+- **来源**：OpenRouter `GET https://openrouter.ai/api/v1/models`（`data[].id` 如 `anthropic/claude-opus-5.5`、`context_length`、`pricing.prompt / completion / input_cache_read / input_cache_write` 为每 token 美元字符串、`top_provider.max_completion_tokens`、`architecture.output_modalities`）与 LiteLLM `model_prices_and_context_window.json`（键为模型 ID，`litellm_provider`、`mode`、`max_input_tokens`、`max_output_tokens`、`input_cost_per_token`、`output_cost_per_token`、`cache_read_input_token_cost`、`cache_creation_input_token_cost`、`output_cost_per_image`）。只保留用到的字段：上下文、最大输出、输入 / 输出 / 缓存读写价格（换算为每百万 token）、每张图片价格、类型（chat / image / video）。OpenRouter 的 `:free` / `:batch` 变体不算列表价，跳过；LiteLLM 只取厂商自己的条目（openai、anthropic、gemini、deepseek、xai、mistral、moonshot、dashscope、zai、volcengine、minimax 等），转售与云平台（azure、bedrock、fireworks…）同一 ID 价格与上限各不相同，不取。
+- **匹配**：两边都按归一化 ID 建索引——小写；去掉网关 / 厂商路径（`magpie/claude/claude-opus-5-5`、`alchemypay-anthropic/claude-opus-5-5`、`x-ai/grok-4.7` 只留最后一段）；去掉 `@500k` / `@1m` 这类上下文变体与 `:free` / `:0` 后缀；点与下划线视为连字符（OpenRouter 的 `claude-opus-5.5` 与 Anthropic 的 `claude-opus-5-5` 对上）。查找时依次试：原 ID → 去掉发布日期（`-20250514` / `-2026-04-21`）→ 去掉四位快照号（`-0613`）→ 去掉 `-latest`；只有日期版本的条目也可以用不带日期的 ID 找到（取最新日期）。`auto`、`default` 这类路由名不匹配。
+- **优先级**：按配置顺序逐字段合并，先到先得；价格整组取自同一来源。默认 OpenRouter 在前：它每个模型只有一条、是厂商列表价、新模型上线最快；LiteLLM 补 OpenRouter 没有的（厂商独有 ID 如 `deepseek-flash`、按张计价的图片模型、缓存价格）。本机 magpie 的 52 个模型命中 50 个（只有 `cursor/auto` 与 `cursor/composer-2.5` 两边都没有）。
+- **不覆盖提供方**：`llm.Registry.Enrich` 只填提供方没报告的：上下文长度为 0，或适配器只是猜的（内置表或默认值，`ModelInfo.ContextEstimated`）时才用资料里的；`MaxOutput`、`Pricing` 为新字段（json omitempty）；本地模型不标价格。`/api/models`、Agent 循环与压缩的上下文窗口、提供方的测试结果都走 `Enrich`，所以 80% 压缩阈值按真实窗口计算。
+- **用量**：`/api/usage` 的花费 / 节省按每个模型的列表价（含缓存读写价）估算，资料里没有的才用参考价；`pricedTokens` 是按真实价格估算的 token 数。
+- **缓存与更新**：二进制内嵌一份压缩快照（`go generate ./features/modelcatalog`，由 `gen/` 拉取两个来源，约 8 KB gzip），首次运行、离线时也能用；运行时刷新后的数据存在 `<root>/model-catalog.json`（带每个来源的获取时间），下次启动优先读它，坏了退回内嵌快照。联网时后台每小时检查一次，数据超过一天才拉取（失败后一小时内不重试）；某个来源失败时保留它之前的数据并显示错误。设置 › 模型与订阅 › 模型资料：状态（更新时间、模型数、每个来源）、「立即更新」、每天自动更新开关、来源地址（每行一个，排序即优先级；清空 = 不联网，只用内置数据），存在 `<root>/model-catalog.settings.json`，改动立即生效。API：`GET /api/model-catalog`、`POST /api/model-catalog/refresh`、`PUT /api/model-catalog/settings`。
+- **隐私**：拉取是普通 GET，User-Agent `crewbase/<版本>`，不带任何 Key 或用户信息。
+
+**编辑已添加的提供方**：`PATCH /api/providers/{id}` 改名称、图标、Base URL、API Key（留空保留钥匙串里的 Key，填写则替换）、模型列表与类型标注，立即重新挂载（无需重启）；id、协议、预设不变。界面上每个自加提供方有「编辑」，打开同一对话框直接到模型这一步：用已保存的 Key 重新获取列表，可搜索、勾选 / 取消、手动添加模型 ID、逐个标注类型。
+
+**magpie 选择模型**：`GET /api/providers/magpie/models` 返回 magpie 列出的全部模型与已启用的 ID（`null` = 全部，默认，老用户不受影响），`PUT` 同一路径保存，存在 `<root>/magpie.json`。适配器的 `Models()` 只返回启用的，所以选择器、模型顺序与路由只出现它们；已经在用的模型照常请求。全部勾选时保存为 `null`，magpie 以后新增的模型也会自动出现。
+
+所有模型清单（添加 / 编辑提供方、magpie）共用一个可搜索的勾选列表：按 ID / 名称过滤、对筛选结果全选 / 全不选、「已选 N / 共 M」、多种类型时按对话 / 图片 / 视频分组，每行显示上下文与价格（如「1M · $4 / $20」，悬停看输入 / 输出 / 缓存价格与来源）。
 
 ### 6.6 DeepSeek 工具 API（与模型无关）
 
