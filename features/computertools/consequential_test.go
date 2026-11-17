@@ -11,11 +11,16 @@ func TestNameCategory(t *testing.T) {
 	for name, want := range map[string]string{
 		"发送": tools.CategoryPublish, "Send": tools.CategoryPublish, "Send Now": tools.CategoryPublish, "提交订单": tools.CategoryPublish,
 		"Submit": tools.CategoryPublish, "发布": tools.CategoryPublish,
+		// X / Twitter in Chinese and English (发帖 went through unconfirmed), and other social apps
+		"发帖": tools.CategoryPublish, "Post": tools.CategoryPublish, "Post all": tools.CategoryPublish, "Tweet": tools.CategoryPublish,
+		"回复": tools.CategoryPublish, "Reply": tools.CategoryPublish, "转发": tools.CategoryPublish, "Repost": tools.CategoryPublish,
+		"发微博": tools.CategoryPublish, "发布笔记": tools.CategoryPublish, "Share": tools.CategoryPublish, "评论": tools.CategoryPublish,
 		"删除": tools.CategoryDelete, "Delete": tools.CategoryDelete, "Move to Trash": tools.CategoryDelete, "移到废纸篓": tools.CategoryDelete,
 		"支付": tools.CategoryPayment, "确认付款": tools.CategoryPayment, "Buy Now": tools.CategoryPayment, "Pay": tools.CategoryPayment,
 		"购买": tools.CategoryPayment, "Purchase": tools.CategoryPayment,
 		// not consequential
 		"Sender": "", "Payment settings": "", "新建备忘录": "", "Sent": "", "Posture": "", "": "",
+		"Posts": "", "Shared with you": "", "Replies": "", "Comments": "", "主页": "", "通知": "",
 	} {
 		if got := nameCategory(name); got != want {
 			t.Errorf("%q: got %q, want %q", name, got, want)

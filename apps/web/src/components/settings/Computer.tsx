@@ -230,7 +230,38 @@ function AppTable({ ov, run }: { ov: ComputerOverview; run: (p: Promise<Computer
             );
           })}
       </div>
-      {browsers.length > 0 && <p className="small cufoot">{t("cu.browsers", { apps: browsers.map((b) => b.name).join("、") })}</p>}
+      <BrowserTable ov={ov} run={run} running={browsers.map((b) => b.id)} />
+    </>
+  );
+}
+
+/** Browsers: off by default (websites go to the agent's own browser), one
+ *  switch each to let agents use the person's own, logged-in browser. */
+function BrowserTable({ ov, run, running }: { ov: ComputerOverview; run: (p: Promise<ComputerOverview>) => Promise<void>; running: string[] }) {
+  const rows = ov.blocks.default
+    .filter((b) => b.group === "browser")
+    .sort((a, b) => Number(running.includes(b.id)) * -1 - Number(running.includes(a.id)) * -1);
+  if (rows.length === 0) return null;
+  return (
+    <>
+      <div className="vsec">{t("cu.browsersTitle")}</div>
+      <p className="small muted cufoot" style={{ marginTop: -4 }}>
+        {t("cu.browsersDesc")}
+      </p>
+      <div className="sbox">
+        {rows.map((b) => (
+          <Row key={b.key} title={b.name} desc={b.id + (running.includes(b.id) ? "" : " · " + t("cu.notRunning"))}>
+            <button
+              className="tg"
+              type="button"
+              role="switch"
+              aria-checked={!b.blocked}
+              aria-label={t("cu.browserAllow", { app: b.name })}
+              onClick={() => void run(API.setComputerBlocked(b.key, !b.blocked))}
+            />
+          </Row>
+        ))}
+      </div>
     </>
   );
 }

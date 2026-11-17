@@ -21,7 +21,10 @@ var (
 	// Chinese ones anywhere in the name.
 	payWords     = words(`pay|pay now|purchase|buy|buy now|checkout|place order`, `支付|付款|购买|确认付款|立即购买|结账|下单|结算`)
 	deleteWords  = words(`delete|delete forever|erase|move to trash|empty trash`, `删除|移到废纸篓|清空废纸篓|抹掉`)
-	publishWords = words(`send|send now|submit|post|publish|reply all`, `发送|提交|发布|发表`)
+	// social and chat apps label posting differently: X 发帖 / Post / Tweet,
+	// Weibo 发微博, 小红书 发布笔记, WeChat 发送, Slack Send, LinkedIn Share…
+	publishWords = words(`send|send now|submit|post|post all|publish|reply|reply all|tweet|repost|retweet|share|comment|upload|go live`,
+		`发送|提交|发布|发表|发帖|发推|转发|转推|回复|评论|发微博|分享|上传|发出|投递|确认发送|立即发送`)
 )
 
 type wordSet struct {
