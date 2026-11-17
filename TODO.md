@@ -37,18 +37,15 @@
 
 ### 发版与平台
 - [ ] 发版脚本：等 CI 再打 tag 的脚本最近两次没等到 CI 结果就退出（tag 是手动打的），改成按提交轮询直到出现结果
-- [-] Developer ID 签名与公证（暂无 Apple Developer ID，现用固定的自签名证书）；Windows / Linux 实机运行
-- [-] 云主机实跑（阿里云 / AWS，无账号）
 
 ## 方向
 
 - **接下来**：速度与稳定；插件隔离真正落地（默认沙箱）；IM 附件与显示名
 - **不做 / 搁置**：订阅 CLI 复用（0.5.12 移除，复用 CLI 登录有封号风险，订阅额度交给 magpie）；ACP 服务端（编辑器接入）；云端 Agent + 本机执行；跨实例 A2A
-- **待外部条件**：Developer ID / Windows 签名证书；真实 IM 账号；Windows / Linux 实机
+- **待外部条件**：真实 IM 账号；Windows / Linux 实机
 
 ## 约定
 
-- 品牌：logo 与 Agent 头像全部原创，不仿制他人 logo / 吉祥物（docs/brand）；模型厂商图标用 LobeHub Icons（MIT）
 - 目录按「能力 / 提供方」两层：`providers/llm/{anthropic,openai,gemini,local,magpie,mock}`、`providers/sandbox/{none,docker,seatbelt,bubblewrap}`、`providers/shell/local`、`providers/fs/local`
 - 包名即末级目录；与官方 SDK 包名冲突时 SDK 用 `sdk` 别名导入；内核插件名保持 `@crewbase/llm-anthropic` 形式
 - 测试不碰 `~/.crewbase`、`~/.claude`、`~/.codex`，用 `/tmp` 下的数据目录；不提交二进制和截图
