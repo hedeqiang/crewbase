@@ -3,6 +3,16 @@
 Each `## <version>` section becomes the release notes of that version,
 shown in the desktop app's update window.
 
+## 0.5.13
+
+对话按「一轮」显示：一个 Agent 的一次回复就是一条消息，过程和答复分得清。
+
+- 一轮回复合成一条消息：头像和名字只出现一次，里面按顺序排思考过程、过程说明、工具步骤和最终答复
+- 过程说明（Agent 调工具前说的话）改成小号灰字，紧贴它下面的步骤；最终答复是正文，复制、重新生成、花费只挂在答复下面
+- 思考过程一轮只有一个折叠项；正在输出的文字和「正在思考…」直接接在这一轮里面，不再在底部另起一块
+- 频道里多个 Agent 同时工作时各自一条，不会互相拆开
+- 审批结果改成步骤上的小标签（已批准 / 以后都允许 / 已拒绝），不再单独占一行重复整条命令
+
 ## 0.5.12
 
 去掉「订阅复用」：不再驱动 Claude Code、Codex、Antigravity、Cursor 等命令行工具，模型只来自 API 和 magpie。
