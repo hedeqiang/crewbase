@@ -10,6 +10,7 @@ import (
 	"github.com/hedeqiang/crewbase/core/agentloop"
 	"github.com/hedeqiang/crewbase/core/llm"
 	"github.com/hedeqiang/crewbase/core/session"
+	"github.com/hedeqiang/crewbase/features/redact"
 	"github.com/hedeqiang/crewbase/kernel"
 )
 
@@ -73,6 +74,28 @@ type Breakdown struct {
 	Compactions int `json:"compactions"`
 	// CompactedUpto is the last summarised seq (0 = none).
 	CompactedUpto int64 `json:"compactedUpto,omitempty"`
+
+	// Counted: Used comes from the provider's count of the last request
+	// (plus the estimate of what was added since), not an estimate.
+	Counted bool `json:"counted"`
+	// Cache is the prompt cache of the last request, when the provider
+	// reported cache reads or writes.
+	Cache *Cache `json:"cache,omitempty"`
+	// Headroom estimates how many more requests fit before auto-compaction
+	// at the average input growth per request; 0 = unknown.
+	Headroom int `json:"headroom,omitempty"`
+	// Items are the blocks of the context map (see Item), at most MaxItems.
+	Items []Item `json:"items"`
+}
+
+// Cache is the prompt-cache use of one request. Input counts every input
+// token (llm.Usage.InputTokens: cache reads and writes included).
+type Cache struct {
+	Input int `json:"input"`
+	Read  int `json:"read"`
+	Write int `json:"write"`
+	// HitPercent = Read / Input × 100.
+	HitPercent float64 `json:"hitPercent"`
 }
 
 func isSkillSection(name string) bool {
@@ -83,16 +106,21 @@ func isSkillSection(name string) bool {
 // Usage computes the context usage breakdown for agentID in sessionID
 // ("" = the agent's current conversation).
 func (s *Service) Usage(agentID, sessionID string) (Breakdown, error) {
+	b, _, err := s.usage(agentID, sessionID)
+	return b, err
+}
+
+func (s *Service) usage(agentID, sessionID string) (Breakdown, []*Item, error) {
 	a, ok := s.agents.Get(agentID)
 	if !ok {
-		return Breakdown{}, fmt.Errorf("agent %s not found", agentID)
+		return Breakdown{}, nil, fmt.Errorf("agent %s not found", agentID)
 	}
 	if sessionID == "" {
 		sessionID = s.CurrentSession(a)
 	}
 	ss, err := s.agents.Sessions().Get(sessionID)
 	if err != nil {
-		return Breakdown{}, err
+		return Breakdown{}, nil, err
 	}
 	events := ss.Events()
 	ctx := context.Background()
@@ -103,20 +131,48 @@ func (s *Service) Usage(agentID, sessionID string) (Breakdown, error) {
 	ad, _ := s.llms.Get(ref.Provider)
 
 	segs := map[string]int{}
+	var items []*Item
 	// System prompt: split by section. Sections are joined with "\n\n" in
 	// Assemble; the separators are attributed to the system segment so that
 	// the segments add up to EstimateTokens(system) exactly.
 	system := agentloop.System(s.prompts, a)
 	total := llm.EstimateTokens(system)
+	var sysItems []*Item
 	for _, sec := range agentloop.SystemSections(s.prompts, a) {
+		n := llm.EstimateTokens(sec.Text)
+		it := &Item{ID: "sys:" + sec.Name, Kind: SegSystem, Label: sec.Name, Tokens: n, content: one("text", "markdown", sec.Text)}
 		switch {
 		case sec.Name == MemoryFragment:
-			segs[SegMemory] += llm.EstimateTokens(sec.Text)
+			it.Kind = SegMemory
+			segs[SegMemory] += n
 		case isSkillSection(sec.Name):
-			segs[SegSkills] += llm.EstimateTokens(sec.Text)
+			it.Kind = SegSkills
+			segs[SegSkills] += n
+		default:
+			sysItems = append(sysItems, it)
 		}
+		items = append(items, it)
 	}
 	segs[SegSystem] = max(0, total-segs[SegMemory]-segs[SegSkills])
+	// The system items add up to the segment: the rounding of the joined
+	// text and its separators go to the largest section.
+	sum := 0
+	for _, it := range sysItems {
+		sum += it.Tokens
+	}
+	if d := segs[SegSystem] - sum; d != 0 {
+		if len(sysItems) == 0 {
+			items = append(items, &Item{ID: "sys:", Kind: SegSystem, Label: "separators", Tokens: d})
+		} else {
+			big := sysItems[0]
+			for _, it := range sysItems {
+				if it.Tokens > big.Tokens {
+					big = it
+				}
+			}
+			big.Tokens += d
+		}
+	}
 
 	// Tool definitions as the loop sends them for this session kind, and
 	// only those the model sees (a CLI gets just the bridged ones).
@@ -132,14 +188,18 @@ func (s *Service) Usage(agentID, sessionID string) (Breakdown, error) {
 			continue // native tool search: outside the context until loaded
 		}
 		b, _ := json.Marshal(t)
-		segs[SegTools] += llm.EstimateTokens(string(b))
+		n := llm.EstimateTokens(string(b))
+		segs[SegTools] += n
+		items = append(items, toolItem(t, s.toolGroup(agentID, t), n))
 	}
-	s.countMessages(segs, events, agentID)
+	msgs := session.DeriveMessages(events, agentID, s.agents.Names())
+	countParts(segs, msgs)
+	items = append(items, messageItems(msgs)...)
 	b := Breakdown{Agent: agentID, Session: sessionID, Model: ref, Window: win, Threshold: s.cfg.Threshold, ToolsManaged: managed}
 	labels := map[string]string{
 		SegSystem: "System prompt", SegMemory: "Memory", SegTools: "Tool definitions",
 		SegSkills: "Skills & sub-agents", SegToolIO: "Tool calls & results", SegMessages: "Messages",
-		SegCLI: "Used by the CLI itself", SegFree: "Free",
+		SegCLI: "Used by the CLI itself", SegOther: "Counted beyond the estimate", SegFree: "Free",
 	}
 	if managed {
 		labels[SegTools] = "Crewbase tools (the CLI manages its own)"
@@ -151,9 +211,21 @@ func (s *Service) Usage(agentID, sessionID string) (Breakdown, error) {
 	b.Used = b.Estimated
 	if managed {
 		if r := s.reported(events, agentID, ref); r > 0 {
-			b.Reported, b.Used = r, r
+			b.Reported, b.Used, b.Counted = r, r, true
 			if extra := r - b.Estimated; extra > 0 {
 				b.Segments = append(b.Segments, Segment{Key: SegCLI, Label: labels[SegCLI], Tokens: extra})
+				items = append(items, &Item{ID: "cli", Kind: SegCLI, Label: labels[SegCLI], Tokens: extra})
+			}
+		}
+	} else if c := s.counted(events, agentID, ref); c.used > 0 {
+		b.Used, b.Counted, b.Cache = c.used, true, c.cache
+		if extra := c.used - b.Estimated; extra > 0 {
+			b.Segments = append(b.Segments, Segment{Key: SegOther, Label: labels[SegOther], Tokens: extra})
+			items = append(items, &Item{ID: "other", Kind: SegOther, Label: labels[SegOther], Tokens: extra})
+		}
+		if c.growth > 0 && win > 0 {
+			if left := int(s.cfg.Threshold*float64(win)) - b.Used; left > 0 {
+				b.Headroom = int(float64(left) / c.growth)
 			}
 		}
 	}
@@ -172,13 +244,24 @@ func (s *Service) Usage(agentID, sessionID string) (Breakdown, error) {
 			}
 		}
 	}
-	return b, nil
+	items = rollUp(items, MaxItems)
+	b.Items = make([]Item, len(items))
+	for i, it := range items {
+		// labels preview messages and arguments: no secrets in them
+		it.Label, it.Group = redact.Redact(it.Label), redact.Redact(it.Group)
+		b.Items[i] = *it
+	}
+	return b, items, nil
 }
 
 // countMessages adds the estimated message segments of agentID's history
 // in events to segs (as llm.EstimateRequest counts them).
 func (s *Service) countMessages(segs map[string]int, events []session.Event, agentID string) {
-	for _, m := range session.DeriveMessages(events, agentID, s.agents.Names()) {
+	countParts(segs, session.DeriveMessages(events, agentID, s.agents.Names()))
+}
+
+func countParts(segs map[string]int, msgs []llm.Message) {
+	for _, m := range msgs {
 		for _, p := range m.Parts {
 			n := llm.EstimateTokens(p.Text) + 4
 			key := SegMessages
@@ -220,6 +303,70 @@ func (s *Service) reported(events []session.Event, agentID string, ref llm.Model
 		return m.Usage.Context + max(0, added)
 	}
 	return 0
+}
+
+// growthSamples is how many recent requests the headroom growth averages.
+const growthSamples = 10
+
+type countedUsage struct {
+	used   int
+	cache  *Cache
+	growth float64 // average input growth per request; 0 = unknown
+}
+
+// counted is the provider's count of agentID's last request in events
+// (llm.Usage.InputTokens of the latest reply, cache reads and writes
+// included) plus the estimate of what was added since: that reply and any
+// later messages. Zero when the latest reply came from another provider,
+// carries no count or one the adapter estimated, or a compaction followed
+// it. growth averages the input growth over the counted requests since the
+// last compaction (at least three, at most growthSamples).
+func (s *Service) counted(events []session.Event, agentID string, ref llm.ModelRef) countedUsage {
+	var out countedUsage
+	var inputs []int // newest first
+	last := -1
+	var u llm.Usage
+	for i := len(events) - 1; i >= 0 && len(inputs) < growthSamples; i-- {
+		e := events[i]
+		if e.Type == session.TypeCompaction && (e.Agent == agentID || e.Agent == "") {
+			break
+		}
+		if e.Type != session.TypeAssistantMessage || e.Agent != agentID {
+			continue
+		}
+		var m session.AssistantMessage
+		if e.Decode(&m) != nil || m.Model.Provider != ref.Provider || m.Usage.Estimated || m.Usage.InputTokens <= 0 {
+			break
+		}
+		if last < 0 {
+			last, u = i, m.Usage
+		}
+		inputs = append(inputs, m.Usage.InputTokens)
+	}
+	if last < 0 {
+		return out
+	}
+	before, all := map[string]int{}, map[string]int{}
+	s.countMessages(before, events[:last], agentID)
+	s.countMessages(all, events, agentID)
+	added := all[SegMessages] + all[SegToolIO] - before[SegMessages] - before[SegToolIO]
+	out.used = u.InputTokens + max(0, added)
+	out.cache = cacheOf(u)
+	if n := len(inputs); n >= 3 {
+		if g := float64(inputs[0]-inputs[n-1]) / float64(n-1); g > 0 {
+			out.growth = g
+		}
+	}
+	return out
+}
+
+// cacheOf is the prompt-cache use of a request, nil when the provider
+// reported no cache reads or writes.
+func cacheOf(u llm.Usage) *Cache {
+	if u.CacheRead+u.CacheWrite <= 0 || u.InputTokens <= 0 {
+		return nil
+	}
+	return &Cache{Input: u.InputTokens, Read: u.CacheRead, Write: u.CacheWrite, HitPercent: float64(u.CacheRead) * 100 / float64(u.InputTokens)}
 }
 
 // CompactNow compacts agentID's session ("" = current) with the agent's

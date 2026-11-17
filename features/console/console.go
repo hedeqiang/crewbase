@@ -368,6 +368,27 @@ var Plugin = kernel.Register(kernel.Spec{
 				}
 				return cs.Usage(a.ID(), r.HTTP.URL.Query().Get("session"))
 			}})
+		// one block of the context map: its content, redacted and capped
+		g.Handle(c, gateway.Route{Method: "GET", Path: "/api/agents/{id}/context/item",
+			Handle: func(_ context.Context, r *gateway.Request) (any, error) {
+				a, err := getAgent(r)
+				if err != nil {
+					return nil, err
+				}
+				cs, err := compactor()
+				if err != nil {
+					return nil, err
+				}
+				q := r.HTTP.URL.Query()
+				if q.Get("id") == "" {
+					return nil, gateway.BadRequest("id is required")
+				}
+				it, err := cs.Item(a.ID(), q.Get("session"), q.Get("id"))
+				if err != nil {
+					return nil, &gateway.Error{Status: 404, Code: "not_found", Message: err.Error()}
+				}
+				return it, nil
+			}})
 		g.Handle(c, gateway.Route{Method: "POST", Path: "/api/agents/{id}/compact",
 			Handle: func(ctx context.Context, r *gateway.Request) (any, error) {
 				a, err := getAgent(r)

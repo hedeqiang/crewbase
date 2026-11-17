@@ -3,6 +3,7 @@ package console_test
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/url"
 	"os"
@@ -114,6 +115,29 @@ func TestConsoleEndpoints(t *testing.T) {
 	code, out = do(t, base, "GET", "/api/agents/kai/context", nil)
 	if code != 200 || out["window"] == nil {
 		t.Fatal(code, out)
+	}
+	// context items: listed, and one item's content redacted
+	planted := "sk-planted" + strings.Repeat("x", 20)
+	a.Enqueue(agent.Input{Text: "my key is " + planted})
+	agentloop.WaitIdle(a, 2*time.Second)
+	_, out = do(t, base, "GET", "/api/agents/kai/context", nil)
+	var msgID string
+	for _, it := range out["items"].([]any) {
+		m := it.(map[string]any)
+		if m["kind"] == "messages" && strings.Contains(m["label"].(string), "my key") {
+			msgID = m["id"].(string)
+		}
+	}
+	if msgID == "" || strings.Contains(fmt.Sprint(out["items"]), planted) {
+		t.Fatal("message item missing or label leaks the secret:", out["items"])
+	}
+	code, out = do(t, base, "GET", "/api/agents/kai/context/item?id="+url.QueryEscape(msgID), nil)
+	body := fmt.Sprint(out["parts"])
+	if code != 200 || !strings.Contains(body, "my key is [redacted]") || strings.Contains(body, planted) {
+		t.Fatal(code, out)
+	}
+	if code, _ := do(t, base, "GET", "/api/agents/kai/context/item?id=nope", nil); code != 404 {
+		t.Fatal("unknown item:", code)
 	}
 	old := a.Spec().Session
 	code, out = do(t, base, "POST", "/api/agents/kai/sessions", nil)
