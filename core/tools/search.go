@@ -103,7 +103,10 @@ func (ix *Index) Search(query string, limit int) []SearchHit {
 		s, boost := 0.0, 1.0
 		for _, w := range words {
 			if w == group {
+				// the group name is in every member's name: it ranks
+				// nothing within the group, it selects the group
 				boost += 0.5
+				s += 0.01
 				continue
 			}
 			best := termScore(i, w, w)

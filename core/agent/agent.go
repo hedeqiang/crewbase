@@ -59,6 +59,13 @@ type Spec struct {
 	// NativeTools enables provider-hosted tools (llm.NativeWebSearch,
 	// llm.NativeReadURL) when the agent's model supports them.
 	NativeTools []string `json:"nativeTools,omitempty"`
+	// ToolSearch overrides when the agent's deferred tools are held back
+	// for tool search: "auto" (default, the loop's thresholds), "always"
+	// or "never" (send every tool every step).
+	ToolSearch string `json:"toolSearch,omitempty"`
+	// AlwaysLoad lists deferred tools (by name) or tool groups (an MCP
+	// server, "browser", "google", …) this agent always has loaded.
+	AlwaysLoad []string `json:"alwaysLoad,omitempty"`
 	// Ephemeral agents (subagents) are never persisted; their workspace is
 	// removed on delete and leftovers are swept at startup.
 	Ephemeral bool `json:"ephemeral,omitempty"`

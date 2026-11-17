@@ -150,6 +150,10 @@ type ToolSchema struct {
 	Name        string         `json:"name"`
 	Description string         `json:"description"`
 	Parameters  map[string]any `json:"parameters"`
+	// Deferred asks a provider with native tool search (ToolSearcher) to
+	// keep the tool out of the model's context until the model finds it.
+	// The agent loop sets it only for adapters that are ToolSearchers.
+	Deferred bool `json:"deferred,omitempty"`
 }
 
 // Request is a single model request. It must be reconstructible from the
@@ -194,6 +198,16 @@ const (
 	PartCitation   = "citation"    // Text = title, Meta["url"]
 	PartServerTool = "server_tool" // Text = human summary, Meta["kind"]
 )
+
+// ServerToolSearch is the PartServerTool kind of a provider's own tool
+// search; Meta["tools"] lists the tools it loaded, comma-separated.
+const ServerToolSearch = "tool_search"
+
+// PartProviderBlock is an opaque provider content block that must be sent
+// back to the provider that wrote it (e.g. Anthropic's server_tool_use and
+// tool_search_tool_result blocks). The block is in Meta under a key
+// namespaced by that provider; other providers skip the part.
+const PartProviderBlock = "provider_block"
 
 // StopRefusal is the stop reason when a provider's safety check declined.
 const StopRefusal = "refusal"
@@ -286,6 +300,14 @@ type Adapter interface {
 // (Attachment.Text): extracted content plus the workspace path.
 type FileAccepter interface {
 	AcceptsFile(model, mime string) bool
+}
+
+// ToolSearcher is optionally implemented by adapters whose provider can
+// search deferred tools itself (ToolSchema.Deferred): the agent loop then
+// sends every tool, the deferred ones marked, instead of its own
+// tool_search meta-tool.
+type ToolSearcher interface {
+	SearchesTools(model string) bool
 }
 
 // ModelCap reports whether model lists capability c in ms; known=false
@@ -509,6 +531,9 @@ func EstimateRequest(req Request) int {
 		}
 	}
 	for _, t := range req.Tools {
+		if t.Deferred { // outside the context until the model loads it
+			continue
+		}
 		b, _ := json.Marshal(t)
 		n += EstimateTokens(string(b))
 	}

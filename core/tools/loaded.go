@@ -11,10 +11,25 @@ const TypeToolsLoaded = "tools/loaded"
 // LoadedData is the payload of TypeToolsLoaded.
 type LoadedData struct {
 	Names []string `json:"names"`
+	// Via is how they were loaded: ViaSearch, ViaCall or ViaNative.
+	Via string `json:"via,omitempty"`
 }
+
+// How tools were loaded (LoadedData.Via).
+const (
+	ViaSearch = "search" // the tool_search meta-tool
+	ViaCall   = "call"   // the model called a deferred tool it had not loaded
+	ViaNative = "native" // the provider's own tool search
+)
 
 // Loaded lists the tools agent loaded in events, in load order.
 func Loaded(events []session.Event, agent string) []string {
+	return LoadedVia(events, agent, nil)
+}
+
+// LoadedVia lists the tools agent loaded in events in a way keep accepts
+// (nil: any), in load order.
+func LoadedVia(events []session.Event, agent string, keep func(via string) bool) []string {
 	var out []string
 	seen := map[string]bool{}
 	for _, e := range events {
@@ -22,7 +37,7 @@ func Loaded(events []session.Event, agent string) []string {
 			continue
 		}
 		var d LoadedData
-		if e.Decode(&d) != nil {
+		if e.Decode(&d) != nil || (keep != nil && !keep(d.Via)) {
 			continue
 		}
 		for _, n := range d.Names {
@@ -37,7 +52,7 @@ func Loaded(events []session.Event, agent string) []string {
 
 // MarkLoaded records names (those not loaded yet) as loaded for agent in
 // ss; it returns the newly loaded ones.
-func MarkLoaded(ss *session.Session, agent string, names []string) ([]string, error) {
+func MarkLoaded(ss *session.Session, agent string, names []string, via string) ([]string, error) {
 	have := map[string]bool{}
 	for _, n := range Loaded(ss.Events(), agent) {
 		have[n] = true
@@ -52,6 +67,6 @@ func MarkLoaded(ss *session.Session, agent string, names []string) ([]string, er
 	if len(add) == 0 {
 		return nil, nil
 	}
-	_, err := ss.Append(TypeToolsLoaded, agent, LoadedData{Names: add})
+	_, err := ss.Append(TypeToolsLoaded, agent, LoadedData{Names: add, Via: via})
 	return add, err
 }
