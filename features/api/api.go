@@ -137,6 +137,9 @@ type resendBody struct {
 type createBody struct {
 	agent.Spec
 	Models []string `json:"modelRefs,omitempty"`
+	// Template is the key of the template the form started from; it names
+	// the id when the agent's name is not ASCII.
+	Template string `json:"template,omitempty"`
 }
 
 type decideBody struct {
@@ -242,7 +245,7 @@ var Plugin = kernel.Register(kernel.Spec{
 				var b createBody
 				_ = r.Decode(&b)
 				spec := b.Spec
-				spec.ID = ""
+				spec.ID, spec.IDHint = "", b.Template
 				// a new agent starts in its team's default run mode
 				if spec.Mode == "" && spec.Kind != agent.KindChat {
 					if ts, ok := kernel.Lookup[TeamChecker](c, "teams"); ok {

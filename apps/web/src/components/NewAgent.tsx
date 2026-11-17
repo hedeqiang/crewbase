@@ -218,6 +218,7 @@ export function NewAgent({ draft: f, setDraft }: { draft: Draft; setDraft: (d: D
         folder: f.folder.trim() || undefined,
         team: currentTeam(),
         modelRefs: refs.length ? refs : undefined,
+        template: picked || undefined,
       });
       toast(t("na.created", { name }));
       setDraft(emptyDraft());

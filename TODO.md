@@ -365,7 +365,8 @@
 - [x] 自己走查一遍界面并修正：提示移到顶部、@提及高亮、频道无人工作时「停止」置灰、首轮缓存文案、「格式开销」、询问 / 禁止规则文案、通知按钮
 - [ ] Cursor、Antigravity 的会话记录暂未读取（Cursor 本机无记录，Antigravity 是 protobuf）
 - [ ] Codex 记录里没有内置工具定义；codex-acp 版本也没有系统提示词
-- [ ] 新建 Agent 名字是中文时 id 和工作目录是 agent、agent-2，可以考虑用模板 id
+- [x] 中文名 Agent 的 id / 工作目录：模板建的用模板 key，自定义名字转拼音
+- [x] 容器沙箱放开：联网、包缓存、工作区内删除不再询问（推送 / 发布 / 花钱仍问）
 
 ## OpenAI 走 Responses API（2026-11-17）
 - [x] responses: auto | always | never；auto（官方 OpenAI 默认、magpie 设为 auto）让 OpenAI 推理模型（gpt-5+ / o 系列 / codex，及 openai/ codex/ *-openai/ 前缀）走 /responses，其余仍走 Chat Completions

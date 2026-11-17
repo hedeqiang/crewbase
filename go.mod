@@ -15,6 +15,7 @@ require (
 	github.com/larksuite/oapi-sdk-go/v3 v3.12.2
 	github.com/ledongthuc/pdf v0.0.0-20261020125853-5e46805f718e
 	github.com/modelcontextprotocol/go-sdk v1.8.0
+	github.com/mozillazg/go-pinyin v0.21.0
 	github.com/openai/openai-go/v3 v3.99.0
 	github.com/slack-go/slack v0.35.0
 	github.com/tetratelabs/wazero v1.12.0
@@ -27,6 +28,7 @@ require (
 	go.opentelemetry.io/otel/trace v1.47.0
 	go.opentelemetry.io/proto/otlp v1.11.1
 	golang.org/x/oauth2 v0.38.0
+	golang.org/x/sys v0.50.0
 	golang.org/x/time v0.16.0
 	google.golang.org/genai v1.77.0
 	google.golang.org/protobuf v1.36.12
@@ -82,7 +84,6 @@ require (
 	golang.org/x/crypto v0.59.0 // indirect
 	golang.org/x/net v0.62.0 // indirect
 	golang.org/x/sync v0.25.0 // indirect
-	golang.org/x/sys v0.50.0 // indirect
 	golang.org/x/text v0.44.0 // indirect
 	google.golang.org/api v0.315.0 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20261110000943-09e21b237f2c // indirect

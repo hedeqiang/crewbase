@@ -16,12 +16,14 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode"
 
 	"github.com/hedeqiang/crewbase/core/llm"
 	"github.com/hedeqiang/crewbase/core/prompt"
 	"github.com/hedeqiang/crewbase/core/session"
 	"github.com/hedeqiang/crewbase/core/tools"
 	"github.com/hedeqiang/crewbase/kernel"
+	"github.com/mozillazg/go-pinyin"
 )
 
 const ServiceKey = "agents"
@@ -35,7 +37,10 @@ const (
 
 // Spec is the persisted definition of an agent.
 type Spec struct {
-	ID           string         `json:"id"`
+	ID string `json:"id"`
+	// IDHint, when set at creation, names the id instead of the name (a
+	// template's key); not stored.
+	IDHint       string         `json:"-"`
 	Name         string         `json:"name"`
 	Role         string         `json:"role,omitempty"` // one-line responsibility
 	Instructions string         `json:"instructions,omitempty"`
@@ -689,16 +694,43 @@ type Registry struct {
 	fallbackAt time.Time
 }
 
-var idRe = regexp.MustCompile(`[^a-z0-9-]+`)
+var (
+	idRe   = regexp.MustCompile(`[^a-z0-9-]+`)
+	dashRe = regexp.MustCompile(`-{2,}`)
+)
 
-// Slug makes an id from a name.
+// Slug makes an id from a name. Chinese characters become pinyin
+// (调研员 → diao-yan-yuan) so ids and workspace folders stay readable.
 func Slug(name string) string {
-	s := idRe.ReplaceAllString(strings.ToLower(strings.TrimSpace(name)), "-")
+	var b strings.Builder
+	py := pinyin.NewArgs()
+	for _, r := range strings.TrimSpace(name) {
+		if unicode.Is(unicode.Han, r) {
+			if p := pinyin.SinglePinyin(r, py); len(p) > 0 {
+				b.WriteString("-" + p[0] + "-")
+				continue
+			}
+		}
+		b.WriteRune(r)
+	}
+	s := dashRe.ReplaceAllString(idRe.ReplaceAllString(strings.ToLower(b.String()), "-"), "-")
 	s = strings.Trim(s, "-")
+	if len(s) > 40 {
+		s = strings.TrimRight(s[:40], "-")
+	}
 	if s == "" {
 		s = "agent"
 	}
 	return s
+}
+
+func isASCII(s string) bool {
+	for _, r := range s {
+		if r >= 128 {
+			return false
+		}
+	}
+	return true
 }
 
 // Create makes, persists and publishes an agent.
@@ -739,6 +771,10 @@ func (r *Registry) Create(spec Spec) (*Agent, error) {
 	r.mu.Lock()
 	if spec.ID == "" || (spec.Kind == KindChat && spec.ID == "chat") {
 		base := Slug(spec.Name)
+		// a template's key reads better than pinyin (researcher, not diao-yan-yuan)
+		if h := Slug(spec.IDHint); spec.IDHint != "" && h != "agent" && !isASCII(spec.Name) {
+			base = h
+		}
 		if spec.Kind == KindChat {
 			base = "chat"
 		}
