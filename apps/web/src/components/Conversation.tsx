@@ -46,10 +46,10 @@ import {
   Hash as TokensIcon,
 } from "lucide-react";
 import { display, enterSends, MAC } from "../shortcuts";
-import { API, desktop, parseRef, refString, useRawURL, type AgentView, type ChannelView, type ContextBreakdown, type ContextSegment, type ModelRef } from "../api";
+import { API, desktop, parseRef, refString, useRawURL, type AgentView, type ChannelView, type ModelRef } from "../api";
 import { t, type Key } from "../i18n";
 import { argsFull, argsPreview, project, type FeedItem, type Rewind, type Step, type TurnStats } from "../projection";
-import { hasModels, loadSession, setModelOverride, openConnect, openSession, openSubRun, refreshAgents, refreshSessions, setState, toast, useStore, sessionAgent } from "../store";
+import { hasModels, loadSession, setModelOverride, openConnect, openSubRun, setState, toast, useStore, sessionAgent } from "../store";
 import { TakeoverCard, takeoverReason } from "./Browser";
 import { cloudVoice, dictate, dictationSupported, primeVoice, speak, speaking, speakSupported } from "../voice";
 import { addFiles, clearFiles, filesFrom, MsgAttachments, PendingChips } from "./Attachments";
@@ -78,6 +78,7 @@ import { ApprovalActions } from "./Approval";
 import { Markdown } from "./Markdown";
 import { Popover, useMenu } from "./Popover";
 import { ProviderMark } from "./ProviderMark";
+import { ContextMap } from "./ContextMap";
 import { ModelPicker } from "./ModelPicker";
 import { PluginCard, SlotIcon, runCommand, useSlot } from "./UISlots";
 
@@ -1909,161 +1910,9 @@ function Composer({
         <ModelPicker models={models} agent={agent} override={overrideRef} shown={shown} setOverride={setOverride} close={modelM.close} />
       </Popover>
 
-      <Popover anchor={ctxM.anchor} open={ctxM.open} onClose={ctxM.close} placement="top" align="end" width={320}>
-        <ContextPopover agent={agent} sessionId={sessionId} channel={!!channel} ctx={ctx} close={ctxM.close} />
-      </Popover>
+      {ctxM.open && <ContextMap agent={agent} sessionId={sessionId} channel={!!channel} ctx={ctx} onClose={ctxM.close} />}
     </div>
   );
-}
-
-const SEG_COLORS: Record<string, string> = {
-  system: "var(--seg-system)",
-  memory: "var(--seg-memory)",
-  tools: "var(--seg-tools)",
-  skills: "var(--seg-skills)",
-  toolio: "var(--seg-toolio)",
-  messages: "var(--seg-messages)",
-  cli: "var(--muted)",
-  free: "var(--active)",
-};
-
-export function ContextPopover({
-  agent,
-  sessionId,
-  channel,
-  ctx,
-  close,
-}: {
-  agent: AgentView;
-  sessionId: string;
-  channel: boolean;
-  ctx?: { tokens: number; window: number; model?: ModelRef };
-  close: () => void;
-}) {
-  const models = useStore((s) => s.models);
-  const [bd, setBd] = useState<ContextBreakdown | null>(null);
-  const [err, setErr] = useState<string | null>(null);
-  const [busy, setBusy] = useState<"" | "compact" | "new">("");
-  const load = () =>
-    API.context(agent.id, sessionId)
-      .then((b) => {
-        setBd(b);
-        setErr(null);
-      })
-      .catch((e) => setErr(e?.message ?? String(e)));
-  useEffect(() => {
-    void load();
-  }, [agent.id, sessionId]);
-
-  const window_ = bd?.window || ctx?.window || 0;
-  const used = bd?.used ?? ctx?.tokens ?? 0;
-  const pct = window_ ? Math.round((used / window_) * 100) : null;
-  const thr = Math.round((bd?.threshold || 0.8) * 100);
-  const model = bd?.model?.provider ? bd.model : ctx?.model;
-
-  const compact = async () => {
-    setBusy("compact");
-    try {
-      await API.compact(agent.id, sessionId);
-      toast(t("ctx.compacted", { name: agent.name }));
-      await load();
-    } catch (e: any) {
-      toast(t("ctx.compactFailed", { error: e?.message ?? String(e) }));
-    } finally {
-      setBusy("");
-    }
-  };
-  const fresh = async () => {
-    setBusy("new");
-    try {
-      const m = await API.newConversation(agent.id);
-      await Promise.allSettled([refreshAgents(), refreshSessions()]);
-      close();
-      openSession(m.id);
-      toast(t("ctx.newChatDone", { name: agent.name }));
-    } catch (e: any) {
-      toast(e?.message ?? String(e));
-    } finally {
-      setBusy("");
-    }
-  };
-
-  return (
-    <>
-      <div className="ctxp">
-        <div className="ch">
-          <b>{t("ctx.title")}</b>
-          <span>{pct === null ? "—" : t("ctx.used", { pct })}</span>
-        </div>
-        {pct !== null ? (
-          <>
-            <div className="cbar">
-              {bd
-                ? bd.segments
-                    .filter((g) => g.tokens > 0)
-                    .map((g) => <i key={g.key} title={`${segLabel(g)} · ${kfmt(g.tokens)}`} style={{ flex: Math.max(g.tokens, window_ * 0.004), background: SEG_COLORS[g.key] ?? "var(--muted)" }} />)
-                : [
-                    <i key="u" style={{ flex: Math.max(pct, 1), background: "var(--accent)" }} />,
-                    <i key="f" style={{ flex: Math.max(100 - pct, 0.001), background: "var(--active)" }} />,
-                  ]}
-              <span className="thr" style={{ left: thr + "%" }} title={thr + "%"} />
-            </div>
-            <div className="small">
-              {t("ctx.tokens", { used: kfmt(used), total: kfmt(window_), model: model ? modelLabel(models, model) : "—" })}
-            </div>
-            {bd?.reported ? (
-              <div className="small">{t("ctx.reported")}</div>
-            ) : (
-              bd?.toolsManaged && <div className="small">{t("ctx.managedEstimate")}</div>
-            )}
-            {bd && (
-              <div className="clist">
-                {bd.segments.map((g) => (
-                  <div key={g.key}>
-                    <i style={{ background: SEG_COLORS[g.key] ?? "var(--muted)" }} />
-                    <span>{segLabel(g)}</span>
-                    <b>{kfmt(g.tokens)}</b>
-                  </div>
-                ))}
-              </div>
-            )}
-            {bd?.overThreshold && <p className="small warnline" style={{ margin: "8px 0 0" }}>{t("ctx.over")}</p>}
-            {bd && bd.compactions > 0 && <p className="small" style={{ margin: "6px 0 0" }}>{t("ctx.compactions", { n: bd.compactions })}</p>}
-          </>
-        ) : (
-          <p className="small" style={{ margin: 0 }}>
-            {err ?? t("ctx.noData")}
-          </p>
-        )}
-        <p className="small" style={{ margin: "8px 0 0" }}>
-          {t("ctx.note")}
-        </p>
-      </div>
-      <hr />
-      <button className="mi" type="button" disabled={!!busy || !bd} onClick={compact}>
-        {busy === "compact" ? <span className="spin sm" /> : <Minimize2 size={16} />}
-        <span className="g">
-          {t("ctx.compact")}
-          <span>{t("ctx.compactDesc")}</span>
-        </span>
-      </button>
-      {!channel && (
-        <button className="mi" type="button" disabled={!!busy} onClick={fresh}>
-          {busy === "new" ? <span className="spin sm" /> : <Plus size={16} />}
-          <span className="g">
-            {t("ctx.newChat")}
-            <span>{t("ctx.newChatDesc", { name: agent.name })}</span>
-          </span>
-        </button>
-      )}
-    </>
-  );
-}
-
-function segLabel(g: ContextSegment): string {
-  const k = `ctx.seg.${g.key === "tools" && g.managed ? "toolsManaged" : g.key}` as Key;
-  const v = t(k);
-  return v === k ? g.label : v;
 }
 
 export function shortPath(p: string): string {

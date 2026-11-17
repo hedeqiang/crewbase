@@ -272,6 +272,43 @@ export interface ContextBreakdown {
   overThreshold: boolean;
   segments: ContextSegment[];
   compactions: number;
+  /** used is the provider's count of the last request (plus what was added since) */
+  counted?: boolean;
+  /** segments and items come from the CLI's recorded request (pass-through proxy) */
+  recorded?: boolean;
+  /** prompt cache of the last request, when the provider reported cache fields */
+  cache?: ContextCache;
+  /** requests left before auto-compaction at the average growth; 0 / absent = unknown */
+  headroom?: number;
+  /** blocks of the context map; per kind they add up to the segment */
+  items?: ContextItem[];
+}
+export interface ContextCache {
+  /** every input token of the request, cache reads and writes included */
+  input: number;
+  read: number;
+  write: number;
+  hitPercent: number;
+}
+export interface ContextItem {
+  id: string;
+  /** a segment key: system | memory | skills | tools | toolio | messages | cli | other */
+  kind: string;
+  label: string;
+  /** tools: MCP server / tool group; tool calls: an argument preview; messages: the role */
+  group?: string;
+  tokens: number;
+  /** a roll-up ("N more") of count items */
+  count?: number;
+}
+export interface ContextItemPart {
+  title: "text" | "description" | "parameters" | "arguments" | "result" | "items" | string;
+  format: "markdown" | "json" | "text" | string;
+  text: string;
+}
+export interface ContextItemContent extends ContextItem {
+  parts: ContextItemPart[];
+  truncated?: boolean;
 }
 
 export interface FileEntry {
@@ -1090,6 +1127,8 @@ export const API = {
   summaries: () => api<{ sessions: SessionSummary[] }>("GET", "/api/sessions/summary"),
   context: (id: string, session?: string) =>
     api<ContextBreakdown>("GET", `/api/agents/${enc(id)}/context${session ? "?session=" + enc(session) : ""}`),
+  contextItem: (id: string, item: string, session?: string) =>
+    api<ContextItemContent>("GET", `/api/agents/${enc(id)}/context/item?id=${enc(item)}${session ? "&session=" + enc(session) : ""}`),
   compact: (id: string, session?: string) => api("POST", `/api/agents/${enc(id)}/compact`, { session }),
   newConversation: (id: string) => api<SessionMeta>("POST", `/api/agents/${enc(id)}/sessions`, {}),
   files: (id: string, path: string) => api<{ entries: FileEntry[] }>("GET", `/api/agents/${enc(id)}/files?path=${enc(path)}`),
