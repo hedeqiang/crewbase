@@ -28,7 +28,6 @@ import (
 	"time"
 
 	"github.com/egoist/mygo"
-	"github.com/egoist/mygo/plugins/updater"
 	"github.com/hedeqiang/crewbase/internal/loginpath"
 	"github.com/hedeqiang/crewbase/kernel"
 	// The UI is written in Chinese: MyGo's own menus, dialogs and roles
@@ -50,6 +49,7 @@ const (
 
 type shell struct {
 	prefs *prefs
+	upd   *updates
 
 	mu      sync.Mutex
 	d       *daemon
@@ -85,12 +85,17 @@ func main() {
 	kernel.Version = mygo.App.Version()
 	mygo.App.SetLanguages(mygoLang())
 	setupLogging()
-	// Signed updates from the GitHub releases (mygo.json updates); builds
-	// that cannot update themselves (go run, package managers) never check.
-	// the update window follows the app's language (App.SetLanguages)
-	mygo.Use(updater.Plugin)
-
 	s := &shell{prefs: loadPrefs(), hidden: mygo.App.WasOpenedAtLogin()}
+	// Signed updates from the GitHub releases (mygo.json updates), checked,
+	// downloaded and staged in place, shown in the window (updates.go);
+	// builds that cannot update themselves (go run, package managers)
+	// never check.
+	s.upd = newUpdates(mygoUpdateDeps(func() {
+		s.updateInstalled.Store(true)
+		// "检查更新…" becomes "重启以完成更新"
+		mygo.App.SetMenu(s.menuBar())
+		s.updateTray()
+	}), s.prefs)
 	mygo.Bind(Desktop{s})
 	mygo.App.SetMenu(s.menuBar())
 	s.setDockMenu()
@@ -112,8 +117,8 @@ func main() {
 		}
 	})
 	mygo.App.OnBeforeQuit(s.beforeQuit)
-	updater.OnInstalled(func() { s.updateInstalled.Store(true) })
 	mygo.App.OnQuit(func() {
+		s.upd.stop()
 		// Last resort (e.g. a second Ctrl+C): never leave agents running.
 		if d := s.daemon(); d != nil {
 			d.closeHost()
@@ -169,6 +174,7 @@ func (s *shell) ready() {
 			slog.Info("desktop: tray ready", "bounds", tray.Bounds())
 		}()
 	}
+	go s.upd.start()
 	// Starting the host can take a moment (plugins, MCP connections): off
 	// the main thread, which keeps drawing the menu bar and the Dock.
 	go s.boot()
@@ -316,7 +322,7 @@ func (s *shell) beforeQuit(e *mygo.QuitEvent) {
 		return // nothing to stop, or already stopping: let the quit go on
 	}
 	// logout/shutdown must finish synchronously. So must a quit after an
-	// update was installed: the updater's "Relaunch Now" quits through
+	// update was installed: "重启以完成更新" (App.Relaunch) quits through
 	// here, and a quit that is prevented (to stop agents in the background)
 	// drops the relaunch, so the app quit and never came back.
 	if e.SessionEnding || s.updateInstalled.Load() {

@@ -107,9 +107,15 @@ func TestClip(t *testing.T) {
 
 func TestPreloadScript(t *testing.T) {
 	js := preloadScript("http://127.0.0.1:7788", "0.1.0")
-	for _, want := range []string{`location.origin !== "http://127.0.0.1:7788"`, `version: "0.1.0"`, "quit:", "openExternal:", "setBadge:", "pickFolder:", "checkForUpdates:", "keepRunning:", "setKeepRunning:", "permissions:", "requestPermission:", "openPermissionSettings:", `"Desktop." + m`} {
+	for _, want := range []string{`location.origin !== "http://127.0.0.1:7788"`, `version: "0.1.0"`, "quit:", "openExternal:", "setBadge:", "pickFolder:", "updateState:", "onUpdate:", `window.mygo.on("crewbase:update"`, "checkForUpdates:", "downloadUpdate:", "restartToUpdate:", "setAutoUpdate:", "keepRunning:", "setKeepRunning:", "permissions:", "requestPermission:", "openPermissionSettings:", `"Desktop." + m`} {
 		if !strings.Contains(js, want) {
 			t.Errorf("preload lacks %q", want)
+		}
+	}
+	// the old update window's calls are gone
+	for _, gone := range []string{"updates:", "setUpdatePrefs:"} {
+		if strings.Contains(js, gone) {
+			t.Errorf("preload still has %q", gone)
 		}
 	}
 }

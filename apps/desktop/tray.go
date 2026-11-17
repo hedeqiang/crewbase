@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/egoist/mygo"
-	"github.com/egoist/mygo/plugins/updater"
 	"github.com/hedeqiang/crewbase/capabilities/notify"
 )
 
@@ -39,7 +38,7 @@ func (s *shell) menuBar() *mygo.Menu {
 	return mygo.NewMenu([]*mygo.MenuItem{
 		{Label: appName, Submenu: []*mygo.MenuItem{
 			{Role: mygo.RoleAbout, Label: fmt.Sprintf(tr("about"), appName)},
-			updater.MenuItem(),
+			s.checkUpdatesItem(),
 			mygo.Separator(),
 			{Label: tr("settings"), Accelerator: "CmdOrCtrl+,", Click: func(*mygo.MenuItem, *mygo.Window) { s.openSettings() }},
 			mygo.Separator(),
@@ -113,8 +112,26 @@ func (s *shell) trayMenu(needs []need) *mygo.Menu {
 				go s.prefs.setKeepRunning(on)
 			}},
 		mygo.Separator(),
+		s.checkUpdatesItem(),
 		{Label: fmt.Sprintf(tr("quit"), appName), Click: func(*mygo.MenuItem, *mygo.Window) { mygo.App.Quit() }},
 	}...))
+}
+
+// checkUpdatesItem is "检查更新…" of the app menu and the tray: it shows the
+// window, where the check runs in place (the sidebar shows how it goes),
+// and once an update is in place it reads "重启以完成更新".
+func (s *shell) checkUpdatesItem() *mygo.MenuItem {
+	if s.upd != nil && s.upd.state().State == updReady {
+		return &mygo.MenuItem{Label: tr("updRestart"), Click: func(*mygo.MenuItem, *mygo.Window) {
+			go func() { _ = s.upd.restart() }()
+		}}
+	}
+	return &mygo.MenuItem{Label: tr("updCheck"), Click: func(*mygo.MenuItem, *mygo.Window) {
+		s.showWindow()
+		if s.upd != nil {
+			go s.upd.check(true)
+		}
+	}}
 }
 
 // updateTray sets the tray's menu and, on macOS, its title (the count).

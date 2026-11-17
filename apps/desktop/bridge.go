@@ -5,10 +5,8 @@ import (
 	"errors"
 	"net/url"
 	"runtime"
-	"time"
 
 	"github.com/egoist/mygo"
-	"github.com/egoist/mygo/plugins/updater"
 )
 
 // Desktop is the Go side of window.crewbaseDesktop. It is bound with
@@ -47,35 +45,24 @@ func (d Desktop) PickFolder(start string) (string, error) {
 	return paths[0], nil
 }
 
-// UpdateStatus is what 设置 › 通用 shows about updates.
-type UpdateStatus struct {
-	Version            string `json:"version"`
-	Enabled            bool   `json:"enabled"` // this build can update itself
-	AutomaticChecks    bool   `json:"automaticChecks"`
-	AutomaticDownloads bool   `json:"automaticDownloads"`
-	LastCheck          string `json:"lastCheck,omitempty"` // RFC 3339
-	Available          string `json:"available,omitempty"` // a newer version found
-}
+// UpdateState reports the update state; the "crewbase:update" event
+// (crewbaseDesktop.onUpdate) carries every change of it.
+func (d Desktop) UpdateState() updateState { return d.s.upd.state() }
 
-// Updates reports the update state.
-func (d Desktop) Updates() UpdateStatus {
-	st := UpdateStatus{Version: mygo.App.Version(), Enabled: mygo.Updater.Enabled(),
-		AutomaticChecks: updater.AutomaticChecks(), AutomaticDownloads: updater.AutomaticDownloads(), Available: updater.AvailableVersion()}
-	if t := updater.LastCheck(); !t.IsZero() {
-		st.LastCheck = t.UTC().Format(time.RFC3339)
-	}
-	return st
-}
+// CheckForUpdates checks now, in place: the sidebar and Settings show how
+// it goes. A version found downloads when automatic downloads are on.
+func (d Desktop) CheckForUpdates() { go d.s.upd.check(true) }
 
-// CheckForUpdates checks now, showing the update window (also when up to date).
-func (d Desktop) CheckForUpdates() { updater.CheckForUpdates() }
+// DownloadUpdate downloads and installs the version found (automatic
+// downloads off), or tries again what failed.
+func (d Desktop) DownloadUpdate() { go d.s.upd.retry() }
 
-// SetUpdatePrefs changes the background check and download preferences.
-func (d Desktop) SetUpdatePrefs(checks, downloads bool) UpdateStatus {
-	updater.SetAutomaticChecks(checks)
-	updater.SetAutomaticDownloads(downloads)
-	return d.Updates()
-}
+// RestartToUpdate relaunches into the update once it is in place; agents
+// are stopped first (beforeQuit).
+func (d Desktop) RestartToUpdate() error { return d.s.upd.restart() }
+
+// SetAutoUpdate turns downloading and installing in the background on or off.
+func (d Desktop) SetAutoUpdate(on bool) updateState { return d.s.upd.setAutoDownload(on) }
 
 // SetLanguage switches the shell's menus, tray and dialogs to the UI's
 // language ("zh" | "en").
@@ -103,8 +90,9 @@ func (d Desktop) SetBadge(n int) {
 
 // preloadScript defines window.crewbaseDesktop in pages of origin. The
 // surface is exactly { version, platform, quit(), openExternal(url),
-// setBadge(n), pickFolder(start), updates(), checkForUpdates(),
-// setUpdatePrefs(checks, downloads), setLanguage(l), keepRunning(),
+// setBadge(n), pickFolder(start), updateState(), onUpdate(fn) → off,
+// checkForUpdates(), downloadUpdate(), restartToUpdate(),
+// setAutoUpdate(on), setLanguage(l), keepRunning(),
 // setKeepRunning(on), permissions(), requestPermission(id),
 // openPermissionSettings(id) }; it calls the Desktop service through window.mygo, which
 // MyGo injects before preload scripts run.
@@ -112,6 +100,7 @@ func preloadScript(origin, version string) string {
 	o, _ := json.Marshal(origin)
 	v, _ := json.Marshal(version)
 	p, _ := json.Marshal(runtime.GOOS)
+	ev, _ := json.Marshal(updateEvent.Name())
 	return `(() => {
   if (window.top !== window || location.origin !== ` + string(o) + ` || !window.mygo) return;
   const call = (m, ...a) => window.mygo.call("Desktop." + m, ...a).catch((e) => console.warn("crewbaseDesktop." + m, e));
@@ -124,9 +113,15 @@ func preloadScript(origin, version string) string {
       openExternal: (url) => { call("OpenExternal", String(url)); },
       setBadge: (n) => { call("SetBadge", Math.max(0, Math.floor(Number(n) || 0))); },
       pickFolder: (start) => window.mygo.call("Desktop.PickFolder", String(start || "")),
-      updates: () => window.mygo.call("Desktop.Updates"),
+      updateState: () => window.mygo.call("Desktop.UpdateState"),
+      onUpdate: (fn) => {
+        if (typeof fn !== "function") return () => {};
+        return window.mygo.on(` + string(ev) + `, (st) => { try { fn(st); } catch (e) { console.warn("crewbaseDesktop.onUpdate", e); } });
+      },
       checkForUpdates: () => { call("CheckForUpdates"); },
-      setUpdatePrefs: (checks, downloads) => window.mygo.call("Desktop.SetUpdatePrefs", !!checks, !!downloads),
+      downloadUpdate: () => { call("DownloadUpdate"); },
+      restartToUpdate: () => window.mygo.call("Desktop.RestartToUpdate"),
+      setAutoUpdate: (on) => window.mygo.call("Desktop.SetAutoUpdate", !!on),
       setLanguage: (l) => { call("SetLanguage", String(l)); },
       keepRunning: () => window.mygo.call("Desktop.KeepRunning"),
       setKeepRunning: (on) => window.mygo.call("Desktop.SetKeepRunning", !!on),

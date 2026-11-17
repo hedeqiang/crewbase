@@ -50,6 +50,8 @@ var words = map[string][2]string{ // key → {zh, en}
 	"cuPaused":      {"%s 等你停下再操作 %s", "%s waits for you to stop before operating %s"},
 	"cuStop":        {"停止电脑操作", "Stop computer use"},
 	"notifyTest":    {"通知已开启：Agent 等你批准或完成任务时会在这里提醒你。", "Notifications are on: Crewbase tells you here when an agent needs you or finishes."},
+	"updCheck":      {"检查更新…", "Check for Updates…"},
+	"updRestart":    {"重启以完成更新", "Restart to Update"},
 	"pickFolder":    {"选择项目文件夹", "Choose a project folder"},
 	"pick":          {"选择", "Choose"},
 	"pickFolderMsg": {"Agent 会在这个文件夹里读写文件、运行命令（按它的运行权限）。", "The agent reads, writes and runs commands in this folder, within its run mode."},
