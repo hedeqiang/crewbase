@@ -1532,6 +1532,7 @@ function Composer({
   const models = useStore((s) => s.models);
   const composerActions = useSlot("composer.action");
   const manage = useStore((s) => s.tier === "desktop");
+  const plain = !channel && agent.kind === "chat";
   const viewer = useStore((s) => s.tier === "viewer");
   const [sending, setSending] = useState(false);
   const pending = useStore((s) => s.attach[sessionId]) ?? NO_FILES;
@@ -1861,6 +1862,8 @@ function Composer({
               e.target.value = "";
             }}
           />
+          {/* a blank chat runs nothing: no host, run mode or folder to choose */}
+          {!plain && (<>
           <button className="cbtn" type="button" ref={hostM.ref} onClick={hostM.toggle} title={t("comp.host", { name: agent.name })} aria-haspopup="menu" hidden={!manage}>
             <Monitor size={15} />
             <span className="lbl">{t("comp.hostLocal")}</span>
@@ -1886,6 +1889,7 @@ function Composer({
               <ChevronDown size={14} />
             </button>
           )}
+          </>)}
           {composerActions.map((c) => (
             <button key={c.key} className="cbtn" type="button" title={c.desc || c.title} onClick={() => void runCommand(c, sessionId)}>
               <SlotIcon name={c.icon} />

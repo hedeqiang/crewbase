@@ -37,7 +37,7 @@ func noop(context.Context, tools.Call) (tools.Result, error) { return tools.Resu
 
 // Blank chats have no skills catalog (chatFragments), so they are not
 // offered skill_load either; agents are.
-func TestBlankChatHasNoSkillLoad(t *testing.T) {
+func TestBlankChatHasNoTools(t *testing.T) {
 	e := newEnv(t, t.TempDir())
 	r := e.h.Root()
 	tr := kernel.Use[*tools.Registry](r, tools.ServiceKey)
@@ -56,8 +56,8 @@ func TestBlankChatHasNoSkillLoad(t *testing.T) {
 		}
 		return false
 	}
-	if ts := agentloop.ToolSchemas(tr, c, "agent"); has(ts, "skill_load") || !has(ts, "read_file") {
-		t.Fatalf("chat tools %+v", ts)
+	if ts := agentloop.ToolSchemas(tr, c, "agent"); len(ts) != 0 {
+		t.Fatalf("a blank chat offers no tools: %+v", ts)
 	}
 	if ts := agentloop.ToolSchemas(tr, a, "agent"); !has(ts, "skill_load") {
 		t.Fatal("agents keep skill_load")
@@ -70,7 +70,7 @@ func TestBlankChatHasNoSkillLoad(t *testing.T) {
 	if len(reqs) == 0 {
 		t.Fatal("no request")
 	}
-	if has(reqs[0].Tools, "skill_load") || !has(reqs[0].Tools, "read_file") {
-		t.Fatalf("chat request tools %+v", reqs[0].Tools)
+	if len(reqs[0].Tools) != 0 || reqs[0].System != "" {
+		t.Fatalf("chat request: system %q, tools %+v", reqs[0].System, reqs[0].Tools)
 	}
 }

@@ -54,7 +54,7 @@ export function Panel() {
           <>
         {tab === "task" && (channel ? <ChannelTask key={channel.id} channel={channel} /> : <TaskTab agent={agent} />)}
         {tab === "task" && <SubRuns session={current ?? agent.session} />}
-        {tab === "task" && <TaskBoard key={current ?? agent.session} session={current ?? agent.session} />}
+        {tab === "task" && agent.kind !== "chat" && <TaskBoard key={current ?? agent.session} session={current ?? agent.session} />}
           </>
         )}
         {tab === "files" && <FilesTab agent={agent} />}
@@ -358,15 +358,19 @@ function TaskTab({ agent }: { agent: AgentView }) {
               "—"
             )}
           </dd>
-          <dt>{t("panel.mode")}</dt>
-          <dd>
-            {modeLabel(agent.effectiveMode)}
-            {agent.effectiveMode === "host" && agent.modeUntil && <span className="small">{t("chat.modeUntil", { time: until(agent.modeUntil) }).replace(/^，/, "")}</span>}
-          </dd>
-          <dt>{t("panel.dir")}</dt>
-          <dd className="mono" style={{ fontSize: 12 }}>
-            {shortPath(agent.workspace)}
-          </dd>
+          {agent.kind !== "chat" && (
+            <>
+              <dt>{t("panel.mode")}</dt>
+              <dd>
+                {modeLabel(agent.effectiveMode)}
+                {agent.effectiveMode === "host" && agent.modeUntil && <span className="small">{t("chat.modeUntil", { time: until(agent.modeUntil) }).replace(/^，/, "")}</span>}
+              </dd>
+              <dt>{t("panel.dir")}</dt>
+              <dd className="mono" style={{ fontSize: 12 }}>
+                {shortPath(agent.workspace)}
+              </dd>
+            </>
+          )}
         </dl>
         <div className="acts">
           <button className="btn" type="button" disabled={agent.status !== "running" && agent.status !== "waiting"} onClick={() => act("stop")}>

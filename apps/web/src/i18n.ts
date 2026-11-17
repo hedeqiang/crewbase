@@ -403,7 +403,7 @@ const zh = {
   "chat.blankNote": "空白对话：不带角色、指令和长期记忆，只有基础的工作规则；仍可使用工具、遵守运行权限和审批。",
   "chat.delete": "删除对话",
   "chat.assistant": "助手",
-  "chat.chatPh": "问点什么，或者让它动手做…",
+  "chat.chatPh": "问点什么…",
   "chat.queue": "队列 · {n}",
   "wel.chat": "直接开始对话",
   "list.newChannel": "新建频道",

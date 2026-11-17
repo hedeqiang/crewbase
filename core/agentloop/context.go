@@ -11,24 +11,13 @@ import (
 // trigger and the context meter (features/compaction) both count it this
 // way, so the meter shows what the loop acts on.
 
-// chatHiddenTools are tools a blank chat is not offered. A chat's prompt
-// has no plugin fragments by design (chatFragments), so it has no skills
-// catalog and skill_load would name skills it was never told about.
-var chatHiddenTools = map[string]bool{"skill_load": true}
-
-// ChatTools drops the tools a blank chat is not offered; other agents get
-// ts unchanged.
+// ChatTools are the tools a's requests offer out of ts: none for a blank
+// chat (a plain conversation), ts for agents.
 func ChatTools(a *agent.Agent, ts []llm.ToolSchema) []llm.ToolSchema {
-	if !a.IsChat() {
-		return ts
+	if a.IsChat() {
+		return nil
 	}
-	out := ts[:0:0]
-	for _, t := range ts {
-		if !chatHiddenTools[t.Name] {
-			out = append(out, t)
-		}
-	}
-	return out
+	return ts
 }
 
 // ToolSchemas are the tool schemas a's requests in a session of kind

@@ -445,24 +445,15 @@ func nameChat(a *agent.Agent, text string) {
 	}
 }
 
-// chatFragments are the only prompt fragments a blank chat gets: the base
-// working rules, the workspace path and the summary of compacted history.
-var chatFragments = map[string]bool{"base": true, "agent-identity": true, "environment": true, "context-compaction": true}
-
-// SystemSections are the prompt sections a's requests carry (all of them
-// for an agent; the chat subset for a blank chat).
+// SystemSections are the prompt sections a's requests carry: all of them
+// for an agent, none for a blank chat (a plain conversation with the
+// model: no system prompt, no tools; compacted history still arrives as
+// a summary message).
 func SystemSections(p *prompt.Assembler, a *agent.Agent) []prompt.Section {
-	secs := p.Sections(a.ID())
-	if !a.IsChat() {
-		return secs
+	if a.IsChat() {
+		return nil
 	}
-	out := secs[:0:0]
-	for _, s := range secs {
-		if chatFragments[s.Name] {
-			out = append(out, s)
-		}
-	}
-	return out
+	return p.Sections(a.ID())
 }
 
 // System renders a's system prompt (as prompt.Assembler.Assemble does).
@@ -538,6 +529,10 @@ func (l *loop) step(ctx context.Context, a *agent.Agent, ss *session.Session, re
 		}
 		req = *reqp
 		req.Model = ref.Model // the model choice is not adjustable here
+		if a.IsChat() {
+			// a plain chat stays plain whatever a Request listener added
+			req.System, req.Tools, req.NativeTools = "", nil, nil
+		}
 		l.record(a, ss, req)
 		_, _ = ss.Append(session.TypeStepStart, a.ID(), StepStart{Step: n, Model: ref, ContextTokens: est, ContextWindow: win})
 

@@ -586,7 +586,7 @@ export const en: Partial<Record<Key, string>> = {
   "chat.blankNote": "A blank chat: no role, instructions or long-term memory — only the basic working rules. It still uses tools, run modes and approvals.",
   "chat.delete": "Delete chat",
   "chat.assistant": "Assistant",
-  "chat.chatPh": "Ask anything, or have it do the work…",
+  "chat.chatPh": "Ask anything…",
   "chat.queue": "Queue · {n}",
   "wel.chat": "Just start chatting",
   "chat.placeholder": "Message {name}",

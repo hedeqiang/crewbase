@@ -111,6 +111,9 @@ func (l *loop) deferConfig(a *agent.Agent) tools.DeferConfig {
 // planTools decides the tool set of a request to ad / model with a
 // context window of win tokens.
 func (l *loop) planTools(a *agent.Agent, ss *session.Session, ad llm.Adapter, model string, win int) toolPlan {
+	if a.IsChat() {
+		return toolPlan{Mode: planAll} // a plain chat offers no tools
+	}
 	core, deferred, meta := l.tiers(a, ss.Meta().Kind)
 	schemas := func(ts []*tools.Tool) []llm.ToolSchema {
 		out := make([]llm.ToolSchema, 0, len(ts))

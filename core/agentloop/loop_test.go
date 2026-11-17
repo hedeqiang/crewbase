@@ -296,26 +296,19 @@ func TestBlankChat(t *testing.T) {
 	}
 	ad, _ := e.llms.Get("claude-code")
 	m := ad.(*mock.Adapter)
-	send(t, c, "/tool touch {}")
+	send(t, c, "hello there")
 	agentloop.WaitIdle(c, 2*time.Second)
 	reqs := m.Requests()
 	if len(reqs) == 0 {
 		t.Fatal("no request")
 	}
 	r := reqs[0]
-	if r.Workspace != c.Workspace() || r.Mode != agent.ModeSandbox {
-		t.Fatalf("request workspace %q mode=%q", r.Workspace, r.Mode)
+	// a blank chat is a plain conversation with the model
+	if r.System != "" || len(r.Tools) != 0 || len(r.NativeTools) != 0 {
+		t.Fatalf("chat request carries system %q / %d tools", r.System, len(r.Tools))
 	}
-	if !strings.Contains(r.System, "Crewbase") || !strings.Contains(r.System, c.Workspace()) {
-		t.Fatalf("chat lost the base rules / workspace: %q", r.System)
-	}
-	if strings.Contains(r.System, "PIRATE") || strings.Contains(r.System, "Your name is") {
-		t.Fatalf("chat carried persona or plugin prompt: %q", r.System)
-	}
-	if len(r.Tools) == 0 || !ran {
-		t.Fatal("a chat must still use tools")
-	}
-	if n := c.Spec().Name; n != "/tool touch {}" {
+	_ = ran
+	if n := c.Spec().Name; n != "hello there" {
 		t.Fatalf("chat not named after its first message: %q", n)
 	}
 	// an agent gets the full prompt
