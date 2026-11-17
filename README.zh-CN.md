@@ -6,7 +6,7 @@
 
 <p align="center">
   本地优先、不绑定模型的多 Agent 协作工作台。<br>
-  复用你已有的订阅和模型，每一步操作都可审计。
+  接上你已有的模型（API Key、magpie 网关或本地模型），每一步操作都可审计。
 </p>
 
 <p align="center">
@@ -25,7 +25,7 @@ Crewbase 在你自己的电脑或服务器上运行一支 Agent 团队。每个 
 
 ## 亮点
 
-- **任意模型，复用订阅。** 原生接入 Anthropic、OpenAI、Gemini、DeepSeek、xAI、Kimi、智谱、MiniMax、通义千问、火山引擎，以及任何 OpenAI 兼容接口、本地模型（Ollama、LM Studio），并可通过 ACP 复用已登录的 **Claude Code / Codex / Antigravity** 订阅。按任务类型路由，失败自动切换到下一个模型。
+- **任意模型。** 原生接入 Anthropic、OpenAI、Gemini、DeepSeek、xAI、Kimi、智谱、MiniMax、通义千问、火山引擎，以及任何 OpenAI 兼容接口、[magpie](https://github.com/yetone/magpie) 网关、本地模型（Ollama、LM Studio）。按任务类型路由，失败自动切换到下一个模型。
 - **是团队，不只是聊天。** 频道单一负责人与显式交接、子 Agent 委派、可视化画布编排工作流，每棵委派树共享一块任务板（依赖图）。空白的**新对话**（⌘N）同样能使用全部工具。
 - **默认安全。** 三档运行模式：只读、沙箱（macOS 用 Seatbelt，Linux 用 bubblewrap，其他平台用 Docker）、本机。规则引擎与审批拦住推送、删除、对外发布和支付；密钥存在系统钥匙串并在日志中脱敏；哈希链审计日志记录谁批准了什么。
 - **真能干活的工具。** 工作区里的命令与文件、每个 Agent 一个可随时接管的 Chrome、MCP 服务器（支持 OAuth 与 resources / prompts）、技能、长期记忆，以及附件（图片、PDF、Office）——能直接读的模型收到原文件。
@@ -70,7 +70,7 @@ docker pull ghcr.io/hedeqiang/crewbase          # distroless；:chromium 标签�
 
 ## 快速开始
 
-1. 打开 Crewbase。如果你已登录 Claude Code、Codex 或 Antigravity，这些订阅会被自动识别；否则在 **设置 › 模型** 添加提供方（Key 存入系统钥匙串）。
+1. 打开 Crewbase。正在运行的 magpie、Ollama 或 LM Studio 会被自动识别；否则在 **设置 › 模型** 添加提供方（Key 存入系统钥匙串）。
 2. 按 **⌘N** 开一个空白对话，或按 **⇧⌘N** 从模板新建 Agent，设定它的指令、工作区和运行模式。
 3. 给它派活。有风险的步骤会弹出审批卡片；右侧面板显示任务板和文件。
 

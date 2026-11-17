@@ -83,7 +83,7 @@
 | 挂起 | 审批必须在一个未结束的轮次内发起；工具调用停在流水线中，Agent 的其他工作不受影响 |
 | 不卡住 Agent | 等待审批时，Agent 收到别的事（另一个对话、IM、例行、后台结果）就先「停靠」这次调用：调用结束并告诉模型在等批准，审批请求本身不动，桌面和 IM 上照样可以批；同一对话里人直接回消息仍视为拒绝。人做出决定后，原对话里开一小轮告知 Agent：批准的那一次调用（同一 Agent、会话、工具、完全相同的参数）在 1 小时内可以不再询问执行一次，用后即失效；拒绝则重新规划。停靠中的调用记在 `parked.json`，重启丢失请求时告诉 Agent 需要的话重新发起 |
 | 结果 | 闭合集合：`allowed-once` / `rejected` / `cancelled` / `unavailable`，只有 `allowed-once` 放行 |
-| 应答方 | 通过 `approval/request` Waterfall 注册：桌面卡片、移动推送、IM 网关、ACP 客户端；第一个给出结果的应答方认领 |
+| 应答方 | 通过 `approval/request` Waterfall 注册：桌面卡片、移动推送、IM 网关；第一个给出结果的应答方认领 |
 | 关闭式失败 | 无应答方、应答方出错或超时一律为 `unavailable` |
 | 策略 | 每个会话有 `ask` / `never`，以最后一条 `approval/policy` 会话事件为准；`never` 在分发前由审批服务自己拒绝 |
 | 审计 | `approval/asked`、`approval/decided` 写入会话日志；写入失败则审批失败 |

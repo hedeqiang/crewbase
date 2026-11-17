@@ -1,5 +1,7 @@
 # 产品需求文档（PRD）
 
+> **2026-11-17 更新**：0.5.12 起移除了「订阅复用」（经 ACP 驱动 Claude Code / Codex / Antigravity / Cursor 等 CLI），原因是复用 CLI 登录有封号风险。模型只来自 API 提供方和 magpie 网关（订阅类额度由 magpie 自己处理）。本文中关于订阅 CLI、ACP 适配器和给 CLI 的 MCP 桥的内容保留为历史设计，已不再适用。
+
 | 项 | 内容 |
 |---|---|
 | 产品 | Crewbase（暂定名） |

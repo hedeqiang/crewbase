@@ -23,7 +23,7 @@ make desktop PLATFORM=darwin/universal,windows/amd64,linux/amd64   # 交叉构�
 
 1. **单实例**：已在运行时，再次启动只会唤起原窗口后退出。
 2. **附着（attach）**：若 `127.0.0.1:7788` 上的 `crewd` 用 `${CREWBASE_HOME:-~/.crewbase}/token` 能通过 `GET /api/health`，桌面壳直接使用它，不再启动第二个宿主。待处理数量与通知来自 SSE 流 `/api/events`（`approvals.changed`、`agent.status`、`notify`），断线自动重连。退出 Crewbase.app 不影响这个 `crewd`。
-3. **进程内（in-process）**：否则在同一进程内启动宿主（等同 `crewd --profile desktop --addr 127.0.0.1:7788`，`gateway.Static = web.Dist`）。若 7788 被其他程序占用（token 不匹配），改用 `127.0.0.1:0`，实际地址取自 `gateway/listening` 事件。退出时先隐藏窗口，再 `Host.Close()`：插件逆序卸载，codex / claude / MCP 等子进程树被清理，会话落盘，然后进程退出（最多等 15 秒）。
+3. **进程内（in-process）**：否则在同一进程内启动宿主（等同 `crewd --profile desktop --addr 127.0.0.1:7788`，`gateway.Static = web.Dist`）。若 7788 被其他程序占用（token 不匹配），改用 `127.0.0.1:0`，实际地址取自 `gateway/listening` 事件。退出时先隐藏窗口，再 `Host.Close()`：插件逆序卸载，MCP 等子进程树被清理，会话落盘，然后进程退出（最多等 15 秒）。
 
 窗口加载 `http://<addr>/?token=<token>`。该地址加入 MyGo 的 `PageOptions.TrustedOrigins`，页面才能调用桌面接口；页面在窗口隐藏时不被节流（SSE 保持连接）。`target=_blank`、`window.open` 和跳到其他源的链接一律用系统浏览器打开。
 

@@ -1,5 +1,7 @@
 # 技术架构
 
+> **2026-11-17 更新**：0.5.12 起移除了「订阅复用」（经 ACP 驱动 Claude Code / Codex / Antigravity / Cursor 等 CLI），原因是复用 CLI 登录有封号风险。模型只来自 API 提供方和 magpie 网关（订阅类额度由 magpie 自己处理）。本文中关于订阅 CLI、ACP 适配器和给 CLI 的 MCP 桥的内容保留为历史设计，已不再适用。
+
 本文描述系统分层、进程模型、存储与部署。插件内核的细节见 [插件系统](05-plugin-system.md)，安全机制见 [安全模型](06-security-model.md)。
 
 ## 1. 分层

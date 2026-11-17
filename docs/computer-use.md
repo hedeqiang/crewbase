@@ -8,7 +8,7 @@
 
 - **不抢鼠标**：默认在后台操作目标应用，你继续用电脑；
 - **更快、更省**：优先读系统的界面元素树、按元素操作，截图只作兜底；
-- **任何模型都能用**：Claude、GPT、Gemini、DeepSeek、本地模型，订阅 CLI 也能经 MCP 用同一套安全层；
+- **任何模型都能用**：Claude、GPT、Gemini、DeepSeek、本地模型，直连或经 magpie；
 - **看得见、停得住**：谁在操作哪个应用一目了然，随时停止或接管；
 - **按应用授权**：每个 Agent 能操作哪些应用由你决定，金融、密码、终端类默认禁止。
 
@@ -64,7 +64,6 @@ Notes — 「购物清单」 (window 1)
 - **OpenAI**：Responses API 的 `computer` 工具（GPT-5.4 及以后，仅 OpenAI 官方接口），`computer_call` 的 `actions[]` 依次执行，每次回一张截图；
 - **Gemini**：`computer_use`（desktop，Gemini 3.x / 4.x），坐标是 0–999，按窗口尺寸换算；
 - **其他模型（DeepSeek、本地模型等）**：通用函数工具 `computer_*`，以元素编号为主；
-- **订阅 CLI（Claude Code、Codex、Antigravity）**：把这套工具以 MCP 服务提供给它们（下一阶段），用的是 Crewbase 的审批和授权，而不是它们各自的电脑操作。
 
 Retina 缩放、坐标换算、按键名映射、各家的「需要确认」握手（OpenAI safety check、Gemini require_confirmation）都在这一层处理（`features/computertools/native.go`）。
 
@@ -103,7 +102,7 @@ Retina 缩放、坐标换算、按键名映射、各家的「需要确认」握�
 - 网页任务自动转给浏览器功能。
 
 **第二版**
-- OpenAI、Gemini 原生适配；MCP 服务给订阅 CLI；AppleScript / 快捷指令动作；
+- OpenAI、Gemini 原生适配；AppleScript / 快捷指令动作；
 - 编号框截图（本地模型）；Windows（UI Automation + SendInput，先只支持前台，会明确提示）。
 
 **以后**
@@ -115,15 +114,6 @@ Retina 缩放、坐标换算、按键名映射、各家的「需要确认」握�
 - 只在桌面版进程内可用（权限授给 Crewbase.app）；服务器版没有这项能力；
 - 新能力 `computer`（capabilities/computer）+ macOS 实现（providers/computer/macos）+ 工具（features/computertools），结构与浏览器（capabilities/browser、providers/browser/chrome、features/browsertools）一致；
 - 审批类别：`computer`（操作应用）、`computer-script`（运行脚本），确认动作复用现有的 publish / delete / payment。
-
-### 订阅 CLI（ACP）也能用
-
-模型是 Claude Code、Codex、Cursor、OpenCode 等 CLI 的 agent 自己跑工具，Crewbase 的工具不在其中。为此 Crewbase 在网关上开了一个 MCP 服务器（features/mcpserver，Streamable HTTP，`http://127.0.0.1:<端口>/mcp`）：
-
-- 只提供白名单工具（配置 `tools`，默认 `computer_*`、`browser_*`），且只列出当前已注册、对该 agent 可见的（电脑操作开关关着时就没有 computer_*）；bash、文件等 CLI 自带的工具不提供；
-- ACP 适配器每开一个会话就签发一个随机令牌，绑定 agent + Crewbase 会话（运行模式按每轮更新），在 `session/new` 的 `mcpServers` 里以 `{"type":"http","name":"crewbase","url":…,"headers":[{"name":"Authorization","value":"Bearer …"}]}` 交给 CLI（仅当 CLI 在 initialize 里声明了 `mcpCapabilities.http`）；会话被丢弃、进程退出或适配器关闭时吊销。令牌只对 /mcp 有效，不进日志；
-- 调用走 `tools.Registry.Run`，与模型直接调用完全一样：规则、审批卡、运行模式、电脑操作的策略、日志和会话事件都生效；只在 Crewbase 正在为这个 agent 跑一轮时可用，取消这一轮会取消进行中的调用；
-- 不重复询问：CLI 调这些工具前会发 `session/request_permission`，若请求明确是 crewbase MCP 工具（Claude Code 的 `mcp__crewbase__<tool>`、Cursor 的 `crewbase: <tool>`、OpenCode 的 `crewbase_<tool>`、codex-acp 的 `Approve <tool>` 且内容含 `Server: crewbase`），就直接选 allow_once，由 Crewbase 自己的流程决定是否问人；其他请求照旧走审批。
 
 ## 参考
 

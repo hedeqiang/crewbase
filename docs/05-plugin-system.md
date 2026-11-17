@@ -1,5 +1,7 @@
 # 插件系统设计
 
+> **2026-11-17 更新**：0.5.12 起移除了「订阅复用」（经 ACP 驱动 Claude Code / Codex / Antigravity / Cursor 等 CLI），原因是复用 CLI 登录有封号风险。模型只来自 API 提供方和 magpie 网关（订阅类额度由 magpie 自己处理）。本文中关于订阅 CLI、ACP 适配器和给 CLI 的 MCP 桥的内容保留为历史设计，已不再适用。
+
 > 本文是 Crewbase 技术设计的核心。它借鉴 DeepSeek Harness（MIT）基于 Cordis 的「一切皆插件」架构，并按我们的 Go 技术栈和多 Agent 场景重新设计。Harness 原始概念与出处见 [参考笔记](references/deepseek-harness.md)；关键取舍记录在 [ADR-0001](decisions/0001-plugin-first-kernel.md) 与 [ADR-0002](decisions/0002-plugin-runtime-tiers.md)。
 
 ## 1. 目标

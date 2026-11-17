@@ -6,7 +6,7 @@
 
 <p align="center">
   A local-first, model-agnostic workspace for a crew of AI agents.<br>
-  Bring the subscriptions and models you already have; keep every action auditable.
+  Bring the models you already use — API keys, a magpie gateway or local models — and keep every action auditable.
 </p>
 
 <p align="center">
@@ -25,7 +25,7 @@ Crewbase runs a team of agents on your own machine or server. Each agent has its
 
 ## Highlights
 
-- **Any model, your subscriptions.** Native Anthropic, OpenAI, Gemini, DeepSeek, xAI, Kimi, Zhipu, MiniMax, Qwen and Volcengine providers, any OpenAI-compatible endpoint, local models (Ollama, LM Studio), and logged-in **Claude Code / Codex / Antigravity** subscriptions over ACP. Routes by task type and fails over to the next model.
+- **Any model.** Native Anthropic, OpenAI, Gemini, DeepSeek, xAI, Kimi, Zhipu, MiniMax, Qwen and Volcengine providers, any OpenAI-compatible endpoint, the [magpie](https://github.com/yetone/magpie) gateway, and local models (Ollama, LM Studio). Routes by task type and fails over to the next model.
 - **A crew, not a chatbot.** Channels with a single owner and explicit handover, sub-agent delegation, workflows on a visual canvas, and a shared task board (dependency graph) per delegation tree. A blank **New chat** (⌘N) still has every tool.
 - **Safe by default.** Three run modes — read-only, sandbox (Seatbelt on macOS, bubblewrap on Linux, Docker elsewhere) and host. A rules engine and approvals gate pushes, deletes, publishing and payments; secrets live in the system keychain and are redacted from logs; a hash-chained audit log records who approved what.
 - **Tools that do real work.** Shell and files in the workspace, a per-agent Chrome you can take over at any time, MCP servers (including OAuth and resources/prompts), skills, long-term memory, and attachments (images, PDF, Office) loaded natively for models that can read them.
@@ -70,7 +70,7 @@ Standalone `crewd`, `crew` and `crew-relay` binaries for macOS, Linux and Window
 
 ## Getting started
 
-1. Open Crewbase. If you are logged in to Claude Code, Codex or Antigravity, those subscriptions are picked up automatically; otherwise add a provider in **Settings › Models** (keys go to the system keychain).
+1. Open Crewbase. A running magpie, Ollama or LM Studio is picked up automatically; otherwise add a provider in **Settings › Models** (keys go to the system keychain).
 2. Press **⌘N** for a blank chat, or **⇧⌘N** to create an agent from a template with its own instructions, workspace and run mode.
 3. Give it work. Risky steps show up as approval cards; the right panel shows its task board and files.
 

@@ -1296,10 +1296,10 @@ func (r *Registry) computeDefaults(reg *llm.Registry, defs []llm.ModelRef) []llm
 	for _, m := range defs {
 		ad, ok := reg.Get(m.Provider)
 		if !ok || reg.ModelOff(m) {
-			continue // a provider that is gone (e.g. the old Gemini CLI) or a switched-off model
+			continue // a provider that is gone or a switched-off model
 		}
-		// "default" is a placeholder for "whatever the CLI picks": name the
-		// concrete model so people see (and the router tracks) what runs.
+		// "default" is a placeholder for "the provider's own choice": name
+		// the concrete model so people see (and the router tracks) what runs.
 		if m.Model == "" || m.Model == "default" {
 			if ms, err := reg.ModelsOf(ctx, ad); err == nil {
 				if id := pickModel(ms); id != "" {
@@ -1315,6 +1315,14 @@ func (r *Registry) computeDefaults(reg *llm.Registry, defs []llm.ModelRef) []llm
 	if len(out) > 0 {
 		return out
 	}
+	// Nothing configured is connected: up to three strong models from what
+	// is (a gateway such as magpie offers many), so a new agent has a
+	// fallback when the first one is out of quota.
+	type cand struct {
+		ref  llm.ModelRef
+		rank int
+	}
+	var cands []cand
 	for _, ad := range reg.List() {
 		if ad.ID() == "mock" {
 			continue
@@ -1323,12 +1331,33 @@ func (r *Registry) computeDefaults(reg *llm.Registry, defs []llm.ModelRef) []llm
 		if err != nil {
 			continue
 		}
-		if id := pickModel(ms); id != "" {
-			out = append(out, llm.ModelRef{Provider: ad.ID(), Model: id})
+		best := map[int]bool{}
+		for _, m := range ms {
+			if !m.Enabled || m.OutputKind() != llm.KindChat {
+				continue
+			}
+			for i, want := range preferredModels {
+				if strings.Contains(m.ID, want) {
+					if !best[i] { // one model per family and provider
+						best[i] = true
+						cands = append(cands, cand{llm.ModelRef{Provider: ad.ID(), Model: m.ID}, i})
+					}
+					break
+				}
+			}
 		}
+		if len(best) == 0 {
+			if id := pickModel(ms); id != "" {
+				cands = append(cands, cand{llm.ModelRef{Provider: ad.ID(), Model: id}, len(preferredModels)})
+			}
+		}
+	}
+	slices.SortStableFunc(cands, func(a, b cand) int { return a.rank - b.rank })
+	for _, c := range cands {
 		if len(out) == 3 {
 			break
 		}
+		out = append(out, c.ref)
 	}
 	if len(out) == 0 {
 		return defs
@@ -1389,7 +1418,7 @@ func sameRefs(a, b []llm.ModelRef) bool {
 
 // preferredModels ranks well-known strong models when a provider (such as
 // a gateway) offers many; the first enabled match wins.
-var preferredModels = []string{"claude-opus-5-5", "claude-sonnet-5-5", "gpt-6.1", "gpt-6", "deepseek-v4-pro", "deepseek-flash", "gemini"}
+var preferredModels = []string{"claude-opus-5-5", "gpt-6.1", "claude-sonnet-5-5", "gpt-6", "deepseek-v4-pro", "gemini", "deepseek-flash"}
 
 func pickModel(ms []llm.ModelInfo) string {
 	// a CLI's "default" entry only stands in when it lists nothing else
