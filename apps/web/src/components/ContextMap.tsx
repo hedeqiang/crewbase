@@ -259,7 +259,13 @@ export function ContextMap({
                     <div className="cxcbar" role="img" aria-label={t("cmap.hitAria", { pct: Math.round(bd.cache.hitPercent) })}>
                       <i style={{ width: Math.min(100, bd.cache.hitPercent) + "%" }} />
                     </div>
-                    <div className="cxsub">{t("cmap.cacheSplit", { cached: kfmt(bd.cache.read), fresh: kfmt(Math.max(0, bd.cache.input - bd.cache.read)) })}</div>
+                    <div className="cxsub">
+                      {bd.cache.read === 0 && bd.cache.write > 0
+                        ? t("cmap.cacheWarm", { n: kfmt(bd.cache.write) })
+                        : bd.cache.read === 0
+                          ? t("cmap.cacheNone")
+                          : t("cmap.cacheSplit", { cached: kfmt(bd.cache.read), fresh: kfmt(Math.max(0, bd.cache.input - bd.cache.read)) })}
+                    </div>
                   </div>
                 )}
                 <div className="cxmodel">

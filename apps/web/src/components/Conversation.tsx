@@ -224,6 +224,40 @@ function ReplyStats({ stats }: { stats: TurnStats }) {
 }
 
 /** A user message: copy, and edit and resend in a one-to-one conversation. */
+/** Text with "@Name" / "@id" of known agents shown as mention chips. */
+function WithMentions({ text }: { text: string }) {
+  const agents = useStore((s) => s.agents);
+  const parts = useMemo(() => {
+    if (!text.includes("@")) return null;
+    const handles = new Set<string>();
+    for (const a of Object.values(agents)) {
+      handles.add(a.name);
+      handles.add(a.id);
+    }
+    const list = [...handles].filter(Boolean).sort((a, b) => b.length - a.length);
+    if (!list.length) return null;
+    const esc = list.map((h) => h.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
+    const re = new RegExp("(^|[\\s(（，,。])@(" + esc.join("|") + ")(?=$|[\\s,，。.!！?？:：)）])", "g");
+    const out: (string | { h: string })[] = [];
+    let last = 0;
+    for (const m of text.matchAll(re)) {
+      const at = m.index! + m[1].length;
+      if (at > last) out.push(text.slice(last, at));
+      out.push({ h: m[2] });
+      last = at + 1 + m[2].length;
+    }
+    if (!out.length) return null;
+    if (last < text.length) out.push(text.slice(last));
+    return out;
+  }, [text, agents]);
+  if (!parts) return <>{text}</>;
+  return (
+    <>
+      {parts.map((x, i) => (typeof x === "string" ? x : <span key={i} className="mchip">@{x.h}</span>))}
+    </>
+  );
+}
+
 function UserMsg({ it }: { it: Extract<FeedItem, { k: "user" }> }) {
   const acts = useContext(MsgCtx);
   const [editing, setEditing] = useState(false);
@@ -296,7 +330,7 @@ function UserMsg({ it }: { it: Extract<FeedItem, { k: "user" }> }) {
       {(it.text || !it.attachments?.length) && (
         <div className="bubble">
           {it.from && <span className="from">{it.from}</span>}
-          {it.text}
+          <WithMentions text={it.text} />
         </div>
       )}
       {it.text && (

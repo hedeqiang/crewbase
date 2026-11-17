@@ -392,7 +392,7 @@ function NotifyHere() {
         <span className="pill ok">{t("comp.notifyEnabled")}</span>
       ) : (
         <button className="btn sm" type="button" disabled={perm === "denied"} onClick={() => void askNotify().then(setPerm)}>
-          {t("comp.notifyOn")}
+          {t("comp.notifyAllow")}
         </button>
       )}
     </Row>

@@ -95,6 +95,11 @@ function ChannelTask({ channel }: { channel: ChannelView }) {
   const others = Object.values(agents).filter((a) => !channel.members.includes(a.id) && a.kind !== "chat");
   const m = owner ? activeModel(models, owner) : null;
   const chQueue = (a: AgentView) => a.queue.filter((q) => q.session === channel.id);
+  // Stop only means something while a member is working or has queued work here.
+  const working = channel.members.some((id) => {
+    const a = agents[id];
+    return !!a && (a.status === "running" || a.status === "waiting" || chQueue(a).length > 0);
+  });
 
   return (
     <>
@@ -123,7 +128,7 @@ function ChannelTask({ channel }: { channel: ChannelView }) {
               {t("panel.resume")}
             </button>
           ) : (
-            <button className="btn" type="button" disabled={busy || archived} onClick={() => run(() => API.channelAction(channel.id, "stop"), t("ch.stoppedToast"))}>
+            <button className="btn" type="button" disabled={busy || archived || !working} onClick={() => run(() => API.channelAction(channel.id, "stop"), t("ch.stoppedToast"))}>
               <Square size={12} />
               {t("panel.stop")}
             </button>
@@ -331,7 +336,7 @@ function TaskTab({ agent }: { agent: AgentView }) {
   };
   return (
     <>
-      <div className="psec">{t("panel.status")}</div>
+      <div className="psec">{t("panel.overview")}</div>
       <div className="taskcard">
         <dl className="kv">
           <dt>{t("panel.status")}</dt>
