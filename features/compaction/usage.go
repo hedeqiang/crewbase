@@ -78,6 +78,9 @@ type Breakdown struct {
 	// Counted: Used comes from the provider's count of the last request
 	// (plus the estimate of what was added since), not an estimate.
 	Counted bool `json:"counted"`
+	// Recorded: the segments and items come from the CLI's recorded request
+	// (agentloop.RequestRecorder), not from what Crewbase sends it.
+	Recorded bool `json:"recorded,omitempty"`
 	// Cache is the prompt cache of the last request, when the provider
 	// reported cache reads or writes.
 	Cache *Cache `json:"cache,omitempty"`
@@ -201,15 +204,49 @@ func (s *Service) usage(agentID, sessionID string) (Breakdown, []*Item, error) {
 		SegSkills: "Skills & sub-agents", SegToolIO: "Tool calls & results", SegMessages: "Messages",
 		SegCLI: "Used by the CLI itself", SegOther: "Counted beyond the estimate", SegFree: "Free",
 	}
+	// A CLI whose real requests are recorded (a pass-through proxy): show
+	// what it actually sends instead of the opaque "CLI itself" block.
+	var rec *agentloop.RecordedRequest
 	if managed {
+		if r, ok := kernel.Lookup[agentloop.RequestRecorder](s.c, agentloop.RequestRecorderKey); ok {
+			if q, ok := r.LastRequest(agentID, sessionID); ok && q != nil {
+				rec = q
+			}
+		}
+	}
+	if managed && rec == nil {
 		labels[SegTools] = "Crewbase tools (the CLI manages its own)"
 	}
-	for _, k := range []string{SegSystem, SegMemory, SegTools, SegSkills, SegToolIO, SegMessages} {
-		b.Segments = append(b.Segments, Segment{Key: k, Label: labels[k], Tokens: segs[k], Managed: managed && k == SegTools})
+	segKeys := []string{SegSystem, SegMemory, SegTools, SegSkills, SegToolIO, SegMessages}
+	for _, k := range segKeys {
+		b.Segments = append(b.Segments, Segment{Key: k, Label: labels[k], Tokens: segs[k], Managed: managed && rec == nil && k == SegTools})
 		b.Estimated += segs[k]
 	}
 	b.Used = b.Estimated
-	if managed {
+	switch {
+	case rec != nil:
+		// Estimated stays the loop's estimate (compaction acts on it); the
+		// segments and Used follow the recorded request.
+		rsegs, ritems := recordedItems(rec)
+		items, b.Segments, b.Recorded = ritems, b.Segments[:0], true
+		sum := 0
+		for _, k := range segKeys {
+			b.Segments = append(b.Segments, Segment{Key: k, Label: labels[k], Tokens: rsegs[k]})
+			sum += rsegs[k]
+		}
+		b.Used = sum
+		if r := s.reported(events, agentID, ref); r > 0 {
+			b.Reported = r
+		}
+		if u := rec.Usage; u.InputTokens > 0 && !u.Estimated {
+			// the reply is part of the next request
+			b.Used, b.Counted, b.Cache = u.InputTokens+u.OutputTokens, true, cacheOf(u)
+			if extra := b.Used - sum; extra > 0 {
+				b.Segments = append(b.Segments, Segment{Key: SegOther, Label: labels[SegOther], Tokens: extra})
+				items = append(items, &Item{ID: "other", Kind: SegOther, Label: labels[SegOther], Tokens: extra})
+			}
+		}
+	case managed:
 		if r := s.reported(events, agentID, ref); r > 0 {
 			b.Reported, b.Used, b.Counted = r, r, true
 			if extra := r - b.Estimated; extra > 0 {
@@ -217,15 +254,17 @@ func (s *Service) usage(agentID, sessionID string) (Breakdown, []*Item, error) {
 				items = append(items, &Item{ID: "cli", Kind: SegCLI, Label: labels[SegCLI], Tokens: extra})
 			}
 		}
-	} else if c := s.counted(events, agentID, ref); c.used > 0 {
-		b.Used, b.Counted, b.Cache = c.used, true, c.cache
-		if extra := c.used - b.Estimated; extra > 0 {
-			b.Segments = append(b.Segments, Segment{Key: SegOther, Label: labels[SegOther], Tokens: extra})
-			items = append(items, &Item{ID: "other", Kind: SegOther, Label: labels[SegOther], Tokens: extra})
-		}
-		if c.growth > 0 && win > 0 {
-			if left := int(s.cfg.Threshold*float64(win)) - b.Used; left > 0 {
-				b.Headroom = int(float64(left) / c.growth)
+	default:
+		if c := s.counted(events, agentID, ref); c.used > 0 {
+			b.Used, b.Counted, b.Cache = c.used, true, c.cache
+			if extra := c.used - b.Estimated; extra > 0 {
+				b.Segments = append(b.Segments, Segment{Key: SegOther, Label: labels[SegOther], Tokens: extra})
+				items = append(items, &Item{ID: "other", Kind: SegOther, Label: labels[SegOther], Tokens: extra})
+			}
+			if c.growth > 0 && win > 0 {
+				if left := int(s.cfg.Threshold*float64(win)) - b.Used; left > 0 {
+					b.Headroom = int(float64(left) / c.growth)
+				}
 			}
 		}
 	}

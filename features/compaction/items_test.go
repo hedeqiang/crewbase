@@ -186,6 +186,93 @@ func TestItemsOfACLI(t *testing.T) {
 	}
 }
 
+// fakeRecorder is a pass-through proxy's recording of a CLI's requests.
+type fakeRecorder map[string]*agentloop.RecordedRequest
+
+func (f fakeRecorder) LastRequest(agent, session string) (*agentloop.RecordedRequest, bool) {
+	r, ok := f[agent+"/"+session]
+	return r, ok
+}
+
+// With a recorded request a CLI's context is no longer opaque: its own
+// prompt blocks, tools (by MCP server and built-ins), messages and tool
+// results are listed, counted by the provider, and their content served.
+func TestItemsOfARecordedCLI(t *testing.T) {
+	cli := &cliAdapter{Adapter: mock.New("cli", 200000)}
+	e := newEnv(t, t.TempDir(), nil, func(load func(kernel.Spec, map[string]any)) {
+		load(kernel.Spec{Name: "test-rec-cli", Inject: []string{llm.ServiceKey}, Apply: func(c *kernel.Context) error {
+			return kernel.Use[*llm.Registry](c, llm.ServiceKey).Register(c, cli)
+		}}, nil)
+	})
+	rec := fakeRecorder{}
+	r := e.h.Root()
+	if err := r.Provide(agentloop.ToolBridgeKey, bridge{{Name: "computer_act", Description: "act on an app"}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.Provide(agentloop.RequestRecorderKey, agentloop.RequestRecorder(rec)); err != nil {
+		t.Fatal(err)
+	}
+	a, _ := e.agents.Create(agent.Spec{Name: "Cc", Models: []llm.ModelRef{{Provider: "cli", Model: "default"}}})
+	ss, _ := a.Session()
+	cli.context = 40000
+	send(t, a, ss.ID(), "hello")
+
+	// no recording yet: the opaque block
+	b, _ := e.comp.Usage(a.ID(), "")
+	if b.Recorded || b.Used != 40000 {
+		t.Fatalf("%+v", b)
+	}
+	secret := "xoxb-" + strings.Repeat("9", 20)
+	rec[a.ID()+"/"+ss.ID()] = &agentloop.RecordedRequest{
+		System: []agentloop.RecordedBlock{{Name: "identity", Text: "You are Claude Code."}, {Text: strings.Repeat("Use tools well. ", 200)}},
+		Tools: []llm.ToolSchema{
+			{Name: "Bash", Description: "Run a shell command", Parameters: map[string]any{"type": "object"}},
+			{Name: "mcp__crewbase__computer_act", Description: "act on an app"},
+			{Name: "mcp__notion__search", Description: "search notion"},
+			{Name: "Lazy", Description: "deferred", Deferred: true},
+		},
+		Messages: []llm.Message{
+			llm.TextMessage(llm.RoleUser, "hello"),
+			{Role: llm.RoleAssistant, Parts: []llm.Part{{Type: "tool_call", ToolCall: &llm.ToolCall{ID: "t1", Name: "Bash", Args: []byte(`{"command":"env"}`)}}}},
+			{Role: llm.RoleTool, Parts: []llm.Part{{Type: "tool_result", ToolResult: &llm.ToolResult{CallID: "t1", Name: "Bash", Content: "SLACK=" + secret}}}},
+		},
+		Usage: llm.Usage{InputTokens: 30000, OutputTokens: 200, CacheRead: 27000, CacheWrite: 1000},
+	}
+	b, _ = e.comp.Usage(a.ID(), "")
+	if !b.Recorded || !b.Counted || b.Used != 30200 || b.Cache == nil || b.Cache.HitPercent != 90 {
+		t.Fatalf("recorded usage: %+v", b)
+	}
+	checkSums(t, b)
+	groups := map[string]string{}
+	for _, it := range b.Items {
+		if it.Kind == "cli" {
+			t.Fatalf("opaque block with a recording: %+v", it)
+		}
+		if it.Kind == "tools" {
+			groups[it.Label] = it.Group
+		}
+		if it.ID == "tool:Lazy" {
+			t.Fatal("deferred tool listed")
+		}
+	}
+	if groups["Bash"] != compaction.BuiltinGroup || groups["mcp__notion__search"] != "notion" || groups["mcp__crewbase__computer_act"] != "crewbase" {
+		t.Fatalf("groups %v", groups)
+	}
+	for _, s := range b.Segments {
+		if s.Key == "tools" && s.Managed {
+			t.Fatal("recorded tools marked managed")
+		}
+	}
+	c, err := e.comp.Item(a.ID(), "", "sys:0")
+	if err != nil || c.Parts[0].Text != "You are Claude Code." {
+		t.Fatalf("%+v %v", c, err)
+	}
+	c, err = e.comp.Item(a.ID(), "", "call:t1")
+	if err != nil || len(c.Parts) != 2 || strings.Contains(c.Parts[1].Text, secret) || !strings.Contains(c.Parts[1].Text, "[redacted]") {
+		t.Fatalf("recorded tool result %+v %v", c, err)
+	}
+}
+
 func TestItemsRollUpAtTheCap(t *testing.T) {
 	e := newEnv(t, t.TempDir(), nil, func(load func(kernel.Spec, map[string]any)) {
 		load(kernel.Spec{Name: "test-many", Inject: []string{tools.ServiceKey}, Apply: func(c *kernel.Context) error {
