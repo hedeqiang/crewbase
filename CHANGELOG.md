@@ -3,6 +3,15 @@
 Each `## <version>` section becomes the release notes of that version,
 shown in the desktop app's update window.
 
+## 0.5.8
+
+电脑操作在真机上跑通了一遍：用你的 Chrome 发了一条推文，并修好了跑的过程中发现的问题。
+
+- 修复：X 的「发帖」按钮没有触发确认（只认得「发布 / 发送」）；现在发帖、发推、回复、转发、评论、分享、Post、Tweet 等都会先问你
+- 电脑操作设置简化：不再需要逐个列出或禁止应用，每个 Agent 第一次操作某个应用时先问你，可以「以后都允许」；浏览器也一样先问（Crewbase 自带的浏览器被网站拒绝时，Agent 会改用你的浏览器）
+- 订阅 CLI 回复里不再夹着一行行「[Claude Code tool: …]」，收成一行「Claude Code 用了 N 个自带工具」，点开可看
+- 通知设置只剩一列「桌面」
+
 ## 0.5.7
 
 订阅 CLI 显示真实的模型列表；每个模型都可以单独开关。
