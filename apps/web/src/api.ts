@@ -224,6 +224,45 @@ export interface Bridge {
   outdated?: boolean;
   updateCommand?: string;
 }
+/** A subscription CLI (an ACP adapter) as settings › 模型与订阅 manages it. */
+export interface Subscription {
+  id: string;
+  /** the model provider id, e.g. "acp-claude-code" */
+  provider: string;
+  name: string;
+  kind: "builtin" | "custom";
+  /** added from the UI (removing a built-in disables it) */
+  removable: boolean;
+  enabled: boolean;
+  /** registered as a model provider now */
+  active: boolean;
+  running: boolean;
+  installed: boolean;
+  /** the CLI binary checked for "installed" */
+  cli: string;
+  path: string;
+  version: string;
+  /** how it is started in ACP mode (resolved) */
+  acpCommand: string[] | null;
+  acpNote?: string;
+  /** the command the person set ([] = automatic) */
+  command: string[];
+  env: { key: string; masked: string }[];
+  loggedIn: "yes" | "no" | "unknown";
+  loginCommand: string;
+  models: number;
+  /** why an enabled CLI is not active */
+  reason?: "not_installed" | "no_entrypoint";
+  error?: string;
+  bridge?: Bridge;
+}
+export interface SubscriptionPatch {
+  name?: string;
+  command?: string[];
+  /** null keeps the stored value of that variable; a missing one is removed */
+  env?: Record<string, string | null>;
+  enabled?: boolean;
+}
 export interface ModelSwitches {
   provider: string;
   /** every model of the provider; enabled = its switch */
@@ -1167,6 +1206,11 @@ export const API = {
   addProvider: (b: ProviderInput & { models: string[]; kinds?: Record<string, ModelKind> }) => api<UserProvider>("POST", "/api/providers", b),
   removeProvider: (id: string) => api("DELETE", `/api/providers/${enc(id)}`),
   updateProvider: (id: string, b: ProviderPatch) => api<UserProvider>("PATCH", `/api/providers/${enc(id)}`, b),
+  subscriptions: () => api<{ subscriptions: Subscription[] }>("GET", "/api/subscriptions"),
+  addSubscription: (b: { id: string; name: string; command: string[]; env: Record<string, string> }) => api<Subscription>("POST", "/api/subscriptions", b),
+  updateSubscription: (id: string, b: SubscriptionPatch) => api<Subscription>("PATCH", `/api/subscriptions/${enc(id)}`, b),
+  refreshSubscription: (id: string) => api<Subscription>("POST", `/api/subscriptions/${enc(id)}/refresh`),
+  removeSubscription: (id: string) => api<{ deleted: boolean; disabled: boolean }>("DELETE", `/api/subscriptions/${enc(id)}`),
   modelSwitches: (provider: string) => api<ModelSwitches>("GET", `/api/models/${encodeURIComponent(provider)}/switches`),
   setModelSwitch: (provider: string, model: string, enabled: boolean) =>
     api<ModelSwitches>("PUT", `/api/models/${encodeURIComponent(provider)}/switches`, { model, enabled }),

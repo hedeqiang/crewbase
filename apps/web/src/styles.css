@@ -2065,3 +2065,23 @@ button.cxblk:focus-visible { outline: 2px solid var(--accent); outline-offset: -
   .cxvl { display: none; }
   .cxrow .bar { display: none; }
 }
+
+/* subscription CLIs (settings › 模型与订阅) */
+.pvi.off { opacity: .55; }
+.pvi.off:hover, .pvi.off[aria-current="true"] { opacity: .8; }
+.pvlist .pvadd { align-self: flex-start; margin: 10px 8px 4px; flex: none; }
+.subact { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 14px; }
+.confirmbar.subnote { margin: 12px 0 0; border-color: var(--border); background: var(--hover); color: var(--text2); }
+.subfacts { margin-top: 12px; display: flex; flex-direction: column; gap: 8px; font-size: 12.5px; }
+.subfacts > div { display: grid; grid-template-columns: 72px minmax(0, 1fr); column-gap: 10px; align-items: baseline; }
+.subfacts > div > span { color: var(--muted); }
+.subfacts > div > b { font-weight: 500; min-width: 0; overflow-wrap: anywhere; }
+.subfacts > div > b.mono { font-size: 12px; }
+.subfacts > div > i { grid-column: 2; font-style: normal; color: var(--muted); }
+.modal.subdlg { width: min(560px, calc(100% - 24px)); }
+.subintro { margin: 4px 0 2px; color: var(--text2); line-height: 1.5; }
+.subenv { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 3fr) 28px; gap: 6px; align-items: center; }
+.subenv .fi:disabled { opacity: .75; }
+@media (max-width: 640px) {
+  .subdlg .ap-row2 { grid-template-columns: minmax(0, 1fr); gap: 0; }
+}
