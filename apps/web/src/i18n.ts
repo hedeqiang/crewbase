@@ -1458,7 +1458,7 @@ const zh = {
   "cmap.freeShow": "在色块图里按比例画出剩余空间",
   "cmap.freeHide": "隐藏剩余空间，放大已用部分",
   "cmap.freeHidden": "色块图只画了已用部分，剩余的 {free} 未画出（点图例中的“剩余空间”显示）。",
-  "cmap.recorded": "这是 CLI 实际发出的上一次请求，经 Crewbase 转发时记录。",
+  "cmap.recorded": "这是 CLI 实际发出的上一次请求，从它保存在本机的会话记录里读取（只读）。",
 
   "panel.native": "联网能力（模型自带）",
   "panel.native.web_search": "联网搜索",

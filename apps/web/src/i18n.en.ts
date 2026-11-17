@@ -1175,7 +1175,7 @@ export const en: Partial<Record<Key, string>> = {
   "cmap.freeShow": "Draw the free space to scale",
   "cmap.freeHide": "Hide the free space to enlarge what is used",
   "cmap.freeHidden": "The map shows only what is used; the {free} still free is not drawn (click Free in the legend to show it).",
-  "cmap.recorded": "This is the last request the CLI actually sent, recorded as Crewbase passed it on.",
+  "cmap.recorded": "This is the last request the CLI actually sent, read from the session log it keeps on this computer (read-only).",
   "ctx.seg.memory": "Memory files",
   "ctx.seg.messages": "Messages",
   "ctx.seg.skills": "Skills and subagents",
