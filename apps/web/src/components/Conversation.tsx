@@ -46,7 +46,7 @@ import {
   Hash as TokensIcon,
 } from "lucide-react";
 import { display, enterSends, MAC } from "../shortcuts";
-import { API, desktop, parseRef, refString, useRawURL, type AgentView, type ChannelView, type ContextBreakdown, type ModelRef } from "../api";
+import { API, desktop, parseRef, refString, useRawURL, type AgentView, type ChannelView, type ContextBreakdown, type ContextSegment, type ModelRef } from "../api";
 import { t, type Key } from "../i18n";
 import { argsFull, argsPreview, project, type FeedItem, type Rewind, type Step, type TurnStats } from "../projection";
 import { hasModels, loadSession, setModelOverride, openConnect, openSession, openSubRun, refreshAgents, refreshSessions, setState, toast, useStore, sessionAgent } from "../store";
@@ -1919,6 +1919,7 @@ const SEG_COLORS: Record<string, string> = {
   skills: "var(--seg-skills)",
   toolio: "var(--seg-toolio)",
   messages: "var(--seg-messages)",
+  cli: "var(--muted)",
   free: "var(--active)",
 };
 
@@ -1996,7 +1997,7 @@ export function ContextPopover({
               {bd
                 ? bd.segments
                     .filter((g) => g.tokens > 0)
-                    .map((g) => <i key={g.key} title={`${segLabel(g.key, g.label)} · ${kfmt(g.tokens)}`} style={{ flex: Math.max(g.tokens, window_ * 0.004), background: SEG_COLORS[g.key] ?? "var(--muted)" }} />)
+                    .map((g) => <i key={g.key} title={`${segLabel(g)} · ${kfmt(g.tokens)}`} style={{ flex: Math.max(g.tokens, window_ * 0.004), background: SEG_COLORS[g.key] ?? "var(--muted)" }} />)
                 : [
                     <i key="u" style={{ flex: Math.max(pct, 1), background: "var(--accent)" }} />,
                     <i key="f" style={{ flex: Math.max(100 - pct, 0.001), background: "var(--active)" }} />,
@@ -2006,12 +2007,17 @@ export function ContextPopover({
             <div className="small">
               {t("ctx.tokens", { used: kfmt(used), total: kfmt(window_), model: model ? modelLabel(models, model) : "—" })}
             </div>
+            {bd?.reported ? (
+              <div className="small">{t("ctx.reported")}</div>
+            ) : (
+              bd?.toolsManaged && <div className="small">{t("ctx.managedEstimate")}</div>
+            )}
             {bd && (
               <div className="clist">
                 {bd.segments.map((g) => (
                   <div key={g.key}>
                     <i style={{ background: SEG_COLORS[g.key] ?? "var(--muted)" }} />
-                    <span>{segLabel(g.key, g.label)}</span>
+                    <span>{segLabel(g)}</span>
                     <b>{kfmt(g.tokens)}</b>
                   </div>
                 ))}
@@ -2050,10 +2056,10 @@ export function ContextPopover({
   );
 }
 
-function segLabel(key: string, fallback: string): string {
-  const k = `ctx.seg.${key}` as Key;
+function segLabel(g: ContextSegment): string {
+  const k = `ctx.seg.${g.key === "tools" && g.managed ? "toolsManaged" : g.key}` as Key;
   const v = t(k);
-  return v === k ? fallback : v;
+  return v === k ? g.label : v;
 }
 
 export function shortPath(p: string): string {

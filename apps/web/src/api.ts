@@ -245,9 +245,11 @@ export interface StreamChunk {
 }
 
 export interface ContextSegment {
-  key: "system" | "memory" | "tools" | "skills" | "toolio" | "messages" | "free" | string;
+  key: "system" | "memory" | "tools" | "skills" | "toolio" | "messages" | "cli" | "free" | string;
   label: string;
   tokens: number;
+  /** tools segment of a CLI that runs its own tools: only Crewbase's bridged (MCP) tools */
+  managed?: boolean;
 }
 export interface ContextBreakdown {
   agent: string;
@@ -255,7 +257,14 @@ export interface ContextBreakdown {
   model: ModelRef;
   window: number;
   threshold: number;
+  /** reported when the CLI reported its usage, else estimated */
   used: number;
+  /** sum of the estimated segments (what auto-compaction acts on) */
+  estimated: number;
+  /** context size the CLI last reported (0 / absent = none) */
+  reported?: number;
+  /** the model is a CLI that manages its own tools */
+  toolsManaged?: boolean;
   free: number;
   percent: number;
   overThreshold: boolean;

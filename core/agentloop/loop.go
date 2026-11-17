@@ -496,11 +496,13 @@ func (l *loop) step(ctx context.Context, a *agent.Agent, ss *session.Session, re
 			continue
 		}
 		req := l.build(a, ss, ref, mode)
+		req.Tools = ChatTools(a, req.Tools)
 		if h, ok := kernel.Lookup[Hydrator](l.c, AttachmentsKey); ok {
 			h.Hydrate(ctx, a.Workspace(), ad, ref.Model, &req)
 		}
 		win := l.window(ctx, ad, ref)
-		est := llm.EstimateRequest(req)
+		// Tools a CLI never sees (llm.OwnTools) do not count toward its context.
+		est := EstimateContext(l.c, ad, a, ss.Meta().Kind, req)
 		if !compacted && float64(est) > l.cfg.CompactThreshold*float64(win) {
 			if cp, ok := kernel.Lookup[Compactor](l.c, CompactionKey); ok {
 				compacted = true

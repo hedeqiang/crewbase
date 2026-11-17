@@ -1385,6 +1385,10 @@ const zh = {
   "ctx.seg.toolio": "工具调用与结果",
   "ctx.seg.messages": "消息",
   "ctx.seg.free": "剩余空间",
+  "ctx.seg.toolsManaged": "Crewbase 工具（其余由 CLI 管理）",
+  "ctx.seg.cli": "CLI 自身（提示词与工具）",
+  "ctx.reported": "总量由 CLI 报告，分项为估算。",
+  "ctx.managedEstimate": "估算值。工具由 CLI 管理，只计入 Crewbase 提供给它的工具；CLI 回复后显示它报告的用量。",
 
   "panel.native": "联网能力（模型自带）",
   "panel.native.web_search": "联网搜索",

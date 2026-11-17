@@ -275,6 +275,10 @@ func runFakeAgent() {
 			}
 			chunk(sid, fmt.Sprintf("pid=%d", c.Process.Pid))
 			return map[string]string{"stopReason": "end_turn"}, nil
+		case strings.Contains(text, "/usage"):
+			chunk(sid, "counted")
+			update(sid, map[string]any{"sessionUpdate": "usage_update", "used": 23456, "size": 200000})
+			return map[string]string{"stopReason": "end_turn"}, nil
 		}
 		update(sid, map[string]any{"sessionUpdate": "agent_thought_chunk", "content": map[string]string{"type": "text", "text": "thinking"}})
 		update(sid, map[string]any{"sessionUpdate": "tool_call", "toolCallId": "r1", "title": "Read README.md", "kind": "read", "status": "pending"})

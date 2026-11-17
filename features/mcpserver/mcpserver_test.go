@@ -18,6 +18,7 @@ import (
 
 	"github.com/hedeqiang/crewbase/capabilities/approval"
 	"github.com/hedeqiang/crewbase/core/agent"
+	"github.com/hedeqiang/crewbase/core/agentloop"
 	"github.com/hedeqiang/crewbase/core/llm"
 	"github.com/hedeqiang/crewbase/core/prompt"
 	"github.com/hedeqiang/crewbase/core/session"
@@ -641,5 +642,19 @@ func TestSDKClientInterop(t *testing.T) {
 	}
 	if _, err := cs.CallTool(ctx, &sdk.CallToolParams{Name: "bash"}); err == nil {
 		t.Fatal("bash callable")
+	}
+}
+
+// The service is the agent loop's ToolBridge: what it lists is what the
+// context meter counts for a CLI.
+func TestBridgedSchemas(t *testing.T) {
+	e := setup(t, map[string]any{"tools": []string{"browser_*"}})
+	b, ok := kernel.Lookup[agentloop.ToolBridge](e.h.Root(), agentloop.ToolBridgeKey)
+	if !ok {
+		t.Fatal("the MCP server is not a ToolBridge")
+	}
+	ts := b.BridgedSchemas(e.a.ID(), "")
+	if len(ts) != 1 || ts[0].Name != "browser_look" || ts[0].Parameters["type"] != "object" {
+		t.Fatalf("bridged %+v", ts)
 	}
 }

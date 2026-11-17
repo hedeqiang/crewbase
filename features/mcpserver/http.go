@@ -268,23 +268,28 @@ func (h *handler) list(g *Grant) map[string]any {
 	out := make([]map[string]any, 0, len(ts))
 	names := make([]string, 0, len(ts))
 	for _, t := range ts {
-		schema := map[string]any{"type": "object", "properties": map[string]any{}}
-		if t.Params != nil {
-			schema = make(map[string]any, len(t.Params)+1)
-			for k, v := range t.Params {
-				schema[k] = v
-			}
-			if _, ok := schema["type"]; !ok {
-				schema["type"] = "object"
-			}
-		}
-		out = append(out, map[string]any{"name": t.Name, "description": t.Description, "inputSchema": schema})
+		out = append(out, map[string]any{"name": t.Name, "description": t.Description, "inputSchema": inputSchema(t)})
 		names = append(names, t.Name)
 	}
 	g.mu.Lock()
 	g.listed = names
 	g.mu.Unlock()
 	return map[string]any{"tools": out}
+}
+
+// inputSchema is t's parameters as an MCP inputSchema (always an object).
+func inputSchema(t *tools.Tool) map[string]any {
+	schema := map[string]any{"type": "object", "properties": map[string]any{}}
+	if t.Params != nil {
+		schema = make(map[string]any, len(t.Params)+1)
+		for k, v := range t.Params {
+			schema[k] = v
+		}
+		if _, ok := schema["type"]; !ok {
+			schema["type"] = "object"
+		}
+	}
+	return schema
 }
 
 func errResult(msg string) CallResult {

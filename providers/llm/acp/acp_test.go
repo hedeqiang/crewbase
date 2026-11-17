@@ -600,3 +600,24 @@ func TestClaudeBridgeUsesInstalledClaude(t *testing.T) {
 		t.Fatal("only the Claude bridge")
 	}
 }
+
+func TestReportsOwnToolsAndContextUsage(t *testing.T) {
+	a := newFake(t, Options{}, nil)
+	if !llm.RunsOwnTools(a) {
+		t.Fatal("an ACP adapter runs its own tools")
+	}
+	resp, _, err := stream(t, a, llm.Request{Model: "default", Messages: []llm.Message{user("/usage")}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.Usage.Context != 23456 {
+		t.Fatalf("reported context %d, want 23456", resp.Usage.Context)
+	}
+	resp, _, err = stream(t, a, llm.Request{Model: "default", Messages: []llm.Message{user("hi")}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.Usage.Context != 0 {
+		t.Fatalf("no usage_update must report 0, got %d", resp.Usage.Context)
+	}
+}
