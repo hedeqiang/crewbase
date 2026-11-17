@@ -3,6 +3,7 @@ package agentloop
 import (
 	"github.com/hedeqiang/crewbase/core/agent"
 	"github.com/hedeqiang/crewbase/core/llm"
+	"github.com/hedeqiang/crewbase/core/session"
 	"github.com/hedeqiang/crewbase/core/tools"
 	"github.com/hedeqiang/crewbase/kernel"
 )
@@ -70,4 +71,19 @@ func ContextTools(c *kernel.Context, ad llm.Adapter, a *agent.Agent, kind string
 func EstimateContext(c *kernel.Context, ad llm.Adapter, a *agent.Agent, kind string, req llm.Request) int {
 	req.Tools, _ = ContextTools(c, ad, a, kind, req.Tools)
 	return llm.EstimateRequest(req)
+}
+
+// ToolPlannerKey is the service key of the ToolPlanner (the agent loop).
+const ToolPlannerKey = "agentloop-tools"
+
+// ToolPlanner reports the tool definitions the next request of an agent in
+// a session would carry (core + loaded on the generic tool-search path;
+// deferred ones marked on the native path, which take no context room).
+type ToolPlanner interface {
+	PlannedTools(a *agent.Agent, ss *session.Session, ad llm.Adapter, model string, window int) []llm.ToolSchema
+}
+
+// PlannedTools implements ToolPlanner.
+func (l *loop) PlannedTools(a *agent.Agent, ss *session.Session, ad llm.Adapter, model string, window int) []llm.ToolSchema {
+	return ChatTools(a, l.planTools(a, ss, ad, model, window).Tools)
 }

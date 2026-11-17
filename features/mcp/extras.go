@@ -49,6 +49,8 @@ func (c *conn) installExtras(tc *kernel.Context, sess *session, f *ToolFilter) i
 			Source:   c.srv.Name,
 			Teams:    teamsOf(c.srv),
 			Execute:  c.resources,
+			Load:     loadTier(c.srv),
+			Group:    c.srv.Name,
 		})
 		n++
 	}
@@ -66,6 +68,8 @@ func (c *conn) installExtras(tc *kernel.Context, sess *session, f *ToolFilter) i
 			Source:   c.srv.Name,
 			Teams:    teamsOf(c.srv),
 			Execute:  c.prompts,
+			Load:     loadTier(c.srv),
+			Group:    c.srv.Name,
 		})
 		n++
 	}

@@ -134,6 +134,10 @@ type Config struct {
 	MaxSteps         int     `json:"maxSteps"`
 	CompactThreshold float64 `json:"compactThreshold"`
 	DefaultWindow    int     `json:"defaultWindow"`
+	// ToolSearch sets when deferred tools are held back for tool search
+	// (default auto: more than 30 of them, or their schemas over 10% of
+	// the model's context window). See toolsearch.go.
+	ToolSearch tools.DeferConfig `json:"toolSearch"`
 }
 
 type loop struct {
@@ -146,6 +150,7 @@ type loop struct {
 
 	cur    sync.Map // agent id → agent.Input of the running turn
 	parked parkBook
+	offers offers
 }
 
 // Plugin is the default driver.
@@ -172,6 +177,11 @@ var Plugin = kernel.Register(kernel.Spec{
 			llms:     kernel.Use[*llm.Registry](c, llm.ServiceKey),
 			toolsReg: kernel.Use[*tools.Registry](c, tools.ServiceKey),
 			prompts:  kernel.Use[*prompt.Assembler](c, prompt.ServiceKey),
+		}
+		l.toolsReg.Register(c, l.searchTool())
+		l.toolsReg.SetGate(l.gate)
+		if err := c.Provide(ToolPlannerKey, ToolPlanner(l)); err != nil {
+			return err
 		}
 		var dmu sync.Mutex
 		drivers := map[string]*kernel.Context{}
@@ -462,13 +472,19 @@ func System(p *prompt.Assembler, a *agent.Agent) string {
 
 func (l *loop) system(a *agent.Agent) string { return System(l.prompts, a) }
 
-func (l *loop) build(a *agent.Agent, ss *session.Session, ref llm.ModelRef, mode string) llm.Request {
+func (l *loop) build(a *agent.Agent, ss *session.Session, ad llm.Adapter, ref llm.ModelRef, mode string, win int) llm.Request {
+	plan := l.planTools(a, ss, ad, ref.Model, win)
+	l.offers.set(a.ID(), ss.ID(), plan)
+	system := l.system(a)
+	if plan.Section != "" {
+		system = strings.TrimSpace(system + "\n\n" + plan.Section)
+	}
 	return llm.Request{
 		Model:        ref.Model,
 		Effort:       ref.Effort,
-		System:       l.system(a),
+		System:       system,
 		Messages:     session.DeriveMessages(ss.Events(), a.ID(), l.agents.Names()),
-		Tools:        l.toolsReg.SchemasFor(a.ID(), ss.Meta().Kind),
+		Tools:        plan.Tools,
 		NativeTools:  a.Spec().NativeTools,
 		Agent:        a.ID(),
 		Session:      ss.ID(),
@@ -495,12 +511,12 @@ func (l *loop) step(ctx context.Context, a *agent.Agent, ss *session.Session, re
 			ref = next
 			continue
 		}
-		req := l.build(a, ss, ref, mode)
+		win := l.window(ctx, ad, ref)
+		req := l.build(a, ss, ad, ref, mode, win)
 		req.Tools = ChatTools(a, req.Tools)
 		if h, ok := kernel.Lookup[Hydrator](l.c, AttachmentsKey); ok {
 			h.Hydrate(ctx, a.Workspace(), ad, ref.Model, &req)
 		}
-		win := l.window(ctx, ad, ref)
 		// Tools a CLI never sees (llm.OwnTools) do not count toward its context.
 		est := EstimateContext(l.c, ad, a, ss.Meta().Kind, req)
 		if !compacted && float64(est) > l.cfg.CompactThreshold*float64(win) {
@@ -543,6 +559,7 @@ func (l *loop) step(ctx context.Context, a *agent.Agent, ss *session.Session, re
 			if _, err := ss.Append(session.TypeAssistantMessage, a.ID(), session.AssistantMessage{Message: resp.Message, Model: ref, Usage: resp.Usage, Stop: resp.StopReason}); err != nil {
 				return ref, resp, err
 			}
+			recordNativeLoads(ss, a.ID(), resp.Message)
 			return ref, resp, nil
 		}
 		if ctx.Err() != nil {

@@ -120,8 +120,17 @@ func (s *Service) Usage(agentID, sessionID string) (Breakdown, error) {
 
 	// Tool definitions as the loop sends them for this session kind, and
 	// only those the model sees (a CLI gets just the bridged ones).
-	ts, managed := agentloop.ContextTools(s.c, ad, a, kind, agentloop.ToolSchemas(s.toolsR, a, kind))
+	// What the next request would carry: deferred tools held back by tool
+	// search are left out (the planner is the agent loop's own choice).
+	planned := agentloop.ToolSchemas(s.toolsR, a, kind)
+	if p, ok := kernel.Lookup[agentloop.ToolPlanner](s.c, agentloop.ToolPlannerKey); ok && ad != nil {
+		planned = p.PlannedTools(a, ss, ad, ref.Model, win)
+	}
+	ts, managed := agentloop.ContextTools(s.c, ad, a, kind, planned)
 	for _, t := range ts {
+		if t.Deferred {
+			continue // native tool search: outside the context until loaded
+		}
 		b, _ := json.Marshal(t)
 		segs[SegTools] += llm.EstimateTokens(string(b))
 	}

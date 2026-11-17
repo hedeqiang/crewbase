@@ -19,8 +19,8 @@ import (
 var (
 	// English words match whole words ("Send", "Send Now", not "Sender");
 	// Chinese ones anywhere in the name.
-	payWords     = words(`pay|pay now|purchase|buy|buy now|checkout|place order`, `支付|付款|购买|确认付款|立即购买|结账|下单|结算`)
-	deleteWords  = words(`delete|delete forever|erase|move to trash|empty trash`, `删除|移到废纸篓|清空废纸篓|抹掉`)
+	payWords    = words(`pay|pay now|purchase|buy|buy now|checkout|place order`, `支付|付款|购买|确认付款|立即购买|结账|下单|结算`)
+	deleteWords = words(`delete|delete forever|erase|move to trash|empty trash`, `删除|移到废纸篓|清空废纸篓|抹掉`)
 	// social and chat apps label posting differently: X 发帖 / Post / Tweet,
 	// Weibo 发微博, 小红书 发布笔记, WeChat 发送, Slack Send, LinkedIn Share…
 	publishWords = words(`send|send now|submit|post|post all|publish|reply|reply all|tweet|repost|retweet|share|comment|upload|go live`,

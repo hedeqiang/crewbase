@@ -64,6 +64,13 @@ type Spec struct {
 	// scope allows; a list = only those (empty = none). Built-in tools are
 	// never limited by it.
 	Connectors *[]string `json:"connectors,omitempty"`
+	// ToolSearch overrides when the agent's deferred tools are held back
+	// for tool search: "auto" (default, the loop's thresholds), "always"
+	// or "never" (send every tool every step).
+	ToolSearch string `json:"toolSearch,omitempty"`
+	// AlwaysLoad lists deferred tools (by name) or tool groups (an MCP
+	// server, "browser", "google", …) this agent always has loaded.
+	AlwaysLoad []string `json:"alwaysLoad,omitempty"`
 	// Ephemeral agents (subagents) are never persisted; their workspace is
 	// removed on delete and leftovers are swept at startup.
 	Ephemeral bool `json:"ephemeral,omitempty"`

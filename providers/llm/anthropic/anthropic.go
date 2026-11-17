@@ -13,7 +13,8 @@
 //	    "headers": {"anthropic-beta": "..."},
 //	    "maxTokens": 32000,                         // output budget when the request has none
 //	    "thinking": true,                           // adaptive thinking (default true)
-//	    "promptCache": true                         // cache_control on the system prompt (default true)
+//	    "promptCache": true,                        // cache breakpoints on tools, system and history (default true)
+//	    "toolSearch": null                          // native tool search: null = by model, true / false to force
 //	}]}
 package anthropic
 
@@ -56,6 +57,7 @@ type ProviderConfig struct {
 	MaxTokens    int               `json:"maxTokens,omitempty"`
 	Thinking     *bool             `json:"thinking,omitempty"`
 	PromptCache  *bool             `json:"promptCache,omitempty"`
+	ToolSearch   *bool             `json:"toolSearch,omitempty"`
 }
 
 // Config is the plugin config.
@@ -78,6 +80,7 @@ type Adapter struct {
 	static                []ModelSpec
 	maxTokens             int
 	thinking, cache       bool
+	toolSearch            *bool
 	httpClient            *http.Client
 
 	mu       sync.Mutex
@@ -94,7 +97,7 @@ func New(c *kernel.Context, pc ProviderConfig) *Adapter {
 	}
 	a := &Adapter{
 		id: pc.ID, baseURL: trimSlash(pc.BaseURL), defModel: pc.DefaultModel, headers: pc.Headers, static: pc.Models,
-		maxTokens: pc.MaxTokens, thinking: true, cache: true, httpClient: &http.Client{},
+		maxTokens: pc.MaxTokens, thinking: true, cache: true, toolSearch: pc.ToolSearch, httpClient: &http.Client{},
 		cacheTTL: 5 * time.Minute, meta: map[string]modelMeta{},
 	}
 	if a.baseURL == "" {
@@ -304,6 +307,10 @@ func (a *Adapter) mapMessages(msgs []llm.Message) []sdk.MessageParam {
 				if at := p.Attachment; at != nil && !asst {
 					blocks = append(blocks, attachmentBlocks(at)...)
 				}
+			case llm.PartProviderBlock:
+				if b, ok := providerBlock(p); ok && asst {
+					blocks = append(blocks, b)
+				}
 			}
 		}
 		if len(results)+len(blocks) == 0 {
@@ -408,7 +415,12 @@ func (a *Adapter) params(req llm.Request) sdk.MessageNewParams {
 		}
 		p.System = []sdk.TextBlockParam{sb}
 	}
+	searching := false
 	for _, t := range req.Tools {
+		if t.Deferred && !searching {
+			searching = true
+			p.Tools = append(p.Tools, toolSearchEntry())
+		}
 		schema := schemaOrEmpty(t.Parameters)
 		is := sdk.ToolInputSchemaParam{Properties: schema["properties"], ExtraFields: map[string]any{}}
 		if r, ok := schema["required"].([]string); ok {
@@ -429,7 +441,15 @@ func (a *Adapter) params(req llm.Request) sdk.MessageNewParams {
 		if t.Description != "" {
 			tp.Description = param.NewOpt(t.Description)
 		}
+		if t.Deferred {
+			tp.DeferLoading = param.NewOpt(true)
+		}
 		p.Tools = append(p.Tools, sdk.ToolUnionParam{OfTool: &tp})
+	}
+	if a.cache {
+		// system is one breakpoint; tools and history make three (≤ MaxCacheBreakpoints)
+		placeToolBreakpoint(p.Tools)
+		placeMessageBreakpoint(p.Messages)
 	}
 	if ct := a.computerTool(req, model); ct != nil {
 		p.Tools = append(p.Tools, *ct)
@@ -505,8 +525,11 @@ func (a *Adapter) Stream(ctx context.Context, req llm.Request, onChunk func(llm.
 	}
 
 	msg := llm.Message{Role: llm.RoleAssistant}
+	queries := map[string]string{}
 	for _, b := range acc.Content {
 		switch b.Type {
+		case "server_tool_use", "tool_search_tool_result":
+			msg.Parts = append(msg.Parts, searchParts(b, queries)...)
 		case "thinking":
 			part := llm.Part{Type: "thinking", Text: b.Thinking}
 			if b.Signature != "" {

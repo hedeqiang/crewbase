@@ -295,6 +295,8 @@ func (c *conn) install(list []*sdk.Tool, sess *session) {
 			Teams:        teamsOf(c.srv),
 			Source:       c.srv.Name,
 			Execute:      c.execute(info.Original),
+			Load:         loadTier(c.srv),
+			Group:        c.srv.Name,
 		})
 	}
 	extra := 0

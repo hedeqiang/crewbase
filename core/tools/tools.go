@@ -15,6 +15,7 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"sync/atomic"
 
 	"github.com/hedeqiang/crewbase/capabilities/approval"
 	"github.com/hedeqiang/crewbase/core/llm"
@@ -126,6 +127,16 @@ type Tool struct {
 	// but is not offered as a function schema; adapters declare the
 	// provider tool when the request asks for it (Request.NativeTools).
 	Native bool
+	// Load is the tool's load tier: "" / LoadCore is always offered to the
+	// model; LoadDeferred is offered on demand (tool search) once the
+	// agent's deferred tools are too many or too large to send every step
+	// (see Defer); LoadMeta is offered only when the agent loop asks for
+	// it (the tool_search meta-tool itself).
+	Load string
+	// Group names the family a deferred tool belongs to in the tool index
+	// (an MCP server's name, "google", "computer"); empty = derived from
+	// the name (GroupOf).
+	Group string
 	// Classify optionally derives the category and a human summary from
 	// the arguments (e.g. bash: `git push` → push).
 	Classify func(call Call) (category, summary string)
@@ -227,7 +238,16 @@ type Registry struct {
 	teamOf func(agent string) string
 	park   parking
 	conns  connectorState
+	gate   atomic.Pointer[Gate]
 }
+
+// Gate inspects a recorded call before it runs: tool is the resolved tool
+// (found=false: unknown or unavailable here). Returning stop=true ends the
+// call with res (e.g. a deferred tool the model has not loaded yet).
+type Gate func(call Call, tool *Tool, found bool) (res Result, stop bool)
+
+// SetGate installs the call gate (the agent loop's tool-search gate).
+func (r *Registry) SetGate(g Gate) { r.gate.Store(&g) }
 
 // SetTeamOf installs the agent → team resolver team-scoped tools need.
 func (r *Registry) SetTeamOf(f func(agent string) string) { r.teamOf = f }
@@ -296,16 +316,34 @@ func availableIn(t *Tool, kind string) bool {
 func (r *Registry) SchemasFor(agent, kind string) []llm.ToolSchema {
 	var out []llm.ToolSchema
 	for _, t := range r.Visible(agent) {
-		if t.Native || !availableIn(t, kind) {
+		if t.Native || t.Load == LoadMeta || !availableIn(t, kind) {
 			continue
 		}
-		p := t.Params
-		if p == nil {
-			p = Schema(map[string]any{})
-		}
-		out = append(out, llm.ToolSchema{Name: t.Name, Description: t.Description, Parameters: p})
+		out = append(out, t.Schema())
 	}
 	return out
+}
+
+// Offerable lists the tools agent may be offered as function schemas in
+// a session of kind (not native, available in kind), meta-tools included,
+// in registration order.
+func (r *Registry) Offerable(agent, kind string) []*Tool {
+	var out []*Tool
+	for _, t := range r.Visible(agent) {
+		if !t.Native && availableIn(t, kind) {
+			out = append(out, t)
+		}
+	}
+	return out
+}
+
+// Schema is the tool's function schema.
+func (t *Tool) Schema() llm.ToolSchema {
+	p := t.Params
+	if p == nil {
+		p = Schema(map[string]any{})
+	}
+	return llm.ToolSchema{Name: t.Name, Description: t.Description, Parameters: p}
 }
 
 // Run executes call through the pipeline and records it in the session.
@@ -324,6 +362,11 @@ func (r *Registry) Run(ctx context.Context, c *kernel.Context, call Call) Execut
 	tool, ok := r.Get(call.Agent, call.Name)
 	if ok && ss != nil && !availableIn(tool, ss.Meta().Kind) {
 		ok = false
+	}
+	if g := r.gate.Load(); g != nil {
+		if res, stop := (*g)(call, tool, ok); stop {
+			return r.finish(ctx, d, Execution{Call: call, Result: res})
+		}
 	}
 	if !ok {
 		return r.finish(ctx, d, Execution{Call: call, Result: Errorf("unknown tool: %s", call.Name)})

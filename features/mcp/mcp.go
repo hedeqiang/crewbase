@@ -126,6 +126,18 @@ type Server struct {
 	// Tools filters which of the server's tools are registered (globs on
 	// the server's own tool names). Absent = every tool.
 	Tools *ToolFilter `json:"tools,omitempty"`
+	// AlwaysLoad offers the server's tools to the model on every step. By
+	// default MCP tools are deferred (tools.LoadDeferred): when an agent
+	// has many of them, the model finds them through tool search.
+	AlwaysLoad bool `json:"alwaysLoad,omitempty"`
+}
+
+// loadTier is the tools.Tool.Load of srv's tools.
+func loadTier(srv Server) string {
+	if srv.AlwaysLoad {
+		return tools.LoadCore
+	}
+	return tools.LoadDeferred
 }
 
 // ToolFilter picks a server's tools by glob (path.Match syntax, e.g.

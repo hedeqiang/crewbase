@@ -1,0 +1,4295 @@
+[
+ {
+  "name": "notion__API_post_page",
+  "description": "[MCP notion] Notion | Create a page. Creates a new page as a child of an existing page or data source, with properties and content blocks.",
+  "parameters": {
+   "type": "object",
+   "properties": {
+    "parent": {
+     "type": "object",
+     "description": "The parent page or data source",
+     "properties": {
+      "page_id": {
+       "type": "string",
+       "description": "Parent page id"
+      },
+      "database_id": {
+       "type": "string",
+       "description": "Parent database id"
+      },
+      "data_source_id": {
+       "type": "string",
+       "description": "Parent data source id"
+      },
+      "type": {
+       "type": "string",
+       "enum": [
+        "page_id",
+        "database_id",
+        "data_source_id",
+        "workspace"
+       ]
+      }
+     }
+    },
+    "properties": {
+     "type": "object",
+     "description": "Page properties (title etc.)"
+    },
+    "children": {
+     "type": "array",
+     "description": "Block objects to append (paragraph, heading, list item, to_do, code, ...)",
+     "items": {
+      "type": "object",
+      "properties": {
+       "type": {
+        "type": "string",
+        "description": "Block type"
+       },
+       "paragraph": {
+        "type": "object",
+        "properties": {
+         "rich_text": {
+          "type": "array",
+          "description": "Rich text array",
+          "items": {
+           "type": "object",
+           "properties": {
+            "type": {
+             "type": "string",
+             "enum": [
+              "text",
+              "mention",
+              "equation"
+             ]
+            },
+            "text": {
+             "type": "object",
+             "properties": {
+              "content": {
+               "type": "string"
+              },
+              "link": {
+               "type": [
+                "object",
+                "null"
+               ],
+               "properties": {
+                "url": {
+                 "type": "string"
+                }
+               }
+              }
+             }
+            },
+            "annotations": {
+             "type": "object",
+             "properties": {
+              "bold": {
+               "type": "boolean"
+              },
+              "italic": {
+               "type": "boolean"
+              },
+              "strikethrough": {
+               "type": "boolean"
+              },
+              "underline": {
+               "type": "boolean"
+              },
+              "code": {
+               "type": "boolean"
+              },
+              "color": {
+               "type": "string"
+              }
+             }
+            }
+           }
+          }
+         }
+        }
+       },
+       "heading_1": {
+        "type": "object",
+        "properties": {
+         "rich_text": {
+          "type": "array",
+          "description": "Rich text array",
+          "items": {
+           "type": "object",
+           "properties": {
+            "type": {
+             "type": "string",
+             "enum": [
+              "text",
+              "mention",
+              "equation"
+             ]
+            },
+            "text": {
+             "type": "object",
+             "properties": {
+              "content": {
+               "type": "string"
+              },
+              "link": {
+               "type": [
+                "object",
+                "null"
+               ],
+               "properties": {
+                "url": {
+                 "type": "string"
+                }
+               }
+              }
+             }
+            },
+            "annotations": {
+             "type": "object",
+             "properties": {
+              "bold": {
+               "type": "boolean"
+              },
+              "italic": {
+               "type": "boolean"
+              },
+              "strikethrough": {
+               "type": "boolean"
+              },
+              "underline": {
+               "type": "boolean"
+              },
+              "code": {
+               "type": "boolean"
+              },
+              "color": {
+               "type": "string"
+              }
+             }
+            }
+           }
+          }
+         }
+        }
+       },
+       "to_do": {
+        "type": "object",
+        "properties": {
+         "rich_text": {
+          "type": "array",
+          "description": "Rich text array",
+          "items": {
+           "type": "object",
+           "properties": {
+            "type": {
+             "type": "string",
+             "enum": [
+              "text",
+              "mention",
+              "equation"
+             ]
+            },
+            "text": {
+             "type": "object",
+             "properties": {
+              "content": {
+               "type": "string"
+              },
+              "link": {
+               "type": [
+                "object",
+                "null"
+               ],
+               "properties": {
+                "url": {
+                 "type": "string"
+                }
+               }
+              }
+             }
+            },
+            "annotations": {
+             "type": "object",
+             "properties": {
+              "bold": {
+               "type": "boolean"
+              },
+              "italic": {
+               "type": "boolean"
+              },
+              "strikethrough": {
+               "type": "boolean"
+              },
+              "underline": {
+               "type": "boolean"
+              },
+              "code": {
+               "type": "boolean"
+              },
+              "color": {
+               "type": "string"
+              }
+             }
+            }
+           }
+          }
+         },
+         "checked": {
+          "type": "boolean"
+         }
+        }
+       },
+       "code": {
+        "type": "object",
+        "properties": {
+         "rich_text": {
+          "type": "array",
+          "description": "Rich text array",
+          "items": {
+           "type": "object",
+           "properties": {
+            "type": {
+             "type": "string",
+             "enum": [
+              "text",
+              "mention",
+              "equation"
+             ]
+            },
+            "text": {
+             "type": "object",
+             "properties": {
+              "content": {
+               "type": "string"
+              },
+              "link": {
+               "type": [
+                "object",
+                "null"
+               ],
+               "properties": {
+                "url": {
+                 "type": "string"
+                }
+               }
+              }
+             }
+            },
+            "annotations": {
+             "type": "object",
+             "properties": {
+              "bold": {
+               "type": "boolean"
+              },
+              "italic": {
+               "type": "boolean"
+              },
+              "strikethrough": {
+               "type": "boolean"
+              },
+              "underline": {
+               "type": "boolean"
+              },
+              "code": {
+               "type": "boolean"
+              },
+              "color": {
+               "type": "string"
+              }
+             }
+            }
+           }
+          }
+         },
+         "language": {
+          "type": "string"
+         }
+        }
+       }
+      }
+     }
+    },
+    "icon": {
+     "type": "object",
+     "description": "Page icon"
+    },
+    "cover": {
+     "type": "object",
+     "description": "Cover image"
+    }
+   },
+   "required": [
+    "parent",
+    "properties"
+   ]
+  }
+ },
+ {
+  "name": "notion__API_patch_page",
+  "description": "[MCP notion] Notion | Update page properties. Updates the properties, icon, cover or archived state of a page.",
+  "parameters": {
+   "type": "object",
+   "properties": {
+    "page_id": {
+     "type": "string",
+     "description": "Page id"
+    },
+    "properties": {
+     "type": "object",
+     "description": "Properties to change"
+    },
+    "archived": {
+     "type": "boolean",
+     "description": "Archive the page"
+    },
+    "icon": {
+     "type": "object",
+     "description": "icon"
+    }
+   },
+   "required": [
+    "page_id"
+   ]
+  }
+ },
+ {
+  "name": "notion__API_retrieve_a_page",
+  "description": "[MCP notion] Notion | Retrieve a page. Returns a page's properties (not its content).",
+  "parameters": {
+   "type": "object",
+   "properties": {
+    "page_id": {
+     "type": "string",
+     "description": "Page id"
+    },
+    "filter_properties": {
+     "type": "array",
+     "description": "Property ids to return"
+    }
+   },
+   "required": [
+    "page_id"
+   ]
+  }
+ },
+ {
+  "name": "notion__API_retrieve_a_page_property",
+  "description": "[MCP notion] Notion | Retrieve a page property item.",
+  "parameters": {
+   "type": "object",
+   "properties": {
+    "page_id": {
+     "type": "string",
+     "description": "Page id"
+    },
+    "property_id": {
+     "type": "string",
+     "description": "Property id"
+    },
+    "page_size": {
+     "type": "integer",
+     "description": "Page size"
+    },
+    "start_cursor": {
+     "type": "string",
+     "description": "Cursor"
+    }
+   },
+   "required": [
+    "page_id",
+    "property_id"
+   ]
+  }
+ },
+ {
+  "name": "notion__API_move_page",
+  "description": "[MCP notion] Notion | Move a page to a new parent page or data source.",
+  "parameters": {
+   "type": "object",
+   "properties": {
+    "page_id": {
+     "type": "string",
+     "description": "Page id"
+    },
+    "parent": {
+     "type": "object",
+     "description": "The parent page or data source",
+     "properties": {
+      "page_id": {
+       "type": "string",
+       "description": "Parent page id"
+      },
+      "database_id": {
+       "type": "string",
+       "description": "Parent database id"
+      },
+      "data_source_id": {
+       "type": "string",
+       "description": "Parent data source id"
+      },
+      "type": {
+       "type": "string",
+       "enum": [
+        "page_id",
+        "database_id",
+        "data_source_id",
+        "workspace"
+       ]
+      }
+     }
+    }
+   },
+   "required": [
+    "page_id",
+    "parent"
+   ]
+  }
+ },
+ {
+  "name": "notion__API_post_search",
+  "description": "[MCP notion] Notion | Search by title. Searches all pages and data sources shared with the integration by title.",
+  "parameters": {
+   "type": "object",
+   "properties": {
+    "query": {
+     "type": "string",
+     "description": "Text to search in titles"
+    },
+    "filter": {
+     "type": "object",
+     "description": "Limit to pages or data sources"
+    },
+    "sort": {
+     "type": "object",
+     "description": "Sort order"
+    },
+    "page_size": {
+     "type": "integer",
+     "description": "Results per page"
+    },
+    "start_cursor": {
+     "type": "string",
+     "description": "Cursor"
+    }
+   }
+  }
+ },
+ {
+  "name": "notion__API_get_block_children",
+  "description": "[MCP notion] Notion | Retrieve block children. Returns the content blocks of a page or block.",
+  "parameters": {
+   "type": "object",
+   "properties": {
+    "block_id": {
+     "type": "string",
+     "description": "Block or page id"
+    },
+    "page_size": {
+     "type": "integer",
+     "description": "Page size"
+    },
+    "start_cursor": {
+     "type": "string",
+     "description": "Cursor"
+    }
+   },
+   "required": [
+    "block_id"
+   ]
+  }
+ },
+ {
+  "name": "notion__API_patch_block_children",
+  "description": "[MCP notion] Notion | Append block children. Adds content blocks to the end of a page or block.",
+  "parameters": {
+   "type": "object",
+   "properties": {
+    "block_id": {
+     "type": "string",
+     "description": "Block or page id"
+    },
+    "children": {
+     "type": "array",
+     "description": "Block objects to append (paragraph, heading, list item, to_do, code, ...)",
+     "items": {
+      "type": "object",
+      "properties": {
+       "type": {
+        "type": "string",
+        "description": "Block type"
+       },
+       "paragraph": {
+        "type": "object",
+        "properties": {
+         "rich_text": {
+          "type": "array",
+          "description": "Rich text array",
+          "items": {
+           "type": "object",
+           "properties": {
+            "type": {
+             "type": "string",
+             "enum": [
+              "text",
+              "mention",
+              "equation"
+             ]
+            },
+            "text": {
+             "type": "object",
+             "properties": {
+              "content": {
+               "type": "string"
+              },
+              "link": {
+               "type": [
+                "object",
+                "null"
+               ],
+               "properties": {
+                "url": {
+                 "type": "string"
+                }
+               }
+              }
+             }
+            },
+            "annotations": {
+             "type": "object",
+             "properties": {
+              "bold": {
+               "type": "boolean"
+              },
+              "italic": {
+               "type": "boolean"
+              },
+              "strikethrough": {
+               "type": "boolean"
+              },
+              "underline": {
+               "type": "boolean"
+              },
+              "code": {
+               "type": "boolean"
+              },
+              "color": {
+               "type": "string"
+              }
+             }
+            }
+           }
+          }
+         }
+        }
+       },
+       "heading_1": {
+        "type": "object",
+        "properties": {
+         "rich_text": {
+          "type": "array",
+          "description": "Rich text array",
+          "items": {
+           "type": "object",
+           "properties": {
+            "type": {
+             "type": "string",
+             "enum": [
+              "text",
+              "mention",
+              "equation"
+             ]
+            },
+            "text": {
+             "type": "object",
+             "properties": {
+              "content": {
+               "type": "string"
+              },
+              "link": {
+               "type": [
+                "object",
+                "null"
+               ],
+               "properties": {
+                "url": {
+                 "type": "string"
+                }
+               }
+              }
+             }
+            },
+            "annotations": {
+             "type": "object",
+             "properties": {
+              "bold": {
+               "type": "boolean"
+              },
+              "italic": {
+               "type": "boolean"
+              },
+              "strikethrough": {
+               "type": "boolean"
+              },
+              "underline": {
+               "type": "boolean"
+              },
+              "code": {
+               "type": "boolean"
+              },
+              "color": {
+               "type": "string"
+              }
+             }
+            }
+           }
+          }
+         }
+        }
+       },
+       "to_do": {
+        "type": "object",
+        "properties": {
+         "rich_text": {
+          "type": "array",
+          "description": "Rich text array",
+          "items": {
+           "type": "object",
+           "properties": {
+            "type": {
+             "type": "string",
+             "enum": [
+              "text",
+              "mention",
+              "equation"
+             ]
+            },
+            "text": {
+             "type": "object",
+             "properties": {
+              "content": {
+               "type": "string"
+              },
+              "link": {
+               "type": [
+                "object",
+                "null"
+               ],
+               "properties": {
+                "url": {
+                 "type": "string"
+                }
+               }
+              }
+             }
+            },
+            "annotations": {
+             "type": "object",
+             "properties": {
+              "bold": {
+               "type": "boolean"
+              },
+              "italic": {
+               "type": "boolean"
+              },
+              "strikethrough": {
+               "type": "boolean"
+              },
+              "underline": {
+               "type": "boolean"
+              },
+              "code": {
+               "type": "boolean"
+              },
+              "color": {
+               "type": "string"
+              }
+             }
+            }
+           }
+          }
+         },
+         "checked": {
+          "type": "boolean"
+         }
+        }
+       },
+       "code": {
+        "type": "object",
+        "properties": {
+         "rich_text": {
+          "type": "array",
+          "description": "Rich text array",
+          "items": {
+           "type": "object",
+           "properties": {
+            "type": {
+             "type": "string",
+             "enum": [
+              "text",
+              "mention",
+              "equation"
+             ]
+            },
+            "text": {
+             "type": "object",
+             "properties": {
+              "content": {
+               "type": "string"
+              },
+              "link": {
+               "type": [
+                "object",
+                "null"
+               ],
+               "properties": {
+                "url": {
+                 "type": "string"
+                }
+               }
+              }
+             }
+            },
+            "annotations": {
+             "type": "object",
+             "properties": {
+              "bold": {
+               "type": "boolean"
+              },
+              "italic": {
+               "type": "boolean"
+              },
+              "strikethrough": {
+               "type": "boolean"
+              },
+              "underline": {
+               "type": "boolean"
+              },
+              "code": {
+               "type": "boolean"
+              },
+              "color": {
+               "type": "string"
+              }
+             }
+            }
+           }
+          }
+         },
+         "language": {
+          "type": "string"
+         }
+        }
+       }
+      }
+     }
+    },
+    "after": {
+     "type": "string",
+     "description": "Insert after this block"
+    }
+   },
+   "required": [
+    "block_id",
+    "children"
+   ]
+  }
+ },
+ {
+  "name": "notion__API_retrieve_a_block",
+  "description": "[MCP notion] Notion | Retrieve a block.",
+  "parameters": {
+   "type": "object",
+   "properties": {
+    "block_id": {
+     "type": "string",
+     "description": "Block id"
+    }
+   },
+   "required": [
+    "block_id"
+   ]
+  }
+ },
+ {
+  "name": "notion__API_update_a_block",
+  "description": "[MCP notion] Notion | Update a block's content.",
+  "parameters": {
+   "type": "object",
+   "properties": {
+    "block_id": {
+     "type": "string",
+     "description": "Block id"
+    },
+    "type": {
+     "type": "object",
+     "description": "New block content"
+    },
+    "archived": {
+     "type": "boolean",
+     "description": "Archive"
+    }
+   },
+   "required": [
+    "block_id"
+   ]
+  }
+ },
+ {
+  "name": "notion__API_delete_a_block",
+  "description": "[MCP notion] Notion | Delete (archive) a block.",
+  "parameters": {
+   "type": "object",
+   "properties": {
+    "block_id": {
+     "type": "string",
+     "description": "Block id"
+    }
+   },
+   "required": [
+    "block_id"
+   ]
+  }
+ },
+ {
+  "name": "notion__API_get_users",
+  "description": "[MCP notion] Notion | List all users in the workspace.",
+  "parameters": {
+   "type": "object",
+   "properties": {
+    "page_size": {
+     "type": "integer",
+     "description": "Page size"
+    },
+    "start_cursor": {
+     "type": "string",
+     "description": "Cursor"
+    }
+   }
+  }
+ },
+ {
+  "name": "notion__API_get_user",
+  "description": "[MCP notion] Notion | Retrieve a user by id.",
+  "parameters": {
+   "type": "object",
+   "properties": {
+    "user_id": {
+     "type": "string",
+     "description": "User id"
+    }
+   },
+   "required": [
+    "user_id"
+   ]
+  }
+ },
+ {
+  "name": "notion__API_get_self",
+  "description": "[MCP notion] Notion | Retrieve the bot user of this integration.",
+  "parameters": {
+   "type": "object",
+   "properties": {}
+  }
+ },
+ {
+  "name": "notion__API_create_a_comment",
+  "description": "[MCP notion] Notion | Create a comment on a page or in a discussion thread.",
+  "parameters": {
+   "type": "object",
+   "properties": {
+    "parent": {
+     "type": "object",
+     "description": "The parent page or data source",
+     "properties": {
+      "page_id": {
+       "type": "string",
+       "description": "Parent page id"
+      },
+      "database_id": {
+       "type": "string",
+       "description": "Parent database id"
+      },
+      "data_source_id": {
+       "type": "string",
+       "description": "Parent data source id"
+      },
+      "type": {
+       "type": "string",
+       "enum": [
+        "page_id",
+        "database_id",
+        "data_source_id",
+        "workspace"
+       ]
+      }
+     }
+    },
+    "discussion_id": {
+     "type": "string",
+     "description": "Thread id"
+    },
+    "rich_text": {
+     "type": "array",
+     "description": "Rich text array",
+     "items": {
+      "type": "object",
+      "properties": {
+       "type": {
+        "type": "string",
+        "enum": [
+         "text",
+         "mention",
+         "equation"
+        ]
+       },
+       "text": {
+        "type": "object",
+        "properties": {
+         "content": {
+          "type": "string"
+         },
+         "link": {
+          "type": [
+           "object",
+           "null"
+          ],
+          "properties": {
+           "url": {
+            "type": "string"
+           }
+          }
+         }
+        }
+       },
+       "annotations": {
+        "type": "object",
+        "properties": {
+         "bold": {
+          "type": "boolean"
+         },
+         "italic": {
+          "type": "boolean"
+         },
+         "strikethrough": {
+          "type": "boolean"
+         },
+         "underline": {
+          "type": "boolean"
+         },
+         "code": {
+          "type": "boolean"
+         },
+         "color": {
+          "type": "string"
+         }
+        }
+       }
+      }
+     }
+    }
+   },
+   "required": [
+    "rich_text"
+   ]
+  }
+ },
+ {
+  "name": "notion__API_retrieve_a_comment",
+  "description": "[MCP notion] Notion | List comments on a block or page.",
+  "parameters": {
+   "type": "object",
+   "properties": {
+    "block_id": {
+     "type": "string",
+     "description": "Block id"
+    },
+    "page_size": {
+     "type": "integer",
+     "description": "Page size"
+    }
+   },
+   "required": [
+    "block_id"
+   ]
+  }
+ },
+ {
+  "name": "notion__API_query_data_source",
+  "description": "[MCP notion] Notion | Query a data source (database rows) with filters and sorts.",
+  "parameters": {
+   "type": "object",
+   "properties": {
+    "data_source_id": {
+     "type": "string",
+     "description": "Data source id"
+    },
+    "filter": {
+     "type": "object",
+     "description": "Filter"
+    },
+    "sorts": {
+     "type": "array",
+     "description": "Sorts"
+    },
+    "page_size": {
+     "type": "integer",
+     "description": "Page size"
+    }
+   },
+   "required": [
+    "data_source_id"
+   ]
+  }
+ },
+ {
+  "name": "notion__API_retrieve_a_data_source",
+  "description": "[MCP notion] Notion | Retrieve a data source's schema.",
+  "parameters": {
+   "type": "object",
+   "properties": {
+    "data_source_id": {
+     "type": "string",
+     "description": "Data source id"
+    }
+   },
+   "required": [
+    "data_source_id"
+   ]
+  }
+ },
+ {
+  "name": "notion__API_update_a_data_source",
+  "description": "[MCP notion] Notion | Update a data source's title or property schema.",
+  "parameters": {
+   "type": "object",
+   "properties": {
+    "data_source_id": {
+     "type": "string",
+     "description": "Data source id"
+    },
+    "title": {
+     "type": "array",
+     "description": "Rich text array",
+     "items": {
+      "type": "object",
+      "properties": {
+       "type": {
+        "type": "string",
+        "enum": [
+         "text",
+         "mention",
+         "equation"
+        ]
+       },
+       "text": {
+        "type": "object",
+        "properties": {
+         "content": {
+          "type": "string"
+         },
+         "link": {
+          "type": [
+           "object",
+           "null"
+          ],
+          "properties": {
+           "url": {
+            "type": "string"
+           }
+          }
+         }
+        }
+       },
+       "annotations": {
+        "type": "object",
+        "properties": {
+         "bold": {
+          "type": "boolean"
+         },
+         "italic": {
+          "type": "boolean"
+         },
+         "strikethrough": {
+          "type": "boolean"
+         },
+         "underline": {
+          "type": "boolean"
+         },
+         "code": {
+          "type": "boolean"
+         },
+         "color": {
+          "type": "string"
+         }
+        }
+       }
+      }
+     }
+    },
+    "properties": {
+     "type": "object",
+     "description": "Schema changes"
+    }
+   },
+   "required": [
+    "data_source_id"
+   ]
+  }
+ },
+ {
+  "name": "notion__API_create_a_data_source",
+  "description": "[MCP notion] Notion | Create a data source in a database.",
+  "parameters": {
+   "type": "object",
+   "properties": {
+    "parent": {
+     "type": "object",
+     "description": "The parent page or data source",
+     "properties": {
+      "page_id": {
+       "type": "string",
+       "description": "Parent page id"
+      },
+      "database_id": {
+       "type": "string",
+       "description": "Parent database id"
+      },
+      "data_source_id": {
+       "type": "string",
+       "description": "Parent data source id"
+      },
+      "type": {
+       "type": "string",
+       "enum": [
+        "page_id",
+        "database_id",
+        "data_source_id",
+        "workspace"
+       ]
+      }
+     }
+    },
+    "title": {
+     "type": "array",
+     "description": "Rich text array",
+     "items": {
+      "type": "object",
+      "properties": {
+       "type": {
+        "type": "string",
+        "enum": [
+         "text",
+         "mention",
+         "equation"
+        ]
+       },
+       "text": {
+        "type": "object",
+        "properties": {
+         "content": {
+          "type": "string"
+         },
+         "link": {
+          "type": [
+           "object",
+           "null"
+          ],
+          "properties": {
+           "url": {
+            "type": "string"
+           }
+          }
+         }
+        }
+       },
+       "annotations": {
+        "type": "object",
+        "properties": {
+         "bold": {
+          "type": "boolean"
+         },
+         "italic": {
+          "type": "boolean"
+         },
+         "strikethrough": {
+          "type": "boolean"
+         },
+         "underline": {
+          "type": "boolean"
+         },
+         "code": {
+          "type": "boolean"
+         },
+         "color": {
+          "type": "string"
+         }
+        }
+       }
+      }
+     }
+    },
+    "properties": {
+     "type": "object",
+     "description": "Property schema"
+    }
+   },
+   "required": [
+    "parent",
+    "properties"
+   ]
+  }
+ },
+ {
+  "name": "notion__API_list_data_source_templates",
+  "description": "[MCP notion] Notion | List the page templates of a data source.",
+  "parameters": {
+   "type": "object",
+   "properties": {
+    "data_source_id": {
+     "type": "string",
+     "description": "Data source id"
+    }
+   },
+   "required": [
+    "data_source_id"
+   ]
+  }
+ },
+ {
+  "name": "notion__API_retrieve_a_database",
+  "description": "[MCP notion] Notion | Retrieve a database container.",
+  "parameters": {
+   "type": "object",
+   "properties": {
+    "database_id": {
+     "type": "string",
+     "description": "Database id"
+    }
+   },
+   "required": [
+    "database_id"
+   ]
+  }
+ },
+ {
+  "name": "notion__API_create_a_database",
+  "description": "[MCP notion] Notion | Create a database as a child of a page.",
+  "parameters": {
+   "type": "object",
+   "properties": {
+    "parent": {
+     "type": "object",
+     "description": "The parent page or data source",
+     "properties": {
+      "page_id": {
+       "type": "string",
+       "description": "Parent page id"
+      },
+      "database_id": {
+       "type": "string",
+       "description": "Parent database id"
+      },
+      "data_source_id": {
+       "type": "string",
+       "description": "Parent data source id"
+      },
+      "type": {
+       "type": "string",
+       "enum": [
+        "page_id",
+        "database_id",
+        "data_source_id",
+        "workspace"
+       ]
+      }
+     }
+    },
+    "title": {
+     "type": "array",
+     "description": "Rich text array",
+     "items": {
+      "type": "object",
+      "properties": {
+       "type": {
+        "type": "string",
+        "enum": [
+         "text",
+         "mention",
+         "equation"
+        ]
+       },
+       "text": {
+        "type": "object",
+        "properties": {
+         "content": {
+          "type": "string"
+         },
+         "link": {
+          "type": [
+           "object",
+           "null"
+          ],
+          "properties": {
+           "url": {
+            "type": "string"
+           }
+          }
+         }
+        }
+       },
+       "annotations": {
+        "type": "object",
+        "properties": {
+         "bold": {
+          "type": "boolean"
+         },
+         "italic": {
+          "type": "boolean"
+         },
+         "strikethrough": {
+          "type": "boolean"
+         },
+         "underline": {
+          "type": "boolean"
+         },
+         "code": {
+          "type": "boolean"
+         },
+         "color": {
+          "type": "string"
+         }
+        }
+       }
+      }
+     }
+    },
+    "initial_data_source": {
+     "type": "object",
+     "description": "Initial schema"
+    }
+   },
+   "required": [
+    "parent"
+   ]
+  }
+ },
+ {
+  "name": "notion__API_update_a_database",
+  "description": "[MCP notion] Notion | Update a database's title, icon or parent.",
+  "parameters": {
+   "type": "object",
+   "properties": {
+    "database_id": {
+     "type": "string",
+     "description": "Database id"
+    },
+    "title": {
+     "type": "array",
+     "description": "Rich text array",
+     "items": {
+      "type": "object",
+      "properties": {
+       "type": {
+        "type": "string",
+        "enum": [
+         "text",
+         "mention",
+         "equation"
+        ]
+       },
+       "text": {
+        "type": "object",
+        "properties": {
+         "content": {
+          "type": "string"
+         },
+         "link": {
+          "type": [
+           "object",
+           "null"
+          ],
+          "properties": {
+           "url": {
+            "type": "string"
+           }
+          }
+         }
+        }
+       },
+       "annotations": {
+        "type": "object",
+        "properties": {
+         "bold": {
+          "type": "boolean"
+         },
+         "italic": {
+          "type": "boolean"
+         },
+         "strikethrough": {
+          "type": "boolean"
+         },
+         "underline": {
+          "type": "boolean"
+         },
+         "code": {
+          "type": "boolean"
+         },
+         "color": {
+          "type": "string"
+         }
+        }
+       }
+      }
+     }
+    }
+   },
+   "required": [
+    "database_id"
+   ]
+  }
+ },
+ {
+  "name": "notion__API_create_file_upload",
+  "description": "[MCP notion] Notion | Start a file upload.",
+  "parameters": {
+   "type": "object",
+   "properties": {
+    "mode": {
+     "type": "string",
+     "description": "single_part | multi_part | external_url"
+    },
+    "filename": {
+     "type": "string",
+     "description": "File name"
+    }
+   }
+  }
+ },
+ {
+  "name": "notion__API_send_file_upload",
+  "description": "[MCP notion] Notion | Send the contents of a file upload.",
+  "parameters": {
+   "type": "object",
+   "properties": {
+    "file_upload_id": {
+     "type": "string",
+     "description": "Upload id"
+    },
+    "file": {
+     "type": "string",
+     "description": "Base64 data"
+    },
+    "part_number": {
+     "type": "integer",
+     "description": "Part"
+    }
+   },
+   "required": [
+    "file_upload_id",
+    "file"
+   ]
+  }
+ },
+ {
+  "name": "notion__API_complete_file_upload",
+  "description": "[MCP notion] Notion | Complete a multi-part file upload.",
+  "parameters": {
+   "type": "object",
+   "properties": {
+    "file_upload_id": {
+     "type": "string",
+     "description": "Upload id"
+    }
+   },
+   "required": [
+    "file_upload_id"
+   ]
+  }
+ },
+ {
+  "name": "notion__API_list_file_uploads",
+  "description": "[MCP notion] Notion | List file uploads.",
+  "parameters": {
+   "type": "object",
+   "properties": {
+    "status": {
+     "type": "string",
+     "description": "Filter by status"
+    }
+   }
+  }
+ },
+ {
+  "name": "notion__API_retrieve_file_upload",
+  "description": "[MCP notion] Notion | Retrieve a file upload.",
+  "parameters": {
+   "type": "object",
+   "properties": {
+    "file_upload_id": {
+     "type": "string",
+     "description": "Upload id"
+    }
+   },
+   "required": [
+    "file_upload_id"
+   ]
+  }
+ },
+ {
+  "name": "notion__API_list_a_view",
+  "description": "[MCP notion] Notion | List a view in the Notion workspace.",
+  "parameters": {
+   "type": "object",
+   "properties": {
+    "view_id": {
+     "type": "string",
+     "description": "Id"
+    },
+    "page_id": {
+     "type": "string",
+     "description": "Page id"
+    },
+    "properties": {
+     "type": "object",
+     "description": "Fields"
+    }
+   }
+  }
+ },
+ {
+  "name": "notion__API_list_a_team_space",
+  "description": "[MCP notion] Notion | List a team space in the Notion workspace.",
+  "parameters": {
+   "type": "object",
+   "properties": {
+    "team_space_id": {
+     "type": "string",
+     "description": "Id"
+    },
+    "page_id": {
+     "type": "string",
+     "description": "Page id"
+    },
+    "properties": {
+     "type": "object",
+     "description": "Fields"
+    }
+   }
+  }
+ },
+ {
+  "name": "notion__API_list_a_template",
+  "description": "[MCP notion] Notion | List a template in the Notion workspace.",
+  "parameters": {
+   "type": "object",
+   "properties": {
+    "template_id": {
+     "type": "string",
+     "description": "Id"
+    },
+    "page_id": {
+     "type": "string",
+     "description": "Page id"
+    },
+    "properties": {
+     "type": "object",
+     "description": "Fields"
+    }
+   }
+  }
+ },
+ {
+  "name": "notion__API_list_a_property",
+  "description": "[MCP notion] Notion | List a property in the Notion workspace.",
+  "parameters": {
+   "type": "object",
+   "properties": {
+    "property_id": {
+     "type": "string",
+     "description": "Id"
+    },
+    "page_id": {
+     "type": "string",
+     "description": "Page id"
+    },
+    "properties": {
+     "type": "object",
+     "description": "Fields"
+    }
+   }
+  }
+ },
+ {
+  "name": "notion__API_list_a_relation",
+  "description": "[MCP notion] Notion | List a relation in the Notion workspace.",
+  "parameters": {
+   "type": "object",
+   "properties": {
+    "relation_id": {
+     "type": "string",
+     "description": "Id"
+    },
+    "page_id": {
+     "type": "string",
+     "description": "Page id"
+    },
+    "properties": {
+     "type": "object",
+     "description": "Fields"
+    }
+   }
+  }
+ },
+ {
+  "name": "notion__API_list_a_rollup",
+  "description": "[MCP notion] Notion | List a rollup in the Notion workspace.",
+  "parameters": {
+   "type": "object",
+   "properties": {
+    "rollup_id": {
+     "type": "string",
+     "description": "Id"
+    },
+    "page_id": {
+     "type": "string",
+     "description": "Page id"
+    },
+    "properties": {
+     "type": "object",
+     "description": "Fields"
+    }
+   }
+  }
+ },
+ {
+  "name": "notion__API_list_a_formula",
+  "description": "[MCP notion] Notion | List a formula in the Notion workspace.",
+  "parameters": {
+   "type": "object",
+   "properties": {
+    "formula_id": {
+     "type": "string",
+     "description": "Id"
+    },
+    "page_id": {
+     "type": "string",
+     "description": "Page id"
+    },
+    "properties": {
+     "type": "object",
+     "description": "Fields"
+    }
+   }
+  }
+ },
+ {
+  "name": "notion__API_list_a_automation",
+  "description": "[MCP notion] Notion | List a automation in the Notion workspace.",
+  "parameters": {
+   "type": "object",
+   "properties": {
+    "automation_id": {
+     "type": "string",
+     "description": "Id"
+    },
+    "page_id": {
+     "type": "string",
+     "description": "Page id"
+    },
+    "properties": {
+     "type": "object",
+     "description": "Fields"
+    }
+   }
+  }
+ },
+ {
+  "name": "notion__API_list_a_webhook",
+  "description": "[MCP notion] Notion | List a webhook in the Notion workspace.",
+  "parameters": {
+   "type": "object",
+   "properties": {
+    "webhook_id": {
+     "type": "string",
+     "description": "Id"
+    },
+    "page_id": {
+     "type": "string",
+     "description": "Page id"
+    },
+    "properties": {
+     "type": "object",
+     "description": "Fields"
+    }
+   }
+  }
+ },
+ {
+  "name": "notion__API_list_a_sync_block",
+  "description": "[MCP notion] Notion | List a sync block in the Notion workspace.",
+  "parameters": {
+   "type": "object",
+   "properties": {
+    "sync_block_id": {
+     "type": "string",
+     "description": "Id"
+    },
+    "page_id": {
+     "type": "string",
+     "description": "Page id"
+    },
+    "properties": {
+     "type": "object",
+     "description": "Fields"
+    }
+   }
+  }
+ },
+ {
+  "name": "notion__API_list_a_link_preview",
+  "description": "[MCP notion] Notion | List a link preview in the Notion workspace.",
+  "parameters": {
+   "type": "object",
+   "properties": {
+    "link_preview_id": {
+     "type": "string",
+     "description": "Id"
+    },
+    "page_id": {
+     "type": "string",
+     "description": "Page id"
+    },
+    "properties": {
+     "type": "object",
+     "description": "Fields"
+    }
+   }
+  }
+ },
+ {
+  "name": "notion__API_list_a_bookmark",
+  "description": "[MCP notion] Notion | List a bookmark in the Notion workspace.",
+  "parameters": {
+   "type": "object",
+   "properties": {
+    "bookmark_id": {
+     "type": "string",
+     "description": "Id"
+    },
+    "page_id": {
+     "type": "string",
+     "description": "Page id"
+    },
+    "properties": {
+     "type": "object",
+     "description": "Fields"
+    }
+   }
+  }
+ },
+ {
+  "name": "notion__API_list_a_embed",
+  "description": "[MCP notion] Notion | List a embed in the Notion workspace.",
+  "parameters": {
+   "type": "object",
+   "properties": {
+    "embed_id": {
+     "type": "string",
+     "description": "Id"
+    },
+    "page_id": {
+     "type": "string",
+     "description": "Page id"
+    },
+    "properties": {
+     "type": "object",
+     "description": "Fields"
+    }
+   }
+  }
+ },
+ {
+  "name": "notion__API_list_a_equation",
+  "description": "[MCP notion] Notion | List a equation in the Notion workspace.",
+  "parameters": {
+   "type": "object",
+   "properties": {
+    "equation_id": {
+     "type": "string",
+     "description": "Id"
+    },
+    "page_id": {
+     "type": "string",
+     "description": "Page id"
+    },
+    "properties": {
+     "type": "object",
+     "description": "Fields"
+    }
+   }
+  }
+ },
+ {
+  "name": "notion__API_list_a_breadcrumb",
+  "description": "[MCP notion] Notion | List a breadcrumb in the Notion workspace.",
+  "parameters": {
+   "type": "object",
+   "properties": {
+    "breadcrumb_id": {
+     "type": "string",
+     "description": "Id"
+    },
+    "page_id": {
+     "type": "string",
+     "description": "Page id"
+    },
+    "properties": {
+     "type": "object",
+     "description": "Fields"
+    }
+   }
+  }
+ },
+ {
+  "name": "notion__API_list_a_column_list",
+  "description": "[MCP notion] Notion | List a column list in the Notion workspace.",
+  "parameters": {
+   "type": "object",
+   "properties": {
+    "column_list_id": {
+     "type": "string",
+     "description": "Id"
+    },
+    "page_id": {
+     "type": "string",
+     "description": "Page id"
+    },
+    "properties": {
+     "type": "object",
+     "description": "Fields"
+    }
+   }
+  }
+ },
+ {
+  "name": "notion__API_list_a_table",
+  "description": "[MCP notion] Notion | List a table in the Notion workspace.",
+  "parameters": {
+   "type": "object",
+   "properties": {
+    "table_id": {
+     "type": "string",
+     "description": "Id"
+    },
+    "page_id": {
+     "type": "string",
+     "description": "Page id"
+    },
+    "properties": {
+     "type": "object",
+     "description": "Fields"
+    }
+   }
+  }
+ },
+ {
+  "name": "notion__API_list_a_table_row",
+  "description": "[MCP notion] Notion | List a table row in the Notion workspace.",
+  "parameters": {
+   "type": "object",
+   "properties": {
+    "table_row_id": {
+     "type": "string",
+     "description": "Id"
+    },
+    "page_id": {
+     "type": "string",
+     "description": "Page id"
+    },
+    "properties": {
+     "type": "object",
+     "description": "Fields"
+    }
+   }
+  }
+ },
+ {
+  "name": "notion__API_list_a_callout",
+  "description": "[MCP notion] Notion | List a callout in the Notion workspace.",
+  "parameters": {
+   "type": "object",
+   "properties": {
+    "callout_id": {
+     "type": "string",
+     "description": "Id"
+    },
+    "page_id": {
+     "type": "string",
+     "description": "Page id"
+    },
+    "properties": {
+     "type": "object",
+     "description": "Fields"
+    }
+   }
+  }
+ },
+ {
+  "name": "notion__API_list_a_quote",
+  "description": "[MCP notion] Notion | List a quote in the Notion workspace.",
+  "parameters": {
+   "type": "object",
+   "properties": {
+    "quote_id": {
+     "type": "string",
+     "description": "Id"
+    },
+    "page_id": {
+     "type": "string",
+     "description": "Page id"
+    },
+    "properties": {
+     "type": "object",
+     "description": "Fields"
+    }
+   }
+  }
+ },
+ {
+  "name": "notion__API_retrieve_a_view",
+  "description": "[MCP notion] Notion | Retrieve a view in the Notion workspace.",
+  "parameters": {
+   "type": "object",
+   "properties": {
+    "view_id": {
+     "type": "string",
+     "description": "Id"
+    },
+    "page_id": {
+     "type": "string",
+     "description": "Page id"
+    },
+    "properties": {
+     "type": "object",
+     "description": "Fields"
+    }
+   }
+  }
+ },
+ {
+  "name": "notion__API_retrieve_a_team_space",
+  "description": "[MCP notion] Notion | Retrieve a team space in the Notion workspace.",
+  "parameters": {
+   "type": "object",
+   "properties": {
+    "team_space_id": {
+     "type": "string",
+     "description": "Id"
+    },
+    "page_id": {
+     "type": "string",
+     "description": "Page id"
+    },
+    "properties": {
+     "type": "object",
+     "description": "Fields"
+    }
+   }
+  }
+ },
+ {
+  "name": "notion__API_retrieve_a_template",
+  "description": "[MCP notion] Notion | Retrieve a template in the Notion workspace.",
+  "parameters": {
+   "type": "object",
+   "properties": {
+    "template_id": {
+     "type": "string",
+     "description": "Id"
+    },
+    "page_id": {
+     "type": "string",
+     "description": "Page id"
+    },
+    "properties": {
+     "type": "object",
+     "description": "Fields"
+    }
+   }
+  }
+ },
+ {
+  "name": "notion__API_retrieve_a_property",
+  "description": "[MCP notion] Notion | Retrieve a property in the Notion workspace.",
+  "parameters": {
+   "type": "object",
+   "properties": {
+    "property_id": {
+     "type": "string",
+     "description": "Id"
+    },
+    "page_id": {
+     "type": "string",
+     "description": "Page id"
+    },
+    "properties": {
+     "type": "object",
+     "description": "Fields"
+    }
+   }
+  }
+ },
+ {
+  "name": "notion__API_retrieve_a_relation",
+  "description": "[MCP notion] Notion | Retrieve a relation in the Notion workspace.",
+  "parameters": {
+   "type": "object",
+   "properties": {
+    "relation_id": {
+     "type": "string",
+     "description": "Id"
+    },
+    "page_id": {
+     "type": "string",
+     "description": "Page id"
+    },
+    "properties": {
+     "type": "object",
+     "description": "Fields"
+    }
+   }
+  }
+ },
+ {
+  "name": "notion__API_retrieve_a_rollup",
+  "description": "[MCP notion] Notion | Retrieve a rollup in the Notion workspace.",
+  "parameters": {
+   "type": "object",
+   "properties": {
+    "rollup_id": {
+     "type": "string",
+     "description": "Id"
+    },
+    "page_id": {
+     "type": "string",
+     "description": "Page id"
+    },
+    "properties": {
+     "type": "object",
+     "description": "Fields"
+    }
+   }
+  }
+ },
+ {
+  "name": "notion__API_retrieve_a_formula",
+  "description": "[MCP notion] Notion | Retrieve a formula in the Notion workspace.",
+  "parameters": {
+   "type": "object",
+   "properties": {
+    "formula_id": {
+     "type": "string",
+     "description": "Id"
+    },
+    "page_id": {
+     "type": "string",
+     "description": "Page id"
+    },
+    "properties": {
+     "type": "object",
+     "description": "Fields"
+    }
+   }
+  }
+ },
+ {
+  "name": "notion__API_retrieve_a_automation",
+  "description": "[MCP notion] Notion | Retrieve a automation in the Notion workspace.",
+  "parameters": {
+   "type": "object",
+   "properties": {
+    "automation_id": {
+     "type": "string",
+     "description": "Id"
+    },
+    "page_id": {
+     "type": "string",
+     "description": "Page id"
+    },
+    "properties": {
+     "type": "object",
+     "description": "Fields"
+    }
+   }
+  }
+ },
+ {
+  "name": "notion__API_retrieve_a_webhook",
+  "description": "[MCP notion] Notion | Retrieve a webhook in the Notion workspace.",
+  "parameters": {
+   "type": "object",
+   "properties": {
+    "webhook_id": {
+     "type": "string",
+     "description": "Id"
+    },
+    "page_id": {
+     "type": "string",
+     "description": "Page id"
+    },
+    "properties": {
+     "type": "object",
+     "description": "Fields"
+    }
+   }
+  }
+ },
+ {
+  "name": "notion__API_retrieve_a_sync_block",
+  "description": "[MCP notion] Notion | Retrieve a sync block in the Notion workspace.",
+  "parameters": {
+   "type": "object",
+   "properties": {
+    "sync_block_id": {
+     "type": "string",
+     "description": "Id"
+    },
+    "page_id": {
+     "type": "string",
+     "description": "Page id"
+    },
+    "properties": {
+     "type": "object",
+     "description": "Fields"
+    }
+   }
+  }
+ },
+ {
+  "name": "notion__API_retrieve_a_link_preview",
+  "description": "[MCP notion] Notion | Retrieve a link preview in the Notion workspace.",
+  "parameters": {
+   "type": "object",
+   "properties": {
+    "link_preview_id": {
+     "type": "string",
+     "description": "Id"
+    },
+    "page_id": {
+     "type": "string",
+     "description": "Page id"
+    },
+    "properties": {
+     "type": "object",
+     "description": "Fields"
+    }
+   }
+  }
+ },
+ {
+  "name": "notion__API_retrieve_a_bookmark",
+  "description": "[MCP notion] Notion | Retrieve a bookmark in the Notion workspace.",
+  "parameters": {
+   "type": "object",
+   "properties": {
+    "bookmark_id": {
+     "type": "string",
+     "description": "Id"
+    },
+    "page_id": {
+     "type": "string",
+     "description": "Page id"
+    },
+    "properties": {
+     "type": "object",
+     "description": "Fields"
+    }
+   }
+  }
+ },
+ {
+  "name": "notion__API_retrieve_a_embed",
+  "description": "[MCP notion] Notion | Retrieve a embed in the Notion workspace.",
+  "parameters": {
+   "type": "object",
+   "properties": {
+    "embed_id": {
+     "type": "string",
+     "description": "Id"
+    },
+    "page_id": {
+     "type": "string",
+     "description": "Page id"
+    },
+    "properties": {
+     "type": "object",
+     "description": "Fields"
+    }
+   }
+  }
+ },
+ {
+  "name": "notion__API_retrieve_a_equation",
+  "description": "[MCP notion] Notion | Retrieve a equation in the Notion workspace.",
+  "parameters": {
+   "type": "object",
+   "properties": {
+    "equation_id": {
+     "type": "string",
+     "description": "Id"
+    },
+    "page_id": {
+     "type": "string",
+     "description": "Page id"
+    },
+    "properties": {
+     "type": "object",
+     "description": "Fields"
+    }
+   }
+  }
+ },
+ {
+  "name": "notion__API_retrieve_a_breadcrumb",
+  "description": "[MCP notion] Notion | Retrieve a breadcrumb in the Notion workspace.",
+  "parameters": {
+   "type": "object",
+   "properties": {
+    "breadcrumb_id": {
+     "type": "string",
+     "description": "Id"
+    },
+    "page_id": {
+     "type": "string",
+     "description": "Page id"
+    },
+    "properties": {
+     "type": "object",
+     "description": "Fields"
+    }
+   }
+  }
+ },
+ {
+  "name": "notion__API_retrieve_a_column_list",
+  "description": "[MCP notion] Notion | Retrieve a column list in the Notion workspace.",
+  "parameters": {
+   "type": "object",
+   "properties": {
+    "column_list_id": {
+     "type": "string",
+     "description": "Id"
+    },
+    "page_id": {
+     "type": "string",
+     "description": "Page id"
+    },
+    "properties": {
+     "type": "object",
+     "description": "Fields"
+    }
+   }
+  }
+ },
+ {
+  "name": "notion__API_retrieve_a_table",
+  "description": "[MCP notion] Notion | Retrieve a table in the Notion workspace.",
+  "parameters": {
+   "type": "object",
+   "properties": {
+    "table_id": {
+     "type": "string",
+     "description": "Id"
+    },
+    "page_id": {
+     "type": "string",
+     "description": "Page id"
+    },
+    "properties": {
+     "type": "object",
+     "description": "Fields"
+    }
+   }
+  }
+ },
+ {
+  "name": "notion__API_retrieve_a_table_row",
+  "description": "[MCP notion] Notion | Retrieve a table row in the Notion workspace.",
+  "parameters": {
+   "type": "object",
+   "properties": {
+    "table_row_id": {
+     "type": "string",
+     "description": "Id"
+    },
+    "page_id": {
+     "type": "string",
+     "description": "Page id"
+    },
+    "properties": {
+     "type": "object",
+     "description": "Fields"
+    }
+   }
+  }
+ },
+ {
+  "name": "notion__API_retrieve_a_callout",
+  "description": "[MCP notion] Notion | Retrieve a callout in the Notion workspace.",
+  "parameters": {
+   "type": "object",
+   "properties": {
+    "callout_id": {
+     "type": "string",
+     "description": "Id"
+    },
+    "page_id": {
+     "type": "string",
+     "description": "Page id"
+    },
+    "properties": {
+     "type": "object",
+     "description": "Fields"
+    }
+   }
+  }
+ },
+ {
+  "name": "notion__API_retrieve_a_quote",
+  "description": "[MCP notion] Notion | Retrieve a quote in the Notion workspace.",
+  "parameters": {
+   "type": "object",
+   "properties": {
+    "quote_id": {
+     "type": "string",
+     "description": "Id"
+    },
+    "page_id": {
+     "type": "string",
+     "description": "Page id"
+    },
+    "properties": {
+     "type": "object",
+     "description": "Fields"
+    }
+   }
+  }
+ },
+ {
+  "name": "notion__API_update_a_view",
+  "description": "[MCP notion] Notion | Update a view in the Notion workspace.",
+  "parameters": {
+   "type": "object",
+   "properties": {
+    "view_id": {
+     "type": "string",
+     "description": "Id"
+    },
+    "page_id": {
+     "type": "string",
+     "description": "Page id"
+    },
+    "properties": {
+     "type": "object",
+     "description": "Fields"
+    }
+   }
+  }
+ },
+ {
+  "name": "notion__API_update_a_team_space",
+  "description": "[MCP notion] Notion | Update a team space in the Notion workspace.",
+  "parameters": {
+   "type": "object",
+   "properties": {
+    "team_space_id": {
+     "type": "string",
+     "description": "Id"
+    },
+    "page_id": {
+     "type": "string",
+     "description": "Page id"
+    },
+    "properties": {
+     "type": "object",
+     "description": "Fields"
+    }
+   }
+  }
+ },
+ {
+  "name": "notion__API_update_a_template",
+  "description": "[MCP notion] Notion | Update a template in the Notion workspace.",
+  "parameters": {
+   "type": "object",
+   "properties": {
+    "template_id": {
+     "type": "string",
+     "description": "Id"
+    },
+    "page_id": {
+     "type": "string",
+     "description": "Page id"
+    },
+    "properties": {
+     "type": "object",
+     "description": "Fields"
+    }
+   }
+  }
+ },
+ {
+  "name": "notion__API_update_a_property",
+  "description": "[MCP notion] Notion | Update a property in the Notion workspace.",
+  "parameters": {
+   "type": "object",
+   "properties": {
+    "property_id": {
+     "type": "string",
+     "description": "Id"
+    },
+    "page_id": {
+     "type": "string",
+     "description": "Page id"
+    },
+    "properties": {
+     "type": "object",
+     "description": "Fields"
+    }
+   }
+  }
+ },
+ {
+  "name": "notion__API_update_a_relation",
+  "description": "[MCP notion] Notion | Update a relation in the Notion workspace.",
+  "parameters": {
+   "type": "object",
+   "properties": {
+    "relation_id": {
+     "type": "string",
+     "description": "Id"
+    },
+    "page_id": {
+     "type": "string",
+     "description": "Page id"
+    },
+    "properties": {
+     "type": "object",
+     "description": "Fields"
+    }
+   }
+  }
+ },
+ {
+  "name": "notion__API_update_a_rollup",
+  "description": "[MCP notion] Notion | Update a rollup in the Notion workspace.",
+  "parameters": {
+   "type": "object",
+   "properties": {
+    "rollup_id": {
+     "type": "string",
+     "description": "Id"
+    },
+    "page_id": {
+     "type": "string",
+     "description": "Page id"
+    },
+    "properties": {
+     "type": "object",
+     "description": "Fields"
+    }
+   }
+  }
+ },
+ {
+  "name": "notion__API_update_a_formula",
+  "description": "[MCP notion] Notion | Update a formula in the Notion workspace.",
+  "parameters": {
+   "type": "object",
+   "properties": {
+    "formula_id": {
+     "type": "string",
+     "description": "Id"
+    },
+    "page_id": {
+     "type": "string",
+     "description": "Page id"
+    },
+    "properties": {
+     "type": "object",
+     "description": "Fields"
+    }
+   }
+  }
+ },
+ {
+  "name": "notion__API_update_a_automation",
+  "description": "[MCP notion] Notion | Update a automation in the Notion workspace.",
+  "parameters": {
+   "type": "object",
+   "properties": {
+    "automation_id": {
+     "type": "string",
+     "description": "Id"
+    },
+    "page_id": {
+     "type": "string",
+     "description": "Page id"
+    },
+    "properties": {
+     "type": "object",
+     "description": "Fields"
+    }
+   }
+  }
+ },
+ {
+  "name": "notion__API_update_a_webhook",
+  "description": "[MCP notion] Notion | Update a webhook in the Notion workspace.",
+  "parameters": {
+   "type": "object",
+   "properties": {
+    "webhook_id": {
+     "type": "string",
+     "description": "Id"
+    },
+    "page_id": {
+     "type": "string",
+     "description": "Page id"
+    },
+    "properties": {
+     "type": "object",
+     "description": "Fields"
+    }
+   }
+  }
+ },
+ {
+  "name": "notion__API_update_a_sync_block",
+  "description": "[MCP notion] Notion | Update a sync block in the Notion workspace.",
+  "parameters": {
+   "type": "object",
+   "properties": {
+    "sync_block_id": {
+     "type": "string",
+     "description": "Id"
+    },
+    "page_id": {
+     "type": "string",
+     "description": "Page id"
+    },
+    "properties": {
+     "type": "object",
+     "description": "Fields"
+    }
+   }
+  }
+ },
+ {
+  "name": "github__list_pull_requests",
+  "description": "[MCP github] List pull requests in a GitHub repository, filtered by state, head and base.",
+  "parameters": {
+   "type": "object",
+   "properties": {
+    "owner": {
+     "type": "string",
+     "description": "Repository owner"
+    },
+    "repo": {
+     "type": "string",
+     "description": "Repository name"
+    },
+    "state": {
+     "type": "string",
+     "description": "open, closed or all"
+    },
+    "head": {
+     "type": "string",
+     "description": "Filter by head"
+    },
+    "base": {
+     "type": "string",
+     "description": "Filter by base"
+    },
+    "perPage": {
+     "type": "number",
+     "description": "Page size"
+    }
+   },
+   "required": [
+    "owner",
+    "repo"
+   ]
+  }
+ },
+ {
+  "name": "github__get_pull_request",
+  "description": "[MCP github] Get details of a specific pull request.",
+  "parameters": {
+   "type": "object",
+   "properties": {
+    "owner": {
+     "type": "string",
+     "description": "Repository owner"
+    },
+    "repo": {
+     "type": "string",
+     "description": "Repository name"
+    },
+    "pullNumber": {
+     "type": "number",
+     "description": "PR number"
+    }
+   },
+   "required": [
+    "owner",
+    "repo",
+    "pullNumber"
+   ]
+  }
+ },
+ {
+  "name": "github__create_pull_request",
+  "description": "[MCP github] Create a new pull request in a GitHub repository.",
+  "parameters": {
+   "type": "object",
+   "properties": {
+    "owner": {
+     "type": "string",
+     "description": "Repository owner"
+    },
+    "repo": {
+     "type": "string",
+     "description": "Repository name"
+    },
+    "title": {
+     "type": "string",
+     "description": "Title"
+    },
+    "head": {
+     "type": "string",
+     "description": "Head branch"
+    },
+    "base": {
+     "type": "string",
+     "description": "Base branch"
+    },
+    "body": {
+     "type": "string",
+     "description": "Description"
+    },
+    "draft": {
+     "type": "boolean",
+     "description": "Draft"
+    }
+   },
+   "required": [
+    "owner",
+    "repo",
+    "title",
+    "head",
+    "base"
+   ]
+  }
+ },
+ {
+  "name": "github__update_pull_request",
+  "description": "[MCP github] Update an existing pull request's title, body, state or base.",
+  "parameters": {
+   "type": "object",
+   "properties": {
+    "owner": {
+     "type": "string",
+     "description": "Repository owner"
+    },
+    "repo": {
+     "type": "string",
+     "description": "Repository name"
+    },
+    "pullNumber": {
+     "type": "number",
+     "description": "PR number"
+    },
+    "title": {
+     "type": "string",
+     "description": "Title"
+    },
+    "state": {
+     "type": "string",
+     "description": "open or closed"
+    }
+   },
+   "required": [
+    "owner",
+    "repo",
+    "pullNumber"
+   ]
+  }
+ },
+ {
+  "name": "github__merge_pull_request",
+  "description": "[MCP github] Merge a pull request.",
+  "parameters": {
+   "type": "object",
+   "properties": {
+    "owner": {
+     "type": "string",
+     "description": "Repository owner"
+    },
+    "repo": {
+     "type": "string",
+     "description": "Repository name"
+    },
+    "pullNumber": {
+     "type": "number",
+     "description": "PR number"
+    },
+    "merge_method": {
+     "type": "string",
+     "description": "merge, squash or rebase"
+    }
+   },
+   "required": [
+    "owner",
+    "repo",
+    "pullNumber"
+   ]
+  }
+ },
+ {
+  "name": "github__get_pull_request_files",
+  "description": "[MCP github] Get the files changed in a pull request.",
+  "parameters": {
+   "type": "object",
+   "properties": {
+    "owner": {
+     "type": "string",
+     "description": "Repository owner"
+    },
+    "repo": {
+     "type": "string",
+     "description": "Repository name"
+    },
+    "pullNumber": {
+     "type": "number",
+     "description": "PR number"
+    }
+   },
+   "required": [
+    "owner",
+    "repo",
+    "pullNumber"
+   ]
+  }
+ },
+ {
+  "name": "github__get_pull_request_diff",
+  "description": "[MCP github] Get the diff of a pull request.",
+  "parameters": {
+   "type": "object",
+   "properties": {
+    "owner": {
+     "type": "string",
+     "description": "Repository owner"
+    },
+    "repo": {
+     "type": "string",
+     "description": "Repository name"
+    },
+    "pullNumber": {
+     "type": "number",
+     "description": "PR number"
+    }
+   },
+   "required": [
+    "owner",
+    "repo",
+    "pullNumber"
+   ]
+  }
+ },
+ {
+  "name": "github__get_pull_request_status",
+  "description": "[MCP github] Get the combined status of all status checks for a pull request.",
+  "parameters": {
+   "type": "object",
+   "properties": {
+    "owner": {
+     "type": "string",
+     "description": "Repository owner"
+    },
+    "repo": {
+     "type": "string",
+     "description": "Repository name"
+    },
+    "pullNumber": {
+     "type": "number",
+     "description": "PR number"
+    }
+   },
+   "required": [
+    "owner",
+    "repo",
+    "pullNumber"
+   ]
+  }
+ },
+ {
+  "name": "github__get_pull_request_comments",
+  "description": "[MCP github] Get the review comments on a pull request.",
+  "parameters": {
+   "type": "object",
+   "properties": {
+    "owner": {
+     "type": "string",
+     "description": "Repository owner"
+    },
+    "repo": {
+     "type": "string",
+     "description": "Repository name"
+    },
+    "pullNumber": {
+     "type": "number",
+     "description": "PR number"
+    }
+   },
+   "required": [
+    "owner",
+    "repo",
+    "pullNumber"
+   ]
+  }
+ },
+ {
+  "name": "github__get_pull_request_reviews",
+  "description": "[MCP github] Get the reviews on a pull request.",
+  "parameters": {
+   "type": "object",
+   "properties": {
+    "owner": {
+     "type": "string",
+     "description": "Repository owner"
+    },
+    "repo": {
+     "type": "string",
+     "description": "Repository name"
+    },
+    "pullNumber": {
+     "type": "number",
+     "description": "PR number"
+    }
+   },
+   "required": [
+    "owner",
+    "repo",
+    "pullNumber"
+   ]
+  }
+ },
+ {
+  "name": "github__create_pending_pull_request_review",
+  "description": "[MCP github] Create a pending review for a pull request.",
+  "parameters": {
+   "type": "object",
+   "properties": {
+    "owner": {
+     "type": "string",
+     "description": "Repository owner"
+    },
+    "repo": {
+     "type": "string",
+     "description": "Repository name"
+    },
+    "pullNumber": {
+     "type": "number",
+     "description": "PR number"
+    }
+   },
+   "required": [
+    "owner",
+    "repo",
+    "pullNumber"
+   ]
+  }
+ },
+ {
+  "name": "github__submit_pending_pull_request_review",
+  "description": "[MCP github] Submit the pending review of a pull request.",
+  "parameters": {
+   "type": "object",
+   "properties": {
+    "owner": {
+     "type": "string",
+     "description": "Repository owner"
+    },
+    "repo": {
+     "type": "string",
+     "description": "Repository name"
+    },
+    "pullNumber": {
+     "type": "number",
+     "description": "PR number"
+    },
+    "event": {
+     "type": "string",
+     "description": "APPROVE, REQUEST_CHANGES or COMMENT"
+    }
+   },
+   "required": [
+    "owner",
+    "repo",
+    "pullNumber",
+    "event"
+   ]
+  }
+ },
+ {
+  "name": "github__request_copilot_review",
+  "description": "[MCP github] Request a Copilot review for a pull request.",
+  "parameters": {
+   "type": "object",
+   "properties": {
+    "owner": {
+     "type": "string",
+     "description": "Repository owner"
+    },
+    "repo": {
+     "type": "string",
+     "description": "Repository name"
+    },
+    "pullNumber": {
+     "type": "number",
+     "description": "PR number"
+    }
+   },
+   "required": [
+    "owner",
+    "repo",
+    "pullNumber"
+   ]
+  }
+ },
+ {
+  "name": "github__update_pull_request_branch",
+  "description": "[MCP github] Update a pull request branch with the latest changes from base.",
+  "parameters": {
+   "type": "object",
+   "properties": {
+    "owner": {
+     "type": "string",
+     "description": "Repository owner"
+    },
+    "repo": {
+     "type": "string",
+     "description": "Repository name"
+    },
+    "pullNumber": {
+     "type": "number",
+     "description": "PR number"
+    }
+   },
+   "required": [
+    "owner",
+    "repo",
+    "pullNumber"
+   ]
+  }
+ },
+ {
+  "name": "github__search_pull_requests",
+  "description": "[MCP github] Search for pull requests across GitHub repositories.",
+  "parameters": {
+   "type": "object",
+   "properties": {
+    "query": {
+     "type": "string",
+     "description": "Search query"
+    }
+   },
+   "required": [
+    "query"
+   ]
+  }
+ },
+ {
+  "name": "github__list_issues",
+  "description": "[MCP github] List issues in a GitHub repository.",
+  "parameters": {
+   "type": "object",
+   "properties": {
+    "owner": {
+     "type": "string",
+     "description": "Repository owner"
+    },
+    "repo": {
+     "type": "string",
+     "description": "Repository name"
+    },
+    "state": {
+     "type": "string",
+     "description": "OPEN or CLOSED"
+    },
+    "labels": {
+     "type": "array",
+     "description": "Labels"
+    }
+   },
+   "required": [
+    "owner",
+    "repo"
+   ]
+  }
+ },
+ {
+  "name": "github__get_issue",
+  "description": "[MCP github] Get details of a specific issue.",
+  "parameters": {
+   "type": "object",
+   "properties": {
+    "owner": {
+     "type": "string",
+     "description": "Repository owner"
+    },
+    "repo": {
+     "type": "string",
+     "description": "Repository name"
+    },
+    "issue_number": {
+     "type": "number",
+     "description": "Issue number"
+    }
+   },
+   "required": [
+    "owner",
+    "repo",
+    "issue_number"
+   ]
+  }
+ },
+ {
+  "name": "github__create_issue",
+  "description": "[MCP github] Create a new issue in a GitHub repository.",
+  "parameters": {
+   "type": "object",
+   "properties": {
+    "owner": {
+     "type": "string",
+     "description": "Repository owner"
+    },
+    "repo": {
+     "type": "string",
+     "description": "Repository name"
+    },
+    "title": {
+     "type": "string",
+     "description": "Title"
+    },
+    "body": {
+     "type": "string",
+     "description": "Body"
+    },
+    "labels": {
+     "type": "array",
+     "description": "Labels"
+    },
+    "assignees": {
+     "type": "array",
+     "description": "Assignees"
+    }
+   },
+   "required": [
+    "owner",
+    "repo",
+    "title"
+   ]
+  }
+ },
+ {
+  "name": "github__update_issue",
+  "description": "[MCP github] Update an existing issue.",
+  "parameters": {
+   "type": "object",
+   "properties": {
+    "owner": {
+     "type": "string",
+     "description": "Repository owner"
+    },
+    "repo": {
+     "type": "string",
+     "description": "Repository name"
+    },
+    "issue_number": {
+     "type": "number",
+     "description": "Issue number"
+    },
+    "state": {
+     "type": "string",
+     "description": "open or closed"
+    }
+   },
+   "required": [
+    "owner",
+    "repo",
+    "issue_number"
+   ]
+  }
+ },
+ {
+  "name": "github__add_issue_comment",
+  "description": "[MCP github] Add a comment to an issue or pull request.",
+  "parameters": {
+   "type": "object",
+   "properties": {
+    "owner": {
+     "type": "string",
+     "description": "Repository owner"
+    },
+    "repo": {
+     "type": "string",
+     "description": "Repository name"
+    },
+    "issue_number": {
+     "type": "number",
+     "description": "Issue number"
+    },
+    "body": {
+     "type": "string",
+     "description": "Comment"
+    }
+   },
+   "required": [
+    "owner",
+    "repo",
+    "issue_number",
+    "body"
+   ]
+  }
+ },
+ {
+  "name": "github__get_issue_comments",
+  "description": "[MCP github] Get comments on an issue.",
+  "parameters": {
+   "type": "object",
+   "properties": {
+    "owner": {
+     "type": "string",
+     "description": "Repository owner"
+    },
+    "repo": {
+     "type": "string",
+     "description": "Repository name"
+    },
+    "issue_number": {
+     "type": "number",
+     "description": "Issue number"
+    }
+   },
+   "required": [
+    "owner",
+    "repo",
+    "issue_number"
+   ]
+  }
+ },
+ {
+  "name": "github__search_issues",
+  "description": "[MCP github] Search for issues in GitHub repositories.",
+  "parameters": {
+   "type": "object",
+   "properties": {
+    "query": {
+     "type": "string",
+     "description": "Search query"
+    }
+   },
+   "required": [
+    "query"
+   ]
+  }
+ },
+ {
+  "name": "github__list_sub_issues",
+  "description": "[MCP github] List the sub-issues of an issue.",
+  "parameters": {
+   "type": "object",
+   "properties": {
+    "owner": {
+     "type": "string",
+     "description": "Repository owner"
+    },
+    "repo": {
+     "type": "string",
+     "description": "Repository name"
+    },
+    "issue_number": {
+     "type": "number",
+     "description": "Issue number"
+    }
+   },
+   "required": [
+    "owner",
+    "repo",
+    "issue_number"
+   ]
+  }
+ },
+ {
+  "name": "github__add_sub_issue",
+  "description": "[MCP github] Add a sub-issue to an issue.",
+  "parameters": {
+   "type": "object",
+   "properties": {
+    "owner": {
+     "type": "string",
+     "description": "Repository owner"
+    },
+    "repo": {
+     "type": "string",
+     "description": "Repository name"
+    },
+    "issue_number": {
+     "type": "number",
+     "description": "Parent"
+    },
+    "sub_issue_id": {
+     "type": "number",
+     "description": "Child"
+    }
+   },
+   "required": [
+    "owner",
+    "repo",
+    "issue_number",
+    "sub_issue_id"
+   ]
+  }
+ },
+ {
+  "name": "github__assign_copilot_to_issue",
+  "description": "[MCP github] Assign Copilot to work on an issue.",
+  "parameters": {
+   "type": "object",
+   "properties": {
+    "owner": {
+     "type": "string",
+     "description": "Repository owner"
+    },
+    "repo": {
+     "type": "string",
+     "description": "Repository name"
+    },
+    "issueNumber": {
+     "type": "number",
+     "description": "Issue"
+    }
+   },
+   "required": [
+    "owner",
+    "repo",
+    "issueNumber"
+   ]
+  }
+ },
+ {
+  "name": "github__search_repositories",
+  "description": "[MCP github] Search for GitHub repositories.",
+  "parameters": {
+   "type": "object",
+   "properties": {
+    "query": {
+     "type": "string",
+     "description": "Search query"
+    }
+   },
+   "required": [
+    "query"
+   ]
+  }
+ },
+ {
+  "name": "github__create_repository",
+  "description": "[MCP github] Create a new GitHub repository in your account.",
+  "parameters": {
+   "type": "object",
+   "properties": {
+    "name": {
+     "type": "string",
+     "description": "Name"
+    },
+    "private": {
+     "type": "boolean",
+     "description": "Private"
+    }
+   },
+   "required": [
+    "name"
+   ]
+  }
+ },
+ {
+  "name": "github__fork_repository",
+  "description": "[MCP github] Fork a GitHub repository to your account or an organization.",
+  "parameters": {
+   "type": "object",
+   "properties": {
+    "owner": {
+     "type": "string",
+     "description": "Repository owner"
+    },
+    "repo": {
+     "type": "string",
+     "description": "Repository name"
+    }
+   },
+   "required": [
+    "owner",
+    "repo"
+   ]
+  }
+ },
+ {
+  "name": "github__get_file_contents",
+  "description": "[MCP github] Get the contents of a file or directory from a GitHub repository.",
+  "parameters": {
+   "type": "object",
+   "properties": {
+    "owner": {
+     "type": "string",
+     "description": "Repository owner"
+    },
+    "repo": {
+     "type": "string",
+     "description": "Repository name"
+    },
+    "path": {
+     "type": "string",
+     "description": "Path"
+    },
+    "ref": {
+     "type": "string",
+     "description": "Ref"
+    }
+   },
+   "required": [
+    "owner",
+    "repo"
+   ]
+  }
+ },
+ {
+  "name": "github__create_or_update_file",
+  "description": "[MCP github] Create or update a single file in a GitHub repository.",
+  "parameters": {
+   "type": "object",
+   "properties": {
+    "owner": {
+     "type": "string",
+     "description": "Repository owner"
+    },
+    "repo": {
+     "type": "string",
+     "description": "Repository name"
+    },
+    "path": {
+     "type": "string",
+     "description": "Path"
+    },
+    "content": {
+     "type": "string",
+     "description": "Content"
+    },
+    "message": {
+     "type": "string",
+     "description": "Commit message"
+    },
+    "branch": {
+     "type": "string",
+     "description": "Branch"
+    }
+   },
+   "required": [
+    "owner",
+    "repo",
+    "path",
+    "content",
+    "message",
+    "branch"
+   ]
+  }
+ },
+ {
+  "name": "github__delete_file",
+  "description": "[MCP github] Delete a file from a GitHub repository.",
+  "parameters": {
+   "type": "object",
+   "properties": {
+    "owner": {
+     "type": "string",
+     "description": "Repository owner"
+    },
+    "repo": {
+     "type": "string",
+     "description": "Repository name"
+    },
+    "path": {
+     "type": "string",
+     "description": "Path"
+    },
+    "message": {
+     "type": "string",
+     "description": "Commit message"
+    },
+    "branch": {
+     "type": "string",
+     "description": "Branch"
+    }
+   },
+   "required": [
+    "owner",
+    "repo",
+    "path",
+    "message",
+    "branch"
+   ]
+  }
+ },
+ {
+  "name": "github__push_files",
+  "description": "[MCP github] Push multiple files to a GitHub repository in a single commit.",
+  "parameters": {
+   "type": "object",
+   "properties": {
+    "owner": {
+     "type": "string",
+     "description": "Repository owner"
+    },
+    "repo": {
+     "type": "string",
+     "description": "Repository name"
+    },
+    "branch": {
+     "type": "string",
+     "description": "Branch"
+    },
+    "files": {
+     "type": "array",
+     "description": "Files"
+    },
+    "message": {
+     "type": "string",
+     "description": "Commit message"
+    }
+   },
+   "required": [
+    "owner",
+    "repo",
+    "branch",
+    "files",
+    "message"
+   ]
+  }
+ },
+ {
+  "name": "github__create_branch",
+  "description": "[MCP github] Create a new branch in a GitHub repository.",
+  "parameters": {
+   "type": "object",
+   "properties": {
+    "owner": {
+     "type": "string",
+     "description": "Repository owner"
+    },
+    "repo": {
+     "type": "string",
+     "description": "Repository name"
+    },
+    "branch": {
+     "type": "string",
+     "description": "Name"
+    },
+    "from_branch": {
+     "type": "string",
+     "description": "Source"
+    }
+   },
+   "required": [
+    "owner",
+    "repo",
+    "branch"
+   ]
+  }
+ },
+ {
+  "name": "github__list_branches",
+  "description": "[MCP github] List branches in a GitHub repository.",
+  "parameters": {
+   "type": "object",
+   "properties": {
+    "owner": {
+     "type": "string",
+     "description": "Repository owner"
+    },
+    "repo": {
+     "type": "string",
+     "description": "Repository name"
+    }
+   },
+   "required": [
+    "owner",
+    "repo"
+   ]
+  }
+ },
+ {
+  "name": "github__list_commits",
+  "description": "[MCP github] Get a list of commits of a branch in a GitHub repository.",
+  "parameters": {
+   "type": "object",
+   "properties": {
+    "owner": {
+     "type": "string",
+     "description": "Repository owner"
+    },
+    "repo": {
+     "type": "string",
+     "description": "Repository name"
+    },
+    "sha": {
+     "type": "string",
+     "description": "Branch or sha"
+    }
+   },
+   "required": [
+    "owner",
+    "repo"
+   ]
+  }
+ },
+ {
+  "name": "github__get_commit",
+  "description": "[MCP github] Get details for a commit from a GitHub repository.",
+  "parameters": {
+   "type": "object",
+   "properties": {
+    "owner": {
+     "type": "string",
+     "description": "Repository owner"
+    },
+    "repo": {
+     "type": "string",
+     "description": "Repository name"
+    },
+    "sha": {
+     "type": "string",
+     "description": "Sha"
+    }
+   },
+   "required": [
+    "owner",
+    "repo",
+    "sha"
+   ]
+  }
+ },
+ {
+  "name": "github__list_tags",
+  "description": "[MCP github] List git tags in a GitHub repository.",
+  "parameters": {
+   "type": "object",
+   "properties": {
+    "owner": {
+     "type": "string",
+     "description": "Repository owner"
+    },
+    "repo": {
+     "type": "string",
+     "description": "Repository name"
+    }
+   },
+   "required": [
+    "owner",
+    "repo"
+   ]
+  }
+ },
+ {
+  "name": "github__get_tag",
+  "description": "[MCP github] Get details about a specific git tag.",
+  "parameters": {
+   "type": "object",
+   "properties": {
+    "owner": {
+     "type": "string",
+     "description": "Repository owner"
+    },
+    "repo": {
+     "type": "string",
+     "description": "Repository name"
+    },
+    "tag": {
+     "type": "string",
+     "description": "Tag"
+    }
+   },
+   "required": [
+    "owner",
+    "repo",
+    "tag"
+   ]
+  }
+ },
+ {
+  "name": "github__list_releases",
+  "description": "[MCP github] List releases in a GitHub repository.",
+  "parameters": {
+   "type": "object",
+   "properties": {
+    "owner": {
+     "type": "string",
+     "description": "Repository owner"
+    },
+    "repo": {
+     "type": "string",
+     "description": "Repository name"
+    }
+   },
+   "required": [
+    "owner",
+    "repo"
+   ]
+  }
+ },
+ {
+  "name": "github__get_latest_release",
+  "description": "[MCP github] Get the latest release in a GitHub repository.",
+  "parameters": {
+   "type": "object",
+   "properties": {
+    "owner": {
+     "type": "string",
+     "description": "Repository owner"
+    },
+    "repo": {
+     "type": "string",
+     "description": "Repository name"
+    }
+   },
+   "required": [
+    "owner",
+    "repo"
+   ]
+  }
+ },
+ {
+  "name": "github__search_code",
+  "description": "[MCP github] Search for code across GitHub repositories.",
+  "parameters": {
+   "type": "object",
+   "properties": {
+    "query": {
+     "type": "string",
+     "description": "Search query"
+    }
+   },
+   "required": [
+    "query"
+   ]
+  }
+ },
+ {
+  "name": "github__search_users",
+  "description": "[MCP github] Search for GitHub users.",
+  "parameters": {
+   "type": "object",
+   "properties": {
+    "query": {
+     "type": "string",
+     "description": "Search query"
+    }
+   },
+   "required": [
+    "query"
+   ]
+  }
+ },
+ {
+  "name": "github__search_orgs",
+  "description": "[MCP github] Search for GitHub organizations.",
+  "parameters": {
+   "type": "object",
+   "properties": {
+    "query": {
+     "type": "string",
+     "description": "Search query"
+    }
+   },
+   "required": [
+    "query"
+   ]
+  }
+ },
+ {
+  "name": "github__get_me",
+  "description": "[MCP github] Get details of the authenticated GitHub user.",
+  "parameters": {
+   "type": "object",
+   "properties": {}
+  }
+ },
+ {
+  "name": "github__get_teams",
+  "description": "[MCP github] Get the teams the user is a member of.",
+  "parameters": {
+   "type": "object",
+   "properties": {
+    "user": {
+     "type": "string",
+     "description": "Login"
+    }
+   }
+  }
+ },
+ {
+  "name": "github__get_team_members",
+  "description": "[MCP github] Get the members of a team.",
+  "parameters": {
+   "type": "object",
+   "properties": {
+    "org": {
+     "type": "string",
+     "description": "Org"
+    },
+    "team_slug": {
+     "type": "string",
+     "description": "Team"
+    }
+   },
+   "required": [
+    "org",
+    "team_slug"
+   ]
+  }
+ },
+ {
+  "name": "github__list_workflows",
+  "description": "[MCP github] List GitHub Actions workflows in a repository.",
+  "parameters": {
+   "type": "object",
+   "properties": {
+    "owner": {
+     "type": "string",
+     "description": "Repository owner"
+    },
+    "repo": {
+     "type": "string",
+     "description": "Repository name"
+    }
+   },
+   "required": [
+    "owner",
+    "repo"
+   ]
+  }
+ },
+ {
+  "name": "github__list_workflow_runs",
+  "description": "[MCP github] List workflow runs for a GitHub Actions workflow.",
+  "parameters": {
+   "type": "object",
+   "properties": {
+    "owner": {
+     "type": "string",
+     "description": "Repository owner"
+    },
+    "repo": {
+     "type": "string",
+     "description": "Repository name"
+    },
+    "workflow_id": {
+     "type": "string",
+     "description": "Workflow"
+    }
+   },
+   "required": [
+    "owner",
+    "repo",
+    "workflow_id"
+   ]
+  }
+ },
+ {
+  "name": "github__get_workflow_run",
+  "description": "[MCP github] Get details of a GitHub Actions workflow run.",
+  "parameters": {
+   "type": "object",
+   "properties": {
+    "owner": {
+     "type": "string",
+     "description": "Repository owner"
+    },
+    "repo": {
+     "type": "string",
+     "description": "Repository name"
+    },
+    "run_id": {
+     "type": "number",
+     "description": "Run"
+    }
+   },
+   "required": [
+    "owner",
+    "repo",
+    "run_id"
+   ]
+  }
+ },
+ {
+  "name": "github__get_job_logs",
+  "description": "[MCP github] Download logs for GitHub Actions workflow jobs.",
+  "parameters": {
+   "type": "object",
+   "properties": {
+    "owner": {
+     "type": "string",
+     "description": "Repository owner"
+    },
+    "repo": {
+     "type": "string",
+     "description": "Repository name"
+    },
+    "job_id": {
+     "type": "number",
+     "description": "Job"
+    },
+    "run_id": {
+     "type": "number",
+     "description": "Run"
+    }
+   },
+   "required": [
+    "owner",
+    "repo"
+   ]
+  }
+ },
+ {
+  "name": "github__rerun_workflow_run",
+  "description": "[MCP github] Re-run an entire GitHub Actions workflow run.",
+  "parameters": {
+   "type": "object",
+   "properties": {
+    "owner": {
+     "type": "string",
+     "description": "Repository owner"
+    },
+    "repo": {
+     "type": "string",
+     "description": "Repository name"
+    },
+    "run_id": {
+     "type": "number",
+     "description": "Run"
+    }
+   },
+   "required": [
+    "owner",
+    "repo",
+    "run_id"
+   ]
+  }
+ },
+ {
+  "name": "github__cancel_workflow_run",
+  "description": "[MCP github] Cancel a GitHub Actions workflow run.",
+  "parameters": {
+   "type": "object",
+   "properties": {
+    "owner": {
+     "type": "string",
+     "description": "Repository owner"
+    },
+    "repo": {
+     "type": "string",
+     "description": "Repository name"
+    },
+    "run_id": {
+     "type": "number",
+     "description": "Run"
+    }
+   },
+   "required": [
+    "owner",
+    "repo",
+    "run_id"
+   ]
+  }
+ },
+ {
+  "name": "github__run_workflow",
+  "description": "[MCP github] Run a GitHub Actions workflow by dispatch.",
+  "parameters": {
+   "type": "object",
+   "properties": {
+    "owner": {
+     "type": "string",
+     "description": "Repository owner"
+    },
+    "repo": {
+     "type": "string",
+     "description": "Repository name"
+    },
+    "workflow_id": {
+     "type": "string",
+     "description": "Workflow"
+    },
+    "ref": {
+     "type": "string",
+     "description": "Ref"
+    }
+   },
+   "required": [
+    "owner",
+    "repo",
+    "workflow_id",
+    "ref"
+   ]
+  }
+ },
+ {
+  "name": "github__list_notifications",
+  "description": "[MCP github] List GitHub notifications for the user.",
+  "parameters": {
+   "type": "object",
+   "properties": {
+    "filter": {
+     "type": "string",
+     "description": "Filter"
+    }
+   }
+  }
+ },
+ {
+  "name": "github__dismiss_notification",
+  "description": "[MCP github] Dismiss a notification.",
+  "parameters": {
+   "type": "object",
+   "properties": {
+    "threadID": {
+     "type": "string",
+     "description": "Thread"
+    }
+   },
+   "required": [
+    "threadID"
+   ]
+  }
+ },
+ {
+  "name": "github__mark_all_notifications_read",
+  "description": "[MCP github] Mark all notifications as read.",
+  "parameters": {
+   "type": "object",
+   "properties": {}
+  }
+ },
+ {
+  "name": "github__list_code_scanning_alerts",
+  "description": "[MCP github] List code scanning alerts in a repository.",
+  "parameters": {
+   "type": "object",
+   "properties": {
+    "owner": {
+     "type": "string",
+     "description": "Repository owner"
+    },
+    "repo": {
+     "type": "string",
+     "description": "Repository name"
+    }
+   },
+   "required": [
+    "owner",
+    "repo"
+   ]
+  }
+ },
+ {
+  "name": "github__get_code_scanning_alert",
+  "description": "[MCP github] Get a code scanning alert.",
+  "parameters": {
+   "type": "object",
+   "properties": {
+    "owner": {
+     "type": "string",
+     "description": "Repository owner"
+    },
+    "repo": {
+     "type": "string",
+     "description": "Repository name"
+    },
+    "alertNumber": {
+     "type": "number",
+     "description": "Alert"
+    }
+   },
+   "required": [
+    "owner",
+    "repo",
+    "alertNumber"
+   ]
+  }
+ },
+ {
+  "name": "github__list_secret_scanning_alerts",
+  "description": "[MCP github] List secret scanning alerts in a repository.",
+  "parameters": {
+   "type": "object",
+   "properties": {
+    "owner": {
+     "type": "string",
+     "description": "Repository owner"
+    },
+    "repo": {
+     "type": "string",
+     "description": "Repository name"
+    }
+   },
+   "required": [
+    "owner",
+    "repo"
+   ]
+  }
+ },
+ {
+  "name": "github__list_dependabot_alerts",
+  "description": "[MCP github] List Dependabot alerts in a repository.",
+  "parameters": {
+   "type": "object",
+   "properties": {
+    "owner": {
+     "type": "string",
+     "description": "Repository owner"
+    },
+    "repo": {
+     "type": "string",
+     "description": "Repository name"
+    }
+   },
+   "required": [
+    "owner",
+    "repo"
+   ]
+  }
+ },
+ {
+  "name": "github__list_discussions",
+  "description": "[MCP github] List discussions in a repository.",
+  "parameters": {
+   "type": "object",
+   "properties": {
+    "owner": {
+     "type": "string",
+     "description": "Repository owner"
+    },
+    "repo": {
+     "type": "string",
+     "description": "Repository name"
+    }
+   },
+   "required": [
+    "owner",
+    "repo"
+   ]
+  }
+ },
+ {
+  "name": "github__get_discussion",
+  "description": "[MCP github] Get a discussion.",
+  "parameters": {
+   "type": "object",
+   "properties": {
+    "owner": {
+     "type": "string",
+     "description": "Repository owner"
+    },
+    "repo": {
+     "type": "string",
+     "description": "Repository name"
+    },
+    "discussionNumber": {
+     "type": "number",
+     "description": "Discussion"
+    }
+   },
+   "required": [
+    "owner",
+    "repo",
+    "discussionNumber"
+   ]
+  }
+ },
+ {
+  "name": "github__list_gists",
+  "description": "[MCP github] List gists for a user.",
+  "parameters": {
+   "type": "object",
+   "properties": {
+    "username": {
+     "type": "string",
+     "description": "User"
+    }
+   }
+  }
+ },
+ {
+  "name": "github__create_gist",
+  "description": "[MCP github] Create a new gist.",
+  "parameters": {
+   "type": "object",
+   "properties": {
+    "files": {
+     "type": "object",
+     "description": "Files"
+    },
+    "description": {
+     "type": "string",
+     "description": "Description"
+    }
+   },
+   "required": [
+    "files"
+   ]
+  }
+ },
+ {
+  "name": "github__star_repository",
+  "description": "[MCP github] Star a GitHub repository.",
+  "parameters": {
+   "type": "object",
+   "properties": {
+    "owner": {
+     "type": "string",
+     "description": "Repository owner"
+    },
+    "repo": {
+     "type": "string",
+     "description": "Repository name"
+    }
+   },
+   "required": [
+    "owner",
+    "repo"
+   ]
+  }
+ },
+ {
+  "name": "github__unstar_repository",
+  "description": "[MCP github] Unstar a GitHub repository.",
+  "parameters": {
+   "type": "object",
+   "properties": {
+    "owner": {
+     "type": "string",
+     "description": "Repository owner"
+    },
+    "repo": {
+     "type": "string",
+     "description": "Repository name"
+    }
+   },
+   "required": [
+    "owner",
+    "repo"
+   ]
+  }
+ },
+ {
+  "name": "github__list_starred_repositories",
+  "description": "[MCP github] List starred repositories.",
+  "parameters": {
+   "type": "object",
+   "properties": {
+    "username": {
+     "type": "string",
+     "description": "User"
+    }
+   }
+  }
+ },
+ {
+  "name": "github__list_projects",
+  "description": "[MCP github] List GitHub Projects for an organization or user.",
+  "parameters": {
+   "type": "object",
+   "properties": {
+    "owner": {
+     "type": "string",
+     "description": "Owner"
+    }
+   },
+   "required": [
+    "owner"
+   ]
+  }
+ },
+ {
+  "name": "github__get_project_items",
+  "description": "[MCP github] List the items of a GitHub Project.",
+  "parameters": {
+   "type": "object",
+   "properties": {
+    "owner": {
+     "type": "string",
+     "description": "Owner"
+    },
+    "project_number": {
+     "type": "number",
+     "description": "Project"
+    }
+   },
+   "required": [
+    "owner",
+    "project_number"
+   ]
+  }
+ },
+ {
+  "name": "github__list_issue_types",
+  "description": "[MCP github] List the issue types of an organization.",
+  "parameters": {
+   "type": "object",
+   "properties": {
+    "owner": {
+     "type": "string",
+     "description": "Org"
+    }
+   },
+   "required": [
+    "owner"
+   ]
+  }
+ },
+ {
+  "name": "github__list_labels",
+  "description": "[MCP github] List labels in a repository.",
+  "parameters": {
+   "type": "object",
+   "properties": {
+    "owner": {
+     "type": "string",
+     "description": "Repository owner"
+    },
+    "repo": {
+     "type": "string",
+     "description": "Repository name"
+    }
+   },
+   "required": [
+    "owner",
+    "repo"
+   ]
+  }
+ }
+]

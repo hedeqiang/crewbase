@@ -152,3 +152,29 @@ func TestUsageFollowsSessionKind(t *testing.T) {
 		t.Fatalf("tools segment %d counts the channel-only tool", want)
 	}
 }
+
+// Deferred tools held back by tool search are not counted: the meter shows
+// what the next request carries, not every registered tool.
+func TestUsageLeavesOutDeferredTools(t *testing.T) {
+	e := newEnv(t, t.TempDir(), nil, func(load func(kernel.Spec, map[string]any)) {
+		load(kernel.Spec{Name: "test-deferred", Inject: []string{tools.ServiceKey}, Apply: func(c *kernel.Context) error {
+			reg := kernel.Use[*tools.Registry](c, tools.ServiceKey)
+			for i := range 60 {
+				reg.Register(c, &tools.Tool{Name: "bulky__tool_" + string(rune('a'+i%26)) + string(rune('a'+i/26)),
+					Description: strings.Repeat("a large connector tool ", 60), Load: tools.LoadDeferred, Group: "bulky", Execute: nop})
+			}
+			return nil
+		}}, nil)
+	})
+	a, _ := e.agents.Create(agent.Spec{Name: "K"})
+	b, err := e.comp.Usage(a.ID(), "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, s := range b.Segments {
+		// 60 × ~1400 chars would be ~21k tokens if they were all counted
+		if s.Key == "tools" && s.Tokens > 8000 {
+			t.Fatalf("tools segment %d counts deferred tools", s.Tokens)
+		}
+	}
+}
