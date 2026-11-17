@@ -87,6 +87,8 @@ export type FeedItem = (
       time: string;
       citations: Citation[];
       searches: string[];
+      /** tools a subscription CLI ran itself ("Read", "ToolSearch"…), taken out of its text */
+      cliTools?: { agent: string; title: string; failed?: boolean }[];
       refusal: boolean;
       /** set on the turn's last reply once the turn ended */
       stats?: TurnStats;
@@ -276,7 +278,7 @@ export function project(events: SessionEvent[], cards?: ReadonlySet<string>): Pr
       case "message/assistant": {
         const parts: Part[] = d.message?.parts ?? [];
         if (d.model?.provider) lastModel[e.agent ?? ""] = d.model;
-        const text = textOf(parts, "text");
+        const { text, cliTools } = splitCliNotes(textOf(parts, "text"));
         const thinking = textOf(parts, "thinking");
         const citations: Citation[] = [];
         const seen = new Set<string>();
@@ -300,9 +302,9 @@ export function project(events: SessionEvent[], cards?: ReadonlySet<string>): Pr
           });
           turn.stepAt = undefined;
         }
-        if (text || thinking || citations.length || searches.length || refusal) {
+        if (text || thinking || citations.length || searches.length || refusal || cliTools.length) {
           group = null;
-          const it: Extract<FeedItem, { k: "agent" }> = { k: "agent", id, agent: e.agent ?? "", text, thinking, model: d.model, time: e.time, citations, searches, refusal };
+          const it: Extract<FeedItem, { k: "agent" }> = { k: "agent", id, agent: e.agent ?? "", text, thinking, model: d.model, time: e.time, citations, searches, refusal, cliTools: cliTools.length ? cliTools : undefined };
           if (turn) turn.last = it;
           push(it, e.time);
         }
@@ -562,4 +564,28 @@ export function argsFull(args: any): string {
     }
   }
   return JSON.stringify(args, null, 2);
+}
+
+// A subscription CLI's reply carries one line per tool it ran ("[Claude Code
+// tool: Read]", "[Codex tool failed: …]", "[Crewbase tool computer_open: …]")
+// so the model keeps the history; the person sees them as one quiet line.
+const CLI_NOTE = /^\[(.+?) tool( failed)?: (.+)\]$/;
+const CREWBASE_NOTE = /^\[Crewbase (tool .+|moved CLI configuration .+)\]$/;
+
+export function splitCliNotes(text: string): { text: string; cliTools: { agent: string; title: string; failed?: boolean }[] } {
+  if (!text.includes("[")) return { text, cliTools: [] };
+  const cliTools: { agent: string; title: string; failed?: boolean }[] = [];
+  const keep: string[] = [];
+  for (const line of text.split("\n")) {
+    const l = line.trim();
+    if (CREWBASE_NOTE.test(l)) continue; // its own calls show as Crewbase steps
+    const m = CLI_NOTE.exec(l);
+    if (m && !m[3].startsWith("mcp__crewbase__") && !m[3].startsWith("crewbase")) {
+      cliTools.push({ agent: m[1], title: m[3], failed: !!m[2] || undefined });
+      continue;
+    }
+    if (m) continue; // a crewbase MCP call: shown as a Crewbase step already
+    keep.push(line);
+  }
+  return { text: keep.join("\n").replace(/^\s+|\s+$/g, ""), cliTools };
 }

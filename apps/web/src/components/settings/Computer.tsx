@@ -4,13 +4,12 @@
 // provider (server, web, non-macOS) the API is absent and the page says so.
 
 import { Hand, MonitorOff, ShieldCheck } from "lucide-react";
-import { Fragment, useEffect, useMemo, useState } from "react";
-import { API, ApiError, desktop, type ComputerOverview, type ComputerPerm, type DesktopPermission } from "../../api";
+import { Fragment, useEffect, useState } from "react";
+import { API, ApiError, desktop, type ComputerOverview, type DesktopPermission } from "../../api";
 import { t, type Key } from "../../i18n";
 import { toast, useStore } from "../../store";
 import { Head, Row } from "../Settings";
 
-const PERMS: ComputerPerm[] = ["allow", "ask", "block"];
 const GROUPS = ["passwords", "terminal", "system", "crewbase", "finance"] as const;
 
 const fail = (e: any) => toast(e?.message ?? String(e));
@@ -78,7 +77,9 @@ export function Computer() {
         </div>
 
         <SysPerms ov={ov} />
-        <AppTable ov={ov} run={run} />
+        {/* no app table: each agent is asked the first time it uses an app
+            (以后都允许 remembers it, revocable in Settings › 审批) */}
+        <p className="small muted cufoot">{t("cu.askNote")}</p>
         <BlockTable ov={ov} run={run} />
 
         <div className="vsec">{t("cu.safety")}</div>
@@ -187,85 +188,6 @@ function SysPerms({ ov }: { ov: ComputerOverview }) {
 }
 
 /** One agent at a time: each app with allow / ask / block. */
-function AppTable({ ov, run }: { ov: ComputerOverview; run: (p: Promise<ComputerOverview>) => Promise<void> }) {
-  const agents = useStore((s) => s.agents);
-  const list = useMemo(() => Object.values(agents).sort((a, b) => a.name.localeCompare(b.name)), [agents]);
-  const [agent, setAgent] = useState("");
-  const cur = agent && agents[agent] ? agent : (list[0]?.id ?? "");
-  const apps = ov.apps.filter((a) => !a.blocked && !a.browser);
-  const browsers = ov.apps.filter((a) => a.browser && a.running);
-  return (
-    <>
-      <div className="vsec">{t("cu.apps")}</div>
-      <div className="sbox">
-        <Row title={t("cu.appsFor")} desc={t("cu.appsDesc")}>
-          <span className="ssel">
-            <select value={cur} aria-label={t("cu.appsFor")} onChange={(e) => setAgent(e.target.value)}>
-              {list.map((a) => (
-                <option key={a.id} value={a.id}>
-                  {a.name}
-                </option>
-              ))}
-            </select>
-          </span>
-        </Row>
-        {apps.length === 0 && (
-          <div className="srow">
-            <span className="small">{ov.appsError ? t("cu.appsError", { error: ov.appsError }) : t("cu.appsNone")}</span>
-          </div>
-        )}
-        {cur &&
-          apps.map((a) => {
-            const p = a.perms[cur] ?? "ask";
-            return (
-              <Row key={a.id} title={a.name} desc={a.id + (a.running ? "" : " · " + t("cu.notRunning"))}>
-                <div className="seg" role="group" aria-label={a.name}>
-                  {PERMS.map((x) => (
-                    <button key={x} type="button" aria-pressed={p === x} onClick={() => p !== x && void run(API.setComputerPermission(cur, a.id, x))}>
-                      {t(`cu.perm.${x}` as Key)}
-                    </button>
-                  ))}
-                </div>
-              </Row>
-            );
-          })}
-      </div>
-      <BrowserTable ov={ov} run={run} running={browsers.map((b) => b.id)} />
-    </>
-  );
-}
-
-/** Browsers: off by default (websites go to the agent's own browser), one
- *  switch each to let agents use the person's own, logged-in browser. */
-function BrowserTable({ ov, run, running }: { ov: ComputerOverview; run: (p: Promise<ComputerOverview>) => Promise<void>; running: string[] }) {
-  const rows = ov.blocks.default
-    .filter((b) => b.group === "browser")
-    .sort((a, b) => Number(running.includes(b.id)) * -1 - Number(running.includes(a.id)) * -1);
-  if (rows.length === 0) return null;
-  return (
-    <>
-      <div className="vsec">{t("cu.browsersTitle")}</div>
-      <p className="small muted cufoot" style={{ marginTop: -4 }}>
-        {t("cu.browsersDesc")}
-      </p>
-      <div className="sbox">
-        {rows.map((b) => (
-          <Row key={b.key} title={b.name} desc={b.id + (running.includes(b.id) ? "" : " · " + t("cu.notRunning"))}>
-            <button
-              className="tg"
-              type="button"
-              role="switch"
-              aria-checked={!b.blocked}
-              aria-label={t("cu.browserAllow", { app: b.name })}
-              onClick={() => void run(API.setComputerBlocked(b.key, !b.blocked))}
-            />
-          </Row>
-        ))}
-      </div>
-    </>
-  );
-}
-
 /** The default block list (by group) and apps the person blocked. */
 function BlockTable({ ov, run }: { ov: ComputerOverview; run: (p: Promise<ComputerOverview>) => Promise<void> }) {
   const [open, setOpen] = useState(false);
@@ -311,7 +233,7 @@ function BlockTable({ ov, run }: { ov: ComputerOverview; run: (p: Promise<Comput
       </div>
       <p className="small cufoot">
         {t("cu.blockedNote")}{" "}
-        <button className="linkbtn" type="button" onClick={() => setOpen(!open)}>
+        <button className="btn sm ghost" type="button" onClick={() => setOpen(!open)}>
           {open ? t("cu.blockedLess") : t("cu.blockedEdit")}
         </button>
       </p>

@@ -242,8 +242,6 @@ func (s *Service) listApps(ctx context.Context, call tools.Call) (tools.Result, 
 			notes = append(notes, "hidden")
 		}
 		switch {
-		case IsBrowser(a.ID, a.Name) && s.blockedWhy(a) != "":
-			notes = append(notes, "browser: use browser_* tools")
 		case s.blockedWhy(a) != "":
 			notes = append(notes, "blocked")
 		default:
@@ -529,7 +527,7 @@ const ladder = ladderHead +
 	"(3) click / double_click / right_click / scroll / drag at window coordinates only when the outline lacks the target (observe with screenshot: true to see it); these bring the app to the front and wait while the user is using the computer. " +
 	"After anything that changes the window, call computer_observe again: element numbers belong to one outline. " +
 	"Sending, deleting and paying are confirmed by the user every time; password fields are never typed into (ask the user). " +
-	"Websites: prefer browser_* (your own browser). If a site will not load or rejects your browser, and computer_apps shows the user's own browser (Chrome, Safari…) as allowed or ask, you may operate that browser with these tools instead (it has the user's logins); if it shows blocked, tell the user they can allow it in Settings › 电脑操作. Never say you cannot operate the user's browser without checking computer_apps."
+	"Websites: prefer browser_* (your own browser). If a site will not load or rejects your browser, operate the user's own browser (Chrome, Safari…) with these tools instead: it has the user's logins, and the user is asked the first time."
 
 func stepProps() map[string]any {
 	num := func(d string) map[string]any { return tools.Prop("number", d) }

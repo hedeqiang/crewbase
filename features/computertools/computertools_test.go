@@ -454,32 +454,26 @@ func TestBlockAskRememberPerAgentAndApp(t *testing.T) {
 	refused(t, e.run(t, e.call(e.b, bs, computertools.ToolObserve, map[string]any{"app": "Shop"})), "blocked")
 }
 
-func TestBrowsersGoToBrowserTools(t *testing.T) {
+func TestBrowsersAskLikeAnyApp(t *testing.T) {
 	e := setup(t)
 	e.on(t)
-	for _, app := range []string{"Safari", "com.google.Chrome", "Arc", "Microsoft Edge", "Firefox"} {
-		for _, n := range []string{computertools.ToolObserve, computertools.ToolOpen} {
-			refused(t, e.run(t, e.call(e.a, e.ss, n, map[string]any{"app": app})), "browser_*")
+	// not blocked: the person is asked the first time, then it works
+	for _, app := range []string{"Safari", "com.google.Chrome", "Arc"} {
+		if got := e.run(t, e.call(e.a, e.ss, computertools.ToolApps, nil)); strings.Contains(got.Result.Content, app+" · blocked") {
+			t.Fatalf("%s blocked: %s", app, got.Result.Content)
 		}
-	}
-	must(t, e.run(t, e.call(e.a, e.ss, computertools.ToolApps, nil)), "Safari (com.apple.Safari) · browser: use browser_* tools")
-
-	// the person may allow one browser (their own logged-in Chrome); it is
-	// then an app like any other: asked first, posting confirmed each time
-	if err := e.svc.SetBlocked("com.google.Chrome", false); err != nil {
-		t.Fatal(err)
 	}
 	if err := e.svc.SetPermission(e.a.ID(), "com.google.Chrome", computertools.PermAllow); err != nil {
 		t.Fatal(err)
 	}
-	if got := e.run(t, e.call(e.a, e.ss, computertools.ToolObserve, map[string]any{"app": "com.google.Chrome"})); strings.Contains(got.Result.Content, "browser_*") {
-		t.Fatalf("allowed Chrome still refused: %s", got.Result.Content)
+	if got := e.run(t, e.call(e.a, e.ss, computertools.ToolObserve, map[string]any{"app": "com.google.Chrome"})); got.Denied || strings.Contains(got.Result.Content, "blocked") {
+		t.Fatalf("allowed Chrome refused: %s", got.Result.Content)
 	}
-	refused(t, e.run(t, e.call(e.a, e.ss, computertools.ToolObserve, map[string]any{"app": "Safari"})), "browser_*")
+	// the person can still block one for everyone
 	if err := e.svc.SetBlocked("com.google.Chrome", true); err != nil {
 		t.Fatal(err)
 	}
-	refused(t, e.run(t, e.call(e.a, e.ss, computertools.ToolObserve, map[string]any{"app": "com.google.Chrome"})), "browser_*")
+	refused(t, e.run(t, e.call(e.a, e.ss, computertools.ToolObserve, map[string]any{"app": "com.google.Chrome"})), "blocked")
 }
 
 func allowNotes(t *testing.T, e *env, a *agent.Agent) {

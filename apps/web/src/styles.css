@@ -1923,3 +1923,4 @@ button.psec.toggle { width: 100%; background: none; border: 0; font-family: inhe
 .bubseg .sw { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 6px; vertical-align: -1px; }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .feed[data-bubbles="tint"] .m-user .bubble { background: color-mix(in srgb, var(--ac) 28%, var(--page)); } }
 :root[data-theme="dark"] .feed[data-bubbles="tint"] .m-user .bubble { background: color-mix(in srgb, var(--ac) 28%, var(--page)); }
+.clitools { margin: 2px 0 4px; } .clitools ul { margin: 2px 0 0 22px; padding: 0; } .clitools li { list-style: disc; line-height: 1.6; }

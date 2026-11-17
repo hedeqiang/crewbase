@@ -775,6 +775,32 @@ const REASONS: Record<string, true> = {
   "chat.reason.unavailable": true,
 };
 
+/** What a subscription CLI did with its own tools: one quiet line,
+ *  "Claude Code 用了 3 个工具", opened to list them. */
+function CliTools({ items }: { items: { agent: string; title: string; failed?: boolean }[] }) {
+  const [open, setOpen] = useState(false);
+  const failed = items.filter((x) => x.failed).length;
+  return (
+    <div className="clitools">
+      <button type="button" className="row-btn" aria-expanded={open} onClick={() => setOpen(!open)}>
+        <Wrench size={12} aria-hidden />
+        <span>{t("chat.cliTools", { agent: items[0].agent, n: items.length })}</span>
+        {failed > 0 && <span className="pill sm red">{t("chat.cliToolsFailed", { n: failed })}</span>}
+        <ChevronRight size={13} className="ch" aria-hidden />
+      </button>
+      {open && (
+        <ul className="small muted">
+          {items.map((x, i) => (
+            <li key={i} className={x.failed ? "errt" : undefined}>
+              {x.title}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 function AgentMsg({ it, agent, showModel, before, after }: { it: Extract<FeedItem, { k: "agent" }>; agent?: AgentView; showModel: boolean; before?: Step[]; after?: Step[] }) {
   const models = useStore((s) => s.models);
   const [showThink, setShowThink] = useState(false);
@@ -808,6 +834,7 @@ function AgentMsg({ it, agent, showModel, before, after }: { it: Extract<FeedIte
         )}
         {showThink && <div className="thinking small">{it.thinking}</div>}
         {before && <Steps steps={before} agent={it.agent} />}
+        {it.cliTools && <CliTools items={it.cliTools} />}
         {it.searches.map((q, i) => (
           <div className="srvtool" key={i}>
             <SearchIcon size={13} />
