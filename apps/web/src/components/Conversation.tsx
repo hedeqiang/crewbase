@@ -27,6 +27,8 @@ import {
   Monitor,
   Plus,
   Shield,
+  ShieldCheck,
+  ShieldX,
   Wrench,
   ArrowRightLeft,
   Search as SearchIcon,
@@ -48,7 +50,7 @@ import {
 import { display, enterSends, MAC } from "../shortcuts";
 import { API, desktop, parseRef, refString, useRawURL, type AgentView, type ChannelView, type ModelRef } from "../api";
 import { t, type Key } from "../i18n";
-import { argsFull, argsPreview, project, type FeedItem, type Rewind, type Step, type TurnStats } from "../projection";
+import { argsFull, argsPreview, project, type Decision, type FeedItem, type Rewind, type Step, type TurnStats } from "../projection";
 import { hasModels, loadSession, setModelOverride, openConnect, openSubRun, setState, toast, useStore, sessionAgent } from "../store";
 import { TakeoverCard, takeoverReason } from "./Browser";
 import { cloudVoice, dictate, dictationSupported, primeVoice, speak, speaking, speakSupported } from "../voice";
@@ -1113,6 +1115,7 @@ function StepRow({ s, agent }: { s: Step; agent?: string }) {
         {cu ? <b className="cul">{cu}</b> : toolLabel(s.call.name) ? <b>{toolLabel(s.call.name)}</b> : <b className="mono">{s.call.name}</b>}
         {cu && (s.computer ?? []).some((c) => c.foreground) && <span className="pill sm">{t("tool.cu.fg")}</span>}
         <span className={"pv" + (PROSE_ARGS.has(s.call.name) ? "" : " mono")}>{pv}</span>
+        {s.decision && <DecisionTag d={s.decision} />}
         {s.sub && (
           <span
             className="steplink"
@@ -1152,6 +1155,11 @@ function StepRow({ s, agent }: { s: Step; agent?: string }) {
               ))}
             </ol>
           )}
+          {s.decision?.message && (
+            <p className="small stepnote">
+              {t("appr.noteFrom", { by: decidedBy(s.decision) })}「{s.decision.message}」
+            </p>
+          )}
           <pre className="codeblk">{argsFull(s.call.args)}</pre>
           {s.result &&
             (s.result.content.startsWith(PARKED) ? (
@@ -1162,6 +1170,23 @@ function StepRow({ s, agent }: { s: Step; agent?: string }) {
         </div>
       )}
     </div>
+  );
+}
+
+const decidedBy = (d: Decision) => (d.by && d.by !== "desktop" ? d.by : t("common.you"));
+
+/** How an approval was answered, as a small tag on its tool step. */
+function DecisionTag({ d }: { d: Decision }) {
+  const ok = d.outcome === "allowed-once";
+  const label = ok
+    ? t(d.remember ? "appr.tagAlways" : "appr.tagApproved")
+    : t(d.outcome === "rejected" ? "appr.tagRejected" : d.outcome === "cancelled" ? "appr.tagCancelled" : "appr.tagUnavailable");
+  const who = decidedBy(d);
+  return (
+    <span className={"dtag" + (ok ? " ok" : " no")} title={t(ok ? "appr.tagByOk" : "appr.tagByNo", { by: who }) + (d.message ? ` · 「${d.message}」` : "")}>
+      {ok ? <ShieldCheck size={11} /> : <ShieldX size={11} />}
+      {label}
+    </span>
   );
 }
 

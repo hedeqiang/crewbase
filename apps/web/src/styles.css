@@ -2063,3 +2063,9 @@ button.cxblk:focus-visible { outline: 2px solid var(--accent); outline-offset: -
   .cxrow .bar { display: none; }
 }
 
+
+/* approval answer on a tool step */
+.dtag { display: inline-flex; align-items: center; gap: 3px; flex: none; margin-left: 6px; padding: 1px 7px; border-radius: 999px; font-size: 11px; line-height: 16px; white-space: nowrap; }
+.dtag.ok { color: var(--ok-text, #1a7f4b); background: color-mix(in srgb, var(--ok-text, #1a7f4b) 10%, transparent); }
+.dtag.no { color: var(--danger-text); background: color-mix(in srgb, var(--danger-text) 10%, transparent); }
+.stepnote { margin: 0 0 6px; color: var(--text2); }

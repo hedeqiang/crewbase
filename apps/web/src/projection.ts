@@ -8,6 +8,8 @@ export interface Step {
   time: string;
   /** An approval card is waiting for this call. */
   awaiting?: boolean;
+  /** How the approval card for this call was answered (shown on the step). */
+  decision?: Decision;
   /** delegate: the sub-agent run it started (its session) */
   sub?: string;
   /** computer_*: what it did in the app, from computer/action events */
@@ -376,7 +378,15 @@ export function project(events: SessionEvent[], cards?: ReadonlySet<string>): Pr
         const dec: Decision = { outcome: d.outcome, message: d.message, remember: d.remember, by: d.by };
         if (it) it.decided = dec;
         const st = steps.get(d.callId);
-        if (st) st.awaiting = false;
+        if (st) {
+          st.awaiting = false;
+          st.decision = dec;
+          // the answer shows on the tool step itself; the card leaves the feed
+          if (it) {
+            const at = items.indexOf(it);
+            if (at >= 0) items.splice(at, 1);
+          }
+        }
         break;
       }
       case "model/switched":
