@@ -1,17 +1,18 @@
 package agent
 
 import (
-	"os"
 	"path/filepath"
 	"strings"
 )
 
 // CLIConfigNames are the entries at the top of a working directory from
-// which subscription coding CLIs (driven over ACP, see providers/llm/acp)
-// load project-level configuration. Several of them can widen what the CLI
-// may do without asking: permission allow-lists and default modes, hooks
-// that run shell commands, MCP servers the CLI starts, plugins, sub-agent
-// definitions with their own tools and hooks.
+// which coding CLIs (Claude Code, Codex, …) load project-level
+// configuration when someone runs them in that folder. Several of them can
+// widen what the CLI may do without asking: permission allow-lists and
+// default modes, hooks that run shell commands, MCP servers the CLI
+// starts, plugins, sub-agent definitions with their own tools and hooks. An
+// agent must not plant them in a project the person later opens with
+// their own CLI.
 //
 //	.claude, .mcp.json         Claude Code (settings[.local].json, hooks, agents, skills; project MCP servers)
 //	.codex                     Codex (config.toml, hooks, exec policy)
@@ -26,8 +27,7 @@ import (
 // them.
 //
 // An agent in sandbox mode may not write these paths (fs tools and the
-// command sandbox treat them as read-only), and in an agent's own workspace
-// the ACP bridge moves any that exist aside before a CLI turn.
+// command sandbox treat them as read-only).
 var CLIConfigNames = []string{
 	".claude", ".mcp.json",
 	".codex",
@@ -97,59 +97,4 @@ func resolveExisting(p string) string {
 		return p
 	}
 	return filepath.Join(resolveExisting(parent), filepath.Base(p))
-}
-
-// OwnsWorkspace reports whether the agent works in a directory Crewbase
-// made for an agent (<root>/workspaces/<id>, its own or, for a sub-agent,
-// its parent's) rather than a project folder the person chose. A project
-// folder can never lie inside the data directory (Registry.ProjectDir), so
-// the location decides.
-func (a *Agent) OwnsWorkspace() bool {
-	ws := a.Workspace()
-	if ws == "" || !filepath.IsAbs(ws) {
-		return false
-	}
-	base := filepath.Join(a.reg.root, "workspaces")
-	if within(resolveExisting(filepath.Clean(ws)), resolveExisting(base)) {
-		return true
-	}
-	return within(filepath.Clean(ws), filepath.Clean(base))
-}
-
-func within(p, root string) bool {
-	rel, err := filepath.Rel(root, p)
-	return err == nil && rel != "." && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))
-}
-
-// QuarantineCLIConfig moves every CLIConfigNames entry found at the top of
-// dir into dir/.crewbase-quarantine/<stamp>/, so a CLI started there does
-// not load configuration an agent wrote. It returns the names it moved.
-// Lstat follows the file system's own case rules, so ".CLAUDE" is found on
-// macOS exactly when the CLI would read it as ".claude".
-func QuarantineCLIConfig(dir, stamp string) ([]string, error) {
-	if dir == "" || !filepath.IsAbs(dir) {
-		return nil, nil
-	}
-	var moved []string
-	var firstErr error
-	for _, p := range CLIConfigPaths(dir) {
-		if _, err := os.Lstat(p); err != nil {
-			continue
-		}
-		q := filepath.Join(dir, ".crewbase-quarantine", stamp)
-		if err := os.MkdirAll(q, 0o700); err != nil {
-			if firstErr == nil {
-				firstErr = err
-			}
-			continue
-		}
-		if err := os.Rename(p, filepath.Join(q, filepath.Base(p))); err != nil {
-			if firstErr == nil {
-				firstErr = err
-			}
-			continue
-		}
-		moved = append(moved, filepath.Base(p))
-	}
-	return moved, firstErr
 }

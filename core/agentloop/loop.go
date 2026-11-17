@@ -484,17 +484,16 @@ func (l *loop) build(a *agent.Agent, ss *session.Session, ad llm.Adapter, ref ll
 		system = strings.TrimSpace(system + "\n\n" + plan.Section)
 	}
 	return llm.Request{
-		Model:        ref.Model,
-		Effort:       ref.Effort,
-		System:       system,
-		Messages:     session.DeriveMessages(ss.Events(), a.ID(), l.agents.Names()),
-		Tools:        plan.Tools,
-		NativeTools:  a.Spec().NativeTools,
-		Agent:        a.ID(),
-		Session:      ss.ID(),
-		Workspace:    a.Workspace(),
-		OwnWorkspace: a.OwnsWorkspace(),
-		Mode:         mode,
+		Model:       ref.Model,
+		Effort:      ref.Effort,
+		System:      system,
+		Messages:    session.DeriveMessages(ss.Events(), a.ID(), l.agents.Names()),
+		Tools:       plan.Tools,
+		NativeTools: a.Spec().NativeTools,
+		Agent:       a.ID(),
+		Session:     ss.ID(),
+		Workspace:   a.Workspace(),
+		Mode:        mode,
 	}
 }
 
@@ -521,8 +520,7 @@ func (l *loop) step(ctx context.Context, a *agent.Agent, ss *session.Session, re
 		if h, ok := kernel.Lookup[Hydrator](l.c, AttachmentsKey); ok {
 			h.Hydrate(ctx, a.Workspace(), ad, ref.Model, &req)
 		}
-		// Tools a CLI never sees (llm.OwnTools) do not count toward its context.
-		est := EstimateContext(l.c, ad, a, ss.Meta().Kind, req)
+		est := EstimateContext(req)
 		if !compacted && float64(est) > l.cfg.CompactThreshold*float64(win) {
 			if cp, ok := kernel.Lookup[Compactor](l.c, CompactionKey); ok {
 				compacted = true

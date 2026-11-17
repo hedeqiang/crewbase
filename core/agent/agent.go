@@ -1082,7 +1082,7 @@ func (r *Registry) loadAll() {
 		if !ok {
 			continue
 		}
-		if ms := renameProviders(s.Models); ms != nil {
+		if ms := dropRetired(s.Models); ms != nil {
 			s.Models = ms
 			_ = r.persist(s)
 		}
@@ -1194,28 +1194,9 @@ var Plugin = kernel.Register(kernel.Spec{
 			}
 			r.defaults = append(r.defaults, ref)
 		}
-		if ms := renameProviders(r.defaults); ms != nil {
+		if ms := dropRetired(r.defaults); ms != nil {
 			r.defaults = ms
 		}
-		// agents that point at a CLI's "default" get its concrete model once
-		// the CLI's list is known (shortly after start, then now and then)
-		c.Go(func(ctx context.Context) {
-			t := time.NewTimer(15 * time.Second)
-			defer t.Stop()
-			for {
-				select {
-				case <-ctx.Done():
-					return
-				case <-t.C:
-					if reg, ok := kernel.Lookup[*llm.Registry](c, llm.ServiceKey); ok {
-						if n := r.resolvePlaceholders(ctx, reg); n > 0 {
-							c.Log().Info("agents: named the concrete model of CLI defaults", "agents", n)
-						}
-					}
-					t.Reset(10 * time.Minute)
-				}
-			}
-		})
 		// team-scoped tools (a team's shared MCP servers) need the agent's team
 		if tr, ok := kernel.Lookup[*tools.Registry](c, tools.ServiceKey); ok {
 			tr.SetTeamOf(func(id string) string {
@@ -1321,7 +1302,7 @@ func (r *Registry) computeDefaults(reg *llm.Registry, defs []llm.ModelRef) []llm
 		// concrete model so people see (and the router tracks) what runs.
 		if m.Model == "" || m.Model == "default" {
 			if ms, err := reg.ModelsOf(ctx, ad); err == nil {
-				if id := pickModelFor(ad, ms); id != "" {
+				if id := pickModel(ms); id != "" {
 					m.Model = id
 				}
 			}
@@ -1342,7 +1323,7 @@ func (r *Registry) computeDefaults(reg *llm.Registry, defs []llm.ModelRef) []llm
 		if err != nil {
 			continue
 		}
-		if id := pickModelFor(ad, ms); id != "" {
+		if id := pickModel(ms); id != "" {
 			out = append(out, llm.ModelRef{Provider: ad.ID(), Model: id})
 		}
 		if len(out) == 3 {
@@ -1368,7 +1349,7 @@ func (r *Registry) adoptDefaults() {
 	var now []llm.ModelRef
 	for _, a := range r.List() {
 		ms := a.Spec().Models
-		if !sameRefs(ms, defs) || anyConfigured(reg, ms) {
+		if len(ms) > 0 && (!sameRefs(ms, defs) || anyConfigured(reg, ms)) {
 			continue
 		}
 		if now == nil {
@@ -1378,7 +1359,7 @@ func (r *Registry) adoptDefaults() {
 			}
 		}
 		_ = a.Update(func(s *Spec) {
-			if sameRefs(s.Models, defs) {
+			if len(s.Models) == 0 || sameRefs(s.Models, defs) {
 				s.Models = append([]llm.ModelRef(nil), now...)
 			}
 		})
@@ -1409,82 +1390,6 @@ func sameRefs(a, b []llm.ModelRef) bool {
 // preferredModels ranks well-known strong models when a provider (such as
 // a gateway) offers many; the first enabled match wins.
 var preferredModels = []string{"claude-opus-5-5", "claude-sonnet-5-5", "gpt-6.1", "gpt-6", "deepseek-v4-pro", "deepseek-flash", "gemini"}
-
-// resolvePlaceholders replaces "default" model refs of subscription CLIs
-// in agent specs with the CLI's first concrete model, once it lists
-// some; it returns how many agents changed.
-func (r *Registry) resolvePlaceholders(ctx context.Context, reg *llm.Registry) int {
-	concrete := map[string]string{} // provider → model ("" = not known)
-	resolve := func(provider string) string {
-		if v, ok := concrete[provider]; ok {
-			return v
-		}
-		concrete[provider] = ""
-		ad, ok := reg.Get(provider)
-		if !ok || ad.Kind() != "subscription" {
-			return ""
-		}
-		c, cancel := context.WithTimeout(ctx, 3*time.Second)
-		defer cancel()
-		ms, err := reg.ModelsOf(c, ad)
-		if err != nil {
-			return ""
-		}
-		concrete[provider] = pickModelFor(ad, ms)
-		return concrete[provider]
-	}
-	n := 0
-	for _, a := range r.List() {
-		changed := false
-		ms := a.Spec().Models
-		for _, m := range ms {
-			if m.Model == "default" && resolve(m.Provider) != "" {
-				changed = true
-			}
-		}
-		if !changed {
-			continue
-		}
-		if err := a.Update(func(s *Spec) {
-			seen := map[string]bool{}
-			out := s.Models[:0:0]
-			for _, m := range s.Models {
-				if m.Model == "default" {
-					if v := resolve(m.Provider); v != "" {
-						m.Model = v
-					}
-				}
-				if k := m.String(); !seen[k] {
-					seen[k] = true
-					out = append(out, m)
-				}
-			}
-			s.Models = out
-		}); err == nil {
-			n++
-		}
-	}
-	if n > 0 {
-		r.mu.Lock()
-		r.fallback = nil
-		r.mu.Unlock()
-	}
-	return n
-}
-
-// pickModelFor picks ad's model for a placeholder: a subscription CLI's
-// first concrete model in its own order (the one it would run itself,
-// e.g. Claude Code's "opus"); otherwise the best-known strong model.
-func pickModelFor(ad llm.Adapter, ms []llm.ModelInfo) string {
-	if ad.Kind() == "subscription" {
-		for _, m := range ms {
-			if m.Enabled && m.ID != "default" {
-				return m.ID
-			}
-		}
-	}
-	return pickModel(ms)
-}
 
 func pickModel(ms []llm.ModelInfo) string {
 	// a CLI's "default" entry only stands in when it lists nothing else
@@ -1540,28 +1445,16 @@ func ChatNameFrom(text string) string {
 
 // renamedProviders maps providers that were replaced to their successors:
 // Gemini CLI became Antigravity (agy).
-var renamedProviders = map[string]string{"acp-gemini-cli": "acp-antigravity"}
+// retiredPrefix marks providers Crewbase no longer has: the subscription
+// coding CLIs it drove over ACP (acp-claude-code, acp-codex, …), removed in
+// 0.5.12 because reusing a CLI login risks the account.
+const retiredPrefix = "acp-"
 
-// renameProviders returns ms with renamed providers replaced (dropping a
-// duplicate the rename creates), or nil when nothing changed.
-func renameProviders(ms []llm.ModelRef) []llm.ModelRef {
-	changed := false
-	for _, m := range ms {
-		if _, ok := renamedProviders[m.Provider]; ok {
-			changed = true
-		}
-	}
-	if !changed {
+// dropRetired returns ms without models of retired providers, or nil when
+// nothing changed. An order left empty is filled by adoptDefaults.
+func dropRetired(ms []llm.ModelRef) []llm.ModelRef {
+	if !slices.ContainsFunc(ms, func(m llm.ModelRef) bool { return strings.HasPrefix(m.Provider, retiredPrefix) }) {
 		return nil
 	}
-	out := make([]llm.ModelRef, 0, len(ms))
-	for _, m := range ms {
-		if to, ok := renamedProviders[m.Provider]; ok {
-			m.Provider = to
-		}
-		if !slices.ContainsFunc(out, func(x llm.ModelRef) bool { return x.Provider == m.Provider && x.Model == m.Model }) {
-			out = append(out, m)
-		}
-	}
-	return out
+	return slices.DeleteFunc(slices.Clone(ms), func(m llm.ModelRef) bool { return strings.HasPrefix(m.Provider, retiredPrefix) })
 }

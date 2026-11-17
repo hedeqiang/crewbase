@@ -30,7 +30,6 @@ import (
 	"github.com/hedeqiang/crewbase/features/router"
 	"github.com/hedeqiang/crewbase/features/rules"
 	"github.com/hedeqiang/crewbase/kernel"
-	"github.com/hedeqiang/crewbase/providers/llm/acp"
 )
 
 // SessionSummary is one row of the session list.
@@ -146,8 +145,6 @@ var Plugin = kernel.Register(kernel.Spec{
 			return err
 		}
 		g := kernel.Use[*gateway.Gateway](c, gateway.ServiceKey)
-		// a subscription CLI changed workspace files on its own: views refresh
-		acp.FilesChanged.Listen(c, func(ch acp.FilesChange) { g.Hub().Publish("files.changed", ch) })
 		agents := kernel.Use[*agent.Registry](c, agent.ServiceKey)
 		sessions := kernel.Use[*session.Store](c, session.ServiceKey)
 		mobile := []string{"mobile", "im"}
@@ -359,32 +356,6 @@ var Plugin = kernel.Register(kernel.Spec{
 				return map[string]any{"sessions": out}, nil
 			}})
 
-		// what a coding CLI really sent last in a session, read from its
-		// own session file (agentloop.RequestRecorder), redacted
-		g.Handle(c, gateway.Route{Method: "GET", Path: "/api/agents/{id}/context/recorded",
-			Handle: func(_ context.Context, r *gateway.Request) (any, error) {
-				a, err := getAgent(r)
-				if err != nil {
-					return nil, err
-				}
-				rr, ok := kernel.Lookup[agentloop.RequestRecorder](c, agentloop.RequestRecorderKey)
-				if !ok {
-					return nil, gateway.Conflict("no request recorder (readCliTranscripts off)")
-				}
-				sess := r.HTTP.URL.Query().Get("session")
-				if sess == "" {
-					if cs, ok := kernel.Lookup[*compaction.Service](c, agentloop.CompactionKey); ok {
-						sess = cs.CurrentSession(a)
-					} else {
-						sess = a.Spec().Session
-					}
-				}
-				rec, ok := rr.LastRequest(a.ID(), sess)
-				if !ok {
-					return nil, &gateway.Error{Status: 404, Code: "not_found", Message: "no recorded request for this session"}
-				}
-				return rec, nil
-			}})
 		// ---- context / compaction / new conversation
 		compactor := func() (*compaction.Service, error) {
 			cs, ok := kernel.Lookup[*compaction.Service](c, agentloop.CompactionKey)

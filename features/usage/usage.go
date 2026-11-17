@@ -1,9 +1,8 @@
 // Package usage computes the "profile & usage" statistics (docs/03 §5.4)
 // from local session logs only — nothing is uploaded: tokens, messages,
 // daily activity (53-week heatmap), model source share, per-agent totals,
-// automatic model switches (and how many needed a person) and the
-// estimated savings of reusing subscriptions / local models versus API
-// billing.
+// automatic model switches (and how many needed a person), the estimated
+// API spend and what local models saved versus API billing.
 package usage
 
 import (
@@ -53,7 +52,7 @@ type Stats struct {
 	// PricedTokens were valued at their model's own list price (from the
 	// model catalog); the rest at Reference.
 	PricedTokens int            `json:"pricedTokens"`
-	Kinds        map[string]int `json:"kinds"` // subscription/api/local → tokens
+	Kinds        map[string]int `json:"kinds"` // api/gateway/local → tokens
 	// Generated counts images and videos made per provider (media/generated
 	// events; providers bill these per image / per second, not counted in
 	// SpentUSD).
@@ -257,7 +256,7 @@ func (s *Service) Compute() Stats {
 
 // Config of the usage plugin.
 type Config struct {
-	// Reference is the API price used to value subscription/local tokens.
+	// Reference is the API price used to value local-model tokens.
 	Reference *Price `json:"reference"`
 	// Prices are per-provider API prices for spend estimates.
 	Prices map[string]Price `json:"prices"`
@@ -267,7 +266,7 @@ type Config struct {
 var Plugin = kernel.Register(kernel.Spec{
 	Name:        "@crewbase/usage",
 	Inject:      []string{session.ServiceKey, agent.ServiceKey, llm.ServiceKey},
-	Description: "Local usage statistics and subscription-reuse savings.",
+	Description: "Local usage statistics and estimated API spend.",
 	Apply: func(c *kernel.Context) error {
 		cfg, err := kernel.Decode[Config](c)
 		if err != nil {

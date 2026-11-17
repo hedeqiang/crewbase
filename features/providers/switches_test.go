@@ -37,27 +37,27 @@ func enabled(ms []llm.ModelInfo) map[string]bool {
 // by every listing through the registry.
 func TestSwitchCLIModel(t *testing.T) {
 	h, s, reg, dir := setup(t)
-	if err := reg.Register(h.Root(), cliAdapter{"acp-codex"}); err != nil {
+	if err := reg.Register(h.Root(), cliAdapter{"ollama"}); err != nil {
 		t.Fatal(err)
 	}
 	ctx := context.Background()
-	if err := s.SetModelEnabled(ctx, "acp-codex", "gpt-5.6-luna", false); err != nil {
+	if err := s.SetModelEnabled(ctx, "ollama", "gpt-5.6-luna", false); err != nil {
 		t.Fatal(err)
 	}
-	ad, _ := reg.Get("acp-codex")
+	ad, _ := reg.Get("ollama")
 	ms, _ := reg.ModelsOf(ctx, ad)
 	if en := enabled(ms); len(ms) != 3 || en["gpt-5.6-luna"] || !en["gpt-6.1-sol"] {
 		t.Fatalf("listing %+v", ms)
 	}
-	if !reg.ModelOff(llm.ModelRef{Provider: "acp-codex", Model: "gpt-5.6-luna"}) || reg.ModelOff(llm.ModelRef{Provider: "acp-codex", Model: "gpt-6.1-sol"}) {
+	if !reg.ModelOff(llm.ModelRef{Provider: "ollama", Model: "gpt-5.6-luna"}) || reg.ModelOff(llm.ModelRef{Provider: "ollama", Model: "gpt-6.1-sol"}) {
 		t.Fatal("ModelOff")
 	}
-	sw, err := s.ModelSwitches(ctx, "acp-codex")
+	sw, err := s.ModelSwitches(ctx, "ollama")
 	if err != nil || len(sw) != 3 || enabled(sw)["gpt-5.6-luna"] {
 		t.Fatalf("switches %+v %v", sw, err)
 	}
 	b, _ := os.ReadFile(filepath.Join(dir, "model-switches.json"))
-	if !strings.Contains(string(b), `"acp-codex"`) || !strings.Contains(string(b), "gpt-5.6-luna") {
+	if !strings.Contains(string(b), `"ollama"`) || !strings.Contains(string(b), "gpt-5.6-luna") {
 		t.Fatalf("model-switches.json %s", b)
 	}
 
@@ -69,14 +69,14 @@ func TestSwitchCLIModel(t *testing.T) {
 		t.Fatal(err)
 	}
 	reg2 := kernel.Use[*llm.Registry](h2.Root(), llm.ServiceKey)
-	if !reg2.ModelOff(llm.ModelRef{Provider: "acp-codex", Model: "gpt-5.6-luna"}) {
+	if !reg2.ModelOff(llm.ModelRef{Provider: "ollama", Model: "gpt-5.6-luna"}) {
 		t.Fatal("switch not kept")
 	}
 
-	if err := s.SetModelEnabled(ctx, "acp-codex", "gpt-5.6-luna", true); err != nil {
+	if err := s.SetModelEnabled(ctx, "ollama", "gpt-5.6-luna", true); err != nil {
 		t.Fatal(err)
 	}
-	if reg.ModelOff(llm.ModelRef{Provider: "acp-codex", Model: "gpt-5.6-luna"}) {
+	if reg.ModelOff(llm.ModelRef{Provider: "ollama", Model: "gpt-5.6-luna"}) {
 		t.Fatal("switched on again")
 	}
 	if err := s.SetModelEnabled(ctx, "nope", "x", false); err == nil {

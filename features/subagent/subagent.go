@@ -7,9 +7,6 @@
 //     deleted afterwards.
 //   - "fork": the child session is forked from the parent session at the
 //     latest turn boundary, so the child starts with the parent's context.
-//   - "acp": the turn is handed to an external coding CLI (Claude Code,
-//     Codex, …) through the llm-acp adapters: an ephemeral child whose
-//     only model is "acp-<cli>/default" runs the task.
 //
 // Ephemeral children are agent.Spec{Ephemeral: true, Parent: <parent>}:
 // never persisted, their workspace removed on delete, and swept by the
@@ -118,73 +115,19 @@ type provider struct {
 	name string
 	r    *runner
 	fork bool
-	acp  bool
 }
 
 func (p *provider) Name() string { return p.name }
 
 func (p *provider) Spawn(ctx context.Context, req subagent.Request) (subagent.Result, error) {
-	if p.acp {
-		return p.r.spawnACP(ctx, p.name, req)
-	}
-	return p.r.spawn(ctx, p.name, p.fork, nil, req)
-}
-
-// ACPPrefix prefixes the llm adapter ids of ACP-bridged CLIs.
-const ACPPrefix = "acp-"
-
-// acpModel resolves the CLI a request names ("claude-code" or
-// "acp-claude-code"; empty = the first registered ACP adapter) to its
-// model ref, validating that the adapter exists.
-func (r *runner) acpModel(cli string) (llm.ModelRef, error) {
-	reg, ok := kernel.Lookup[*llm.Registry](r.c, llm.ServiceKey)
-	if !ok {
-		return llm.ModelRef{}, errors.New("llm registry not loaded")
-	}
-	var ids []string
-	for _, a := range reg.List() {
-		if strings.HasPrefix(a.ID(), ACPPrefix) {
-			ids = append(ids, a.ID())
-		}
-	}
-	sort.Strings(ids)
-	cli = strings.TrimSpace(cli)
-	if cli == "" {
-		if len(ids) == 0 {
-			return llm.ModelRef{}, errors.New("no ACP coding CLI is available")
-		}
-		return llm.ModelRef{Provider: ids[0], Model: "default"}, nil
-	}
-	id := cli
-	if !strings.HasPrefix(id, ACPPrefix) {
-		id = ACPPrefix + id
-	}
-	if _, ok := reg.Get(id); !ok {
-		avail := "none"
-		if len(ids) > 0 {
-			avail = strings.Join(ids, ", ")
-		}
-		return llm.ModelRef{}, fmt.Errorf("unknown ACP CLI %q (available: %s)", cli, avail)
-	}
-	return llm.ModelRef{Provider: id, Model: "default"}, nil
-}
-
-// spawnACP runs the task in an ephemeral child whose only model is the
-// requested ACP CLI. Request.Agent names the CLI, not an agent.
-func (r *runner) spawnACP(ctx context.Context, provName string, req subagent.Request) (subagent.Result, error) {
-	model, err := r.acpModel(req.Agent)
-	if err != nil {
-		return subagent.Result{}, err
-	}
-	req.Agent = ""
-	return r.spawn(ctx, provName, false, []llm.ModelRef{model}, req)
+	return p.r.spawn(ctx, p.name, p.fork, req)
 }
 
 func (r *runner) sessions() *session.Store { return r.agents.Sessions() }
 
-// createEphemeral creates the ephemeral agent "<parent>-sub-<n>". models,
-// when set, replaces the parent's model order.
-func (r *runner) createEphemeral(parent *agent.Agent, mode string, models []llm.ModelRef) (*agent.Agent, error) {
+// createEphemeral creates the ephemeral agent "<parent>-sub-<n>" with the
+// parent's model order.
+func (r *runner) createEphemeral(parent *agent.Agent, mode string) (*agent.Agent, error) {
 	base := "sub"
 	spec := agent.Spec{Ephemeral: true, Role: "sub-agent"}
 	if parent != nil {
@@ -198,14 +141,6 @@ func (r *runner) createEphemeral(parent *agent.Agent, mode string, models []llm.
 			spec.Connectors = &l // a sub-agent may use no more connectors than its parent
 		}
 		mode = agent.Stricter(parent.Mode(), mode)
-	}
-	if len(models) > 0 {
-		spec.Models = models
-		// A CLI handed one turn (acp) works on the parent's files, so its
-		// edits are not thrown away with the ephemeral child.
-		if parent != nil {
-			spec.SharedWorkspace = parent.Workspace()
-		}
 	}
 	if mode == "" || mode == agent.ModeHost {
 		mode = agent.ModeSandbox // children never start in host mode
@@ -246,7 +181,7 @@ func latestTurnBoundary(ss *session.Session) int64 {
 	return 0
 }
 
-func (r *runner) spawn(ctx context.Context, provName string, fork bool, models []llm.ModelRef, req subagent.Request) (subagent.Result, error) {
+func (r *runner) spawn(ctx context.Context, provName string, fork bool, req subagent.Request) (subagent.Result, error) {
 	var parent *agent.Agent
 	if req.Parent != "" {
 		a, ok := r.agents.Get(req.Parent)
@@ -275,7 +210,7 @@ func (r *runner) spawn(ctx context.Context, provName string, fork bool, models [
 	var child *agent.Agent
 	ephemeral := req.Agent == ""
 	if ephemeral {
-		a, err := r.createEphemeral(parent, mode, models)
+		a, err := r.createEphemeral(parent, mode)
 		if err != nil {
 			return subagent.Result{}, fmt.Errorf("create sub-agent: %w", err)
 		}
@@ -477,13 +412,13 @@ func firstLine(s string) string {
 const runnerKey = "subagent.runner"
 
 // RunnerPlugin owns the turn waiter and ephemeral-agent bookkeeping used by
-// the local, fork and acp providers. Ephemeral leftovers of a crash are
+// the local and fork providers. Ephemeral leftovers of a crash are
 // swept by the agent registry itself.
 var RunnerPlugin = kernel.Register(kernel.Spec{
 	Name:        "@crewbase/subagent-runner",
 	Inject:      []string{agent.ServiceKey},
 	Optional:    []string{llm.ServiceKey},
-	Description: "Runs delegated tasks as agent turns (shared by subagent-local, subagent-fork and subagent-acp).",
+	Description: "Runs delegated tasks as agent turns (shared by subagent-local and subagent-fork).",
 	Apply: func(c *kernel.Context) error {
 		r := &runner{c: c, agents: kernel.Use[*agent.Registry](c, agent.ServiceKey), n: map[string]int{}}
 		r.w = newWaiter(c)
@@ -510,18 +445,6 @@ var ForkPlugin = kernel.Register(kernel.Spec{
 	Apply: func(c *kernel.Context) error {
 		r := kernel.Use[*runner](c, runnerKey)
 		return kernel.Use[*subagent.Service](c, subagent.ServiceKey).Register(c, &provider{name: "fork", r: r, fork: true})
-	},
-})
-
-// ACPPlugin registers the "acp" provider: one turn handed to an external
-// coding CLI through its llm-acp adapter (Request.Agent names the CLI).
-var ACPPlugin = kernel.Register(kernel.Spec{
-	Name:        "@crewbase/subagent-acp",
-	Inject:      []string{subagent.ServiceKey, runnerKey, llm.ServiceKey},
-	Description: "Sub-agent provider: hand one turn to an external coding CLI (Claude Code, Codex, …) over ACP.",
-	Apply: func(c *kernel.Context) error {
-		r := kernel.Use[*runner](c, runnerKey)
-		return kernel.Use[*subagent.Service](c, subagent.ServiceKey).Register(c, &provider{name: "acp", r: r, acp: true})
 	},
 })
 
@@ -568,15 +491,14 @@ var DelegatePlugin = kernel.Register(kernel.Spec{
 		kernel.Use[*tools.Registry](c, tools.ServiceKey).Register(c, &tools.Tool{
 			Name: "delegate",
 			Description: "Delegate a self-contained task to a sub-agent (or a teammate: agent = its id) and get its result. " +
-				"The sub-agent does not see your private tools. Use provider \"fork\" to give it this conversation's context, " +
-				"or provider \"acp\" to hand the task to an external coding CLI (agent = the CLI, e.g. claude-code). " +
+				"The sub-agent does not see your private tools. Use provider \"fork\" to give it this conversation's context. " +
 				"With background: true it returns at once and the result comes back to you as a message when it is done — " +
 				"use it to run several tasks in parallel, or to stay available while one runs.",
 			Params: tools.Schema(map[string]any{
 				"task":       tools.Prop("string", "complete instructions for the sub-agent"),
-				"agent":      tools.Prop("string", "optional id of an existing agent to delegate to (default: a temporary sub-agent); for provider acp, the CLI (e.g. claude-code)"),
+				"agent":      tools.Prop("string", "optional id of an existing agent to delegate to (default: a temporary sub-agent)"),
 				"mode":       tools.Prop("string", "optional run mode: read-only or sandbox (never wider than yours)"),
-				"provider":   tools.Prop("string", "local (default), fork or acp"),
+				"provider":   tools.Prop("string", "local (default) or fork"),
 				"background": tools.Prop("boolean", "return at once; the result arrives later as a message (default false)"),
 			}, "task"),
 			Category: tools.CategoryNone,
@@ -596,12 +518,12 @@ var DelegatePlugin = kernel.Register(kernel.Spec{
 					return tools.Errorf("unknown mode %q", a.Mode), nil
 				}
 				switch a.Provider {
-				case "", "local", "fork", "acp":
+				case "", "local", "fork":
 				default:
-					return tools.Errorf("unknown provider %q (use local, fork or acp)", a.Provider), nil
+					return tools.Errorf("unknown provider %q (use local or fork)", a.Provider), nil
 				}
 				// teammates only: a named agent must be in the caller's team
-				if a.Agent != "" && a.Provider != "acp" {
+				if a.Agent != "" {
 					if to, ok := agents.Get(a.Agent); ok {
 						if me, ok := agents.Get(call.Agent); ok && !to.Spec().Ephemeral && to.Spec().TeamID() != me.Spec().TeamID() {
 							return tools.Errorf("%s is in another team; you can only hand work to your own team's agents", to.Spec().Name), nil

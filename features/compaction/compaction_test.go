@@ -448,7 +448,7 @@ func TestUsageBreakdownAndConversationControls(t *testing.T) {
 		Messages: session.DeriveMessages(ss.Events(), a.ID(), e.agents.Names()),
 		Tools:    e.tools.SchemasFor(a.ID(), ss.Meta().Kind),
 	}
-	if b.Used != llm.EstimateRequest(req) || b.Estimated != b.Used || b.Reported != 0 || b.ToolsManaged {
+	if b.Used != llm.EstimateRequest(req) || b.Estimated != b.Used {
 		t.Fatalf("used %d != estimate %d", b.Used, llm.EstimateRequest(req))
 	}
 	for _, k := range []string{compaction.SegSystem, compaction.SegMemory, compaction.SegTools, compaction.SegToolIO, compaction.SegMessages} {

@@ -119,8 +119,7 @@ func (l *loop) planTools(a *agent.Agent, ss *session.Session, ad llm.Adapter, mo
 		}
 		return out
 	}
-	// Subscription CLIs (ACP) ignore Request.Tools; nothing to hold back.
-	if ad.Kind() == "subscription" || !l.deferConfig(a).ShouldDefer(deferred, win) {
+	if !l.deferConfig(a).ShouldDefer(deferred, win) {
 		var all []*tools.Tool
 		for _, t := range l.toolsReg.Offerable(a.ID(), ss.Meta().Kind) {
 			if t.Load != tools.LoadMeta {

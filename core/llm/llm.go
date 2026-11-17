@@ -175,19 +175,12 @@ type Request struct {
 	// NativeReadURL). Adapters that cannot serve them ignore them.
 	NativeTools []string `json:"nativeTools,omitempty"`
 	// Context about who is asking; never sent to the model. Adapters that
-	// keep their own sessions (ACP) or need a working directory use it.
+	// need a working directory or per-session state use it.
 	Agent     string `json:"-"`
 	Session   string `json:"-"`
 	Workspace string `json:"-"`
-	// OwnWorkspace says Workspace is a directory Crewbase made for an agent
-	// (<root>/workspaces/<id>), not a project folder the person chose.
-	// Adapters that start a coding CLI there (ACP) must not let it load the
-	// project-level config the agent could have written
-	// (agent.CLIConfigNames).
-	OwnWorkspace bool `json:"-"`
 	// Mode is the effective run mode of the turn (the stricter of the
-	// agent's and the input's). Adapters that run Crewbase tools on the
-	// model's behalf outside the agent loop (ACP's MCP bridge) pass it on.
+	// agent's and the input's).
 	Mode string `json:"-"`
 }
 
@@ -226,10 +219,6 @@ type Usage struct {
 	CacheWrite   int `json:"cacheWrite,omitempty"`
 	// ServerTools counts provider-hosted tool calls (billed per call).
 	ServerTools map[string]int `json:"serverTools,omitempty"`
-	// Context is the size of the model's context after the reply as its
-	// runtime reported it (a coding CLI's ACP usage_update): its own system
-	// prompt and tools included. 0 = not reported.
-	Context int `json:"context,omitempty"`
 	// Estimated marks usage the adapter filled from heuristics because the
 	// provider reported none (it is not a provider count).
 	Estimated bool `json:"estimated,omitempty"`
@@ -279,7 +268,7 @@ type ModelInfo struct {
 // NoEfforts marks a model that takes no reasoning level.
 var NoEfforts = []string{}
 
-// Quota is remaining subscription/API allowance, when known.
+// Quota is remaining allowance (a gateway subscription or API balance), when known.
 type Quota struct {
 	Known     bool      `json:"known"`
 	Remaining float64   `json:"remaining"` // 0..1, the tightest window
@@ -288,7 +277,7 @@ type Quota struct {
 	Windows []QuotaWindow `json:"windows,omitempty"`
 }
 
-// QuotaWindow is one subscription allowance window.
+// QuotaWindow is one allowance window (e.g. a gateway subscription's 5-hour limit).
 type QuotaWindow struct {
 	Label     string    `json:"label"`
 	Remaining float64   `json:"remaining"` // 0..1
@@ -297,9 +286,9 @@ type QuotaWindow struct {
 
 // Adapter is the contract every model provider implements.
 type Adapter interface {
-	// ID is the provider id, e.g. "anthropic", "ollama", "acp-claude-code".
+	// ID is the provider id, e.g. "anthropic", "ollama", "magpie".
 	ID() string
-	// Kind is "subscription" | "api" | "local".
+	// Kind is "api" | "gateway" | "local".
 	Kind() string
 	Models(ctx context.Context) ([]ModelInfo, error)
 	// Stream performs the request, calling onChunk for every streamed piece,
@@ -313,20 +302,6 @@ type Adapter interface {
 // (Attachment.Text): extracted content plus the workspace path.
 type FileAccepter interface {
 	AcceptsFile(model, mime string) bool
-}
-
-// OwnTools is optionally implemented by adapters whose model runs its own
-// tools (coding CLIs over ACP): Request.Tools never reach the model, so
-// they take no room in its context. Such a model may still be offered some
-// Crewbase tools another way (features/mcpserver).
-type OwnTools interface {
-	RunsOwnTools() bool
-}
-
-// RunsOwnTools reports whether ad's model ignores Request.Tools (OwnTools).
-func RunsOwnTools(ad Adapter) bool {
-	o, ok := ad.(OwnTools)
-	return ok && o.RunsOwnTools()
 }
 
 // ToolSearcher is optionally implemented by adapters whose provider can
@@ -346,27 +321,6 @@ func ModelCap(ms []ModelInfo, model, c string) (has, known bool) {
 		}
 	}
 	return false, false
-}
-
-// Bridge is the separately installed program an adapter drives a CLI
-// through (e.g. an ACP bridge npm package), when it is known.
-type Bridge struct {
-	Package string `json:"package"`
-	Version string `json:"version"`
-	// MinVersion is the oldest version known to work well ("" = any).
-	MinVersion string `json:"minVersion,omitempty"`
-	// ReplacedBy names the package that superseded this one upstream.
-	ReplacedBy string `json:"replacedBy,omitempty"`
-	// Outdated: older than MinVersion, or replaced.
-	Outdated bool `json:"outdated,omitempty"`
-	// UpdateCommand updates it (set when Outdated).
-	UpdateCommand string `json:"updateCommand,omitempty"`
-}
-
-// BridgeReporter is optionally implemented by adapters that drive a CLI
-// through a bridge (nil when unknown).
-type BridgeReporter interface {
-	Bridge() *Bridge
 }
 
 // QuotaReporter is optionally implemented by adapters that know their quota.

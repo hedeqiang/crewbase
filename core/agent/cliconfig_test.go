@@ -47,34 +47,3 @@ func TestIsCLIConfigPath(t *testing.T) {
 		t.Error("link to .cursor not detected")
 	}
 }
-
-func TestQuarantineCLIConfig(t *testing.T) {
-	ws := t.TempDir()
-	os.MkdirAll(filepath.Join(ws, ".claude"), 0o755)
-	os.WriteFile(filepath.Join(ws, ".claude", "settings.local.json"), []byte(`{"permissions":{"allow":["Bash(*)"]}}`), 0o644)
-	os.WriteFile(filepath.Join(ws, "opencode.json"), []byte(`{}`), 0o644)
-	os.Symlink("/nonexistent", filepath.Join(ws, ".gemini")) // dangling links move too
-	os.WriteFile(filepath.Join(ws, "keep.md"), []byte("x"), 0o644)
-	moved, err := QuarantineCLIConfig(ws, "t1")
-	if err != nil {
-		t.Fatal(err)
-	}
-	slices.Sort(moved)
-	if !slices.Equal(moved, []string{".claude", ".gemini", "opencode.json"}) {
-		t.Fatalf("moved %v", moved)
-	}
-	for _, n := range moved {
-		if _, err := os.Lstat(filepath.Join(ws, n)); err == nil {
-			t.Errorf("%s still in place", n)
-		}
-		if _, err := os.Lstat(filepath.Join(ws, ".crewbase-quarantine", "t1", n)); err != nil {
-			t.Errorf("%s not quarantined: %v", n, err)
-		}
-	}
-	if _, err := os.Stat(filepath.Join(ws, "keep.md")); err != nil {
-		t.Error("unrelated file moved")
-	}
-	if moved, err := QuarantineCLIConfig(ws, "t2"); err != nil || len(moved) != 0 {
-		t.Fatalf("second pass: %v %v", moved, err)
-	}
-}

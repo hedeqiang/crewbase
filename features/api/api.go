@@ -85,9 +85,6 @@ type ProviderView struct {
 	Models []llm.ModelInfo `json:"models"`
 	Quota  *llm.Quota      `json:"quota,omitempty"`
 	Error  string          `json:"error,omitempty"`
-	// Bridge is the program a subscription CLI is driven through, when
-	// known (Outdated: the settings page asks to update it).
-	Bridge *llm.Bridge `json:"bridge,omitempty"`
 }
 
 // Access is the `access` service (teams): what the person behind a device
@@ -716,9 +713,6 @@ var Plugin = kernel.Register(kernel.Spec{
 					mctx, cancel := context.WithTimeout(ctx, 3*time.Second)
 					ms, err := llms.ModelsOf(mctx, ad)
 					cancel()
-					if ae, ok := ad.(interface{ AccountError() string }); ok && ae.AccountError() != "" {
-						pv.Error = ae.AccountError() // e.g. a subscription suspended by its vendor
-					}
 					if err != nil {
 						pv.Error = err.Error()
 					} else if ms != nil {
@@ -727,9 +721,6 @@ var Plugin = kernel.Register(kernel.Spec{
 					if q, ok := ad.(llm.QuotaReporter); ok {
 						qq := q.Quota(ctx)
 						pv.Quota = &qq
-					}
-					if b, ok := ad.(llm.BridgeReporter); ok {
-						pv.Bridge = b.Bridge()
 					}
 					out = append(out, pv)
 				}

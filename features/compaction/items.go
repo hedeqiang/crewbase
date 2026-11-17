@@ -8,7 +8,6 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"github.com/hedeqiang/crewbase/core/agentloop"
 	"github.com/hedeqiang/crewbase/core/llm"
 	"github.com/hedeqiang/crewbase/core/tools"
 	"github.com/hedeqiang/crewbase/features/redact"
@@ -227,53 +226,20 @@ func messageItems(msgs []llm.Message) []*Item {
 	return out
 }
 
-// BuiltinGroup groups a recorded CLI's own (non-MCP) tools.
-const BuiltinGroup = "built-in"
-
-// recordedGroup is the family of a tool in a recorded request: its Group,
-// else the server of an MCP name ("mcp__<server>__<tool>" as coding CLIs
-// name them, or "<server>__<tool>"), else the CLI's built-ins.
-func recordedGroup(t llm.ToolSchema) string {
+// sentGroup is the family of a tool a Request listener added: its Group,
+// else the server of a connector name ("<server>__<tool>").
+func sentGroup(t llm.ToolSchema) string {
 	if t.Group != "" {
 		return t.Group
 	}
-	name := strings.TrimPrefix(t.Name, "mcp__")
-	if i := strings.Index(name, "__"); i > 0 {
-		return name[:i]
+	if i := strings.Index(t.Name, "__"); i > 0 {
+		return t.Name[:i]
 	}
-	return BuiltinGroup
-}
-
-// recordedItems are the segments and items of a recorded request, counted
-// as the loop's own requests are.
-func recordedItems(rec *agentloop.RecordedRequest) (map[string]int, []*Item) {
-	segs := map[string]int{}
-	var items []*Item
-	for i, b := range rec.System {
-		n := llm.EstimateTokens(b.Text)
-		label := b.Name
-		if label == "" {
-			label = fmt.Sprintf("system #%d", i+1)
-		}
-		segs[SegSystem] += n
-		items = append(items, &Item{ID: fmt.Sprintf("sys:%d", i), Kind: SegSystem, Label: label, Tokens: n, content: one("text", "markdown", b.Text)})
-	}
-	for _, t := range rec.Tools {
-		if t.Deferred {
-			continue
-		}
-		raw, _ := json.Marshal(t)
-		n := llm.EstimateTokens(string(raw))
-		segs[SegTools] += n
-		items = append(items, toolItem(t, recordedGroup(t), n))
-	}
-	countParts(segs, rec.Messages)
-	items = append(items, messageItems(rec.Messages)...)
-	return segs, items
+	return ""
 }
 
 // kindOrder is the display order of item kinds.
-var kindOrder = map[string]int{SegSystem: 0, SegMemory: 1, SegSkills: 2, SegTools: 3, SegToolIO: 4, SegMessages: 5, SegCLI: 6, SegOther: 7}
+var kindOrder = map[string]int{SegSystem: 0, SegMemory: 1, SegSkills: 2, SegTools: 3, SegToolIO: 4, SegMessages: 5, SegOther: 6}
 
 // rollUp keeps the largest max items and folds the rest into one
 // "more:<kind>" item per kind. The result is in kind order, largest first.

@@ -38,7 +38,6 @@ import (
 	_ "github.com/hedeqiang/crewbase/features/im"
 	_ "github.com/hedeqiang/crewbase/features/imconfig"
 	_ "github.com/hedeqiang/crewbase/features/mcp"
-	_ "github.com/hedeqiang/crewbase/features/mcpserver"
 	_ "github.com/hedeqiang/crewbase/features/media"
 	_ "github.com/hedeqiang/crewbase/features/members"
 	_ "github.com/hedeqiang/crewbase/features/memory"
@@ -55,7 +54,6 @@ import (
 	_ "github.com/hedeqiang/crewbase/features/schedule"
 	_ "github.com/hedeqiang/crewbase/features/skills"
 	_ "github.com/hedeqiang/crewbase/features/subagent"
-	_ "github.com/hedeqiang/crewbase/features/subscriptions"
 	_ "github.com/hedeqiang/crewbase/features/taskboard"
 	_ "github.com/hedeqiang/crewbase/features/teams"
 	_ "github.com/hedeqiang/crewbase/features/telemetry"
@@ -70,7 +68,6 @@ import (
 	_ "github.com/hedeqiang/crewbase/providers/im/feishu"
 	_ "github.com/hedeqiang/crewbase/providers/im/slack"
 	_ "github.com/hedeqiang/crewbase/providers/im/telegram"
-	_ "github.com/hedeqiang/crewbase/providers/llm/acp"
 	_ "github.com/hedeqiang/crewbase/providers/llm/anthropic"
 	_ "github.com/hedeqiang/crewbase/providers/llm/gemini"
 	_ "github.com/hedeqiang/crewbase/providers/llm/local"
@@ -95,10 +92,8 @@ var Base = kernel.Bundle{Name: "base", Entries: []kernel.Entry{
 	{ID: "credentials", Name: "@crewbase/credentials", Config: map[string]any{"root": "${root}"}},
 	{ID: "redact", Name: "@crewbase/redact"},
 	{ID: "llm", Name: "@crewbase/llm"},
-	// Subscriptions first: logged-in CLIs over ACP, then local models.
-	// API providers (llm-openai / llm-anthropic / llm-gemini) are added by
-	// the user ("add provider"), which writes a patch entry.
-	{ID: "llm-acp", Name: "@crewbase/llm-acp", Config: map[string]any{"stateDir": "${root}"}},
+	// Local models; API providers (llm-openai / llm-anthropic / llm-gemini)
+	// are added by the user ("add provider"), which writes a patch entry.
 	{ID: "llm-local", Name: "@crewbase/llm-local"},
 	// magpie gateway, registered only while magpie runs (github.com/yetone/magpie).
 	{ID: "llm-magpie", Name: "@crewbase/llm-magpie", Config: map[string]any{"stateDir": "${root}"}},
@@ -114,7 +109,7 @@ var Base = kernel.Bundle{Name: "base", Entries: []kernel.Entry{
 	// Cheap chores go to DeepSeek Flash when it is reachable (directly or
 	// through magpie); otherwise the agent's own model order applies.
 	{ID: "router", Name: "@crewbase/router-default", Config: map[string]any{"routes": cheapRoutes()}},
-	{ID: "agents", Name: "@crewbase/agents", Config: map[string]any{"root": "${root}", "defaultModels": []string{"acp-claude-code/default", "acp-codex/default", "acp-antigravity/default"}}},
+	{ID: "agents", Name: "@crewbase/agents", Config: map[string]any{"root": "${root}"}}, // default models: the best of what is connected
 	{ID: "agent-loop", Name: "@crewbase/agent-loop"},
 	{ID: "channel", Name: "@crewbase/channel-local"},
 	{ID: "sandbox", Name: defaultSandbox()},
@@ -151,7 +146,6 @@ var Base = kernel.Bundle{Name: "base", Entries: []kernel.Entry{
 	{ID: "subagent-runner", Name: "@crewbase/subagent-runner"},
 	{ID: "subagent-local", Name: "@crewbase/subagent-local"},
 	{ID: "subagent-fork", Name: "@crewbase/subagent-fork"},
-	{ID: "subagent-acp", Name: "@crewbase/subagent-acp"},
 	{ID: "delegate", Name: "@crewbase/delegate"},
 	{ID: "workflows", Name: "@crewbase/workflows", Config: map[string]any{"dir": "${root}"}},
 	{ID: "browser", Name: "@crewbase/browser-chrome"},
@@ -175,9 +169,6 @@ var Desktop = kernel.Bundle{Name: "desktop", Entries: []kernel.Entry{
 	{ID: "approval-desktop", Name: "@crewbase/approval-desktop"},
 	{ID: "gateway", Name: "@crewbase/gateway", Config: map[string]any{"addr": "127.0.0.1:7788", "tokenFile": "${root}/token"}},
 	{ID: "api", Name: "@crewbase/api"},
-	// computer_* / browser_* as an MCP server at /mcp for the ACP CLIs
-	// (per-session tokens; calls run through the normal tool pipeline).
-	{ID: "mcp-server", Name: "@crewbase/mcp-server"},
 	{ID: "channel-api", Name: "@crewbase/channel-api"},
 	{ID: "webhook", Name: "@crewbase/webhook"},
 	{ID: "routines-api", Name: "@crewbase/routines-api"},
@@ -208,7 +199,6 @@ var Desktop = kernel.Bundle{Name: "desktop", Entries: []kernel.Entry{
 	{ID: "plugin-manager-api", Name: "@crewbase/plugin-manager-api"},
 	{ID: "console", Name: "@crewbase/console", Config: map[string]any{"dir": "${root}"}},
 	{ID: "providers-api", Name: "@crewbase/providers-api"},
-	{ID: "subscriptions-api", Name: "@crewbase/subscriptions-api"},
 	{ID: "model-catalog-api", Name: "@crewbase/model-catalog-api"},
 	{ID: "usage-api", Name: "@crewbase/usage-api"},
 	{ID: "roles", Name: "@crewbase/roles"},
@@ -230,9 +220,6 @@ var Server = kernel.Bundle{Name: "server", Entries: []kernel.Entry{
 	{ID: "approval-desktop", Name: "@crewbase/approval-desktop"},
 	{ID: "gateway", Name: "@crewbase/gateway", Config: map[string]any{"addr": "127.0.0.1:7788", "tokenFile": "${root}/token"}},
 	{ID: "api", Name: "@crewbase/api"},
-	// computer_* / browser_* as an MCP server at /mcp for the ACP CLIs
-	// (per-session tokens; calls run through the normal tool pipeline).
-	{ID: "mcp-server", Name: "@crewbase/mcp-server"},
 	{ID: "channel-api", Name: "@crewbase/channel-api"},
 	{ID: "devices", Name: "@crewbase/devices", Config: map[string]any{"dir": "${root}"}},
 	{ID: "members", Name: "@crewbase/members", Config: map[string]any{"dir": "${root}"}},

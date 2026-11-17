@@ -274,7 +274,7 @@ func (s *Service) Lookup(id string) (llm.CatalogEntry, bool) {
 	defer s.mu.RUnlock()
 	for _, k := range candidates(id) {
 		if generic[k] || len(k) < 3 {
-			break // "cursor/auto", ACP "default": not a model name
+			break // "cursor/auto", "default": not a model name
 		}
 		m, ok := s.index[k]
 		if !ok {

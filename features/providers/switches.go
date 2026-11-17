@@ -23,7 +23,7 @@ import (
 //   - magpie: its enabled list (magpie.json, Discovery.SetEnabled);
 //   - providers added here: Provider.Models, the models the person chose
 //     (providers.json); turning one off removes it from that list;
-//   - everything else (subscription CLIs, local models, configured
+//   - everything else (local models, configured
 //     providers): <dir>/model-switches.json, the off model ids per
 //     provider, applied by llm.Registry.ModelsOf.
 

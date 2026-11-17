@@ -5,23 +5,11 @@ import (
 	"github.com/hedeqiang/crewbase/core/llm"
 	"github.com/hedeqiang/crewbase/core/session"
 	"github.com/hedeqiang/crewbase/core/tools"
-	"github.com/hedeqiang/crewbase/kernel"
 )
 
 // What a request takes of the model's context. The loop's compaction
 // trigger and the context meter (features/compaction) both count it this
 // way, so the meter shows what the loop acts on.
-
-// ToolBridgeKey is the service key of the ToolBridge (features/mcpserver).
-const ToolBridgeKey = "mcp-server"
-
-// ToolBridge offers Crewbase tools to models that run their own tools
-// (llm.OwnTools), e.g. Crewbase's MCP server for coding CLIs over ACP.
-type ToolBridge interface {
-	// BridgedSchemas are the tools agent is offered through the bridge in
-	// a session of kind.
-	BridgedSchemas(agent, kind string) []llm.ToolSchema
-}
 
 // chatHiddenTools are tools a blank chat is not offered. A chat's prompt
 // has no plugin fragments by design (chatFragments), so it has no skills
@@ -49,29 +37,8 @@ func ToolSchemas(r *tools.Registry, a *agent.Agent, kind string) []llm.ToolSchem
 	return ChatTools(a, r.SchemasFor(a.ID(), kind))
 }
 
-// ContextTools are the tool definitions that take room in the model's
-// context when ad serves a request carrying ts: ts itself, except for an
-// adapter whose model runs its own tools (llm.OwnTools). That model never
-// sees ts; it is offered only the tools bridged to it (ToolBridge, none
-// without one). bridged reports which case applies.
-func ContextTools(c *kernel.Context, ad llm.Adapter, a *agent.Agent, kind string, ts []llm.ToolSchema) (out []llm.ToolSchema, bridged bool) {
-	if ad == nil || !llm.RunsOwnTools(ad) {
-		return ts, false
-	}
-	if c != nil {
-		if b, ok := kernel.Lookup[ToolBridge](c, ToolBridgeKey); ok {
-			return ChatTools(a, b.BridgedSchemas(a.ID(), kind)), true
-		}
-	}
-	return nil, true
-}
-
-// EstimateContext estimates the context req takes when ad serves it
-// (llm.EstimateRequest with ContextTools in place of req.Tools).
-func EstimateContext(c *kernel.Context, ad llm.Adapter, a *agent.Agent, kind string, req llm.Request) int {
-	req.Tools, _ = ContextTools(c, ad, a, kind, req.Tools)
-	return llm.EstimateRequest(req)
-}
+// EstimateContext estimates the context req takes (llm.EstimateRequest).
+func EstimateContext(req llm.Request) int { return llm.EstimateRequest(req) }
 
 // ToolPlannerKey is the service key of the ToolPlanner (the agent loop).
 const ToolPlannerKey = "agentloop-tools"
@@ -83,27 +50,13 @@ type ToolPlanner interface {
 	PlannedTools(a *agent.Agent, ss *session.Session, ad llm.Adapter, model string, window int) []llm.ToolSchema
 }
 
-// RequestRecorderKey is the service key of the RequestRecorder.
-const RequestRecorderKey = "request-recorder"
-
-// RequestRecorder records the real requests of a model that builds its own
-// (a coding CLI over ACP whose API traffic passes through Crewbase), so the
-// context meter can show what the CLI actually sends.
-type RequestRecorder interface {
-	// LastRequest is the latest request recorded for agent in session.
-	LastRequest(agent, session string) (*RecordedRequest, bool)
-}
-
-// RecordedRequest is one recorded model request and its reply's usage.
+// RecordedRequest is a model request as it was sent (see SentRequests).
 type RecordedRequest struct {
 	// System is the system prompt, block by block as sent.
 	System []RecordedBlock `json:"system"`
-	// Tools are the tool definitions sent. Group names the family (an MCP
-	// server, the CLI's built-ins); empty = derived from the name.
+	// Tools are the tool definitions sent.
 	Tools    []llm.ToolSchema `json:"tools"`
 	Messages []llm.Message    `json:"messages"`
-	// Usage is what the provider reported for the reply (cache included).
-	Usage llm.Usage `json:"usage"`
 }
 
 // RecordedBlock is one system prompt block of a recorded request.
