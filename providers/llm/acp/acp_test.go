@@ -394,21 +394,22 @@ func TestProcessGroupCleanupOnDispose(t *testing.T) {
 
 func TestClassifyText(t *testing.T) {
 	cases := map[string]llm.ErrorKind{
-		"Claude AI usage limit reached|1735689600":                            llm.ErrQuotaExhausted,
-		"You've hit your usage limit. Upgrade to Pro":                         llm.ErrQuotaExhausted,
-		"5-hour limit reached ∙ resets 3pm":                                   llm.ErrQuotaExhausted,
-		"Weekly limit reached":                                                llm.ErrQuotaExhausted,
-		"Quota exceeded for quota metric 'Gemini 2.5 Pro Requests'":           llm.ErrQuotaExhausted,
-		"[API Error: got status: RESOURCE_EXHAUSTED]":                         llm.ErrQuotaExhausted,
-		"Rate limit exceeded, please retry":                                   llm.ErrRateLimited,
-		"429 Too Many Requests":                                               llm.ErrRateLimited,
-		"Invalid API key · Please run /login":                                 llm.ErrAuth,
-		"Authentication required":                                             llm.ErrAuth,
-		"Codex ran out of room in the model's context window":                 llm.ErrContextOverflow,
-		"We're currently experiencing high demand":                            llm.ErrUnavailable,
-		"file not found":                                                      "",
-		"stream disconnected before completion":                               "",
-		"API Error: 529 {\"type\":\"error\",\"error\":{\"type\":\"overloaded": llm.ErrUnavailable,
+		"Claude AI usage limit reached|1735689600":                                          llm.ErrQuotaExhausted,
+		"You've hit your usage limit. Upgrade to Pro":                                       llm.ErrQuotaExhausted,
+		"5-hour limit reached ∙ resets 3pm":                                                 llm.ErrQuotaExhausted,
+		"Weekly limit reached":                                                              llm.ErrQuotaExhausted,
+		"Quota exceeded for quota metric 'Gemini 2.5 Pro Requests'":                         llm.ErrQuotaExhausted,
+		"[API Error: got status: RESOURCE_EXHAUSTED]":                                       llm.ErrQuotaExhausted,
+		"Rate limit exceeded, please retry":                                                 llm.ErrRateLimited,
+		"429 Too Many Requests":                                                             llm.ErrRateLimited,
+		"Invalid API key · Please run /login":                                               llm.ErrAuth,
+		"Authentication required":                                                           llm.ErrAuth,
+		"Codex ran out of room in the model's context window":                               llm.ErrContextOverflow,
+		"We're currently experiencing high demand":                                          llm.ErrUnavailable,
+		"file not found":                                                                    "",
+		"The 'gpt-6.1-sol' model is not supported when using Codex with a ChatGPT account.": llm.ErrModelUnavailable,
+		"stream disconnected before completion":                                             "",
+		"API Error: 529 {\"type\":\"error\",\"error\":{\"type\":\"overloaded":               llm.ErrUnavailable,
 	}
 	for in, want := range cases {
 		if got := classifyText(in); got != want {

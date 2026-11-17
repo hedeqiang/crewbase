@@ -99,6 +99,9 @@ func backoff(err error, now time.Time) (time.Time, string) {
 			return now.Add(le.RetryAfter), string(kind)
 		}
 		return now.Add(time.Minute), string(kind)
+	case llm.ErrModelUnavailable:
+		// an account / plan limit: it will not lift on its own soon
+		return now.Add(12 * time.Hour), string(kind)
 	case llm.ErrAuth, llm.ErrModelNotFound:
 		return now.Add(10 * time.Minute), string(kind)
 	default:

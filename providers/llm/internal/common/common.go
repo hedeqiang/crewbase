@@ -180,9 +180,24 @@ var (
 		"input token count", "exceeds the context", "上下文"}
 	AuthWords = []string{"invalid api key", "invalid_api_key", "api key not valid", "api_key_invalid", "incorrect api key",
 		"invalid x-api-key", "authentication", "unauthorized", "permission denied"}
+	// PlanWords and DeniedWords together say a model is not offered to
+	// this account or plan (ModelUnavailableOnAccount).
+	PlanWords = []string{"chatgpt account", "your account", "this account", "your plan", "current plan", "this plan",
+		"your subscription", "this subscription", "your organization", "your tier", "free tier", "free plan"}
+	DeniedWords = []string{"not supported when using", "is not supported", "not supported on", "not supported for",
+		"not supported with", "not available on", "not available for", "not available with", "not available to",
+		"is not enabled", "not enabled for", "does not have access", "do not have access", "doesn't have access",
+		"don't have access", "requires a", "upgrade to"}
 	UnavailableWords = []string{"overloaded", "unavailable", "internal error", "internal server error", "server error",
 		"timeout", "timed out", "try again later", "capacity"}
 )
+
+// ModelUnavailableOnAccount reports whether lower (a lowercased provider
+// message) says the model exists but this account or plan cannot use it.
+func ModelUnavailableOnAccount(lower string) bool {
+	return strings.Contains(lower, "model") && ContainsAny(lower, PlanWords...) && ContainsAny(lower, DeniedWords...) &&
+		!ContainsAny(lower, QuotaWords...) && !ContainsAny(lower, RateWords...)
+}
 
 // Classify maps an HTTP status (0 for in-stream errors) and provider message
 // to an *llm.Error. secret is redacted from the message.
@@ -217,6 +232,8 @@ func Classify(provider string, status int, h http.Header, msg, code, secret stri
 			e.RetryAfter = retry
 		}
 		e.ResetsAt = resets
+	case status != http.StatusUnauthorized && ModelUnavailableOnAccount(lower):
+		e.Kind = llm.ErrModelUnavailable
 	case status == http.StatusUnauthorized || status == http.StatusForbidden:
 		e.Kind = llm.ErrAuth
 	case status == http.StatusRequestEntityTooLarge:

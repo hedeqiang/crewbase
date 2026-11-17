@@ -378,6 +378,11 @@ const (
 	// ErrModelNotFound: the provider no longer serves this model (removed,
 	// renamed, not enabled). Fails over like an outage.
 	ErrModelNotFound ErrorKind = "model_not_found"
+	// ErrModelUnavailable: the provider serves the model, but not to this
+	// account or plan (e.g. "The 'gpt-6.1-sol' model is not supported when
+	// using Codex with a ChatGPT account"). Retrying will not help until
+	// the plan changes, so the router keeps the model aside for long.
+	ErrModelUnavailable ErrorKind = "model_unavailable"
 )
 
 // Error is a classified provider error.
@@ -403,7 +408,7 @@ func KindOf(err error) ErrorKind {
 // ShouldFailover reports whether the router should try the next model.
 func ShouldFailover(err error) bool {
 	switch KindOf(err) {
-	case ErrRateLimited, ErrQuotaExhausted, ErrUnavailable, ErrAuth, ErrModelNotFound:
+	case ErrRateLimited, ErrQuotaExhausted, ErrUnavailable, ErrAuth, ErrModelNotFound, ErrModelUnavailable:
 		return true
 	}
 	return false
