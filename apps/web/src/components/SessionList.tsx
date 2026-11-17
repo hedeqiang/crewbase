@@ -250,7 +250,7 @@ export function SessionList() {
                   <RowMenuButton target={{ kind: "folder", name: folder }} />
                 </button>
               )}
-              {both && (
+              {both && g.channels.length > 0 && (
                 <div className="lsec">
                   <span>{t("list.channels")}</span>
                   <span className="cnt">{g.channels.length}</span>

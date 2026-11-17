@@ -2,7 +2,7 @@ import { Archive, Bot, Check, FolderInput, FolderMinus, Hash, MessageSquare, Mor
 import { useEffect, useRef, useState, type MouseEvent, type ReactNode } from "react";
 import { API, type AgentView, type SessionMeta } from "../api";
 import { t } from "../i18n";
-import { getState, isChat, newChat, openNewAgent, openNewChannel, resync, setState, toast, useFolders, useStore } from "../store";
+import { isChat, newChat, openNewAgent, openNewChannel, refreshSessions, resync, setState, toast, useFolders, useStore } from "../store";
 import { teamOf } from "../api";
 import { Avatar } from "./Avatar";
 
@@ -282,12 +282,25 @@ function RowDialog({ d, folders, onClose }: { d: { kind: DialogKind; target: Tar
       // delete
       if (tg.kind === "agent") {
         await API.deleteAgent(tg.agent.id);
-        if (getState().current === tg.agent.session) setState({ current: null });
+        const gone = tg.agent;
+        setState((s) => {
+          const { [gone.id]: _a, ...agents } = s.agents;
+          const hist = s.hist.filter((x) => x !== gone.session);
+          return { agents, hist, histPos: Math.min(s.histPos, hist.length - 1), current: s.current === gone.session ? null : s.current };
+        });
+        void refreshSessions();
         return isChat(tg.agent) ? t("rm.deletedChat") : t("rm.deletedAgent", { name: tg.agent.name });
       }
       if (tg.kind === "channel") {
         await API.deleteChannel(tg.meta.id);
-        if (getState().current === tg.meta.id) setState({ current: null });
+        // gone from the list now, not only when the daemon's event arrives
+        const id = tg.meta.id;
+        setState((s) => {
+          const { [id]: _gone, ...sessions } = s.sessions;
+          const hist = s.hist.filter((x) => x !== id);
+          return { sessions, hist, histPos: Math.min(s.histPos, hist.length - 1), current: s.current === id ? null : s.current };
+        });
+        void refreshSessions();
         return t("rm.deletedChannel", { name: nameOf(tg) });
       }
       await API.dissolveFolder(tg.name);
