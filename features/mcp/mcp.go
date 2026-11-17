@@ -34,8 +34,10 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"path"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -121,6 +123,81 @@ type Server struct {
 	Categories map[string]string `json:"categories,omitempty"`
 	// OAuth turns on sign-in for an http server (MCP authorization).
 	OAuth *OAuth `json:"oauth,omitempty"`
+	// Tools filters which of the server's tools are registered (globs on
+	// the server's own tool names). Absent = every tool.
+	Tools *ToolFilter `json:"tools,omitempty"`
+}
+
+// ToolFilter picks a server's tools by glob (path.Match syntax, e.g.
+// "notion-*"), Codex / Gemini style: with Include set only matching tools
+// are registered; Exclude removes tools either way. Patterns match the
+// server's tool name or the namespaced "<server>__<tool>" name.
+type ToolFilter struct {
+	Include []string `json:"include,omitempty"`
+	Exclude []string `json:"exclude,omitempty"`
+}
+
+// Allows reports whether the tool named original (namespaced name full)
+// passes the filter. A nil filter allows everything.
+func (f *ToolFilter) Allows(original, full string) bool {
+	if f == nil {
+		return true
+	}
+	match := func(ps []string) bool {
+		for _, p := range ps {
+			if ok, _ := path.Match(p, original); ok {
+				return true
+			}
+			if ok, _ := path.Match(p, full); ok {
+				return true
+			}
+		}
+		return false
+	}
+	if len(f.Include) > 0 && !match(f.Include) {
+		return false
+	}
+	return !match(f.Exclude)
+}
+
+func (f *ToolFilter) clone() *ToolFilter {
+	if f == nil {
+		return nil
+	}
+	return &ToolFilter{Include: slices.Clone(f.Include), Exclude: slices.Clone(f.Exclude)}
+}
+
+// normalize drops empty patterns and duplicates; nil when nothing is left.
+func (f *ToolFilter) normalize() (*ToolFilter, error) {
+	if f == nil {
+		return nil, nil
+	}
+	clean := func(ps []string) ([]string, error) {
+		var out []string
+		for _, p := range ps {
+			p = strings.TrimSpace(p)
+			if p == "" || slices.Contains(out, p) {
+				continue
+			}
+			if _, err := path.Match(p, ""); err != nil {
+				return nil, invalid("tools: bad pattern %q", p)
+			}
+			out = append(out, p)
+		}
+		return out, nil
+	}
+	in, err := clean(f.Include)
+	if err != nil {
+		return nil, err
+	}
+	ex, err := clean(f.Exclude)
+	if err != nil {
+		return nil, err
+	}
+	if len(in) == 0 && len(ex) == 0 {
+		return nil, nil
+	}
+	return &ToolFilter{Include: in, Exclude: ex}, nil
 }
 
 // knownCategories are the categories a Categories override may name.
@@ -155,6 +232,11 @@ func (s Server) Normalize() (Server, error) {
 	if s.Scope != ScopeGlobal && !scopeRe.MatchString(s.Scope) && !(strings.HasPrefix(s.Scope, TeamScope) && scopeRe.MatchString(strings.TrimPrefix(s.Scope, TeamScope))) {
 		return s, invalid("scope must be %q, an agent id or team:<id>", ScopeGlobal)
 	}
+	tf, err := s.Tools.normalize()
+	if err != nil {
+		return s, err
+	}
+	s.Tools = tf
 	for k, v := range s.Categories {
 		if k == "" || !knownCategories[v] {
 			return s, invalid("categories: %q → %q is not a known category", k, v)
@@ -210,6 +292,7 @@ func (s Server) clone() Server {
 	s.Env = cloneMap(s.Env)
 	s.Headers = cloneMap(s.Headers)
 	s.Categories = cloneMap(s.Categories)
+	s.Tools = s.Tools.clone()
 	return s
 }
 
@@ -256,7 +339,17 @@ type ToolInfo struct {
 	Original    string `json:"original"` // the server's tool name
 	Description string `json:"description,omitempty"`
 	Category    string `json:"category"`
+	// Enabled: the server's tool filter lets it through (registered).
+	Enabled bool `json:"enabled"`
+	// SchemaSize is the length of its input schema as JSON; Large marks
+	// schemas over LargeSchema characters (costly in every request).
+	SchemaSize int  `json:"schemaSize,omitempty"`
+	Large      bool `json:"large,omitempty"`
 }
+
+// LargeSchema is the input schema size (characters of JSON) above which a
+// tool is flagged: such tools weigh on every request's context.
+const LargeSchema = 8000
 
 // View is a server as shown by the API: masked config plus status.
 type View struct {
@@ -344,6 +437,7 @@ type Service struct {
 	closed       bool
 	redirectBase string // gateway origin for OAuth callbacks
 	logins       logins
+	large        sync.Map // "<server>/<tool>" of large schemas already logged
 }
 
 func (s *Service) agents() *agent.Registry {
@@ -625,6 +719,9 @@ func (s *Service) Update(name string, fn func(*Server)) (View, error) {
 	if err != nil {
 		return View{}, err
 	}
+	if onlyFilter(cur, n) {
+		return s.updateFilterLocked(e, n)
+	}
 	s.stopLocked(e)
 	s.mu.Lock()
 	prev, prevIn := e.srv, e.inFile
@@ -645,6 +742,52 @@ func (s *Service) Update(name string, fn func(*Server)) (View, error) {
 	s.emit(name)
 	v, _ := s.Get(name)
 	return v, nil
+}
+
+// onlyFilter reports whether a and b differ in their tool filter only
+// (an unchanged server is not "only the filter": saving it reconnects).
+func onlyFilter(a, b Server) bool {
+	fa, _ := json.Marshal(a.Tools)
+	fb, _ := json.Marshal(b.Tools)
+	if string(fa) == string(fb) {
+		return false
+	}
+	a.Tools, b.Tools = nil, nil
+	ja, _ := json.Marshal(a)
+	jb, _ := json.Marshal(b)
+	return string(ja) == string(jb)
+}
+
+// updateFilterLocked applies a new tool filter to a live connection
+// without reconnecting: the tools are re-registered from the last list.
+// Callers hold s.op.
+func (s *Service) updateFilterLocked(e *entry, n Server) (View, error) {
+	s.mu.Lock()
+	prev, prevIn := e.srv, e.inFile
+	e.srv, e.inFile = n, true
+	c := e.conn
+	s.mu.Unlock()
+	if err := s.persist(); err != nil {
+		s.mu.Lock()
+		e.srv, e.inFile = prev, prevIn
+		s.mu.Unlock()
+		return View{}, err
+	}
+	if c != nil {
+		c.setFilter(n.Tools)
+	}
+	s.emit(n.Name)
+	v, _ := s.Get(n.Name)
+	return v, nil
+}
+
+// connectorInfos lists the servers as connectors agents can be given.
+func (s *Service) connectorInfos() []tools.ConnectorInfo {
+	var out []tools.ConnectorInfo
+	for _, v := range s.List() {
+		out = append(out, tools.ConnectorInfo{Name: v.Name, Kind: "mcp", Scope: v.Scope, Tools: v.Status.Tools})
+	}
+	return out
 }
 
 // SetEnabled enables or disables a server.
@@ -923,6 +1066,7 @@ var Plugin = kernel.Register(kernel.Spec{
 		if err := c.Provide(ServiceKey, s); err != nil {
 			return err
 		}
+		s.tools.AddConnectors(c, s.connectorInfos)
 		s.op.Lock()
 		s.mu.Lock()
 		es := make([]*entry, 0, len(s.entries))
