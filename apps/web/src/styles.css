@@ -823,6 +823,8 @@ button.tg:disabled { opacity: .5; cursor: not-allowed; }
 .runrow { display: flex; align-items: center; gap: 8px; min-width: 0; font-size: 12.5px; }
 .runrow .g { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .runrow code { font-size: 11.5px; flex: none; }
+.runrow.off code, .runrow.off .g { opacity: .5; }
+.runrow > .pill { flex: none; }
 .wfi { width: 30px; height: 30px; border-radius: 9px; background: var(--active); display: grid; place-items: center; color: var(--text2); flex: none; }
 .form { display: flex; flex-direction: column; gap: 4px; margin-bottom: 12px; }
 .fgrid { display: grid; grid-template-columns: 96px minmax(0, 1fr); gap: 8px 14px; align-items: start; margin-top: 10px; }
@@ -1756,6 +1758,8 @@ button.psec.toggle { width: 100%; background: none; border: 0; font-family: inhe
 .mkirow > .mkrow { padding: 10px 12px; }
 .mkirow.off .mkic, .mkirow.off .mkrow > .g > b { opacity: .6; }
 .mkirow .mkerr { padding: 0 12px 10px 64px; overflow-wrap: anywhere; }
+.mkirow .mknotice { padding: 0 12px 10px 64px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.mkto { display: flex; align-items: center; gap: 8px; margin: 0 0 14px; }
 .mkdetail { padding: 0 12px 10px 64px; }
 .mkpath { margin-top: 12px; }
 .mkdlg .mhd { gap: 12px; padding-top: 16px; }
@@ -1782,7 +1786,7 @@ button.psec.toggle { width: 100%; background: none; border: 0; font-family: inhe
 .mkghwait .spin, .mkghmsg .spin { vertical-align: -1px; margin-right: 4px; }
 .mkghmsg { margin: 12px 0 0; }
 @container (max-width: 600px) {
-  .mkirow .mkerr, .mkdetail { padding-left: 12px; }
+  .mkirow .mkerr, .mkirow .mknotice, .mkdetail { padding-left: 12px; }
   .mkirow > .mkrow { gap: 10px; }
   .mkirow > .mkrow .btn.sm { padding: 0 8px; }
 }

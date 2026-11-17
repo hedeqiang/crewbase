@@ -4,7 +4,8 @@ import {
   BadgeCheck, Bug, CalendarDays, Check, Copy, ExternalLink, FolderInput, GitCommitHorizontal, Globe, ListChecks, LogIn, Megaphone,
   MoreHorizontal, Plug, Plus, Search, SearchCode, Server, ShieldAlert, Sparkles, Table, X,
 } from "lucide-react";
-import { API, api, desktop, openExternal, type MarketEntry, type McpServer, type PluginView } from "../../api";
+import { API, api, desktop, openExternal, DEFAULT_TEAM, type AgentView, type MarketEntry, type McpServer, type PluginView } from "../../api";
+import { canUse, connectorsFor, nextConnectors, useConnectors } from "../AgentConnectors";
 import { getLang, t, type Key } from "../../i18n";
 import { setState, toast, useStore } from "../../store";
 import { Head } from "../Settings";
@@ -103,14 +104,22 @@ interface SignInView {
 const enc = encodeURIComponent;
 const catalogAPI = {
   list: () => api<Catalog>("GET", "/api/catalog"),
-  install: (id: string, b: { inputs?: Record<string, string>; scope?: string }) => api<{ kind: string; server?: McpServer }>("POST", `/api/catalog/${enc(id)}/install`, b),
+  install: (id: string, b: { inputs?: Record<string, string> } & Target) => api<{ kind: string; server?: McpServer }>("POST", `/api/catalog/${enc(id)}/install`, b),
   uninstall: (id: string) => api("DELETE", `/api/catalog/${enc(id)}`),
-  signIn: (id: string) => api<SignInView>("POST", `/api/catalog/${enc(id)}/signin`, {}),
+  signIn: (id: string, b: Target = {}) => api<SignInView>("POST", `/api/catalog/${enc(id)}/signin`, b),
   signInState: (id: string) => api<SignInView>("GET", `/api/catalog/${enc(id)}/signin`),
   cancelSignIn: (id: string) => api("DELETE", `/api/catalog/${enc(id)}/signin`),
   skills: () => api<{ skills: SkillView[] }>("GET", "/api/skills"),
   removeSkill: (name: string, agent?: string) => api("DELETE", `/api/skills/${enc(name)}${agent ? "?agent=" + enc(agent) : ""}`),
 };
+
+/** Who a new connection is for: an explicit scope ("global") or the
+ *  context it is made from (a team: the server scopes it to that team). */
+type Target = { scope?: string; context?: string };
+
+/** A global connector with at least this many tools gets a notice
+ *  suggesting to give it only to the agents that need it. */
+const MANY_TOOLS = 20;
 
 const tx = (x?: Text) => (x ? (getLang() === "en" ? x.en : x.zh) || x.en || x.zh : "");
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -202,6 +211,13 @@ export function Extensions() {
   const [focus, setFocus] = useState<string | null>(null); // server to open in Installed
   const [gh, setGh] = useState<CatItem | null>(null); // GitHub sign-in dialog
   const [scopeOf, setScopeOf] = useState<McpServer | null>(null);
+  const [accessOf, setAccessOf] = useState<McpServer | null>(null);
+  const teams = useStore((s) => s.teams);
+  const team = useStore((s) => s.team);
+  // New connections go to the team on screen when there are several teams
+  // (only its agents see them); "global" keeps an install for everyone.
+  const [toAll, setToAll] = useState(false);
+  const target: Target = teams.length > 1 && !toAll ? { context: "team:" + (team || DEFAULT_TEAM) } : {};
   useEffect(() => {
     if (want) {
       setView(want === "mcp" || want === "installed" ? "installed" : "market");
@@ -251,6 +267,10 @@ export function Extensions() {
     onApprove: setApprove,
     onSignIn: setGh,
     onScope: setScopeOf,
+    onAccess: setAccessOf,
+    target,
+    toAll,
+    setToAll,
     onManage: (server) => {
       setFocus(server);
       setView("installed");
@@ -295,7 +315,8 @@ export function Extensions() {
           }}
         />
       )}
-      {gh && <GitHubDialog item={gh} servers={d.servers ?? []} onClose={() => setGh(null)} onChanged={reload} />}
+      {gh && <GitHubDialog item={gh} target={target} servers={d.servers ?? []} onClose={() => setGh(null)} onChanged={reload} />}
+      {accessOf && <AccessDialog server={accessOf} label={d.catalog?.items.find((it) => it.server === accessOf.name)?.name ?? accessOf.name} onClose={() => setAccessOf(null)} />}
       {scopeOf && <ScopeDialog server={scopeOf} label={d.catalog?.items.find((it) => it.server === scopeOf.name)?.name ?? scopeOf.name} onClose={() => setScopeOf(null)} onSaved={reload} />}
     </>
   );
@@ -310,6 +331,12 @@ interface Shared {
   /** Opens the built-in sign-in (GitHub device flow) for an item. */
   onSignIn: (it: CatItem) => void;
   onScope: (s: McpServer) => void;
+  /** Opens the per-agent checklist for a connector. */
+  onAccess: (s: McpServer) => void;
+  /** Where new connections go (Target). */
+  target: Target;
+  toAll: boolean;
+  setToAll: (v: boolean) => void;
   onManage: (server: string) => void;
   focus: string | null;
 }
@@ -349,7 +376,10 @@ interface Row {
   menu?: MenuItem[];
 }
 
-function MarketView({ d, q, reload, reloadMarket, onApprove, onSignIn, onManage }: Shared) {
+function MarketView({ d, q, reload, reloadMarket, onApprove, onSignIn, onManage, target, toAll, setToAll }: Shared) {
+  const teams = useStore((s) => s.teams);
+  const team = useStore((s) => s.team);
+  const teamName = teams.find((x) => x.id === team)?.name ?? team;
   const [busy, setBusy] = useState<Record<string, boolean>>({});
   const [errs, setErrs] = useState<Record<string, string>>({});
   const [dialog, setDialog] = useState<CatItem | null>(null);
@@ -362,14 +392,14 @@ function MarketView({ d, q, reload, reloadMarket, onApprove, onSignIn, onManage 
    *  a dialog only for what must be entered or done first. */
   const connect = async (it: CatItem) => {
     setErrs((x) => ({ ...x, [it.id]: "" }));
-    if (it.kind === "builtin") return connectBuiltin(it); // the connector's own official sign-in
+    if (it.kind === "builtin") return connectBuiltin(it, target.scope ?? target.context); // the connector's own official sign-in
     const how = connectHow(it);
     if (how === "dialog") return setDialog(it);
     if (how === "device") return onSignIn(it);
     const win = how === "oauth" ? signInWindow() : null;
     mark(it.id, true);
     try {
-      const r = await catalogAPI.install(it.id, {});
+      const r = await catalogAPI.install(it.id, it.kind === "skill" ? {} : target);
       reload();
       if (it.kind === "skill") return toast(t("mk.added", { name: it.name }));
       const s = r.server && (await settle(r.server.name));
@@ -424,7 +454,7 @@ function MarketView({ d, q, reload, reloadMarket, onApprove, onSignIn, onManage 
       return { ...base, verb: "add", state: busy[it.id] ? "busy" : it.installed ? "added" : "idle", error: errs[it.id], onAct: () => void connect(it) };
     if (it.kind === "builtin") {
       const state: RowState = it.connector?.needsLogin ? "reauth" : it.installed ? "connected" : "idle";
-      return { ...base, desc: builtinNote(it) || base.desc, verb: "connect", state, onAct: () => void connectBuiltin(it) };
+      return { ...base, desc: builtinNote(it) || base.desc, verb: "connect", state, onAct: () => void connectBuiltin(it, target.scope ?? target.context) };
     }
     const s = it.installed ? servers.find((x) => x.name === it.server) : undefined;
     const st = s?.status;
@@ -486,11 +516,22 @@ function MarketView({ d, q, reload, reloadMarket, onApprove, onSignIn, onManage 
   const shown = sections.filter((s) => s.rows.length > 0);
   return (
     <>
+      {teams.length > 1 && (
+        <div className="mkto small">
+          <span>{t("mk2.installTo")}</span>
+          <span className="ssel">
+            <select value={toAll ? "global" : "team"} aria-label={t("mk2.installTo")} onChange={(e) => setToAll(e.target.value === "global")}>
+              <option value="team">{t("ext.scopeTeam", { name: teamName })}</option>
+              <option value="global">{t("ext.scopeGlobal")}</option>
+            </select>
+          </span>
+        </div>
+      )}
       {shown.length === 0 && <div className="empty">{t("mk.noResults", { q })}</div>}
       {shown.map((s) => (
         <Section key={s.id} title={s.title} desc={s.desc} rows={s.rows} all={!!q} />
       ))}
-      {dialog && <ConnectDialog item={dialog} servers={servers} onClose={() => setDialog(null)} onChanged={reload} onSignIn={onSignIn} />}
+      {dialog && <ConnectDialog item={dialog} target={target} servers={servers} onClose={() => setDialog(null)} onChanged={reload} onSignIn={onSignIn} />}
     </>
   );
 }
@@ -605,7 +646,7 @@ function Modal({ item, title, onClose, children }: { item: CatItem; title: strin
 /** For items that need something first: values to paste (a token, the
  *  Google client) or steps to take (Figma's Dev Mode server). Then follows
  *  the connection until it is up or fails. */
-function ConnectDialog({ item, servers, onClose, onChanged, onSignIn }: { item: CatItem; servers: McpServer[]; onClose: () => void; onChanged: () => void; onSignIn?: (it: CatItem) => void }) {
+function ConnectDialog({ item, target, servers, onClose, onChanged, onSignIn }: { item: CatItem; target: Target; servers: McpServer[]; onClose: () => void; onChanged: () => void; onSignIn?: (it: CatItem) => void }) {
   const [vals, setVals] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -625,7 +666,7 @@ function ConnectDialog({ item, servers, onClose, onChanged, onSignIn }: { item: 
     setBusy(true);
     setErr(null);
     try {
-      const r = await catalogAPI.install(item.id, { inputs: vals });
+      const r = await catalogAPI.install(item.id, { inputs: vals, ...target });
       onChanged();
       if (r.server) setName(r.server.name);
       else onClose();
@@ -706,7 +747,7 @@ function ConnectDialog({ item, servers, onClose, onChanged, onSignIn }: { item: 
  *  and waits for the person to approve; Crewbase then keeps the token in the
  *  keychain and connects GitHub's MCP server. A personal access token is
  *  the fallback. */
-function GitHubDialog({ item, servers, onClose, onChanged }: { item: CatItem; servers: McpServer[]; onClose: () => void; onChanged: () => void }) {
+function GitHubDialog({ item, target, servers, onClose, onChanged }: { item: CatItem; target: Target; servers: McpServer[]; onClose: () => void; onChanged: () => void }) {
   const [v, setV] = useState<SignInView | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [pat, setPat] = useState(false);
@@ -717,7 +758,7 @@ function GitHubDialog({ item, servers, onClose, onChanged }: { item: CatItem; se
     let live = true;
     setV(null);
     setErr(null);
-    catalogAPI.signIn(item.id).then(
+    catalogAPI.signIn(item.id, target).then(
       async (first) => {
         if (!live) return;
         setV(first);
@@ -752,7 +793,7 @@ function GitHubDialog({ item, servers, onClose, onChanged }: { item: CatItem; se
     onClose();
   };
   // the live server list: the dialog follows the server's state after the token is saved
-  if (pat) return <ConnectDialog item={{ ...item, auth: "token" }} servers={servers} onClose={onClose} onChanged={onChanged} />;
+  if (pat) return <ConnectDialog item={{ ...item, auth: "token" }} target={target} servers={servers} onClose={onClose} onChanged={onChanged} />;
   const mins = v?.expiresAt ? Math.max(1, Math.round((Date.parse(v.expiresAt) - Date.now()) / 60000)) : 15;
   const copy = () =>
     void navigator.clipboard?.writeText(v?.userCode ?? "").then(
@@ -913,6 +954,73 @@ function ScopeDialog({ server, label, onClose, onSaved }: { server: McpServer; l
   );
 }
 
+/** Which agents may use one connector: each switch edits that agent's
+ *  connector list (可用的连接器), so the others never get its tools. */
+function AccessDialog({ server, label, onClose }: { server: McpServer; label: string; onClose: () => void }) {
+  const agents = useStore((s) => s.agents);
+  const all = useConnectors();
+  const [busy, setBusy] = useState<string | null>(null);
+  useEsc(onClose);
+  const list = Object.values(agents).filter((a) => a.kind !== "chat" && !a.ephemeral && all && connectorsFor(all, a).some((c) => c.name === server.name));
+  const set = async (a: AgentView, on: boolean) => {
+    setBusy(a.id);
+    try {
+      await API.patchAgent(a.id, { connectors: nextConnectors(a, connectorsFor(all ?? [], a), server.name, on) });
+    } catch (e) {
+      toast(errMsg(e));
+    } finally {
+      setBusy(null);
+    }
+  };
+  return createPortal(
+    <>
+      <div className="scrim" onClick={onClose} />
+      <div className="modal sm mkdlg" role="dialog" aria-modal="true" aria-labelledby="mkAccess">
+        <div className="mhd">
+          <h3 id="mkAccess">{t("mk2.accessTitle", { name: label })}</h3>
+          <button className="ix" type="button" aria-label={t("common.close")} onClick={onClose}>
+            <X size={14} />
+          </button>
+        </div>
+        <div className="mbd">
+          <p className="small">{t("mk2.accessDesc", { n: server.status?.tools ?? 0 })}</p>
+          {!all ? (
+            <p className="small">{t("common.loading")}</p>
+          ) : list.length === 0 ? (
+            <p className="small">{t("mk2.accessNone")}</p>
+          ) : (
+            <div className="tglist">
+              {list.map((a) => (
+                <div className="tgrow" key={a.id}>
+                  <span className="g">
+                    <b>{a.name}</b>
+                    <span>{a.connectors == null ? t("mk2.accessAll") : t("mk2.accessListed", { n: a.connectors.length })}</span>
+                  </span>
+                  <button
+                    className="tg"
+                    type="button"
+                    role="switch"
+                    disabled={busy === a.id}
+                    aria-checked={canUse(a, server.name)}
+                    aria-label={a.name}
+                    onClick={() => set(a, !canUse(a, server.name))}
+                  />
+                </div>
+              ))}
+            </div>
+          )}
+          <div className="mft">
+            <button className="btn pri" type="button" onClick={onClose}>
+              {t("mk2.done")}
+            </button>
+          </div>
+        </div>
+      </div>
+    </>,
+    document.body,
+  );
+}
+
 // ---------------------------------------------------------------- installed
 
 interface MenuItem {
@@ -983,7 +1091,7 @@ function stLabel(s: McpServer) {
   return t(k) === k ? s.status?.state || "—" : t(k);
 }
 
-function InstalledView({ d, q, reload, reloadMarket, onApprove, onSignIn, onScope, focus }: Shared) {
+function InstalledView({ d, q, reload, reloadMarket, onApprove, onSignIn, onScope, onAccess, focus }: Shared) {
   const agents = useStore((s) => s.agents);
   const teams = useStore((s) => s.teams);
   const [adding, setAdding] = useState(false);
@@ -1096,6 +1204,7 @@ function InstalledView({ d, q, reload, reloadMarket, onApprove, onSignIn, onScop
                       items={[
                         { label: t("mk.tools"), onClick: () => setOpen(open === s.name ? null : s.name) },
                         { label: t("mk2.scopeMenu"), disabled: s.source === "config", onClick: () => onScope(s) },
+                        { label: t("mk2.pickAgents"), onClick: () => onAccess(s) },
                         ...(s.oauth ? [{ label: t("ext.mcpSignOut"), onClick: () => run(s.name, () => API.mcpSignOut(s.name), t("ext.mcpSignedOut", { name: label })) }] : []),
                         {
                           label: t("mk2.disconnect"),
@@ -1109,9 +1218,17 @@ function InstalledView({ d, q, reload, reloadMarket, onApprove, onSignIn, onScop
                     />
                   </div>
                   {s.status?.error && <div className="small errt mkerr">{s.status.error}</div>}
+                  {s.enabled && (!s.scope || s.scope === "global") && (s.status?.tools ?? 0) >= MANY_TOOLS && (
+                    <div className="small mknotice">
+                      <span>{t("mk2.globalMany", { name: label, n: s.status.tools })}</span>
+                      <button className="linkbtn" type="button" onClick={() => onAccess(s)}>
+                        {t("mk2.pickAgents")}
+                      </button>
+                    </div>
+                  )}
                   {open === s.name && (
                     <div className="mkdetail">
-                      <McpTools name={s.name} onProbed={reload} />
+                      <McpTools name={s.name} server={s} onProbed={reload} />
                     </div>
                   )}
                 </div>
