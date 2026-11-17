@@ -84,7 +84,7 @@ a { color: var(--accent-text); }
    top strip plus the conversation header form the draggable title-bar band.
    In the MyGo desktop shell the --mygo-titlebar-* variables are set (traffic
    lights inset); in a browser they are absent and fall back to 0. */
-:root { --tbh: var(--mygo-titlebar-height, 44px); --inset-l: var(--mygo-titlebar-inset-left, 0px); --inset-r: var(--mygo-titlebar-inset-right, 0px); --row-active: var(--surface); }
+:root { --modal-top: var(--mygo-titlebar-height, 0px); --tbh: var(--mygo-titlebar-height, 44px); --inset-l: var(--mygo-titlebar-inset-left, 0px); --inset-r: var(--mygo-titlebar-inset-right, 0px); --row-active: var(--surface); }
 .drag, .chead, .lbar, .ptabs, .snav, .vh { --app-region: drag; -webkit-app-region: drag; }
 .nodrag, .chead button, .chead a, .lbar button, .ptabs button, .snav button, .snav input, .snav label, .vh button, .vh input, .vh select, .vh label, .vh a { --app-region: no-drag; -webkit-app-region: no-drag; }
 .app { height: 100%; display: flex; flex-direction: column; background: var(--surface); position: relative; }
@@ -682,7 +682,9 @@ kbd { font-family: var(--font); font-size: 11px; min-width: 22px; height: 20px; 
 .ci[aria-current="true"] .chown .av { box-shadow: 0 0 0 2px var(--raised); }
 
 /* ===== modal ===== */
-.modal { position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(460px, calc(100% - 24px)); max-height: calc(100% - 40px); overflow: auto; background: var(--surface); border-radius: 16px; box-shadow: var(--menu-shadow); z-index: 50; }
+/* dialogs sit in the window below the desktop shell's title bar (its
+   traffic lights): --modal-top is 0 in a browser */
+.modal { position: fixed; left: 50%; top: calc(50% + var(--modal-top) / 2); transform: translate(-50%, -50%); width: min(460px, calc(100% - 24px)); max-height: calc(100% - 40px - var(--modal-top)); overflow: auto; background: var(--surface); border-radius: 16px; box-shadow: var(--menu-shadow); z-index: 50; }
 .mhd { display: flex; align-items: center; padding: 14px 16px 4px 18px; }
 .mhd h3 { margin: 0; font-size: 15px; font-weight: 600; flex: 1; }
 .mbd { padding: 0 18px 16px; }
@@ -1968,7 +1970,7 @@ button.psec.toggle { width: 100%; background: none; border: 0; font-family: inhe
 @keyframes updglow { 0%, 100% { box-shadow: 0 0 0 0 var(--accent-soft); } 50% { box-shadow: 0 0 0 4px var(--accent-soft); } }
 
 /* ===== context window map ===== */
-.modal.ctxmap { width: min(1120px, calc(100vw - 32px)); height: min(820px, calc(100% - 40px)); display: flex; flex-direction: column; overflow: hidden; }
+.modal.ctxmap { width: min(1120px, calc(100vw - 32px)); height: min(820px, calc(100% - 40px - var(--modal-top))); display: flex; flex-direction: column; overflow: hidden; }
 .ctxmap .cxbody { flex: 1; min-height: 0; overflow: auto; display: flex; flex-direction: column; gap: 12px; padding-top: 6px; }
 .ctxmap .cxft { margin: 0; padding: 10px 18px 14px; border-top: 1px solid var(--border); flex: none; }
 .cxempty { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 12.5px; padding: 18px 2px; }
@@ -2052,7 +2054,7 @@ button.cxblk:focus-visible { outline: 2px solid var(--accent); outline-offset: -
   .cxcache { border-left: 0; padding-left: 0; }
 }
 @media (max-width: 640px) {
-  .modal.ctxmap { width: calc(100vw - 16px); height: calc(100% - 16px); border-radius: 14px; }
+  .modal.ctxmap { width: calc(100vw - 16px); height: calc(100% - 16px - var(--modal-top)); border-radius: 14px; }
   .ctxmap .cxbody { padding: 4px 14px 14px; }
   .cxhead { gap: 10px; }
   .cxmodel { align-items: flex-start; flex-direction: row; flex-wrap: wrap; border-left: 0; padding-left: 0; width: 100%; }
