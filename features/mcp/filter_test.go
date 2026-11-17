@@ -119,7 +119,9 @@ func TestTeamScopedSourceAndLargeSchema(t *testing.T) {
 		props[strings.Repeat("p", 10)+string(rune('a'+i%26))+strings.Repeat("x", i%7)] = map[string]any{"type": "string", "description": strings.Repeat("long description ", 3)}
 	}
 	srv.AddTool(&sdk.Tool{Name: "huge", InputSchema: map[string]any{"type": "object", "properties": props}},
-		func(context.Context, *sdk.CallToolRequest) (*sdk.CallToolResult, error) { return &sdk.CallToolResult{}, nil })
+		func(context.Context, *sdk.CallToolRequest) (*sdk.CallToolResult, error) {
+			return &sdk.CallToolResult{}, nil
+		})
 	h := sdk.NewStreamableHTTPHandler(func(*http.Request) *sdk.Server { return srv }, nil)
 	ts := httptest.NewServer(h)
 	t.Cleanup(ts.Close)
