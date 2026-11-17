@@ -282,12 +282,14 @@ func TestMessageToTwoMembers(t *testing.T) {
 	}
 	// Cy was not mentioned: the request is marked as someone else's
 	for _, m := range session.DeriveMessages(ss.Events(), c.ID(), reg.Names()) {
-		if m.Role == llm.RoleUser && strings.Contains(m.Text(), "count the rows") && !strings.Contains(m.Text(), "not you") {
+		if m.Role == llm.RoleUser && strings.Contains(m.Text(), "count the rows") && !strings.HasPrefix(m.Text(), "[Ana]:") && !strings.HasPrefix(m.Text(), "[Ben]:") && !strings.Contains(m.Text(), "not you") {
 			t.Fatalf("not marked for someone else: %q", m.Text())
 		}
 	}
 	for _, m := range session.DeriveMessages(ss.Events(), b.ID(), reg.Names()) {
-		if m.Role == llm.RoleUser && strings.Contains(m.Text(), "count the rows") && (strings.Contains(m.Text(), "not you") || !strings.Contains(m.Text(), "also sent to Ana")) {
+		// other members' replies also reach Ben as "[Name]: …" (the mock echoes the request); only the request itself counts
+		if m.Role == llm.RoleUser && strings.Contains(m.Text(), "count the rows") && !strings.HasPrefix(m.Text(), "[Ana]:") && !strings.HasPrefix(m.Text(), "[Cy]:") &&
+			(strings.Contains(m.Text(), "not you") || !strings.Contains(m.Text(), "also sent to Ana")) {
 			t.Fatalf("Ben should see the request as shared with Ana: %q", m.Text())
 		}
 	}
