@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"log/slog"
+	"maps"
 	"slices"
 	"strings"
 	"sync"
@@ -85,6 +86,10 @@ type Adapter struct {
 	// model lists (see models.go, shape.go)
 	acpModels   []acpModel    // what the bridge reported
 	native      []nativeModel // the CLI's own list
+	// unsupported are models this account cannot use (the CLI said so);
+	// they are listed switched off. Kept with the model cache.
+	unsupported map[string]bool
+	accountErr  string // see noteAccount
 	entries     []modelEntry  // what is offered, shaped from both
 	acpEfforts  map[string]bool
 	learned     time.Time // when the lists were learned
@@ -170,8 +175,11 @@ func (a *Adapter) Models(context.Context) ([]llm.ModelInfo, error) {
 	if len(es) == 0 {
 		out = append(out, llm.ModelInfo{ID: defaultModel, Provider: a.id, Name: a.cfg.Name, ContextWindow: a.cfg.ContextWindow, Capabilities: []string{"code"}, Efforts: llm.NoEfforts, Enabled: true})
 	}
+	a.mu.Lock()
+	unsup := maps.Clone(a.unsupported)
+	a.mu.Unlock()
 	for _, e := range es {
-		mi := llm.ModelInfo{ID: e.ID, Provider: a.id, Name: e.Name, ContextWindow: a.cfg.ContextWindow, ContextEstimated: true, Capabilities: []string{"code"}, Efforts: llm.NoEfforts, Enabled: true}
+		mi := llm.ModelInfo{ID: e.ID, Provider: a.id, Name: e.Name, ContextWindow: a.cfg.ContextWindow, ContextEstimated: true, Capabilities: []string{"code"}, Efforts: llm.NoEfforts, Enabled: !unsup[e.ID]}
 		if e.ContextWindow > 0 {
 			mi.ContextWindow, mi.ContextEstimated = e.ContextWindow, false
 		}
@@ -338,7 +346,7 @@ func (a *Adapter) ensureProc(ctx context.Context) (*proc, error) {
 	a.mu.Unlock()
 	p, err := a.startProc(ctx)
 	if err != nil {
-		a.noteQuota(err)
+		a.noteQuota(err, "")
 		return nil, err
 	}
 	a.mu.Lock()
@@ -386,8 +394,11 @@ func (a *Adapter) idleStop() {
 	p.kill()
 }
 
-func (a *Adapter) noteQuota(err error) {
+func (a *Adapter) noteQuota(err error, model string) {
 	le, ok := err.(*llm.Error)
+	if ok && le.Kind == llm.ErrModelUnavailable {
+		a.markUnsupported(model)
+	}
 	if !ok || le.Kind != llm.ErrQuotaExhausted {
 		return
 	}
@@ -438,7 +449,7 @@ func (a *Adapter) Stream(ctx context.Context, req llm.Request, onChunk func(llm.
 		}
 		s, err := p.newSession(ctx, req.Model, req.Effort, cwd, own, bind)
 		if err != nil {
-			a.noteQuota(err)
+			a.noteQuota(err, req.Model)
 			return llm.Response{}, err
 		}
 		c.s = s
@@ -504,7 +515,7 @@ func (a *Adapter) Stream(ctx context.Context, req llm.Request, onChunk func(llm.
 	if r.err != nil {
 		c.prints = nil
 		err := p.classify(r.err, "")
-		a.noteQuota(err)
+		a.noteQuota(err, req.Model)
 		return llm.Response{}, err
 	}
 	// Some CLIs report a limit as an ordinary reply (e.g. Claude Code's
@@ -513,7 +524,15 @@ func (a *Adapter) Stream(ctx context.Context, req llm.Request, onChunk func(llm.
 		c.prints = nil
 		retry, resets := resetHints(txt, time.Now())
 		err := &llm.Error{Kind: llm.ErrQuotaExhausted, Provider: a.id, Message: txt, RetryAfter: retry, ResetsAt: resets}
-		a.noteQuota(err)
+		a.noteQuota(err, req.Model)
+		return llm.Response{}, err
+	}
+	// ...or say the account is suspended (Antigravity: "This service has
+	// been disabled in this account for violation of Terms of Service").
+	if txt := strings.TrimSpace(msg.Text()); len(txt) < 400 && reAccountBanner.MatchString(txt) {
+		c.prints = nil
+		err := &llm.Error{Kind: llm.ErrAuth, Provider: a.id, Message: strings.TrimLeft(txt, "⚠ \n")}
+		a.noteAccount(err)
 		return llm.Response{}, err
 	}
 
@@ -533,6 +552,7 @@ func (a *Adapter) Stream(ctx context.Context, req llm.Request, onChunk func(llm.
 	a.mu.Lock()
 	if a.quota.Known && a.quota.Remaining == 0 {
 		a.quota = llm.Quota{} // worked again: back to unknown
+		a.accountErr = ""
 	}
 	a.mu.Unlock()
 
@@ -774,4 +794,39 @@ func renderDelta(ms []llm.Message) string {
 		b.WriteString("\nContinue.")
 	}
 	return b.String()
+}
+
+// markUnsupported records that this account cannot use model (the CLI
+// refused it for the plan): it is listed switched off from now on, and
+// the choice is kept with the model cache until the list is learned again.
+func (a *Adapter) markUnsupported(model string) {
+	if model == "" || model == defaultModel {
+		return
+	}
+	a.mu.Lock()
+	if a.unsupported[model] {
+		a.mu.Unlock()
+		return
+	}
+	if a.unsupported == nil {
+		a.unsupported = map[string]bool{}
+	}
+	a.unsupported[model] = true
+	a.mu.Unlock()
+	a.saveModels()
+}
+
+// noteAccount keeps an account-level refusal so the provider shows it as
+// its error until a turn succeeds again.
+func (a *Adapter) noteAccount(err *llm.Error) {
+	a.mu.Lock()
+	a.accountErr = err.Message
+	a.mu.Unlock()
+}
+
+// AccountError is the latest account-level refusal, "" when none.
+func (a *Adapter) AccountError() string {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.accountErr
 }

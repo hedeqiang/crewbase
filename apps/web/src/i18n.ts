@@ -1981,6 +1981,7 @@ const zh = {
   "gws.pasteBtn": "完成连接",
   "gws.pasteHint": "如果你是在另一台电脑上登录的，浏览器最后会打不开页面：把那个页面的地址粘贴到这里即可完成连接。",
   "sub.section": "订阅 CLI",
+  "sub.offGroup": "已停用 · {n}",
   "sub.addCli": "添加订阅 CLI",
   "sub.addCliCard": "自定义 CLI（ACP）",
   "sub.addTitle": "添加自定义订阅 CLI",

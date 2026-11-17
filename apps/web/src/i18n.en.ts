@@ -1938,6 +1938,7 @@ export const en: Partial<Record<Key, string>> = {
   "gws.pasteBtn": "Finish",
   "gws.pasteHint": "Signed in on another computer? Its browser ends on a page that does not open: paste that page's address here to finish.",
   "sub.section": "Subscription CLIs",
+  "sub.offGroup": "Switched off · {n}",
   "sub.addCli": "Add subscription CLI",
   "sub.addCliCard": "Custom CLI (ACP)",
   "sub.addTitle": "Add a custom subscription CLI",

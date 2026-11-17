@@ -716,6 +716,9 @@ var Plugin = kernel.Register(kernel.Spec{
 					mctx, cancel := context.WithTimeout(ctx, 3*time.Second)
 					ms, err := llms.ModelsOf(mctx, ad)
 					cancel()
+					if ae, ok := ad.(interface{ AccountError() string }); ok && ae.AccountError() != "" {
+						pv.Error = ae.AccountError() // e.g. a subscription suspended by its vendor
+					}
 					if err != nil {
 						pv.Error = err.Error()
 					} else if ms != nil {

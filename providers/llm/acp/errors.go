@@ -28,7 +28,9 @@ var (
 	reRetryIn = regexp.MustCompile(`(?i)(?:try again|retry|resets?) in (\d+)\s*(second|sec|minute|min|hour|hr|day)s?`)
 	reEpoch   = regexp.MustCompile(`\|(\d{10})\b`) // "Claude AI usage limit reached|1735689600"
 	// A short assistant reply that is only a limit banner.
-	reLimitBanner = regexp.MustCompile(`(?i)^\W*(claude ai usage limit reached|you've hit your (usage )?limit|(5-hour|weekly|daily|usage) limit reached)`)
+	// A short reply saying the account itself is blocked.
+	reAccountBanner = regexp.MustCompile(`(?i)^\W*(this service has been disabled in this account|your account (has been|is) (suspended|disabled|banned))`)
+	reLimitBanner   = regexp.MustCompile(`(?i)^\W*(claude ai usage limit reached|you've hit your (usage )?limit|(5-hour|weekly|daily|usage) limit reached)`)
 )
 
 // classifyText maps free text to an error kind ("" if nothing matched).

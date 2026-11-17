@@ -2,7 +2,7 @@ import { AddProviderDialog } from "./settings/AddProvider";
 import { SubscriptionDialog, SubscriptionPanel, subState } from "./settings/Subscriptions";
 import { MagpieModelsDialog, ModelCatalog } from "./settings/ModelSources";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { ChevronLeft, Info, ListChecks, Pencil, Plus, Search, Workflow } from "lucide-react";
+import { ChevronDown, ChevronLeft, ChevronRight, Info, ListChecks, Pencil, Plus, Search, Workflow } from "lucide-react";
 import { NAV, SECTION_ICONS } from "./settings/nav";
 import { API, desktop, type DesktopPermission, type DesktopUpdateState, type UpdateInfo, type ApprovalHistoryItem, type ModelInfo, type ProviderView, type RememberedChoice, type Settings as SettingsData, type Subscription, type UserProvider } from "../api";
 import { getLang, t, type Key, type Lang } from "../i18n";
@@ -678,6 +678,8 @@ function Models() {
   // subscription CLIs (managed here; disabled ones are not model providers)
   const [subs, setSubs] = useState<Subscription[]>([]);
   const [addingCli, setAddingCli] = useState(false);
+  // switched-off CLIs fold away at the bottom of the list
+  const [showOff, setShowOff] = useState(false);
   const subOf = (id: string) => subs.find((x) => x.provider === id);
   const pname = (id: string) => userProv.find((u) => u.id === id)?.name || subOf(id)?.name || providerName(id);
   const loadUser = () =>
@@ -714,7 +716,7 @@ function Models() {
     return out;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [providers, q, subs, userProv]);
-  const cur = providers.find((p) => p.id === sel) ?? groups[0]?.[1][0];
+  const cur = providers.find((p) => p.id === sel) ?? groups.flatMap(([, ps]) => ps).find((p) => !isOff(p.id)) ?? groups[0]?.[1][0];
   // every model of the selected provider with its on/off switch (the
   // pickers' list leaves out what magpie / added providers have off)
   const [sw, setSw] = useState<{ provider: string; models: ModelInfo[] } | null>(null);
@@ -821,9 +823,24 @@ function Models() {
               <Search size={14} />
               <input value={q} onChange={(e) => setQ(e.target.value)} placeholder={t("set.searchProviders")} />
             </label>
-            {groups.map(([kind, ps]) => (
+            {[...groups.map(([kind, ps]) => [kind, ps.filter((p) => !(isOff(p.id) && !subOf(p.id)?.enabled))] as const), ["off", providers.filter((p) => isOff(p.id) && !subOf(p.id)?.enabled)] as const]
+              .filter(([, ps]) => ps.length > 0)
+              .map(([kind, ps]) =>
+              kind === "off" && !showOff && cur && !ps.some((p) => p.id === cur.id) ? (
+                <button key="off" type="button" className="pvg pvoff" onClick={() => setShowOff(true)}>
+                  <ChevronRight size={12} />
+                  {t("sub.offGroup", { n: ps.length })}
+                </button>
+              ) : (
               <div key={kind}>
-                <div className="pvg">{t(`kind.${kind}` as Key)}</div>
+                {kind === "off" ? (
+                  <button type="button" className="pvg pvoff" onClick={() => setShowOff(false)}>
+                    <ChevronDown size={12} />
+                    {t("sub.offGroup", { n: ps.length })}
+                  </button>
+                ) : (
+                  <div className="pvg">{t(`kind.${kind}` as Key)}</div>
+                )}
                 {ps.map((p) => {
                   const off = isOff(p.id) && !subOf(p.id)?.enabled;
                   const st = off ? "" : providerState(p, isEx(p));
@@ -839,7 +856,8 @@ function Models() {
                   );
                 })}
               </div>
-            ))}
+              ),
+            )}
             <button className="btn sm pvadd" type="button" onClick={() => setAddingCli(true)}>
               <Plus size={13} />
               {t("sub.addCli")}

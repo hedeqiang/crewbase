@@ -3,6 +3,8 @@ package acp
 import (
 	"context"
 	"encoding/json"
+	"maps"
+	"slices"
 	"os"
 	"path/filepath"
 	"sync"
@@ -37,6 +39,8 @@ type modelCache struct {
 	Learned time.Time     `json:"learned"`
 	// Versions are the CLI and bridge versions the list was learned with.
 	Versions string `json:"versions,omitempty"`
+	// Unsupported are models this account cannot use (see markUnsupported).
+	Unsupported []string `json:"unsupported,omitempty"`
 }
 
 var cacheMu sync.Mutex
@@ -84,6 +88,10 @@ func (a *Adapter) loadCachedModels() (fresh bool) {
 	a.mu.Lock()
 	a.acpModels, a.native = c.Models, c.Native
 	a.learned, a.learnedWith = c.Learned, c.Versions
+	a.unsupported = map[string]bool{}
+	for _, m := range c.Unsupported {
+		a.unsupported[m] = true
+	}
 	a.mu.Unlock()
 	a.reshape()
 	return a.cacheFresh()
@@ -113,7 +121,7 @@ func (a *Adapter) SetVersions(v string) {
 // saveModels writes what is known now to the cache.
 func (a *Adapter) saveModels() {
 	a.mu.Lock()
-	c := modelCache{Models: a.acpModels, Native: a.native, Learned: a.learned, Versions: a.versions}
+	c := modelCache{Models: a.acpModels, Native: a.native, Learned: a.learned, Versions: a.versions, Unsupported: slices.Sorted(maps.Keys(a.unsupported))}
 	a.learnedWith = a.versions
 	a.mu.Unlock()
 	writeModelCache(a.stateDir, a.cfg.ID, c)

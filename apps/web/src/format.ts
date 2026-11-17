@@ -200,7 +200,17 @@ export function isExhausted(models: ModelsResponse | null, r: ModelRef): { until
 /** The model the agent would use next (first non-exhausted in its order). */
 export function activeModel(models: ModelsResponse | null, a: AgentView | undefined): ModelRef | null {
   const order = a?.models ?? [];
-  for (const r of order) if (!isExhausted(models, r)) return r;
+  // a provider that is gone (a switched-off CLI) or a model switched off is
+  // skipped, as the router does
+  const usable = (r: ModelRef) => {
+    if (!models) return true;
+    const p = findProvider(models, r.provider);
+    if (!p) return false;
+    const m = p.models.find((x) => x.id === r.model);
+    return !m || m.enabled !== false;
+  };
+  for (const r of order) if (usable(r) && !isExhausted(models, r)) return r;
+  for (const r of order) if (usable(r)) return r;
   return order[0] ?? null;
 }
 
