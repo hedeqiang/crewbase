@@ -149,7 +149,7 @@ func (l *loop) planTools(a *agent.Agent, ss *session.Session, ad llm.Adapter, mo
 		for _, t := range deferred {
 			if !promoted[t.Name] {
 				s := t.Schema()
-				s.Deferred = true
+				s.Deferred, s.Group = true, tools.GroupOf(t)
 				out = append(out, s)
 			}
 		}

@@ -154,6 +154,9 @@ type ToolSchema struct {
 	// keep the tool out of the model's context until the model finds it.
 	// The agent loop sets it only for adapters that are ToolSearchers.
 	Deferred bool `json:"deferred,omitempty"`
+	// Group is the family of a deferred tool (an MCP server, a connector),
+	// for providers that group deferred tools (OpenAI's namespaces).
+	Group string `json:"group,omitempty"`
 }
 
 // Request is a single model request. It must be reconstructible from the
