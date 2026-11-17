@@ -356,7 +356,15 @@
 - [x] 上下文估算：订阅 CLI 只算交给它的工具，总量用 CLI 上报的真实用量；自动压缩用同一套算法；频道专用工具不算进普通对话；空白对话不带 skill_load
 - [x] 连接器按 Agent 分配（Agent 设置「可用的连接器」）、MCP 服务按工具开关（include / exclude）、多团队时新装连接器默认给当前团队、大连接器提示与「选择 Agent」
 - [x] 工具按需加载：连接器 / 电脑操作 / 浏览器等工具在超过阈值（30 个或占上下文 10%）时改为按需；Claude API 用原生工具搜索 + 3 个缓存断点；其他模型用 tool_search（BM25，加载状态记在会话里）。实测你的 180 个工具：每次请求 ≈81.3k → ≈4.5k token
-- [ ] OpenAI 原生 tool_search（需要把官方 OpenAI 的请求整体迁到 Responses API）
+- [x] OpenAI 原生 tool_search（托管模式，GPT-5.4 起，仅官方 OpenAI；按工具分组建 namespace，tool_search_call / tool_search_output 原样回放，store:false）；只对照文档和固定样例验证过，未连真实接口
+- [ ] magpie 的 openai/* 路线是否透传 tool_search（默认关，可用 toolSearch 强制）
+
+## OpenAI 走 Responses API（2026-11-17）
+- [x] responses: auto | always | never；auto（官方 OpenAI 默认、magpie 设为 auto）让 OpenAI 推理模型（gpt-5+ / o 系列 / codex，及 openai/ codex/ *-openai/ 前缀）走 /responses，其余仍走 Chat Completions
+- [x] Responses 路径覆盖普通对话：instructions、多轮工具调用、图片 / PDF、推理强度与摘要、max_output_tokens、流式文本 / 推理 / 工具调用、缓存用量、停止原因、错误分类
+- [x] 回退：/responses 404 / 405（不是模型 404）退回 Chat 一次并记住；Chat 返回「use /v1/responses」的 400 时改走 Responses 并记住该模型
+- [x] 「模型在当前账号下不可用」（如 Codex 用 ChatGPT 账号时的 gpt-6.1-sol）单独归类，自动换下一个模型并搁置 12 小时，界面显示可读的说明
+- [ ] 未连真实接口验证 magpie 的 codex/* 走 /responses 的流式事件形状
 - [ ] alwaysLoad / toolSearch 的界面开关（现只能在配置里设）
 - [ ] 通用路径每加载一个工具会让一次提示缓存失效
 
