@@ -32,6 +32,7 @@ import { ListToggle } from "./Header";
 import { RowMenuButton, RowMenuHost, openAddToFolder, openNewFolder, openRowMenu } from "./RowMenu";
 import { Popover, useMenu } from "./Popover";
 import { keyLabel } from "../shortcuts";
+import { UpdatePill } from "./Update";
 
 const ISSUES_URL = "https://github.com/hedeqiang/crewbase/issues";
 
@@ -301,6 +302,7 @@ export function SessionList() {
         )}
         {noMatch && <p className="small lempty">{t("list.noMatch")}</p>}
       </div>
+      <UpdatePill />
       <div className="lfoot">
         <button className="mebtn" type="button" ref={me.ref} onClick={me.toggle} aria-haspopup="menu" aria-expanded={me.open}>
           <span className="mewrap">

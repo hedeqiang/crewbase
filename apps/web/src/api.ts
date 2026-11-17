@@ -409,9 +409,16 @@ export interface CrewbaseDesktop {
   /** closing the window keeps the app running (Settings › 通用) */
   keepRunning?: () => Promise<boolean>;
   setKeepRunning?: (on: boolean) => Promise<boolean>;
-  updates?: () => Promise<DesktopUpdates>;
+  /** in-place updates: the state now, and every change of it (returns off) */
+  updateState?: () => Promise<DesktopUpdateState>;
+  onUpdate?: (fn: (st: DesktopUpdateState) => void) => () => void;
+  /** checks now, in place (no window); a version found downloads when autoDownload is on */
   checkForUpdates?: () => void;
-  setUpdatePrefs?: (checks: boolean, downloads: boolean) => Promise<DesktopUpdates>;
+  /** downloads the version found, or retries what failed */
+  downloadUpdate?: () => void;
+  /** relaunches into the update once it is ready (agents stop first) */
+  restartToUpdate?: () => Promise<void>;
+  setAutoUpdate?: (on: boolean) => Promise<DesktopUpdateState>;
   setLanguage?: (l: "zh" | "en") => void;
   /** macOS permissions the app uses (Settings › 通用 › 系统权限) */
   permissions?: () => Promise<DesktopPermission[]>;
@@ -468,13 +475,27 @@ export interface DesktopPermission {
   canRequest: boolean;
 }
 
-export interface DesktopUpdates {
-  version: string;
-  enabled: boolean;
-  automaticChecks: boolean;
-  automaticDownloads: boolean;
+/** The desktop app's update, pushed by the shell (apps/desktop/updates.go). */
+export interface DesktopUpdateState {
+  state: "disabled" | "idle" | "checking" | "available" | "downloading" | "ready" | "error";
+  /** the running version */
+  current: string;
+  /** the new version */
+  version?: string;
+  /** its release notes, Markdown */
+  notes?: string;
+  /** 0…1 while downloading; 1 while it is unpacked */
+  progress: number;
+  downloaded?: number;
+  total?: number;
+  error?: string;
+  errorDuring?: "check" | "download";
+  /** the person asked for the last check */
+  user?: boolean;
+  /** the last check found nothing newer */
+  upToDate?: boolean;
+  autoDownload: boolean;
   lastCheck?: string;
-  available?: string;
 }
 
 export interface UpdateInfo {

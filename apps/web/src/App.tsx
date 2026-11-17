@@ -15,6 +15,7 @@ import { PairScreen, pairParams } from "./components/PairScreen";
 import { savedRelay, useRelay } from "./tunnel";
 import { NewChannel } from "./components/NewChannel";
 import { ConfirmHost } from "./components/Confirm";
+import { UpdateNotes } from "./components/Update";
 
 // Loaded when first opened: most sessions never visit settings.
 const Settings = lazy(() => import("./components/Settings").then((m) => ({ default: m.Settings })));
@@ -210,6 +211,7 @@ function Shell() {
       <ConnectModel />
       <NewChannel />
       <Toasts />
+      <UpdateNotes />
       <ConfirmHost />
     </div>
   );

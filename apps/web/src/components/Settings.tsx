@@ -3,7 +3,7 @@ import { MagpieModelsDialog, ModelCatalog } from "./settings/ModelSources";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { ChevronLeft, Info, ListChecks, Pencil, Plus, Search, Workflow } from "lucide-react";
 import { NAV, SECTION_ICONS } from "./settings/nav";
-import { API, desktop, type DesktopPermission, type DesktopUpdates, type UpdateInfo, type ApprovalHistoryItem, type ModelInfo, type ProviderView, type RememberedChoice, type Settings as SettingsData, type UserProvider } from "../api";
+import { API, desktop, type DesktopPermission, type DesktopUpdateState, type UpdateInfo, type ApprovalHistoryItem, type ModelInfo, type ProviderView, type RememberedChoice, type Settings as SettingsData, type UserProvider } from "../api";
 import { getLang, t, type Key, type Lang } from "../i18n";
 import { ago, kfmt, modeLabel, modelKind, priceLong, priceShort, providerName, until } from "../format";
 import { openSession, refreshModels, setBubbles, setLang, setState, toast, useStore, type Bubbles, type SettingsSection, resync } from "../store";
@@ -22,6 +22,8 @@ import { Avatar } from "./Avatar";
 import { ApprovalActions } from "./Approval";
 import { ProviderMark } from "./ProviderMark";
 import { Markdown } from "./Markdown";
+import { UpdateRing } from "./Update";
+import { checkForUpdates, downloadUpdate, inPlaceUpdates, openUpdateNotes, percent, restartToUpdate, useDesktopUpdate } from "../updates";
 import {
   SHORTCUTS,
   binding,
@@ -457,55 +459,20 @@ function General() {
   );
 }
 
-/** 关于 › 版本与更新: the desktop app updates itself (its updater); in a
- *  browser the daemon checks GitHub once a day and links the release. */
+/** 关于 › 版本与更新: the desktop app updates itself in place
+ *  (apps/desktop/updates.go; the sidebar shows it too); in a browser the
+ *  daemon checks GitHub once a day and links the release. */
 function Updates() {
   const d = desktop();
-  const [du, setDu] = useState<DesktopUpdates | null>(null);
+  const du = useDesktopUpdate();
   const [info, setInfo] = useState<UpdateInfo | null>(null);
   const [busy, setBusy] = useState(false);
   const manage = useStore((s) => s.tier === "desktop");
+  const inPlace = inPlaceUpdates();
   useEffect(() => {
-    if (d?.updates) d.updates().then(setDu, () => setDu(null));
-    else API.updates().then(setInfo, () => setInfo(null));
+    if (!inPlace) API.updates().then(setInfo, () => setInfo(null));
   }, []);
-  if (du) {
-    const when = du.lastCheck ? ago(du.lastCheck) : t("upd.never");
-    return (
-      <>
-        <Row title={t("upd.version", { v: du.version })} desc={du.available ? t("upd.availableDesktop", { v: du.available }) : du.enabled ? t("upd.lastCheck", { when }) : t("upd.disabled")}>
-          <button className={"btn" + (du.available ? " pri" : "")} type="button" disabled={!du.enabled} onClick={() => d!.checkForUpdates!()}>
-            {du.available ? t("upd.install") : t("upd.check")}
-          </button>
-        </Row>
-        {du.enabled && (
-          <>
-            <Row title={t("upd.autoCheck")} desc={t("upd.autoCheckDesc")}>
-              <button
-                className="tg"
-                type="button"
-                role="switch"
-                aria-checked={du.automaticChecks}
-                aria-label={t("upd.autoCheck")}
-                onClick={() => d!.setUpdatePrefs!(!du.automaticChecks, du.automaticChecks ? false : du.automaticDownloads).then(setDu)}
-              />
-            </Row>
-            <Row title={t("upd.autoInstall")} desc={t("upd.autoInstallDesc")}>
-              <button
-                className="tg"
-                type="button"
-                role="switch"
-                aria-checked={du.automaticDownloads}
-                aria-label={t("upd.autoInstall")}
-                disabled={!du.automaticChecks}
-                onClick={() => d!.setUpdatePrefs!(du.automaticChecks, !du.automaticDownloads).then(setDu)}
-              />
-            </Row>
-          </>
-        )}
-      </>
-    );
-  }
+  if (inPlace) return du ? <DesktopUpdates st={du} setAuto={(on) => void d!.setAutoUpdate?.(on)} /> : null;
   if (!info) return null;
   const check = async () => {
     setBusy(true);
@@ -544,6 +511,108 @@ function Updates() {
         <div className="updnotes">
           <Markdown text={info.notes} />
         </div>
+      )}
+    </>
+  );
+}
+
+/** The desktop app's version, a status line that follows the update in
+ *  place, and the automatic-download switch. */
+function DesktopUpdates({ st, setAuto }: { st: DesktopUpdateState; setAuto: (on: boolean) => void }) {
+  const v = st.version ?? "";
+  const pct = percent(st);
+  let status: ReactNode;
+  let action: ReactNode = null;
+  const check = (
+    <button className="btn" type="button" onClick={checkForUpdates}>
+      {t("upd.check")}
+    </button>
+  );
+  const notes = st.version ? (
+    <button className="updlink" type="button" onClick={() => openUpdateNotes()}>
+      {t("upd.notes")}
+    </button>
+  ) : null;
+  switch (st.state) {
+    case "disabled":
+      status = t("upd.disabled");
+      break;
+    case "checking":
+      status = (
+        <span className="updst">
+          <UpdateRing spin size={14} />
+          {t("upd.stChecking")}
+        </span>
+      );
+      action = (
+        <button className="btn" type="button" disabled>
+          {t("upd.checking")}
+        </button>
+      );
+      break;
+    case "available":
+      status = (
+        <span className="updst">
+          {t("upd.stAvailable", { v })} · {notes}
+        </span>
+      );
+      action = (
+        <button className="btn pri" type="button" onClick={downloadUpdate}>
+          {t("upd.download")}
+        </button>
+      );
+      break;
+    case "downloading":
+      status = (
+        <span className="updst">
+          <UpdateRing progress={st.progress} spin={!st.total} size={14} />
+          <span className="num">{st.progress >= 1 ? t("upd.stInstalling", { v }) : t("upd.stDownloading", { v, pct })}</span>
+          {notes && <> · {notes}</>}
+        </span>
+      );
+      break;
+    case "ready":
+      status = (
+        <span className="updst">
+          <i className="upddot" />
+          {t("upd.stReady", { v })} · {notes}
+        </span>
+      );
+      action = (
+        <button className="btn pri" type="button" onClick={() => void restartToUpdate()}>
+          {t("upd.restart")}
+        </button>
+      );
+      break;
+    case "error":
+      status = (
+        <span className="updst err">
+          {st.errorDuring === "download" ? t("upd.stDownloadFailed", { v, error: st.error ?? "" }) : t("upd.stCheckFailed", { error: st.error ?? "" })}
+        </span>
+      );
+      action = (
+        <button className="btn" type="button" onClick={downloadUpdate}>
+          {t("common.retry")}
+        </button>
+      );
+      break;
+    default:
+      status = st.lastCheck ? t("upd.stUpToDate", { when: ago(st.lastCheck) }) : t("upd.never");
+      action = check;
+  }
+  return (
+    <>
+      <div className="srow">
+        <div className="g">
+          <b>{t("upd.version", { v: st.current })}</b>
+          <span>{status}</span>
+        </div>
+        <div className="c">{action}</div>
+      </div>
+      {st.state !== "disabled" && (
+        <Row title={t("upd.autoInstall")} desc={t("upd.autoInstallDesc")}>
+          <button className="tg" type="button" role="switch" aria-checked={st.autoDownload} aria-label={t("upd.autoInstall")} onClick={() => setAuto(!st.autoDownload)} />
+        </Row>
       )}
     </>
   );
