@@ -78,7 +78,7 @@ export function Welcome({ onTemplate }: { onTemplate: (d: Partial<Draft>) => voi
               <span key={s.id} className="wchip" title={s.id}>
                 <ProviderMark provider={s.id} model={s.model} size={14} />
                 <span>{providerTitle(s.id)}</span>
-                <span className="muted">{s.kind === "subscription" ? t("wel.sub") : s.kind === "local" ? t("wel.local") : t("wel.models", { n: s.n })}</span>
+                <span className="muted">{s.kind === "local" ? t("wel.local") : t("wel.models", { n: s.n })}</span>
               </span>
             ))}
             {sources.length > 6 && <span className="wchip muted">+{sources.length - 6}</span>}
@@ -157,12 +157,6 @@ export function Welcome({ onTemplate }: { onTemplate: (d: Partial<Draft>) => voi
 
 function providerTitle(id: string): string {
   const m: Record<string, string> = {
-    "acp-claude-code": "Claude Code",
-    "acp-codex": "Codex",
-    "acp-antigravity": "Antigravity",
-    "acp-cursor": "Cursor",
-    "acp-opencode": "OpenCode",
-    "acp-grok": "Grok CLI",
     magpie: "magpie",
     ollama: "Ollama",
     lmstudio: "LM Studio",

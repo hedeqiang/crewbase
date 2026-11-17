@@ -18,9 +18,7 @@ function sizeFmt(n: number): string {
 export function FilesTab({ agent }: { agent: AgentView }) {
   const want = useStore((s) => s.fileOpen);
   const [sel, setSel] = useState<string | null>(want ?? "INSTRUCTIONS.md");
-  const [manual, setTick] = useState(0);
-  const pushed = useStore((s) => s.filesTick[agent.id] ?? 0);
-  const tick = manual + pushed;
+  const [tick, setTick] = useState(0);
 
   useEffect(() => {
     if (want) {

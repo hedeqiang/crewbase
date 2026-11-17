@@ -183,7 +183,7 @@ function ReplyStats({ stats }: { stats: TurnStats }) {
     input: u.input.toLocaleString(),
     cache: u.cacheRead ? t("msg.cacheRead", { n: u.cacheRead.toLocaleString() }) : "",
     output: u.output.toLocaleString(),
-  }) + (u.estimated ? " · " + t("msg.estimated") : "");
+  });
   return (
     <div className="replystats">
       <span className="rs-l">
@@ -204,7 +204,6 @@ function ReplyStats({ stats }: { stats: TurnStats }) {
         <span className="rs-r">
           <span className="rs-tok" title={tokTitle} aria-label={tokTitle}>
             <TokensIcon size={11} aria-hidden />
-            {u.estimated ? "≈" : ""}
             {tokfmt(total)}
           </span>
           {u.cost !== undefined && (
@@ -212,9 +211,9 @@ function ReplyStats({ stats }: { stats: TurnStats }) {
               {costfmt(u.cost)}
             </span>
           )}
-          {u.billing && (
-            <span className="rs-cost free" title={t(u.billing === "local" ? "msg.localTitle" : "msg.subTitle")}>
-              {t(u.billing === "local" ? "msg.local" : "msg.subscription")}
+          {u.local && (
+            <span className="rs-cost free" title={t("msg.localTitle")}>
+              {t("msg.local")}
             </span>
           )}
         </span>
@@ -769,8 +768,6 @@ function FeedRow({ it, agents, showModel, before, after }: { it: FeedItem; agent
                 {t("conn.connect")}
               </button>
             </>
-          ) : it.tone === "error" && CLI_WONT_START.test(it.text) ? (
-            <span title={it.text}>{t("chat.cliWontStart")}</span>
           ) : (
             <span>{it.key ? t(it.key as Key, it.vars) : it.text}</span>
           )}
@@ -803,42 +800,12 @@ function RetryButton({ id }: { id: string }) {
   );
 }
 
-/** A subscription CLI's program could not be started (EBADMACHO -88: a
- *  binary for another CPU or a broken download; ENOENT; permission). */
-const CLI_WONT_START = /spawn (Unknown system error -88|E(NOENT|ACCES|BADMACHO))|Bad CPU type|exec format error/i;
-
 const REASONS: Record<string, true> = {
   "chat.reason.quota_exhausted": true,
   "chat.reason.rate_limited": true,
   "chat.reason.unavailable": true,
   "chat.reason.model_unavailable": true,
 };
-
-/** What a subscription CLI did with its own tools: one quiet line,
- *  "Claude Code 用了 3 个工具", opened to list them. */
-function CliTools({ items }: { items: { agent: string; title: string; failed?: boolean }[] }) {
-  const [open, setOpen] = useState(false);
-  const failed = items.filter((x) => x.failed).length;
-  return (
-    <div className="clitools">
-      <button type="button" className="row-btn" aria-expanded={open} onClick={() => setOpen(!open)}>
-        <Wrench size={12} aria-hidden />
-        <span>{t("chat.cliTools", { agent: items[0].agent, n: items.length })}</span>
-        {failed > 0 && <span className="pill sm red">{t("chat.cliToolsFailed", { n: failed })}</span>}
-        <ChevronRight size={13} className="ch" aria-hidden />
-      </button>
-      {open && (
-        <ul className="small muted">
-          {items.map((x, i) => (
-            <li key={i} className={x.failed ? "errt" : undefined}>
-              {x.title}
-            </li>
-          ))}
-        </ul>
-      )}
-    </div>
-  );
-}
 
 function AgentMsg({ it, agent, showModel, before, after }: { it: Extract<FeedItem, { k: "agent" }>; agent?: AgentView; showModel: boolean; before?: Step[]; after?: Step[] }) {
   const models = useStore((s) => s.models);
@@ -873,7 +840,6 @@ function AgentMsg({ it, agent, showModel, before, after }: { it: Extract<FeedIte
         )}
         {showThink && <div className="thinking small">{it.thinking}</div>}
         {before && <Steps steps={before} agent={it.agent} />}
-        {it.cliTools && <CliTools items={it.cliTools} />}
         {it.searches.map((q, i) => (
           <div className="srvtool" key={i}>
             <SearchIcon size={13} />

@@ -208,60 +208,10 @@ export interface Quota {
 }
 export interface ProviderView {
   id: string;
-  kind: "subscription" | "api" | "local" | string;
+  kind: "api" | "local" | string;
   models: ModelInfo[];
   quota?: Quota;
   error?: string;
-  /** the program a subscription CLI is driven through (an ACP bridge), when known */
-  bridge?: Bridge;
-}
-export interface Bridge {
-  package: string;
-  version: string;
-  minVersion?: string;
-  replacedBy?: string;
-  /** older than minVersion, or replaced upstream */
-  outdated?: boolean;
-  updateCommand?: string;
-}
-/** A subscription CLI (an ACP adapter) as settings › 模型与订阅 manages it. */
-export interface Subscription {
-  id: string;
-  /** the model provider id, e.g. "acp-claude-code" */
-  provider: string;
-  name: string;
-  kind: "builtin" | "custom";
-  /** added from the UI (removing a built-in disables it) */
-  removable: boolean;
-  enabled: boolean;
-  /** registered as a model provider now */
-  active: boolean;
-  running: boolean;
-  installed: boolean;
-  /** the CLI binary checked for "installed" */
-  cli: string;
-  path: string;
-  version: string;
-  /** how it is started in ACP mode (resolved) */
-  acpCommand: string[] | null;
-  acpNote?: string;
-  /** the command the person set ([] = automatic) */
-  command: string[];
-  env: { key: string; masked: string }[];
-  loggedIn: "yes" | "no" | "unknown";
-  loginCommand: string;
-  models: number;
-  /** why an enabled CLI is not active */
-  reason?: "not_installed" | "no_entrypoint";
-  error?: string;
-  bridge?: Bridge;
-}
-export interface SubscriptionPatch {
-  name?: string;
-  command?: string[];
-  /** null keeps the stored value of that variable; a missing one is removed */
-  env?: Record<string, string | null>;
-  enabled?: boolean;
 }
 export interface ModelSwitches {
   provider: string;
@@ -286,11 +236,9 @@ export interface StreamChunk {
 }
 
 export interface ContextSegment {
-  key: "system" | "memory" | "tools" | "skills" | "toolio" | "messages" | "cli" | "free" | string;
+  key: "system" | "memory" | "tools" | "skills" | "toolio" | "messages" | "free" | string;
   label: string;
   tokens: number;
-  /** tools segment of a CLI that runs its own tools: only Crewbase's bridged (MCP) tools */
-  managed?: boolean;
 }
 export interface ContextBreakdown {
   agent: string;
@@ -298,14 +246,10 @@ export interface ContextBreakdown {
   model: ModelRef;
   window: number;
   threshold: number;
-  /** reported when the CLI reported its usage, else estimated */
+  /** the provider's count when known (see counted), else estimated */
   used: number;
   /** sum of the estimated segments (what auto-compaction acts on) */
   estimated: number;
-  /** context size the CLI last reported (0 / absent = none) */
-  reported?: number;
-  /** the model is a CLI that manages its own tools */
-  toolsManaged?: boolean;
   free: number;
   percent: number;
   overThreshold: boolean;
@@ -313,7 +257,7 @@ export interface ContextBreakdown {
   compactions: number;
   /** used is the provider's count of the last request (plus what was added since) */
   counted?: boolean;
-  /** segments and items come from the CLI's recorded request (pass-through proxy) */
+  /** segments and items come from the request the agent loop actually sent */
   recorded?: boolean;
   /** prompt cache of the last request, when the provider reported cache fields */
   cache?: ContextCache;
@@ -331,7 +275,7 @@ export interface ContextCache {
 }
 export interface ContextItem {
   id: string;
-  /** a segment key: system | memory | skills | tools | toolio | messages | cli | other */
+  /** a segment key: system | memory | skills | tools | toolio | messages | other */
   kind: string;
   label: string;
   /** tools: MCP server / tool group; tool calls: an argument preview; messages: the role */
@@ -834,7 +778,7 @@ export interface UsageStats {
   byAgent: { agent: string; name: string; model: string; tokens: number }[];
   switches: number;
   interventions: number;
-  savedUsd: number;
+  /** estimated API spend (direct keys and gateways) */
   spentUsd: number;
   /** part of spentUsd that went through a gateway such as magpie */
   gatewayUsd?: number;
@@ -1206,11 +1150,6 @@ export const API = {
   addProvider: (b: ProviderInput & { models: string[]; kinds?: Record<string, ModelKind> }) => api<UserProvider>("POST", "/api/providers", b),
   removeProvider: (id: string) => api("DELETE", `/api/providers/${enc(id)}`),
   updateProvider: (id: string, b: ProviderPatch) => api<UserProvider>("PATCH", `/api/providers/${enc(id)}`, b),
-  subscriptions: () => api<{ subscriptions: Subscription[] }>("GET", "/api/subscriptions"),
-  addSubscription: (b: { id: string; name: string; command: string[]; env: Record<string, string> }) => api<Subscription>("POST", "/api/subscriptions", b),
-  updateSubscription: (id: string, b: SubscriptionPatch) => api<Subscription>("PATCH", `/api/subscriptions/${enc(id)}`, b),
-  refreshSubscription: (id: string) => api<Subscription>("POST", `/api/subscriptions/${enc(id)}/refresh`),
-  removeSubscription: (id: string) => api<{ deleted: boolean; disabled: boolean }>("DELETE", `/api/subscriptions/${enc(id)}`),
   modelSwitches: (provider: string) => api<ModelSwitches>("GET", `/api/models/${encodeURIComponent(provider)}/switches`),
   setModelSwitch: (provider: string, model: string, enabled: boolean) =>
     api<ModelSwitches>("PUT", `/api/models/${encodeURIComponent(provider)}/switches`, { model, enabled }),

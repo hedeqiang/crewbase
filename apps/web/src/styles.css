@@ -582,8 +582,6 @@ kbd { font-family: var(--font); font-size: 11px; min-width: 22px; height: 20px; 
 .mrow.off > :not(.tg) { opacity: .45; }
 .mswnote { margin: -2px 0 8px; }
 .rt.off { opacity: .55; }
-.confirmbar.warnbar { margin: 12px 0 0; border-color: color-mix(in srgb, var(--amber) 45%, transparent); background: var(--amber-soft); color: var(--amber-text); }
-.confirmbar.warnbar code { font-size: 11.5px; padding: 2px 6px; border-radius: 6px; background: var(--surface); color: var(--text); user-select: all; }
 .mrow .g { min-width: 0; display: flex; flex-direction: column; line-height: 1.35; }
 .mrow .g b { font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .mrow .g span { font-size: 11px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -1929,7 +1927,6 @@ button.psec.toggle { width: 100%; background: none; border: 0; font-family: inhe
 .bubseg .sw { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 6px; vertical-align: -1px; }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .feed[data-bubbles="tint"] .m-user .bubble { background: color-mix(in srgb, var(--ac) 28%, var(--page)); } }
 :root[data-theme="dark"] .feed[data-bubbles="tint"] .m-user .bubble { background: color-mix(in srgb, var(--ac) 28%, var(--page)); }
-.clitools { margin: 2px 0 4px; } .clitools ul { margin: 2px 0 0 22px; padding: 0; } .clitools li { list-style: disc; line-height: 1.6; }
 
 /* ===== in-place update (components/Update.tsx) =====
    A quiet card above the profile: a ring that fills with the download, then
@@ -2066,27 +2063,3 @@ button.cxblk:focus-visible { outline: 2px solid var(--accent); outline-offset: -
   .cxrow .bar { display: none; }
 }
 
-/* subscription CLIs (settings › 模型与订阅) */
-.pvi.off { opacity: .55; }
-.pvi.off:hover, .pvi.off[aria-current="true"] { opacity: .8; }
-.pvlist .pvadd { align-self: flex-start; margin: 10px 8px 4px; flex: none; }
-.subact { display: flex; align-items: center; gap: 4px; }
-.subact .ix.sm { width: 30px; height: 30px; border-radius: 8px; }
-.subact .btn.sm { margin: 0 2px; }
-.confirmbar.subnote { margin: 12px 0 0; border-color: var(--border); background: var(--hover); color: var(--text2); }
-.subfacts { margin-top: 12px; display: flex; flex-direction: column; gap: 8px; font-size: 12.5px; }
-.subfacts > div { display: grid; grid-template-columns: 72px minmax(0, 1fr); column-gap: 10px; align-items: baseline; }
-.subfacts > div > span { color: var(--muted); }
-.subfacts > div > b { font-weight: 500; min-width: 0; overflow-wrap: anywhere; }
-.subfacts > div > b.mono { font-size: 12px; }
-.subfacts > div > i { grid-column: 2; font-style: normal; color: var(--muted); }
-.modal.subdlg { width: min(560px, calc(100% - 24px)); }
-.subintro { margin: 4px 0 2px; color: var(--text2); line-height: 1.5; }
-.subenv { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 3fr) 28px; gap: 6px; align-items: center; }
-.subenv .fi:disabled { opacity: .75; }
-@media (max-width: 640px) {
-  .subdlg .ap-row2 { grid-template-columns: minmax(0, 1fr); gap: 0; }
-}
-
-.pvoff { display: flex; align-items: center; gap: 4px; width: 100%; background: none; border: 0; cursor: pointer; text-align: left; color: var(--muted); }
-.pvoff:hover { color: var(--text); }

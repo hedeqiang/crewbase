@@ -135,8 +135,8 @@ export function ModelPicker({
           t("comp.modelAuto")
         ),
       )}
-      {/* a model that takes no reasoning level (a coding CLI, most media
-          and non-reasoning models) has no such choice */}
+      {/* a model that takes no reasoning level (most media and
+          non-reasoning models) has no such choice */}
       {levels.length > 0 && row("effort", effortRow, t("comp.effort"), effort ? effortLabel(effort) : t("effort.default"), !shown)}
 
       {sub === "model" && (
