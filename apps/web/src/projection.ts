@@ -70,6 +70,12 @@ export interface TurnStep {
   ms?: number;
 }
 
+export type AgentItem = Extract<FeedItem, { k: "agent" }>;
+
+/** A piece of a turn: a model message (narration when it came with tool
+ *  calls) or a run of tool steps. */
+export type TurnPart = { k: "msg"; it: AgentItem; narration: boolean } | { k: "steps"; id: string; steps: Step[] };
+
 /** What a finished turn used, on the last reply of the turn. */
 export interface TurnStats {
   steps: TurnStep[];
@@ -99,6 +105,10 @@ export type FeedItem = (
   | { k: "owner"; id: string; owner: string; prev?: string; by?: string; reason: string }
   | { k: "chstate"; id: string; state: string; by?: string }
   | { k: "steps"; id: string; agent: string; steps: Step[] }
+  /** One agent's turn (or the part of it after an interruption): what it
+   *  said and did, in order, under one name. Text that came with a tool
+   *  call is narration; the text the turn ended with is the answer. */
+  | { k: "turn"; id: string; agent: string; time: string; parts: TurnPart[]; open: boolean }
   /** A result that came back to the agent on its own (a sub-agent's work,
    *  a background command, a follow-up): shown as a compact card, not as
    *  a message from the person. */
@@ -230,7 +240,7 @@ export function project(events: SessionEvent[], cards?: ReadonlySet<string>): Pr
   const approvals = new Map<string, Extract<FeedItem, { k: "approval" }>>();
   const videoJobs = new Map<string, Extract<FeedItem, { k: "media" }>>();
   let lastMedia: Extract<FeedItem, { k: "media" }> | null = null;
-  let group: Extract<FeedItem, { k: "steps" }> | null = null;
+
   let lastTime = 0;
   let seenState = false;
 
@@ -246,6 +256,8 @@ export function project(events: SessionEvent[], cards?: ReadonlySet<string>): Pr
   const turns = new Map<string, Open>();
   const pendingFrom = new Map<string, number>(); // agent → first user message since its last turn
 
+  // the open turn item per agent; content of that agent goes into it
+  const cur = new Map<string, Extract<FeedItem, { k: "turn" }>>();
   const push = (it: FeedItem, time: string) => {
     const ts = new Date(time).getTime();
     // the widest rewind covering it: an edit further back takes in an
@@ -256,8 +268,30 @@ export function project(events: SessionEvent[], cards?: ReadonlySet<string>): Pr
     if (!lastTime || ts - lastTime > GAP_MS) items.push({ k: "time", id: "t" + it.id, time, superseded: sup });
     lastTime = ts;
     items.push(it);
+    // a line or card between: the agent's next output starts a new item
+    // (a pending approval card is the exception: it leaves once answered)
+    if (it.k !== "turn" && it.k !== "approval") {
+      const ag = (it as { agent?: string }).agent;
+      if (ag) cur.delete(ag);
+      else cur.clear();
+    }
   };
 
+  const turnFor = (agent: string, id: string, time: string) => {
+    let t = cur.get(agent);
+    if (!t) {
+      t = { k: "turn", id, agent, time, parts: [], open: true };
+      cur.set(agent, t);
+      push(t, time);
+    }
+    return t;
+  };
+  // something else came into the conversation: an agent's later output
+  // starts a new item below it rather than growing one above it
+  const breakTurns = (agent?: string) => {
+    if (agent === undefined) cur.clear();
+    else cur.delete(agent);
+  };
   for (const e of events) {
     const d = e.data ?? {};
     const id = String(e.seq);
@@ -267,7 +301,7 @@ export function project(events: SessionEvent[], cards?: ReadonlySet<string>): Pr
         // a message joined into a running turn belongs to that turn
         if (!pendingFrom.has(d.to ?? "") && !turns.has(d.to ?? "")) pendingFrom.set(d.to ?? "", e.seq);
         if (INJECTED.test(d.text ?? "")) break;
-        group = null;
+        breakTurns();
         if (BG_FROM.has(d.from ?? "") && /^\[[^\]]+\]/.test(d.text ?? "")) {
           const bg = parseBg(d.from as BgKind, d.text ?? "", delegated);
           push({ k: "bg", id, time: e.time, ...bg, sub: bg.kind === "delegation" ? runForTask(bg.task)?.session : undefined }, e.time);
@@ -303,10 +337,10 @@ export function project(events: SessionEvent[], cards?: ReadonlySet<string>): Pr
           turn.stepAt = undefined;
         }
         if (text || thinking || citations.length || searches.length || refusal) {
-          group = null;
-          const it: Extract<FeedItem, { k: "agent" }> = { k: "agent", id, agent: e.agent ?? "", text, thinking, model: d.model, time: e.time, citations, searches, refusal };
+          const it: AgentItem = { k: "agent", id, agent: e.agent ?? "", text, thinking, model: d.model, time: e.time, citations, searches, refusal };
           if (turn) turn.last = it;
-          push(it, e.time);
+          const narration = parts.some((p) => p.type === "tool_call");
+          turnFor(e.agent ?? "", id, e.time).parts.push({ k: "msg", it, narration });
         }
         break;
       }
@@ -332,11 +366,10 @@ export function project(events: SessionEvent[], cards?: ReadonlySet<string>): Pr
         const st: Step = { call, time: e.time };
         steps.set(call.id, st);
         if (call.name === "delegate") pendingDelegate.push(st);
-        if (!group || group.agent !== (e.agent ?? "")) {
-          group = { k: "steps", id, agent: e.agent ?? "", steps: [] };
-          push(group, e.time);
-        }
-        group.steps.push(st);
+        const tt = turnFor(e.agent ?? "", id, e.time);
+        const lastPart = tt.parts[tt.parts.length - 1];
+        if (lastPart?.k === "steps") lastPart.steps.push(st);
+        else tt.parts.push({ k: "steps", id, steps: [st] });
         break;
       }
       case "tool/result": {
@@ -359,12 +392,10 @@ export function project(events: SessionEvent[], cards?: ReadonlySet<string>): Pr
             result = { text: r.content };
           }
           push({ k: "plugin", id, type: "tool:" + name, data: { args: calls.get(r.callId)?.args ?? {}, result, isError: !!r.isError }, time: e.time }, e.time);
-          group = null; // later steps start a new group under the card
         }
         break;
       }
       case "approval/asked": {
-        group = null;
         const req: ApprovalRequest = { ...d, session: d.session ?? e.session, agent: d.agent ?? e.agent ?? "" };
         const it: Extract<FeedItem, { k: "approval" }> = { k: "approval", id, req, call: calls.get(req.callId), time: e.time };
         approvals.set(req.callId, it);
@@ -397,12 +428,12 @@ export function project(events: SessionEvent[], cards?: ReadonlySet<string>): Pr
         push({ k: "mode", id, agent: e.agent ?? "", to: d.to, until: d.until && !String(d.until).startsWith("0001") ? d.until : undefined }, e.time);
         break;
       case "compaction/summary":
-        group = null;
         push({ k: "compact", id, summary: d.summary ?? "", before: d.tokensBefore ?? 0, after: d.tokensAfter ?? 0 }, e.time);
         if (d.uptoSeq) compactedUpto[e.agent ?? ""] = d.uptoSeq;
         break;
       case "turn/start": {
         const ag = e.agent ?? "";
+        breakTurns(ag);
         openTurns.add(ag);
         delete lastTurn[ag];
         turns.set(ag, { from: pendingFrom.get(ag) ?? pendingFrom.get(""), steps: [] });
@@ -413,7 +444,9 @@ export function project(events: SessionEvent[], cards?: ReadonlySet<string>): Pr
       case "turn/end": {
         const ag = e.agent ?? "";
         openTurns.delete(ag);
-        group = null;
+        const ti = cur.get(ag);
+        if (ti) ti.open = false;
+        breakTurns(ag);
         const turn = turns.get(ag);
         turns.delete(ag);
         if (turn?.last) {
@@ -442,19 +475,16 @@ export function project(events: SessionEvent[], cards?: ReadonlySet<string>): Pr
         }
         break;
       case "channel/handover":
-        group = null;
         push({ k: "handover", id, from: d.from ?? e.agent ?? "", to: d.to ?? "", note: d.note ?? "", files: d.files ?? [], time: e.time }, e.time);
         break;
       case "channel/owner":
         // created: implied by the channel; handover: shown by channel/handover.
         if (d.reason === "assigned" || d.reason === "reassigned") {
-          group = null;
           push({ k: "owner", id, owner: d.owner, prev: d.prev, by: d.by, reason: d.reason }, e.time);
         }
         break;
       case "channel/state":
         if (seenState) {
-          group = null;
           const prev = items[items.length - 1];
           // Archive stops first: show one line, not "stopped" + "archived".
           if (d.state === "archived" && prev?.k === "chstate" && prev.state === "paused") items.pop();
@@ -480,7 +510,6 @@ export function project(events: SessionEvent[], cards?: ReadonlySet<string>): Pr
           lastMedia.files.push(f);
           break;
         }
-        group = null;
         lastMedia = { k: "media", id, agent: e.agent ?? "", kind: d.kind === "video" ? "video" : "image", files: [f], prompt: d.prompt ?? "", model: d.model ?? "", call: d.call, job: d.job, status: "done", time: e.time };
         push(lastMedia, e.time);
         break;
@@ -488,7 +517,6 @@ export function project(events: SessionEvent[], cards?: ReadonlySet<string>): Pr
       case "media/video-job": {
         const it = videoJobs.get(d.job);
         if (d.status === "started" && !it) {
-          group = null;
           const m: Extract<FeedItem, { k: "media" }> = {
             k: "media",
             id,

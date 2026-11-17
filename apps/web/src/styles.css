@@ -2071,7 +2071,11 @@ button.cxblk:focus-visible { outline: 2px solid var(--accent); outline-offset: -
 .stepnote { margin: 0 0 6px; color: var(--text2); }
 
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
-/* the same turn going on after a tool call: no second name and avatar,
-   and close to the part above (whose hover actions give way to it) */
-.m-agent.cont { margin-top: -14px; }
-.m-agent:has(+ .m-agent.cont) .msgacts { display: none; }
+/* a turn: narration (what the agent says while working) is quieter than
+   the answer and sits with the steps it introduces */
+.m-agent.turn .narr { font-size: 13px; line-height: 1.55; color: var(--text2); margin: 6px 0 0; }
+.m-agent.turn .narr p { margin: 0; }
+.m-agent.turn .narr + .stepsw { margin-top: 2px; }
+.m-agent.turn .tans { margin-top: 6px; }
+.m-agent.turn .thinking p { margin: 0 0 8px; }
+.m-agent.turn .typing.in { padding: 6px 0 0; margin: 0; }

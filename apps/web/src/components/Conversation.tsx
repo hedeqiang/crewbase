@@ -3,7 +3,7 @@ import { runShortcut } from "../actions";
 import { keyLabel } from "../shortcuts";
 import { catLabel } from "./Settings";
 import type { Draft } from "./NewAgent";
-import { createContext, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { createContext, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { useCopy } from "../clipboard";
 import {
   ArrowUp,
@@ -50,7 +50,7 @@ import {
 import { display, enterSends, MAC } from "../shortcuts";
 import { API, desktop, parseRef, refString, useRawURL, type AgentView, type ChannelView, type ModelRef } from "../api";
 import { t, type Key } from "../i18n";
-import { argsFull, argsPreview, project, type Decision, type FeedItem, type Rewind, type Step, type TurnStats } from "../projection";
+import { argsFull, argsPreview, project, type AgentItem, type Decision, type FeedItem, type Rewind, type Step, type TurnPart, type TurnStats } from "../projection";
 import { hasModels, loadSession, setModelOverride, openConnect, openSubRun, setState, toast, useStore, sessionAgent } from "../store";
 import { TakeoverCard, takeoverReason } from "./Browser";
 import { cloudVoice, dictate, dictationSupported, primeVoice, speak, speaking, speakSupported } from "../voice";
@@ -163,6 +163,8 @@ interface MsgActions {
 }
 
 const MsgCtx = createContext<MsgActions | null>(null);
+/** The session the feed shows (for its live streams). */
+const SessionCtx = createContext("");
 
 function CopyBtn({ text }: { text: string }) {
   const { copied, copy } = useCopy();
@@ -362,7 +364,7 @@ function UserMsg({ it }: { it: Extract<FeedItem, { k: "user" }> }) {
  *  opened on demand, shown dimmed. */
 function Superseded({ rw, rows, agents }: { rw: Rewind; rows: FeedItem[]; agents: Record<string, AgentView> }) {
   const [open, setOpen] = useState(false);
-  const n = rows.filter((x) => x.k === "user" || x.k === "agent").length;
+  const n = rows.filter((x) => x.k === "user" || x.k === "agent" || x.k === "turn").length;
   return (
     <div className={"supd" + (open ? " open" : "")}>
       <button type="button" className="supline" aria-expanded={open} onClick={() => setOpen(!open)}>
@@ -375,7 +377,7 @@ function Superseded({ rw, rows, agents }: { rw: Rewind; rows: FeedItem[]; agents
         <div className="supbody">
           <MsgCtx.Provider value={null}>
             {groupFeed(rows).map((g) =>
-              g.items.map((x) => <FeedRow key={x.it.id} it={x.it} agents={agents} showModel={x.showModel} before={x.before} after={x.after} cont={x.cont} />),
+              g.items.map((x) => <FeedRow key={x.it.id} it={x.it} agents={agents} showModel={x.showModel} />),
             )}
           </MsgCtx.Provider>
         </div>
@@ -396,7 +398,7 @@ function Rows({ items, agents }: { items: FeedItem[]; agents: Record<string, Age
             ))}
           </div>
         ) : (
-          g.items.map((x) => <FeedRow key={x.it.id} it={x.it} agents={agents} showModel={x.showModel} before={x.before} after={x.after} cont={x.cont} />)
+          g.items.map((x) => <FeedRow key={x.it.id} it={x.it} agents={agents} showModel={x.showModel} />)
         ),
       )}
     </>
@@ -410,7 +412,7 @@ function leadTurn(items: FeedItem[]): number {
   for (let i = 0; i < items.length; i++) {
     const k = items[i].k;
     if (k === "user" && replied) return i;
-    if (k === "agent") replied = true;
+    if (k === "agent" || k === "turn") replied = true;
   }
   return items.length;
 }
@@ -465,7 +467,7 @@ function blocks(items: FeedItem[]): Block[] {
       let j = i;
       while (j < segs.length && segs[j].sup?.reason === "regenerate") older.push(segs[j++].items);
       const next = segs[j];
-      if (next && !next.sup && older.every((o) => o.some((x) => x.k === "agent"))) {
+      if (next && !next.sup && older.every((o) => o.some((x) => x.k === "agent" || x.k === "turn"))) {
         const n = leadTurn(next.items);
         out.push({ kind: "versions", older, current: next.items.slice(0, n) });
         if (n < next.items.length) out.push({ kind: "rows", items: next.items.slice(n) });
@@ -512,13 +514,17 @@ function Feed({
   const agents = useStore((s) => s.agents);
   const bubbles = useStore((s) => s.bubbles);
   const live = Object.entries(streams).filter(([k]) => k.startsWith(sessionId + "|"));
+  // agents whose turn is open in the feed: their live output grows inside it
+  const openTurns = useMemo(() => new Set(items.filter((i): i is Extract<FeedItem, { k: "turn" }> => i.k === "turn" && i.open).map((i) => i.agent)), [items]);
   const waitingApproval = useStore((s) => s.approvals.some((a) => a.agent === agent.id && a.session === sessionId));
   const typing = agent.status === "running" && !waitingApproval && !live.some(([k, v]) => k.endsWith("|" + agent.id) && v.text);
   // Agents in this conversation that wait for a person to take over their browser.
   const takeovers = useMemo(() => {
     const ids = channel ? channel.members : [agent.id];
     const pendingCall = new Set<string>();
-    for (const it of items) if (it.k === "steps") for (const st of it.steps) if (st.call.name === "browser_request_takeover" && !st.result) pendingCall.add(it.agent);
+    for (const it of items)
+      if (it.k === "turn")
+        for (const p of it.parts) if (p.k === "steps") for (const st of p.steps) if (st.call.name === "browser_request_takeover" && !st.result) pendingCall.add(it.agent);
     return ids
       .map((id) => agents[id])
       .filter(
@@ -564,7 +570,7 @@ function Feed({
           <span className="small">{agent.sharedWorkspace ? t("chat.emptyInDir", { dir: shortPath(agent.sharedWorkspace) }) : t("chat.emptyDesc")}</span>
         </div>
       )}
-      {!loading && channel && !items.some((i) => i.k === "user" || i.k === "agent") && (
+      {!loading && channel && !items.some((i) => i.k === "user" || i.k === "agent" || i.k === "turn") && (
         <div className="feedintro">
           <div className="avstack">
             {channel.members.map((id) => (
@@ -575,6 +581,7 @@ function Feed({
           <span className="small">{t("ch.emptyDesc", { owner: agents[channel.owner]?.name ?? channel.owner })}</span>
         </div>
       )}
+      <SessionCtx.Provider value={sessionId}>
       {blocks(items).map((b) =>
         b.kind === "sup" ? (
           <Superseded key={"sup" + b.items[0].id} rw={b.rw} rows={b.items} agents={agents} />
@@ -584,9 +591,11 @@ function Feed({
           <Rows key={"r" + b.items[0].id} items={b.items} agents={agents} />
         ),
       )}
+      </SessionCtx.Provider>
       {live.map(([k, v]) => {
         const a = agents[k.split("|")[1]];
         if (!v.text && !v.thinking) return null;
+        if (openTurns.has(k.split("|")[1])) return null; // shown inside its turn
         return (
           <div className="m-agent live" key={k}>
             <Avatar agent={a} size={28} />
@@ -609,7 +618,7 @@ function Feed({
       {takeovers.map((a) => (
         <TakeoverCard key={a.id} agent={a} reason={takeoverReason(a) ?? ""} />
       ))}
-      {typing && (
+      {typing && !openTurns.has(agent.id) && (
         <div className="typing">
           <Avatar agent={agent} size={24} />
           <span>{detailLabel(agent.detail) || t("chat.thinking", { name: speaker(agent) })}</span>
@@ -632,67 +641,41 @@ function isSysItem(it: FeedItem): boolean {
 
 /** Split the feed into runs; consecutive system lines become one compact group.
  *  Agent messages show their model only when it differs from the previous one. */
-type Row = { it: FeedItem; showModel?: boolean; before?: Step[]; after?: Step[]; cont?: boolean };
-
-/** Tool steps belong to the agent's message they lead to (or follow):
- *  they are shown inside it, under its name, instead of floating between
- *  messages. Steps with no message next to them (still working) get the
- *  agent's header of their own. */
-function joinSteps(items: FeedItem[]): Row[] {
-  const out: Row[] = [];
-  let carry: Step[] | null = null;
-  for (let i = 0; i < items.length; i++) {
-    const it = items[i];
-    if (it.k === "steps") {
-      const next = items[i + 1];
-      const prev = out[out.length - 1];
-      if (next?.k === "agent" && next.agent === it.agent) carry = [...(carry ?? []), ...it.steps];
-      else if (prev?.it.k === "agent" && prev.it.agent === it.agent) prev.after = [...(prev.after ?? []), ...it.steps];
-      else out.push({ it });
-      continue;
-    }
-    if (it.k === "agent" && carry) {
-      out.push({ it, before: carry });
-      carry = null;
-      continue;
-    }
-    out.push({ it });
-  }
-  return out;
-}
+type Row = { it: FeedItem; showModel?: boolean };
 
 function groupFeed(items: FeedItem[]): { sys: boolean; items: Row[] }[] {
   const out: { sys: boolean; items: Row[] }[] = [];
   let prev = "";
-  let speaker: { agent: string; open: boolean } | null = null; // the last agent row, and whether its turn goes on
-  for (const row of joinSteps(items)) {
-    const it = row.it;
+  for (const it of items) {
     const sys = isSysItem(it);
-    // one turn is one message: what the agent said between tool calls
-    // continues the row above instead of repeating its name and avatar
-    if (it.k === "agent" || it.k === "steps") {
-      row.cont = !!speaker && speaker.open && speaker.agent === it.agent;
-      speaker = { agent: it.agent, open: !(it.k === "agent" && it.stats) };
-    } else if (it.k !== "time") speaker = null;
     let showModel: boolean | undefined;
-    if (it.k === "agent" && it.model) {
-      const key = it.model.provider + "/" + it.model.model + "@" + (it.model.effort ?? "");
+    const m = it.k === "turn" ? lastMsg(it)?.model : it.k === "agent" ? it.model : undefined;
+    if (m) {
+      const key = m.provider + "/" + m.model + "@" + (m.effort ?? "");
       showModel = key !== prev;
       prev = key;
     }
     const last = out[out.length - 1];
     if (last && sys && last.sys) last.items.push({ it });
-    else out.push({ sys, items: [{ ...row, showModel }] });
+    else out.push({ sys, items: [{ it, showModel }] });
   }
   return out;
 }
+
+const lastMsg = (t: Extract<FeedItem, { k: "turn" }>): AgentItem | undefined => {
+  for (let i = t.parts.length - 1; i >= 0; i--) {
+    const p = t.parts[i];
+    if (p.k === "msg") return p.it;
+  }
+  return undefined;
+};
 
 function PluginFeedCard({ type, data }: { type: string; data: any }) {
   const c = useSlot("conversation.node").find((x) => x.key === type);
   return c ? <PluginCard c={c} data={data} /> : null;
 }
 
-function FeedRow({ it, agents, showModel, before, after, cont }: { it: FeedItem; agents: Record<string, AgentView>; showModel?: boolean; before?: Step[]; after?: Step[]; cont?: boolean }) {
+function FeedRow({ it, agents, showModel }: { it: FeedItem; agents: Record<string, AgentView>; showModel?: boolean }) {
   const models = useStore((s) => s.models);
   switch (it.k) {
     case "time":
@@ -700,9 +683,11 @@ function FeedRow({ it, agents, showModel, before, after, cont }: { it: FeedItem;
     case "user":
       return <UserMsg it={it} />;
     case "agent":
-      return <AgentMsg it={it} agent={agents[it.agent]} showModel={!!showModel} before={before} after={after} cont={cont} />;
+      return <AgentMsg it={it} agent={agents[it.agent]} showModel={!!showModel} />;
+    case "turn":
+      return <TurnMsg it={it} agent={agents[it.agent]} showModel={!!showModel} />;
     case "steps":
-      return <WorkingTurn agent={agents[it.agent]} id={it.agent} steps={it.steps} cont={cont} />;
+      return <WorkingTurn agent={agents[it.agent]} id={it.agent} steps={it.steps} />;
     case "bg":
       return <BgCard it={it} agents={agents} />;
     case "approval":
@@ -816,7 +801,7 @@ const REASONS: Record<string, true> = {
   "chat.reason.model_unavailable": true,
 };
 
-function AgentMsg({ it, agent, showModel, before, after, cont }: { it: Extract<FeedItem, { k: "agent" }>; agent?: AgentView; showModel: boolean; before?: Step[]; after?: Step[]; cont?: boolean }) {
+function AgentMsg({ it, agent, showModel, bare }: { it: AgentItem; agent?: AgentView; showModel: boolean; bare?: boolean }) {
   const models = useStore((s) => s.models);
   const [showThink, setShowThink] = useState(false);
   const [reading, setReading] = useState(false);
@@ -827,10 +812,8 @@ function AgentMsg({ it, agent, showModel, before, after, cont }: { it: Extract<F
   const canRegen = !!acts && !it.superseded && acts.lastTurn?.item === it.id && acts.lastTurn.from > acts.compactedUpto;
   const hasActs = !!it.text || canRegen;
   return (
-    <div className={"m-agent" + (it.stats ? " final" : "") + (cont ? " cont" : "")}>
-      {cont ? <span aria-hidden /> : <Avatar agent={agent} size={28} />}
-      <div style={{ minWidth: 0 }}>
-        <div className={"mh" + (cont ? " sr-only" : "")}>
+    <Wrap bare={bare} final={!!it.stats} agent={agent}>
+        {!bare && <div className="mh">
           <b>{agent ? speaker(agent) : it.agent}</b>
           <span className="t">{hhmm(it.time)}</span>
           {/* the turn's last reply names its model in the footer */}
@@ -840,15 +823,14 @@ function AgentMsg({ it, agent, showModel, before, after, cont }: { it: Extract<F
               {sm.effort && <span className="effs">{sm.effort}</span>}
             </span>
           )}
-        </div>
-        {it.thinking && (
+        </div>}
+        {!bare && it.thinking && (
           <button className="row-btn think" type="button" aria-expanded={showThink} onClick={() => setShowThink(!showThink)}>
             {t("chat.thoughts")}
             <ChevronRight size={14} className="ch" />
           </button>
         )}
         {showThink && <div className="thinking small">{it.thinking}</div>}
-        {before && <Steps steps={before} agent={it.agent} />}
         {it.searches.map((q, i) => (
           <div className="srvtool" key={i}>
             <SearchIcon size={13} />
@@ -878,7 +860,6 @@ function AgentMsg({ it, agent, showModel, before, after, cont }: { it: Extract<F
             ))}
           </div>
         )}
-        {after && <Steps steps={after} agent={it.agent} />}
         {it.stats && <ReplyStats stats={it.stats} />}
         {hasActs && (
           <div className="msgacts">
@@ -915,11 +896,113 @@ function AgentMsg({ it, agent, showModel, before, after, cont }: { it: Extract<F
             )}
           </div>
         )}
-      </div>
+    </Wrap>
+  );
+}
+
+/** A message's frame: avatar and column, or nothing inside a turn. */
+function Wrap({ bare, final, agent, children }: { bare?: boolean; final?: boolean; agent?: AgentView; children: ReactNode }) {
+  if (bare) return <div className="tans">{children}</div>;
+  return (
+    <div className={"m-agent" + (final ? " final" : "")}>
+      <Avatar agent={agent} size={28} />
+      <div style={{ minWidth: 0 }}>{children}</div>
     </div>
   );
 }
 
+/** One agent's turn: one header, then its thinking (one toggle), what it
+ *  said while working (narration, small), its steps and its answer, in
+ *  order; while it runs, the text being written grows at the end. */
+function TurnMsg({ it, agent, showModel }: { it: Extract<FeedItem, { k: "turn" }>; agent?: AgentView; showModel: boolean }) {
+  const models = useStore((s) => s.models);
+  const sid = useContext(SessionCtx);
+  const live = useStore((s) => (it.open ? s.streams[sid + "|" + it.agent] : undefined));
+  const waiting = useStore((s) => s.approvals.some((a) => a.agent === it.agent && a.session === sid));
+  // between steps, with nothing being written yet: say it is working
+  const lastPart = it.parts[it.parts.length - 1];
+  const stepRunning = lastPart?.k === "steps" && lastPart.steps.some((x) => !x.result);
+  const working = it.open && agent?.status === "running" && !waiting && !stepRunning && !live?.text;
+  const [showThink, setShowThink] = useState(false);
+  const msgs = it.parts.filter((p): p is Extract<TurnPart, { k: "msg" }> => p.k === "msg");
+  const last = lastMsg(it);
+  const thoughts = msgs.map((p) => p.it.thinking).filter(Boolean);
+  const answer = msgs.find((p) => !p.narration && p.it.stats)?.it;
+  const sm = last?.model ? shortModelEffort(models, last.model) : null;
+  return (
+    <div className={"m-agent turn" + (answer ? " final" : "")}>
+      <Avatar agent={agent} size={28} />
+      <div style={{ minWidth: 0 }}>
+        <div className="mh">
+          <b>{agent ? speaker(agent) : it.agent}</b>
+          <span className="t">{hhmm(it.time)}</span>
+          {sm && last?.model && !answer && (
+            <span className={"via" + (showModel ? "" : " hov")} title={modelLabel(models, last.model)}>
+              {sm.name}
+              {sm.effort && <span className="effs">{sm.effort}</span>}
+            </span>
+          )}
+        </div>
+        {thoughts.length > 0 && (
+          <>
+            <button className="row-btn think" type="button" aria-expanded={showThink} onClick={() => setShowThink(!showThink)}>
+              {t("chat.thoughts")}
+              {thoughts.length > 1 && <span className="muted"> · {thoughts.length}</span>}
+              <ChevronRight size={14} className="ch" />
+            </button>
+            {showThink && (
+              <div className="thinking small">
+                {thoughts.map((x, i) => (
+                  <p key={i}>{x}</p>
+                ))}
+              </div>
+            )}
+          </>
+        )}
+        {it.parts.map((p) =>
+          p.k === "steps" ? (
+            <Steps key={p.id} steps={p.steps} agent={it.agent} />
+          ) : p.narration ? (
+            p.it.text || p.it.searches.length ? (
+              <div className="narr" key={p.it.id}>
+                {p.it.searches.map((q, i) => (
+                  <div className="srvtool" key={i}>
+                    <SearchIcon size={13} />
+                    <span>{t("chat.searched", { q })}</span>
+                  </div>
+                ))}
+                {p.it.text && <Markdown text={p.it.text} />}
+              </div>
+            ) : null
+          ) : (
+            <AgentMsg key={p.it.id} it={p.it} agent={agent} showModel={false} bare />
+          ),
+        )}
+        {working && !live?.thinking && (
+          <div className="typing in">
+            <span>{detailLabel(agent!.detail) || t("chat.thinking", { name: speaker(agent!) })}</span>
+            <span className="dots">
+              <i />
+              <i />
+              <i />
+            </span>
+          </div>
+        )}
+        {live && (live.text || live.thinking) && (
+          <div className="tans">
+            {live.thinking && !live.text && <div className="thinking small">{live.thinking.slice(-400)}</div>}
+            {live.text && (
+              <div className="mt">
+                <Markdown text={live.text} />
+                <span className="caret" />
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
 /** A sub-agent's session, read-only (the right panel shows it). The
  *  sub-agent itself is usually gone once its task is done: it is named
  *  after its parent. */
@@ -950,19 +1033,19 @@ export function SubFeed({ sessionId, child, parent }: { sessionId: string; child
   return (
     <div className="subfeed" ref={ref}>
       {groupFeed(items).map((g) =>
-        g.items.map((x) => <FeedRow key={x.it.id} it={x.it} agents={agents} before={x.before} after={x.after} cont={x.cont} />),
+        g.items.map((x) => <FeedRow key={x.it.id} it={x.it} agents={agents} />),
       )}
     </div>
   );
 }
 
 /** Steps an agent is taking with no message yet: under its own header. */
-function WorkingTurn({ agent, id, steps, cont }: { agent?: AgentView; id: string; steps: Step[]; cont?: boolean }) {
+function WorkingTurn({ agent, id, steps }: { agent?: AgentView; id: string; steps: Step[] }) {
   return (
-    <div className={"m-agent" + (cont ? " cont" : "")}>
-      {cont ? <span aria-hidden /> : <Avatar agent={agent} size={28} />}
+    <div className="m-agent">
+      <Avatar agent={agent} size={28} />
       <div style={{ minWidth: 0 }}>
-        <div className={"mh" + (cont ? " sr-only" : "")}>
+        <div className="mh">
           <b>{agent ? speaker(agent) : id}</b>
           {steps[0]?.time && <span className="t">{hhmm(steps[0].time)}</span>}
         </div>
