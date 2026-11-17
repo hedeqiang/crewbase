@@ -113,3 +113,35 @@ func TestUsageShowsWhatTheLoopSent(t *testing.T) {
 		t.Fatalf("no additions item: %+v", b.Items)
 	}
 }
+
+// After a restart the map still knows what the last request carried
+// beyond the log (the note kept next to the session).
+func TestUsageKeepsWhatWasSentAcrossRestarts(t *testing.T) {
+	big := strings.Repeat("extracted document text ", 2000)
+	inject := func(load func(kernel.Spec, map[string]any)) {
+		load(kernel.Spec{Name: "test-inject", Apply: func(c *kernel.Context) error {
+			agentloop.Request.Use(c, func(ctx context.Context, x agentloop.RequestArgs, next kernel.Next[agentloop.RequestArgs, *llm.Request]) (*llm.Request, error) {
+				x.Request.System += "\n\n" + big
+				return next(ctx, x)
+			})
+			return nil
+		}}, nil)
+	}
+	root := t.TempDir()
+	e := newEnv(t, root, nil, inject)
+	a, _ := e.agents.Create(agent.Spec{Name: "K"})
+	ss, _ := a.Session()
+	send(t, a, ss.ID(), "hello")
+	first, _ := e.comp.Usage(a.ID(), "")
+	e.h.Close()
+
+	e2 := newEnv(t, root, nil) // the listener is gone; only the note remains
+	b, err := e2.comp.Usage(a.ID(), "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := llm.EstimateTokens(big)
+	if b.Estimated < want || !b.Recorded {
+		t.Fatalf("after restart estimated %d (before %d), recorded=%v; want the %d added tokens", b.Estimated, first.Estimated, b.Recorded, want)
+	}
+}

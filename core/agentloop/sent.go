@@ -1,6 +1,7 @@
 package agentloop
 
 import (
+	"encoding/json"
 	"strings"
 	"sync"
 
@@ -65,13 +66,109 @@ func (s *sentLog) get(agentID, sess string) (sentEntry, bool) {
 	return e, ok
 }
 
-// LastSent implements SentRequests.
+// sentFile is the session side file keeping, per agent, what the last
+// sent request had beyond what the log re-derives (see sentNote), so the
+// context map is right after a restart too.
+const sentFile = "sent.json"
+
+// sentNote is the compact, persisted part of a sent request: the system
+// prompt additions, tools a Request listener added, and the context size
+// of each attachment as it was loaded. Messages are not kept: the log has
+// them.
+type sentNote struct {
+	Seq         int64            `json:"seq"`
+	Additions   string           `json:"additions,omitempty"`
+	Tools       []llm.ToolSchema `json:"tools,omitempty"`
+	Attachments map[string]int   `json:"attachments,omitempty"` // workspace path → tokens
+}
+
+// LastSent implements SentRequests: the request kept in memory, else the
+// note persisted with the session (after a restart).
 func (l *loop) LastSent(agentID, sess string) (*RecordedRequest, int64, bool) {
-	e, ok := l.sent.get(agentID, sess)
+	if e, ok := l.sent.get(agentID, sess); ok {
+		return e.req, e.seq, true
+	}
+	ss, err := l.agents.Sessions().Get(sess)
+	if err != nil {
+		return nil, 0, false
+	}
+	b, err := ss.ReadState(sentFile)
+	if err != nil {
+		return nil, 0, false
+	}
+	var notes map[string]sentNote
+	if json.Unmarshal(b, &notes) != nil {
+		return nil, 0, false
+	}
+	n, ok := notes[agentID]
 	if !ok {
 		return nil, 0, false
 	}
-	return e.req, e.seq, true
+	a, ok := l.agents.Get(agentID)
+	if !ok {
+		return nil, 0, false
+	}
+	rec := &RecordedRequest{Tools: n.Tools}
+	for _, sec := range SystemSections(l.prompts, a) {
+		rec.System = append(rec.System, RecordedBlock{Name: sec.Name, Text: sec.Text})
+	}
+	if n.Additions != "" {
+		rec.System = append(rec.System, RecordedBlock{Name: "additions", Text: n.Additions})
+	}
+	for _, m := range session.DeriveMessages(ss.Events(), agentID, l.agents.Names()) {
+		for i, p := range m.Parts {
+			if p.Attachment != nil {
+				if t := n.Attachments[p.Attachment.Path]; t > 0 {
+					at := *p.Attachment
+					at.Tokens = t
+					m.Parts[i].Attachment = &at
+				}
+			}
+		}
+		rec.Messages = append(rec.Messages, m)
+	}
+	return rec, n.Seq, true
+}
+
+// persistSent writes the compact note of rec for a into the session.
+func (l *loop) persistSent(a *agent.Agent, ss *session.Session, rec *RecordedRequest, seq int64) {
+	n := sentNote{Seq: seq}
+	for _, b := range rec.System {
+		if b.Name == "additions" {
+			n.Additions = b.Text
+		}
+	}
+	planned := map[string]bool{}
+	for _, t := range ToolSchemas(l.toolsReg, a, ss.Meta().Kind) {
+		planned[t.Name] = true
+	}
+	for _, t := range rec.Tools {
+		if !planned[t.Name] && t.Name != ToolSearchName && !t.Deferred {
+			n.Tools = append(n.Tools, t)
+		}
+	}
+	for _, m := range rec.Messages {
+		for _, p := range m.Parts {
+			if at := p.Attachment; at != nil && at.Tokens > 0 {
+				if n.Attachments == nil {
+					n.Attachments = map[string]int{}
+				}
+				n.Attachments[at.Path] = at.Tokens
+			}
+		}
+	}
+	l.sentMu.Lock()
+	defer l.sentMu.Unlock()
+	notes := map[string]sentNote{}
+	if b, err := ss.ReadState(sentFile); err == nil {
+		_ = json.Unmarshal(b, &notes)
+	}
+	notes[a.ID()] = n
+	if b, err := json.Marshal(notes); err == nil {
+		if err := ss.WriteState(sentFile, b); err != nil {
+			l.c.Log().Warn("keeping the sent request note failed", "session", ss.ID(), "err", err)
+		}
+	}
 }
 
 // record keeps a light copy of req as sent: attachment bytes are dropped
@@ -98,6 +195,7 @@ func (l *loop) record(a *agent.Agent, ss *session.Session, req llm.Request) {
 		seq = ev[len(ev)-1].Seq
 	}
 	l.sent.set(a.ID(), ss.ID(), sentEntry{req: rec, seq: seq})
+	l.persistSent(a, ss, rec, seq)
 }
 
 // splitSystem names the parts of system: the agent's prompt sections in

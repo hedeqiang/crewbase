@@ -334,6 +334,39 @@ func (ss *Session) SetFailAppend(err error) {
 }
 
 // Events returns a snapshot of all events.
+// Dir is the directory the session's log lives in ("" for an in-memory
+// store).
+func (ss *Session) Dir() string {
+	if ss.store == nil || ss.store.dir == "" {
+		return ""
+	}
+	return filepath.Join(ss.store.dir, ss.meta.ID)
+}
+
+// WriteState stores a small side file next to the log (name must be a
+// plain file name). It is state a feature can rebuild, not history: it is
+// not part of the event log and not replayed. No-op in memory.
+func (ss *Session) WriteState(name string, b []byte) error {
+	d := ss.Dir()
+	if d == "" || name == "" || filepath.Base(name) != name || strings.HasPrefix(name, ".") {
+		return nil
+	}
+	tmp := filepath.Join(d, "."+name+".tmp")
+	if err := os.WriteFile(tmp, b, 0o600); err != nil {
+		return err
+	}
+	return os.Rename(tmp, filepath.Join(d, name))
+}
+
+// ReadState reads a side file written by WriteState.
+func (ss *Session) ReadState(name string) ([]byte, error) {
+	d := ss.Dir()
+	if d == "" || name == "" || filepath.Base(name) != name {
+		return nil, os.ErrNotExist
+	}
+	return os.ReadFile(filepath.Join(d, name))
+}
+
 func (ss *Session) Events() []Event {
 	ss.mu.Lock()
 	defer ss.mu.Unlock()

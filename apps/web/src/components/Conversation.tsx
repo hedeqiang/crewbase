@@ -964,14 +964,18 @@ function TurnMsg({ it, agent, showModel }: { it: Extract<FeedItem, { k: "turn" }
             <Steps key={p.id} steps={p.steps} agent={it.agent} />
           ) : p.narration ? (
             p.it.text || p.it.searches.length ? (
-              <div className="narr" key={p.it.id}>
+              <div className={"narr" + (it.open ? " fresh" : "")} key={p.it.id}>
                 {p.it.searches.map((q, i) => (
                   <div className="srvtool" key={i}>
                     <SearchIcon size={13} />
                     <span>{t("chat.searched", { q })}</span>
                   </div>
                 ))}
-                {p.it.text && <Markdown text={p.it.text} />}
+                {p.it.text && (
+                  <div className="mt">
+                    <Markdown text={p.it.text} />
+                  </div>
+                )}
               </div>
             ) : null
           ) : (

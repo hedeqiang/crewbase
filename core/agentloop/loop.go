@@ -152,6 +152,7 @@ type loop struct {
 	parked parkBook
 	offers offers
 	sent   sentLog
+	sentMu sync.Mutex // serialises sent.json read-modify-write
 }
 
 // Plugin is the default driver.
