@@ -2017,7 +2017,7 @@ button.cxblk:focus-visible { outline: 2px solid var(--accent); outline-offset: -
 .cxtip { position: absolute; z-index: 2; transform: translate(12px, 14px); pointer-events: none; background: var(--surface); box-shadow: var(--menu-shadow); border-radius: 9px; padding: 7px 10px; font-size: 12px; display: flex; flex-direction: column; gap: 1px; max-width: 280px; }
 .cxtip.l { transform: translate(calc(-100% - 12px), 14px); }
 .cxtip b { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.cxtip span { color: var(--text2); font-variant-numeric: tabular-nums; }
+.cxtip span { color: var(--text2); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .cxtip .g { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cxlist { flex: 1; min-height: 320px; max-height: 100%; overflow: auto; display: flex; flex-direction: column; gap: 1px; border: 1px solid var(--border); border-radius: 10px; padding: 4px; }
 .cxrow { display: flex; align-items: center; gap: 10px; width: 100%; padding: 6px 8px; border-radius: 7px; text-align: left; font-size: 12.5px; }
