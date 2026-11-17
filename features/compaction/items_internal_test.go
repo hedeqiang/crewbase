@@ -38,6 +38,24 @@ func TestCacheHitMaths(t *testing.T) {
 	}
 }
 
+// Call ids repeat across restarts of some providers: items stay unique and
+// each result stays with its own call.
+func TestMessageItemsWithRepeatedCallIDs(t *testing.T) {
+	call := func(args string) llm.Message {
+		return llm.Message{Role: llm.RoleAssistant, Parts: []llm.Part{{Type: "tool_call", ToolCall: &llm.ToolCall{ID: "c1", Name: "x", Args: []byte(args)}}}}
+	}
+	res := func(s string) llm.Message {
+		return llm.Message{Role: llm.RoleTool, Parts: []llm.Part{{Type: "tool_result", ToolResult: &llm.ToolResult{CallID: "c1", Content: s}}}}
+	}
+	items := messageItems([]llm.Message{call(`{"a":1}`), res("first"), call(`{"a":2}`), res("second")})
+	if len(items) != 2 || items[0].ID == items[1].ID {
+		t.Fatalf("%+v", items)
+	}
+	if got := items[1].content(); got[1].Text != "second" || items[0].content()[1].Text != "first" {
+		t.Fatalf("results mixed up: %+v", got)
+	}
+}
+
 func TestRollUpKeepsTheLargest(t *testing.T) {
 	var items []*Item
 	for i := range 50 {

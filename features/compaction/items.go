@@ -162,6 +162,7 @@ func toolItem(t llm.ToolSchema, group string, tokens int) *Item {
 func messageItems(msgs []llm.Message) []*Item {
 	var out []*Item
 	calls := map[string]*Item{}
+	seen := map[string]int{}
 	for i, m := range msgs {
 		var text *Item
 		var texts []string
@@ -171,7 +172,12 @@ func messageItems(msgs []llm.Message) []*Item {
 			case p.ToolCall != nil:
 				tc := *p.ToolCall
 				n += llm.EstimateTokens(string(tc.Args)) + 8
-				it := &Item{ID: "call:" + tc.ID, Kind: SegToolIO, Label: tc.Name, Group: preview(string(tc.Args), 60), Tokens: n}
+				id := "call:" + tc.ID
+				if seen[id] > 0 { // call ids are not unique everywhere (e.g. after a restart)
+					id = fmt.Sprintf("%s#%d", id, seen[id])
+				}
+				seen["call:"+tc.ID]++
+				it := &Item{ID: id, Kind: SegToolIO, Label: tc.Name, Group: preview(string(tc.Args), 60), Tokens: n}
 				calls[tc.ID] = it
 				args := tc.Args
 				it.content = func() []ContentPart {
