@@ -69,7 +69,7 @@ func tr(key string) string {
 	return w[0]
 }
 
-// mygoLang is the language tag of MyGo's own menus and the update window.
+// mygoLang is the language tag of MyGo's own menus and dialogs.
 func mygoLang() string {
 	if lang() == "en" {
 		return "en"
