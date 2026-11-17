@@ -3,6 +3,15 @@
 Each `## <version>` section becomes the release notes of that version,
 shown in the desktop app's update window.
 
+## 0.5.7
+
+订阅 CLI 显示真实的模型列表；每个模型都可以单独开关。
+
+- Codex 显示你 Codex CLI 里的真实模型（GPT-6.1-Sol、6-Astra、6-Sol、6-Luna…），每个模型一条，推理档位在「推理强度」里选；修复新版 codex-acp 上选模型不生效
+- Cursor 显示能读懂的模型名（不再带 [context=…] 之类的参数）；Claude Code 去掉重复项；Antigravity 同一模型的几个档位合成一条
+- 每个模型可以单独开关（设置 › 模型与订阅）：关掉后在所有选择模型的地方隐藏，自动选择时也跳过
+- CLI 的桥接程序过旧时，设置里提示更新命令；模型列表在 CLI 或桥接更新后自动重新读取
+
 ## 0.5.6
 
 电脑操作的授权在更新后保留；Agent 打不开网站时会改用你允许的浏览器。
