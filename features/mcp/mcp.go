@@ -121,6 +121,18 @@ type Server struct {
 	Categories map[string]string `json:"categories,omitempty"`
 	// OAuth turns on sign-in for an http server (MCP authorization).
 	OAuth *OAuth `json:"oauth,omitempty"`
+	// AlwaysLoad offers the server's tools to the model on every step. By
+	// default MCP tools are deferred (tools.LoadDeferred): when an agent
+	// has many of them, the model finds them through tool search.
+	AlwaysLoad bool `json:"alwaysLoad,omitempty"`
+}
+
+// loadTier is the tools.Tool.Load of srv's tools.
+func loadTier(srv Server) string {
+	if srv.AlwaysLoad {
+		return tools.LoadCore
+	}
+	return tools.LoadDeferred
 }
 
 // knownCategories are the categories a Categories override may name.

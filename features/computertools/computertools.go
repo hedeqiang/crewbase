@@ -324,6 +324,7 @@ func (s *Service) syncTools() {
 		cur = s.toolsCtx
 		s.mu.Unlock()
 		for _, t := range s.tools() {
+			t.Load, t.Group = tools.LoadDeferred, "computer"
 			s.reg.Register(cur, t)
 		}
 		return

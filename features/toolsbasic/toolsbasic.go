@@ -500,7 +500,11 @@ var Plugin = kernel.Register(kernel.Spec{
 		}
 		b.jobs = &jobs{b: b, c: c, all: map[string]*job{}}
 		reg := kernel.Use[*tools.Registry](c, tools.ServiceKey)
-		for _, t := range append([]*tools.Tool{b.bashTool(), b.readTool(), b.writeTool(), b.editTool(), b.listTool(), b.deleteTool()}, b.jobs.tools()...) {
+		for _, t := range []*tools.Tool{b.bashTool(), b.readTool(), b.writeTool(), b.editTool(), b.listTool(), b.deleteTool()} {
+			reg.Register(c, t)
+		}
+		for _, t := range b.jobs.tools() {
+			t.Load, t.Group = tools.LoadDeferred, "jobs"
 			reg.Register(c, t)
 		}
 		agent.Deleted.Listen(c, b.jobs.stopAll)

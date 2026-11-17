@@ -262,6 +262,8 @@ func (c *conn) install(list []*sdk.Tool, sess *session) {
 			Unconfined:   c.srv.Transport == TransportStdio && c.srv.Trust == TrustHost,
 			Teams:        teamsOf(c.srv),
 			Execute:      c.execute(info.Original),
+			Load:         loadTier(c.srv),
+			Group:        c.srv.Name,
 		})
 	}
 	extra := 0

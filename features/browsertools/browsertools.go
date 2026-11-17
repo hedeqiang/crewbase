@@ -619,6 +619,7 @@ var Plugin = kernel.Register(kernel.Spec{
 		}
 		reg := kernel.Use[*tools.Registry](c, tools.ServiceKey)
 		for _, tool := range t.tools() {
+			tool.Load, tool.Group = tools.LoadDeferred, "browser"
 			reg.Register(c, tool)
 		}
 		return nil

@@ -55,7 +55,7 @@ func (s *Store) registerTools(reg *tools.Registry) {
 		},
 	})
 	reg.Register(s.c, &tools.Tool{
-		Name: "history_search",
+		Name: "history_search", Load: tools.LoadDeferred, Group: "history",
 		Description: "Full-text search over your past conversations, including parts that were summarised away. " +
 			"Returns session ids and event seq numbers with snippets; read the surrounding messages with history_read.",
 		Category: tools.CategoryRead,
@@ -86,7 +86,7 @@ func (s *Store) registerTools(reg *tools.Registry) {
 		},
 	})
 	reg.Register(s.c, &tools.Tool{
-		Name:        "history_read",
+		Name: "history_read", Load: tools.LoadDeferred, Group: "history",
 		Description: "Read messages of one of your conversations by event seq range (from history_search results). Output is size-capped; continue with a later 'from' if truncated.",
 		Category:    tools.CategoryRead,
 		Params: tools.Schema(map[string]any{

@@ -892,6 +892,7 @@ func (s *Service) syncTools() {
 			}
 			for _, t := range p.tools(s) {
 				t.Teams = teams
+				t.Load, t.Group = tools.LoadDeferred, "google"
 				s.reg.Register(sub, t)
 			}
 			s.subs[p.ID], s.subScope[p.ID] = sub, scope

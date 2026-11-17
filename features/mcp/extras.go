@@ -47,6 +47,8 @@ func (c *conn) installExtras(tc *kernel.Context, sess *session) int {
 			}, "action"),
 			Category: tools.CategoryRead,
 			Execute:  c.resources,
+			Load:     loadTier(c.srv),
+			Group:    c.srv.Name,
 		})
 		n++
 	}
@@ -62,6 +64,8 @@ func (c *conn) installExtras(tc *kernel.Context, sess *session) int {
 			}, "action"),
 			Category: tools.CategoryRead,
 			Execute:  c.prompts,
+			Load:     loadTier(c.srv),
+			Group:    c.srv.Name,
 		})
 		n++
 	}

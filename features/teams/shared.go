@@ -103,7 +103,7 @@ func (s *Service) TeamMemoryPrompt(agentID string) string {
 
 func (s *Service) memoryTool() *tools.Tool {
 	return &tools.Tool{
-		Name: "team_memory_add",
+		Name: "team_memory_add", Load: tools.LoadDeferred, Group: "team",
 		Description: "Add a lasting fact to your team's shared memory (TEAM.md), which every agent in your team sees: " +
 			"conventions, decisions, who owns what, links that matter. Only add what is new: never repeat what the team memory already says. " +
 			"Not for personal notes (use memory_add) or temporary state.",

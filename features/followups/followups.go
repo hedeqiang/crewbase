@@ -324,6 +324,7 @@ var Plugin = kernel.Register(kernel.Spec{
 		s.sched.Handle(c, Owner, s.fire)
 		reg := kernel.Use[*tools.Registry](c, tools.ServiceKey)
 		for _, t := range s.tools() {
+			t.Load, t.Group = tools.LoadDeferred, "followups"
 			reg.Register(c, t)
 		}
 		agent.Deleted.Listen(c, func(id string) {

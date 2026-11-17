@@ -504,7 +504,7 @@ func (w *Working) registerTools(c *kernel.Context, reg *tools.Registry) {
 		},
 	})
 	reg.Register(c, &tools.Tool{
-		Name:        "note_read",
+		Name: "note_read", Load: tools.LoadDeferred, Group: "notes",
 		Description: "Read one of the reference notes you were given (listed in your instructions). Long notes come in parts; continue with from.",
 		Category:    tools.CategoryRead,
 		Params: tools.Schema(map[string]any{

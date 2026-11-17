@@ -327,6 +327,7 @@ func (s *Service) sync(ctx context.Context) {
 			}
 			sub = s.c.Fork("")
 			for _, t := range s.toolsFor(kind, av) {
+				t.Load, t.Group = tools.LoadDeferred, "media"
 				s.reg.Register(sub, t)
 			}
 			s.subs[kind] = sub
