@@ -402,6 +402,7 @@ func EstimateUsage(u llm.Usage, req llm.Request, msg llm.Message) llm.Usage {
 			}
 		}
 		u.OutputTokens = n
+		u.Estimated = true
 	}
 	return u
 }

@@ -227,6 +227,9 @@ type Usage struct {
 	// runtime reported it (a coding CLI's ACP usage_update): its own system
 	// prompt and tools included. 0 = not reported.
 	Context int `json:"context,omitempty"`
+	// Estimated marks usage the adapter filled from heuristics because the
+	// provider reported none (it is not a provider count).
+	Estimated bool `json:"estimated,omitempty"`
 }
 
 // Chunk is one streaming piece.

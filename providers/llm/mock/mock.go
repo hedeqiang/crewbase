@@ -27,6 +27,10 @@ type Adapter struct {
 	models    []llm.ModelInfo
 	exhausted atomic.Bool
 	delay     time.Duration
+	// promptCache: report usage as provider counts with simulated
+	// prompt-cache reads (demos of the context map).
+	promptCache bool
+	lastInput   int
 
 	mu       sync.Mutex
 	requests []llm.Request
@@ -127,7 +131,18 @@ func (a *Adapter) Stream(ctx context.Context, req llm.Request, onChunk func(llm.
 			return llm.Response{}, err
 		}
 	}
-	resp.Usage = llm.Usage{InputTokens: llm.EstimateRequest(req), OutputTokens: llm.EstimateTokens(resp.Message.Text())}
+	in := llm.EstimateRequest(req)
+	resp.Usage = llm.Usage{InputTokens: in, OutputTokens: llm.EstimateTokens(resp.Message.Text()), Estimated: true}
+	if a.promptCache {
+		// a provider count with a prompt cache: the previous request's
+		// input is read from the cache, the rest is written to it
+		a.mu.Lock()
+		read := min(a.lastInput, in)
+		a.lastInput = in
+		a.mu.Unlock()
+		resp.Usage.Estimated = false
+		resp.Usage.CacheRead, resp.Usage.CacheWrite = read, in-read
+	}
 	return resp, nil
 }
 
@@ -172,7 +187,7 @@ func text(s string) llm.Response {
 }
 
 // Plugin registers mock adapters. Config: {"ids": ["mock"], "delayMs": 0,
-// "kind": "api", "pricing": {"input": 3, "output": 15}}.
+// "kind": "api", "pricing": {"input": 3, "output": 15}, "promptCache": false}.
 var Plugin = kernel.Register(kernel.Spec{
 	Name:        "@crewbase/llm-mock",
 	Inject:      []string{llm.ServiceKey},
@@ -186,6 +201,9 @@ var Plugin = kernel.Register(kernel.Spec{
 			// with no known price.
 			Kind    string       `json:"kind"`
 			Pricing *llm.Pricing `json:"pricing"`
+			// PromptCache reports usage as provider counts with a
+			// simulated prompt cache (the context map's counted view).
+			PromptCache bool `json:"promptCache"`
 		}](c)
 		if err != nil {
 			return err
@@ -197,6 +215,7 @@ var Plugin = kernel.Register(kernel.Spec{
 		for _, id := range cfg.IDs {
 			a := New(id, 0)
 			a.delay = time.Duration(cfg.DelayMs) * time.Millisecond
+			a.promptCache = cfg.PromptCache
 			if cfg.Kind != "" {
 				a.kind = cfg.Kind
 			}
