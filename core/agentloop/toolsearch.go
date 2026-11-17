@@ -135,10 +135,12 @@ func (l *loop) planTools(a *agent.Agent, ss *session.Session, ad llm.Adapter, mo
 	}
 	if ts, ok := ad.(llm.ToolSearcher); ok && ts.SearchesTools(model) {
 		// Tools loaded through our own search (an earlier step on another
-		// provider) stay loaded; the rest are the provider's to find.
+		// provider), or by the provider's search before a compaction cut
+		// the tool_reference out of the history, stay loaded; the rest
+		// are the provider's to find.
 		out := schemas(core)
 		promoted := map[string]bool{}
-		for _, n := range tools.LoadedVia(ss.Events(), a.ID(), func(v string) bool { return v != tools.ViaNative }) {
+		for _, n := range promotedForNative(ss.Events(), a.ID()) {
 			if t, ok := byName[n]; ok {
 				out = append(out, t.Schema())
 				promoted[n] = true
@@ -179,6 +181,38 @@ func (l *loop) planTools(a *agent.Agent, ss *session.Session, ad llm.Adapter, mo
 		section = searchSection(rest)
 	}
 	return toolPlan{Tools: out, Section: section, Mode: planGeneric, offered: offered}
+}
+
+// promotedForNative lists the loaded tools a native-search request sends
+// as loaded: those loaded by our own search or a call, and those the
+// provider loaded before the latest compaction of agent's history.
+func promotedForNative(events []session.Event, agentID string) []string {
+	var compacted int64
+	for _, e := range events {
+		if e.Type == session.TypeCompaction && (e.Agent == agentID || e.Agent == "") {
+			compacted = e.Seq
+		}
+	}
+	var before []session.Event
+	for _, e := range events {
+		if e.Seq < compacted {
+			before = append(before, e)
+		}
+	}
+	keep := map[string]bool{}
+	for _, n := range tools.LoadedVia(before, agentID, nil) {
+		keep[n] = true
+	}
+	for _, n := range tools.LoadedVia(events, agentID, func(v string) bool { return v != tools.ViaNative }) {
+		keep[n] = true
+	}
+	var out []string
+	for _, n := range tools.Loaded(events, agentID) {
+		if keep[n] {
+			out = append(out, n)
+		}
+	}
+	return out
 }
 
 // searchSection is the prompt section about the deferred tools not loaded

@@ -320,6 +320,16 @@ func TestNativeToolSearchSendsDeferredTools(t *testing.T) {
 	if est := llm.EstimateRequest(reqs[0]); est > 2000 {
 		t.Fatalf("estimate counts deferred tools: %d", est)
 	}
+	// after a compaction cut the search out of the history, the tool the
+	// provider found is sent loaded (right after the core tools)
+	_, _ = ss.Append(session.TypeCompaction, a.ID(), map[string]any{"summary": "s"})
+	send(t, a, "again")
+	agentloop.WaitIdle(a, 5*time.Second)
+	reqs = s.requests()
+	last := reqs[len(reqs)-1].Tools
+	if len(last) != 152 || last[2].Name != "notion__API_post_page" || last[2].Deferred || !last[3].Deferred {
+		t.Fatalf("after compaction: %v", names(last)[:4])
+	}
 }
 
 // TestSchemaSizeOf180Tools measures what one step carries for an agent
