@@ -375,7 +375,7 @@ function Superseded({ rw, rows, agents }: { rw: Rewind; rows: FeedItem[]; agents
         <div className="supbody">
           <MsgCtx.Provider value={null}>
             {groupFeed(rows).map((g) =>
-              g.items.map((x) => <FeedRow key={x.it.id} it={x.it} agents={agents} showModel={x.showModel} before={x.before} after={x.after} />),
+              g.items.map((x) => <FeedRow key={x.it.id} it={x.it} agents={agents} showModel={x.showModel} before={x.before} after={x.after} cont={x.cont} />),
             )}
           </MsgCtx.Provider>
         </div>
@@ -396,7 +396,7 @@ function Rows({ items, agents }: { items: FeedItem[]; agents: Record<string, Age
             ))}
           </div>
         ) : (
-          g.items.map((x) => <FeedRow key={x.it.id} it={x.it} agents={agents} showModel={x.showModel} before={x.before} after={x.after} />)
+          g.items.map((x) => <FeedRow key={x.it.id} it={x.it} agents={agents} showModel={x.showModel} before={x.before} after={x.after} cont={x.cont} />)
         ),
       )}
     </>
@@ -632,7 +632,7 @@ function isSysItem(it: FeedItem): boolean {
 
 /** Split the feed into runs; consecutive system lines become one compact group.
  *  Agent messages show their model only when it differs from the previous one. */
-type Row = { it: FeedItem; showModel?: boolean; before?: Step[]; after?: Step[] };
+type Row = { it: FeedItem; showModel?: boolean; before?: Step[]; after?: Step[]; cont?: boolean };
 
 /** Tool steps belong to the agent's message they lead to (or follow):
  *  they are shown inside it, under its name, instead of floating between
@@ -664,9 +664,16 @@ function joinSteps(items: FeedItem[]): Row[] {
 function groupFeed(items: FeedItem[]): { sys: boolean; items: Row[] }[] {
   const out: { sys: boolean; items: Row[] }[] = [];
   let prev = "";
+  let speaker: { agent: string; open: boolean } | null = null; // the last agent row, and whether its turn goes on
   for (const row of joinSteps(items)) {
     const it = row.it;
     const sys = isSysItem(it);
+    // one turn is one message: what the agent said between tool calls
+    // continues the row above instead of repeating its name and avatar
+    if (it.k === "agent" || it.k === "steps") {
+      row.cont = !!speaker && speaker.open && speaker.agent === it.agent;
+      speaker = { agent: it.agent, open: !(it.k === "agent" && it.stats) };
+    } else if (it.k !== "time") speaker = null;
     let showModel: boolean | undefined;
     if (it.k === "agent" && it.model) {
       const key = it.model.provider + "/" + it.model.model + "@" + (it.model.effort ?? "");
@@ -685,7 +692,7 @@ function PluginFeedCard({ type, data }: { type: string; data: any }) {
   return c ? <PluginCard c={c} data={data} /> : null;
 }
 
-function FeedRow({ it, agents, showModel, before, after }: { it: FeedItem; agents: Record<string, AgentView>; showModel?: boolean; before?: Step[]; after?: Step[] }) {
+function FeedRow({ it, agents, showModel, before, after, cont }: { it: FeedItem; agents: Record<string, AgentView>; showModel?: boolean; before?: Step[]; after?: Step[]; cont?: boolean }) {
   const models = useStore((s) => s.models);
   switch (it.k) {
     case "time":
@@ -693,9 +700,9 @@ function FeedRow({ it, agents, showModel, before, after }: { it: FeedItem; agent
     case "user":
       return <UserMsg it={it} />;
     case "agent":
-      return <AgentMsg it={it} agent={agents[it.agent]} showModel={!!showModel} before={before} after={after} />;
+      return <AgentMsg it={it} agent={agents[it.agent]} showModel={!!showModel} before={before} after={after} cont={cont} />;
     case "steps":
-      return <WorkingTurn agent={agents[it.agent]} id={it.agent} steps={it.steps} />;
+      return <WorkingTurn agent={agents[it.agent]} id={it.agent} steps={it.steps} cont={cont} />;
     case "bg":
       return <BgCard it={it} agents={agents} />;
     case "approval":
@@ -809,7 +816,7 @@ const REASONS: Record<string, true> = {
   "chat.reason.model_unavailable": true,
 };
 
-function AgentMsg({ it, agent, showModel, before, after }: { it: Extract<FeedItem, { k: "agent" }>; agent?: AgentView; showModel: boolean; before?: Step[]; after?: Step[] }) {
+function AgentMsg({ it, agent, showModel, before, after, cont }: { it: Extract<FeedItem, { k: "agent" }>; agent?: AgentView; showModel: boolean; before?: Step[]; after?: Step[]; cont?: boolean }) {
   const models = useStore((s) => s.models);
   const [showThink, setShowThink] = useState(false);
   const [reading, setReading] = useState(false);
@@ -820,10 +827,10 @@ function AgentMsg({ it, agent, showModel, before, after }: { it: Extract<FeedIte
   const canRegen = !!acts && !it.superseded && acts.lastTurn?.item === it.id && acts.lastTurn.from > acts.compactedUpto;
   const hasActs = !!it.text || canRegen;
   return (
-    <div className={"m-agent" + (it.stats ? " final" : "")}>
-      <Avatar agent={agent} size={28} />
+    <div className={"m-agent" + (it.stats ? " final" : "") + (cont ? " cont" : "")}>
+      {cont ? <span aria-hidden /> : <Avatar agent={agent} size={28} />}
       <div style={{ minWidth: 0 }}>
-        <div className="mh">
+        <div className={"mh" + (cont ? " sr-only" : "")}>
           <b>{agent ? speaker(agent) : it.agent}</b>
           <span className="t">{hhmm(it.time)}</span>
           {/* the turn's last reply names its model in the footer */}
@@ -943,19 +950,19 @@ export function SubFeed({ sessionId, child, parent }: { sessionId: string; child
   return (
     <div className="subfeed" ref={ref}>
       {groupFeed(items).map((g) =>
-        g.items.map((x) => <FeedRow key={x.it.id} it={x.it} agents={agents} before={x.before} after={x.after} />),
+        g.items.map((x) => <FeedRow key={x.it.id} it={x.it} agents={agents} before={x.before} after={x.after} cont={x.cont} />),
       )}
     </div>
   );
 }
 
 /** Steps an agent is taking with no message yet: under its own header. */
-function WorkingTurn({ agent, id, steps }: { agent?: AgentView; id: string; steps: Step[] }) {
+function WorkingTurn({ agent, id, steps, cont }: { agent?: AgentView; id: string; steps: Step[]; cont?: boolean }) {
   return (
-    <div className="m-agent">
-      <Avatar agent={agent} size={28} />
+    <div className={"m-agent" + (cont ? " cont" : "")}>
+      {cont ? <span aria-hidden /> : <Avatar agent={agent} size={28} />}
       <div style={{ minWidth: 0 }}>
-        <div className="mh">
+        <div className={"mh" + (cont ? " sr-only" : "")}>
           <b>{agent ? speaker(agent) : id}</b>
           {steps[0]?.time && <span className="t">{hhmm(steps[0].time)}</span>}
         </div>

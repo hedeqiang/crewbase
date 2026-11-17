@@ -2069,3 +2069,9 @@ button.cxblk:focus-visible { outline: 2px solid var(--accent); outline-offset: -
 .dtag.ok { color: var(--ok-text, #1a7f4b); background: color-mix(in srgb, var(--ok-text, #1a7f4b) 10%, transparent); }
 .dtag.no { color: var(--danger-text); background: color-mix(in srgb, var(--danger-text) 10%, transparent); }
 .stepnote { margin: 0 0 6px; color: var(--text2); }
+
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+/* the same turn going on after a tool call: no second name and avatar,
+   and close to the part above (whose hover actions give way to it) */
+.m-agent.cont { margin-top: -14px; }
+.m-agent:has(+ .m-agent.cont) .msgacts { display: none; }
