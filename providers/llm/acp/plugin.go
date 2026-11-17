@@ -45,6 +45,13 @@
 // rate limits -> rate_limited, ACP -32000 / "run /login" -> auth, process
 // exit -> unavailable.
 //
+// Context: the service is the agentloop.RequestRecorder for Claude Code
+// and Codex. It reads what the CLI really sent (system prompt, tool
+// schemas, messages, usage with cache) from the session files the CLI
+// writes locally, found by the ACP session id of the conversation (see
+// recorder.go, transcript/). Read only; config readCliTranscripts: false
+// turns it off.
+//
 // Processes: started on first use, stopped after idleTimeoutSec without a
 // turn, and on dispose the whole process group is terminated (Setpgid).
 //
@@ -64,10 +71,12 @@ import (
 	"time"
 
 	"github.com/hedeqiang/crewbase/capabilities/approval"
+	"github.com/hedeqiang/crewbase/core/agentloop"
 	"github.com/hedeqiang/crewbase/core/llm"
 	"github.com/hedeqiang/crewbase/core/session"
 	"github.com/hedeqiang/crewbase/features/mcpserver"
 	"github.com/hedeqiang/crewbase/kernel"
+	"github.com/hedeqiang/crewbase/providers/llm/acp/transcript"
 )
 
 // approver routes CLI permission requests to the approval service, looked
@@ -140,6 +149,8 @@ type Service struct {
 	adapters map[string]*Adapter // by agent id
 	// add registers a newly runnable CLI (set by the plugin).
 	add func(r resolved) error
+	// reader reads the CLIs' session files (see recorder.go)
+	reader *transcript.Reader
 }
 
 // Rescan registers CLIs installed since the last scan (a CLI installed
@@ -204,7 +215,7 @@ var Plugin = kernel.Register(kernel.Spec{
 		}
 		notes := cfg.ToolNotes == nil || *cfg.ToolNotes
 		reg := kernel.Use[*llm.Registry](c, llm.ServiceKey)
-		svc := &Service{cfg: cfg, adapters: map[string]*Adapter{}}
+		svc := &Service{cfg: cfg, adapters: map[string]*Adapter{}, reader: transcript.NewReader()}
 		goFn := func(fn func(context.Context)) bool {
 			if c.Disposed() {
 				return false
@@ -231,6 +242,7 @@ var Plugin = kernel.Register(kernel.Spec{
 			// background when the cache is old or was learned with another
 			// CLI or bridge version
 			a.loadCachedModels()
+			a.loadCLISessions()
 			goFn(func(ctx context.Context) {
 				if !probe {
 					return
@@ -278,6 +290,12 @@ var Plugin = kernel.Register(kernel.Spec{
 				}
 			}
 		})
+		if svc.readTranscripts() {
+			// the context panel reads what the CLIs really send
+			if err := c.Provide(agentloop.RequestRecorderKey, agentloop.RequestRecorder(svc)); err != nil {
+				return err
+			}
+		}
 		return c.Provide(ServiceKey, svc)
 	},
 })

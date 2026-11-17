@@ -83,6 +83,35 @@ type ToolPlanner interface {
 	PlannedTools(a *agent.Agent, ss *session.Session, ad llm.Adapter, model string, window int) []llm.ToolSchema
 }
 
+// RequestRecorderKey is the service key of the RequestRecorder.
+const RequestRecorderKey = "request-recorder"
+
+// RequestRecorder records the real requests of a model that builds its own
+// (a coding CLI over ACP whose API traffic passes through Crewbase), so the
+// context meter can show what the CLI actually sends.
+type RequestRecorder interface {
+	// LastRequest is the latest request recorded for agent in session.
+	LastRequest(agent, session string) (*RecordedRequest, bool)
+}
+
+// RecordedRequest is one recorded model request and its reply's usage.
+type RecordedRequest struct {
+	// System is the system prompt, block by block as sent.
+	System []RecordedBlock `json:"system"`
+	// Tools are the tool definitions sent. Group names the family (an MCP
+	// server, the CLI's built-ins); empty = derived from the name.
+	Tools    []llm.ToolSchema `json:"tools"`
+	Messages []llm.Message    `json:"messages"`
+	// Usage is what the provider reported for the reply (cache included).
+	Usage llm.Usage `json:"usage"`
+}
+
+// RecordedBlock is one system prompt block of a recorded request.
+type RecordedBlock struct {
+	Name string `json:"name,omitempty"`
+	Text string `json:"text"`
+}
+
 // PlannedTools implements ToolPlanner.
 func (l *loop) PlannedTools(a *agent.Agent, ss *session.Session, ad llm.Adapter, model string, window int) []llm.ToolSchema {
 	return ChatTools(a, l.planTools(a, ss, ad, model, window).Tools)
