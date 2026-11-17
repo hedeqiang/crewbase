@@ -359,6 +359,14 @@
 - [x] OpenAI 原生 tool_search（托管模式，GPT-5.4 起，仅官方 OpenAI；按工具分组建 namespace，tool_search_call / tool_search_output 原样回放，store:false）；只对照文档和固定样例验证过，未连真实接口
 - [ ] magpie 的 openai/* 路线是否透传 tool_search（默认关，可用 toolSearch 强制）
 
+## 上下文面板与 CLI 会话记录（2026-11-17）
+- [x] 上下文窗口改成色块图（方块按 token 大小，点开看实际内容、脱敏、可复制），缓存命中、余量、色块 / 列表切换
+- [x] Claude Code / Codex：读取 CLI 本机会话记录（只读，无转发层），显示真实的系统提示词、工具、消息和缓存命中；真机验证 Claude Code（27K，工具 Artifact / Workflow / Agent…）
+- [x] 自己走查一遍界面并修正：提示移到顶部、@提及高亮、频道无人工作时「停止」置灰、首轮缓存文案、「格式开销」、询问 / 禁止规则文案、通知按钮
+- [ ] Cursor、Antigravity 的会话记录暂未读取（Cursor 本机无记录，Antigravity 是 protobuf）
+- [ ] Codex 记录里没有内置工具定义；codex-acp 版本也没有系统提示词
+- [ ] 新建 Agent 名字是中文时 id 和工作目录是 agent、agent-2，可以考虑用模板 id
+
 ## OpenAI 走 Responses API（2026-11-17）
 - [x] responses: auto | always | never；auto（官方 OpenAI 默认、magpie 设为 auto）让 OpenAI 推理模型（gpt-5+ / o 系列 / codex，及 openai/ codex/ *-openai/ 前缀）走 /responses，其余仍走 Chat Completions
 - [x] Responses 路径覆盖普通对话：instructions、多轮工具调用、图片 / PDF、推理强度与摘要、max_output_tokens、流式文本 / 推理 / 工具调用、缓存用量、停止原因、错误分类
@@ -379,6 +387,7 @@
 ## 迭代日志
 | 日期 | 迭代 | 结果 |
 |---|---|---|
+| 2026-11-17 | v0.5.10 | 上下文色块图 + 读取 Claude Code / Codex 本机会话记录；自己走查界面修 7 处体验问题；Go 全量测试通过，真机验证 Claude Code 上下文 |
 | 2026-11-15 | 团队 | ADR-0003 三期：团队骨架（团队 → 频道，名册 / 委派 / 频道限定在团队内）；人和权限（团队角色、公开 / 私密、个人对话；网关守卫 + 列表过滤 + 事件推送过滤）；团队共享（团队记忆、团队共享 MCP、默认权限、IM 绑定团队、团队用量）。浏览器 + 配对手机 + 真实模型全流程验证，修复：刷新后丢失所选团队、新建 Agent 未用团队默认权限、手机端出现无法打开的「管理团队」、成员设备显示主人的名字、报错为英文 |
 | 2026-11-15 | 18–19 | 可靠性与团队：重启续跑被打断的一轮；等审批时直接发消息即视为拒绝并读到新消息；记忆进提示词有上限、夜间整理记忆；后台委派、队友名册、主理人模板（真实模型验证并行分派与汇总）；群聊旁听（两级过滤、默认安静、只读） |
 | 2026-11-15 | 17 | 常驻基础（吸纳 Anthropic 常驻 Agent / DeepSeek Super-agent）：连发消息合并一轮、运行中插话下一步可见；跟进提醒；后台命令；卡死检测；IM 输出规范；环境说明。真实模型端到端验证，修复后台结果消息诱导乱翻工作区、macOS 上先用 GNU 命令失败两个问题 |
