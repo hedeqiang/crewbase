@@ -3,6 +3,15 @@
 Each `## <version>` section becomes the release notes of that version,
 shown in the desktop app's update window.
 
+## 0.5.12
+
+去掉「订阅复用」：不再驱动 Claude Code、Codex、Antigravity、Cursor 等命令行工具，模型只来自 API 和 magpie。
+
+- 移除订阅 CLI：复用 CLI 的登录有被封号的风险（Antigravity 已经出现账号被停用）。需要用订阅额度的，由 magpie 处理；Crewbase 只调用 magpie 和你添加的 API 提供方
+- 升级后自动迁移：原来用 Claude Code / Codex / Antigravity / Cursor 的 Agent 会去掉这些模型；只用它们的 Agent 自动换到当前可用的模型（例如经 magpie 的 Claude Opus 5.5），对话记录不受影响
+- 新 Agent 的默认模型顺序改为从已连接的模型里挑三个强模型（例如 Claude Opus 5.5 → GPT-6.1 Sol → Claude Sonnet 5.5），第一个额度用完时自动换下一个
+- 设置里的「模型与订阅」改名为「模型」；欢迎页改为引导连接 magpie 或添加 API Key；个人资料里的「订阅复用节省」改为「估算 API 花费」
+
 ## 0.5.11
 
 订阅 CLI 可以管理了；Agent 的模型都显示为具体模型；上下文面板不再出现一大块说不清的「格式开销」。

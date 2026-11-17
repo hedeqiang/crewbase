@@ -2,7 +2,7 @@
   "name": "Crewbase",
   "slug": "crewbase",
   "identifier": "app.crewbase.desktop",
-  "version": "0.5.11",
+  "version": "0.5.12",
   "copyright": "© 2026 Crewbase",
   "license": "MIT",
   "icon": "resources/icon.png",

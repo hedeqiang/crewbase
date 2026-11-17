@@ -375,6 +375,13 @@
 - [ ] Antigravity 账号停用的提示只在内存里，重启后要等下一次请求才再次显示
 - [ ] 本机 Claude Code 的设置把 sonnet 指到了 opus（ANTHROPIC_DEFAULT_SONNET_MODEL），Crewbase 选 sonnet 实际跑的是 opus；这是用户自己的 CLI 配置
 
+## 移除订阅 CLI（2026-11-17，0.5.12）
+- [x] 后端：删除 providers/llm/acp、features/subscriptions、features/mcpserver、subagent acp、context/recorded 路由、llm.OwnTools / Bridge / Usage.Context、计量里的 CLI 分支
+- [x] 迁移：已保存 Agent 去掉 acp-* 模型，空了就换到可用模型；默认顺序从已连接模型挑三个强模型
+- [x] 前端：删除订阅 CLI 管理、CLI 工具折叠、上下文 CLI 分支、相关文案（每种语言 71 条）；「模型与订阅」改名「模型」
+- [x] 真机：旧数据目录启动后老 Agent 全部换到 magpie，经 magpie 的 Claude Opus 5.5 真实回复
+- [ ] 旧会话里遗留的「[Claude Code tool: …]」行按普通文字显示；个人资料图表里旧的 subscription 用量显示原始类别名
+
 ## OpenAI 走 Responses API（2026-11-17）
 - [x] responses: auto | always | never；auto（官方 OpenAI 默认、magpie 设为 auto）让 OpenAI 推理模型（gpt-5+ / o 系列 / codex，及 openai/ codex/ *-openai/ 前缀）走 /responses，其余仍走 Chat Completions
 - [x] Responses 路径覆盖普通对话：instructions、多轮工具调用、图片 / PDF、推理强度与摘要、max_output_tokens、流式文本 / 推理 / 工具调用、缓存用量、停止原因、错误分类
@@ -395,6 +402,7 @@
 ## 迭代日志
 | 日期 | 迭代 | 结果 |
 |---|---|---|
+| 2026-11-17 | 0.5.12 准备 | 移除订阅复用（ACP CLI），只保留 API 与 magpie；老 Agent 自动迁移、默认三模型兜底 |
 | 2026-11-17 | 0.5.11 准备 | 订阅 CLI 管理、具体模型替代 default、Codex/Antigravity 账号限制处理、上下文面板按实际请求拆分；四个 CLI 真机跑通 |
 | 2026-11-17 | v0.5.10 | 上下文色块图 + 读取 Claude Code / Codex 本机会话记录；自己走查界面修 7 处体验问题；Go 全量测试通过，真机验证 Claude Code 上下文 |
 | 2026-11-15 | 团队 | ADR-0003 三期：团队骨架（团队 → 频道，名册 / 委派 / 频道限定在团队内）；人和权限（团队角色、公开 / 私密、个人对话；网关守卫 + 列表过滤 + 事件推送过滤）；团队共享（团队记忆、团队共享 MCP、默认权限、IM 绑定团队、团队用量）。浏览器 + 配对手机 + 真实模型全流程验证，修复：刷新后丢失所选团队、新建 Agent 未用团队默认权限、手机端出现无法打开的「管理团队」、成员设备显示主人的名字、报错为英文 |
