@@ -30,6 +30,7 @@ import (
 	"strings"
 
 	"github.com/hedeqiang/crewbase/capabilities/credentials"
+	"github.com/hedeqiang/crewbase/core/agent"
 	"github.com/hedeqiang/crewbase/features/mcp"
 	"github.com/hedeqiang/crewbase/features/skills"
 	"github.com/hedeqiang/crewbase/kernel"
@@ -335,6 +336,30 @@ type Request struct {
 	// Scope: "global" (default), an agent id or team:<id> for MCP
 	// presets; "" or an agent id for skills.
 	Scope string `json:"scope,omitempty"`
+	// Context is where the person installs from: "team:<id>" or an agent
+	// id. With Scope unset, a connector installed from a context is scoped
+	// to that team (an agent's context means its team), not to every
+	// agent; an explicit Scope (e.g. "global") always wins. Skills ignore it.
+	Context string `json:"context,omitempty"`
+}
+
+// ConnectorScope is the scope a connector is installed with: Scope when
+// set, else the team of Context, else global.
+func (s *Service) ConnectorScope(req Request) string {
+	if req.Scope != "" {
+		return req.Scope
+	}
+	switch {
+	case strings.HasPrefix(req.Context, mcp.TeamScope) && len(req.Context) > len(mcp.TeamScope):
+		return req.Context
+	case req.Context != "" && req.Context != mcp.ScopeGlobal:
+		if reg, ok := kernel.Lookup[*agent.Registry](s.c, agent.ServiceKey); ok {
+			if a, ok := reg.Get(req.Context); ok {
+				return mcp.TeamScope + a.Spec().TeamID()
+			}
+		}
+	}
+	return mcp.ScopeGlobal
 }
 
 // Result of an install.
@@ -355,6 +380,7 @@ func (s *Service) Install(id string, req Request) (Result, error) {
 	if !ok {
 		return Result{}, ErrUnknown
 	}
+	req.Scope = s.ConnectorScope(req)
 	if p.Builtin != "" {
 		return s.installBuiltin(p, req.Scope)
 	}

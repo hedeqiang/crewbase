@@ -71,6 +71,11 @@ var APIPlugin = kernel.Register(kernel.Spec{
 				if _, ok := preset(r.Params["id"]); !ok && !isSkill {
 					return gateway.NotFound()
 				}
+				if !isSkill {
+					if err := checkScope(b.Context, false); err != nil {
+						return err
+					}
+				}
 				return checkScope(b.Scope, isSkill)
 			},
 			Handle: func(_ context.Context, r *gateway.Request) (any, error) {
@@ -104,6 +109,9 @@ var APIPlugin = kernel.Register(kernel.Spec{
 				if err := r.Decode(&b); err != nil {
 					return err
 				}
+				if err := checkScope(b.Context, false); err != nil {
+					return err
+				}
 				return checkScope(b.Scope, false)
 			},
 			Handle: func(_ context.Context, r *gateway.Request) (any, error) {
@@ -112,7 +120,7 @@ var APIPlugin = kernel.Register(kernel.Spec{
 				if s.gh.clientID == "" {
 					return nil, gateway.BadRequest("%v", ErrNoSignIn)
 				}
-				v, err := s.gh.Start(r.Params["id"], b.Scope)
+				v, err := s.gh.Start(r.Params["id"], s.ConnectorScope(b))
 				if err != nil && !errors.Is(err, ErrUnknown) && !errors.Is(err, ErrNoSignIn) {
 					// GitHub refused or could not be reached: shown in the dialog
 					return nil, &gateway.Error{Status: 502, Code: "signin_failed", Message: err.Error()}
