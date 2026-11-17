@@ -22,7 +22,11 @@ const (
 	SegSkills   = "skills"   // skill / sub-agent catalogue fragments
 	SegToolIO   = "toolio"   // tool calls and results in the history
 	SegMessages = "messages" // user / assistant text
-	SegFree     = "free"     // remaining window
+	// SegCLI is what a CLI that runs its own tools reported using beyond
+	// the estimated segments: its own system prompt and tool definitions.
+	// Present only with a reported total.
+	SegCLI  = "cli"
+	SegFree = "free" // remaining window
 )
 
 // MemoryFragment is the prompt fragment counted as memory.
@@ -33,11 +37,22 @@ type Segment struct {
 	Key    string `json:"key"`
 	Label  string `json:"label"`
 	Tokens int    `json:"tokens"`
+	// Managed marks the tools segment of a model that runs its own tools
+	// (a coding CLI over ACP, llm.OwnTools): the CLI manages its tools, and
+	// the segment counts only the Crewbase tools bridged to it (MCP).
+	Managed bool `json:"managed,omitempty"`
 }
 
-// Breakdown is the context usage popover model. Used is the sum of every
-// segment except free and equals llm.EstimateRequest of the next request
-// (before agent/request middleware); Used + Free = Window when not over.
+// Breakdown is the context usage popover model.
+//
+// Estimated is the sum of the estimated segments and equals what the agent
+// loop estimates for the next request (agentloop.EstimateContext, before
+// agent/request middleware); the loop compacts on it, so OverThreshold
+// follows it. Reported is the context size a CLI that runs its own tools
+// last reported (llm.Usage.Context) plus the estimate of what was added
+// since; 0 when there is none. Used is Reported when set, else Estimated;
+// with a reported total the segments are best-effort estimates and SegCLI
+// holds the rest. Used + Free = Window when not over.
 type Breakdown struct {
 	Agent     string       `json:"agent"`
 	Session   string       `json:"session"`
@@ -45,8 +60,12 @@ type Breakdown struct {
 	Window    int          `json:"window"`
 	Threshold float64      `json:"threshold"`
 	Used      int          `json:"used"`
-	Free      int          `json:"free"`
-	Percent   float64      `json:"percent"` // Used / Window, 0..100+
+	Estimated int          `json:"estimated"`
+	Reported  int          `json:"reported,omitempty"`
+	// ToolsManaged: the model runs its own tools (see Segment.Managed).
+	ToolsManaged bool    `json:"toolsManaged,omitempty"`
+	Free         int     `json:"free"`
+	Percent      float64 `json:"percent"` // Used / Window, 0..100+
 	// OverThreshold is true when the next step will compact first.
 	OverThreshold bool      `json:"overThreshold"`
 	Segments      []Segment `json:"segments"`
@@ -80,6 +99,9 @@ func (s *Service) Usage(agentID, sessionID string) (Breakdown, error) {
 	ref := s.currentModel(a, events)
 	win := s.window(ctx, ref)
 
+	kind := ss.Meta().Kind
+	ad, _ := s.llms.Get(ref.Provider)
+
 	segs := map[string]int{}
 	// System prompt: split by section. Sections are joined with "\n\n" in
 	// Assemble; the separators are attributed to the system segment so that
@@ -96,10 +118,57 @@ func (s *Service) Usage(agentID, sessionID string) (Breakdown, error) {
 	}
 	segs[SegSystem] = max(0, total-segs[SegMemory]-segs[SegSkills])
 
-	for _, t := range s.toolsR.Schemas(agentID) {
+	// Tool definitions as the loop sends them for this session kind, and
+	// only those the model sees (a CLI gets just the bridged ones).
+	ts, managed := agentloop.ContextTools(s.c, ad, a, kind, agentloop.ToolSchemas(s.toolsR, a, kind))
+	for _, t := range ts {
 		b, _ := json.Marshal(t)
 		segs[SegTools] += llm.EstimateTokens(string(b))
 	}
+	s.countMessages(segs, events, agentID)
+	b := Breakdown{Agent: agentID, Session: sessionID, Model: ref, Window: win, Threshold: s.cfg.Threshold, ToolsManaged: managed}
+	labels := map[string]string{
+		SegSystem: "System prompt", SegMemory: "Memory", SegTools: "Tool definitions",
+		SegSkills: "Skills & sub-agents", SegToolIO: "Tool calls & results", SegMessages: "Messages",
+		SegCLI: "Used by the CLI itself", SegFree: "Free",
+	}
+	if managed {
+		labels[SegTools] = "Crewbase tools (the CLI manages its own)"
+	}
+	for _, k := range []string{SegSystem, SegMemory, SegTools, SegSkills, SegToolIO, SegMessages} {
+		b.Segments = append(b.Segments, Segment{Key: k, Label: labels[k], Tokens: segs[k], Managed: managed && k == SegTools})
+		b.Estimated += segs[k]
+	}
+	b.Used = b.Estimated
+	if managed {
+		if r := s.reported(events, agentID, ref); r > 0 {
+			b.Reported, b.Used = r, r
+			if extra := r - b.Estimated; extra > 0 {
+				b.Segments = append(b.Segments, Segment{Key: SegCLI, Label: labels[SegCLI], Tokens: extra})
+			}
+		}
+	}
+	b.Free = max(0, win-b.Used)
+	b.Segments = append(b.Segments, Segment{Key: SegFree, Label: labels[SegFree], Tokens: b.Free})
+	if win > 0 {
+		b.Percent = float64(b.Used) * 100 / float64(win)
+		b.OverThreshold = float64(b.Estimated) > s.cfg.Threshold*float64(win)
+	}
+	for _, e := range events {
+		if e.Type == session.TypeCompaction && (e.Agent == agentID || e.Agent == "") {
+			b.Compactions++
+			var c session.CompactionData
+			if e.Decode(&c) == nil {
+				b.CompactedUpto = c.UptoSeq
+			}
+		}
+	}
+	return b, nil
+}
+
+// countMessages adds the estimated message segments of agentID's history
+// in events to segs (as llm.EstimateRequest counts them).
+func (s *Service) countMessages(segs map[string]int, events []session.Event, agentID string) {
 	for _, m := range session.DeriveMessages(events, agentID, s.agents.Names()) {
 		for _, p := range m.Parts {
 			n := llm.EstimateTokens(p.Text) + 4
@@ -115,31 +184,33 @@ func (s *Service) Usage(agentID, sessionID string) (Breakdown, error) {
 			segs[key] += n
 		}
 	}
-	b := Breakdown{Agent: agentID, Session: sessionID, Model: ref, Window: win, Threshold: s.cfg.Threshold}
-	labels := map[string]string{
-		SegSystem: "System prompt", SegMemory: "Memory", SegTools: "Tool definitions",
-		SegSkills: "Skills & sub-agents", SegToolIO: "Tool calls & results", SegMessages: "Messages", SegFree: "Free",
-	}
-	for _, k := range []string{SegSystem, SegMemory, SegTools, SegSkills, SegToolIO, SegMessages} {
-		b.Segments = append(b.Segments, Segment{Key: k, Label: labels[k], Tokens: segs[k]})
-		b.Used += segs[k]
-	}
-	b.Free = max(0, win-b.Used)
-	b.Segments = append(b.Segments, Segment{Key: SegFree, Label: labels[SegFree], Tokens: b.Free})
-	if win > 0 {
-		b.Percent = float64(b.Used) * 100 / float64(win)
-		b.OverThreshold = float64(b.Used) > s.cfg.Threshold*float64(win)
-	}
-	for _, e := range events {
+}
+
+// reported is the context size the model last reported for agentID in
+// events (llm.Usage.Context of its latest reply) plus the estimate of the
+// messages added since; 0 when the latest reply came from another
+// provider, reported nothing, or a compaction followed it (the CLI then
+// starts a new session).
+func (s *Service) reported(events []session.Event, agentID string, ref llm.ModelRef) int {
+	for i := len(events) - 1; i >= 0; i-- {
+		e := events[i]
 		if e.Type == session.TypeCompaction && (e.Agent == agentID || e.Agent == "") {
-			b.Compactions++
-			var c session.CompactionData
-			if e.Decode(&c) == nil {
-				b.CompactedUpto = c.UptoSeq
-			}
+			return 0
 		}
+		if e.Type != session.TypeAssistantMessage || e.Agent != agentID {
+			continue
+		}
+		var m session.AssistantMessage
+		if e.Decode(&m) != nil || m.Usage.Context <= 0 || m.Model.Provider != ref.Provider {
+			return 0
+		}
+		before, all := map[string]int{}, map[string]int{}
+		s.countMessages(before, events[:i+1], agentID)
+		s.countMessages(all, events, agentID)
+		added := all[SegMessages] + all[SegToolIO] - before[SegMessages] - before[SegToolIO]
+		return m.Usage.Context + max(0, added)
 	}
-	return b, nil
+	return 0
 }
 
 // CompactNow compacts agentID's session ("" = current) with the agent's
@@ -241,11 +312,13 @@ func (s *Service) window(ctx context.Context, ref llm.ModelRef) int {
 	return s.cfg.DefaultWindow
 }
 
-// estimate mirrors the agent loop's request build.
-func (s *Service) estimate(agentID string, events []session.Event) int {
-	return llm.EstimateRequest(llm.Request{
-		System:   s.prompts.Assemble(agentID),
-		Messages: session.DeriveMessages(events, agentID, s.agents.Names()),
-		Tools:    s.toolsR.Schemas(agentID),
+// estimate mirrors the agent loop's request build and estimate
+// (agentloop.EstimateContext) for a in a session of kind on model.
+func (s *Service) estimate(a *agent.Agent, kind string, model llm.ModelRef, events []session.Event) int {
+	ad, _ := s.llms.Get(model.Provider)
+	return agentloop.EstimateContext(s.c, ad, a, kind, llm.Request{
+		System:   agentloop.System(s.prompts, a),
+		Messages: session.DeriveMessages(events, a.ID(), s.agents.Names()),
+		Tools:    agentloop.ToolSchemas(s.toolsR, a, kind),
 	})
 }

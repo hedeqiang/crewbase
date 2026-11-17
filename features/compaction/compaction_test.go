@@ -444,11 +444,11 @@ func TestUsageBreakdownAndConversationControls(t *testing.T) {
 		t.Fatalf("segments do not add up: %+v", b)
 	}
 	req := llm.Request{
-		System:   kernel.Use[*prompt.Assembler](e.h.Root(), prompt.ServiceKey).Assemble(a.ID()),
+		System:   agentloop.System(kernel.Use[*prompt.Assembler](e.h.Root(), prompt.ServiceKey), a),
 		Messages: session.DeriveMessages(ss.Events(), a.ID(), e.agents.Names()),
-		Tools:    e.tools.Schemas(a.ID()),
+		Tools:    e.tools.SchemasFor(a.ID(), ss.Meta().Kind),
 	}
-	if b.Used != llm.EstimateRequest(req) {
+	if b.Used != llm.EstimateRequest(req) || b.Estimated != b.Used || b.Reported != 0 || b.ToolsManaged {
 		t.Fatalf("used %d != estimate %d", b.Used, llm.EstimateRequest(req))
 	}
 	for _, k := range []string{compaction.SegSystem, compaction.SegMemory, compaction.SegTools, compaction.SegToolIO, compaction.SegMessages} {

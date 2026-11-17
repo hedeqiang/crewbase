@@ -208,7 +208,7 @@ func (s *Service) compact(ctx context.Context, a *agent.Agent, ss *session.Sessi
 	id := a.ID()
 	events := session.Visible(ss.Events(), id) // regenerated / edited history is not summarised
 	win := s.window(ctx, model)
-	before := s.estimate(id, events)
+	before := s.estimate(a, ss.Meta().Kind, model, events)
 
 	keep := s.cfg.KeepRecentTokens
 	if keep <= 0 {
@@ -289,7 +289,7 @@ func (s *Service) compact(ctx context.Context, a *agent.Agent, ss *session.Sessi
 	data := session.CompactionData{Summary: summary, UptoSeq: cut, Before: before}
 	// Estimate the context after compaction by projecting the summary.
 	raw, _ := json.Marshal(data)
-	after := s.estimate(id, append(events, session.Event{Seq: int64(len(events)) + 1, Type: session.TypeCompaction, Agent: id, Data: raw}))
+	after := s.estimate(a, ss.Meta().Kind, model, append(events, session.Event{Seq: int64(len(events)) + 1, Type: session.TypeCompaction, Agent: id, Data: raw}))
 	data.After = after
 	if _, err := ss.Append(session.TypeCompaction, id, data); err != nil {
 		return Result{}, err
