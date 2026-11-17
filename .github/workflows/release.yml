@@ -87,7 +87,8 @@ jobs:
         include:
           # one universal app (Apple Silicon + Intel): no wrong download to pick
           - { name: macOS, os: macos-latest, platform: "darwin/universal" }
-          - { name: Windows, os: ubuntu-latest, platform: "windows/amd64,windows/arm64" }
+          # 24.04: ubuntu-latest (26.04) has no nsis package for the installers
+          - { name: Windows, os: ubuntu-24.04, platform: "windows/amd64,windows/arm64" }
           - { name: Linux, os: ubuntu-latest, platform: "linux/amd64,linux/arm64" }
     steps:
       - uses: actions/checkout@v5
