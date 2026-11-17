@@ -4,13 +4,12 @@
 // provider (server, web, non-macOS) the API is absent and the page says so.
 
 import { Hand, MonitorOff, ShieldCheck } from "lucide-react";
-import { Fragment, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { API, ApiError, desktop, type ComputerOverview, type DesktopPermission } from "../../api";
 import { t, type Key } from "../../i18n";
 import { toast, useStore } from "../../store";
 import { Head, Row } from "../Settings";
 
-const GROUPS = ["passwords", "terminal", "system", "crewbase", "finance"] as const;
 
 const fail = (e: any) => toast(e?.message ?? String(e));
 
@@ -77,10 +76,10 @@ export function Computer() {
         </div>
 
         <SysPerms ov={ov} />
-        {/* no app table: each agent is asked the first time it uses an app
-            (以后都允许 remembers it, revocable in Settings › 审批) */}
+        {/* no app table or block list to fill in: each agent is asked the
+            first time it uses an app (以后都允许 remembers it, revocable in
+            Settings › 审批); a few kinds of app are never operated (safety) */}
         <p className="small muted cufoot">{t("cu.askNote")}</p>
-        <BlockTable ov={ov} run={run} />
 
         <div className="vsec">{t("cu.safety")}</div>
         <div className="box cusafe">
@@ -91,6 +90,7 @@ export function Computer() {
             <li>{t("cu.safe3")}</li>
             <li>{t("cu.safe4")}</li>
             <li>{t("cu.safe5")}</li>
+            <li>{t("cu.safe6")}</li>
           </ul>
         </div>
       </div>
@@ -188,55 +188,3 @@ function SysPerms({ ov }: { ov: ComputerOverview }) {
 }
 
 /** One agent at a time: each app with allow / ask / block. */
-/** The default block list (by group) and apps the person blocked. */
-function BlockTable({ ov, run }: { ov: ComputerOverview; run: (p: Promise<ComputerOverview>) => Promise<void> }) {
-  const [open, setOpen] = useState(false);
-  const user = ov.blocks.user;
-  return (
-    <>
-      <div className="vsec">{t("cu.blocked")}</div>
-      <div className="sbox">
-        {user.map((b) => (
-          <Row key={b.key} title={b.name} desc={b.id + " · " + t("cu.blockedByYou")}>
-            <button className="btn sm" type="button" onClick={() => void run(API.setComputerBlocked(b.key, false))}>
-              {t("cu.unblock")}
-            </button>
-          </Row>
-        ))}
-        {GROUPS.map((g) => {
-          const rows = ov.blocks.default.filter((b) => b.group === g);
-          const on = rows.filter((b) => b.blocked);
-          // collapsed: one line for what stays blocked, a row for each app let through
-          const summary = !open && on.length > 0 && (
-            <Row title={t(`cu.group.${g}` as Key)} desc={on.map((b) => b.name).join("、")}>
-              <span className="pill sm">{t("cu.blockedDefault")}</span>
-            </Row>
-          );
-          return (
-            <Fragment key={g}>
-              {summary}
-              {(open ? rows : rows.filter((b) => !b.blocked)).map((b) => (
-                <Row key={b.key} title={b.name} desc={t(`cu.group.${g}` as Key) + (b.id ? " · " + b.id : "")} dim={!b.blocked}>
-                  <button
-                    className="tg"
-                    type="button"
-                    role="switch"
-                    aria-checked={b.blocked}
-                    aria-label={t("cu.blockedToggle", { app: b.name })}
-                    onClick={() => void run(API.setComputerBlocked(b.key, !b.blocked))}
-                  />
-                </Row>
-              ))}
-            </Fragment>
-          );
-        })}
-      </div>
-      <p className="small cufoot">
-        {t("cu.blockedNote")}{" "}
-        <button className="btn sm ghost" type="button" onClick={() => setOpen(!open)}>
-          {open ? t("cu.blockedLess") : t("cu.blockedEdit")}
-        </button>
-      </p>
-    </>
-  );
-}
