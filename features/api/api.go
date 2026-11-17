@@ -4,7 +4,9 @@ package api
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -42,6 +44,38 @@ func view(a *agent.Agent) AgentView {
 		q = []agent.Input{}
 	}
 	return AgentView{Spec: a.Spec(), Status: st, Detail: d, StatusSession: a.StatusSession(), Paused: a.Paused(), Queue: q, Workspace: a.Workspace(), Effective: a.Mode()}
+}
+
+// connectorsPatch reads the "connectors" field of an agent PATCH: absent →
+// unchanged (set=false); null → no limit; a list → those connectors.
+// Names must be known connectors; names already on the agent's list are
+// kept even when their connector is gone (removed or not loaded yet), so
+// a disconnected server never blocks saving.
+func connectorsPatch(c *kernel.Context, a *agent.Agent, raw json.RawMessage) (list *[]string, set bool, err error) {
+	if len(raw) == 0 {
+		return nil, false, nil
+	}
+	if string(raw) == "null" {
+		return nil, true, nil
+	}
+	var names []string
+	if err := json.Unmarshal(raw, &names); err != nil {
+		return nil, false, gateway.BadRequest("connectors must be a list of names or null")
+	}
+	prev, _ := a.Spec().ConnectorList()
+	reg, _ := kernel.Lookup[*tools.Registry](c, tools.ServiceKey)
+	out := []string{}
+	for _, n := range names {
+		n = strings.TrimSpace(n)
+		if n == "" || slices.Contains(out, n) {
+			continue
+		}
+		if !slices.Contains(prev, n) && (reg == nil || !reg.HasConnector(n)) {
+			return nil, false, gateway.BadRequest("unknown connector %q", n)
+		}
+		out = append(out, n)
+	}
+	return &out, true, nil
 }
 
 // ProviderView describes one model provider.
@@ -274,10 +308,17 @@ var Plugin = kernel.Register(kernel.Spec{
 					Folder      *string   `json:"folder"`
 					Models      *[]string `json:"modelRefs"`
 					NativeTools *[]string `json:"nativeTools"`
+					// Connectors: the connectors (by name) the agent may use;
+					// null = every connector its scope allows.
+					Connectors json.RawMessage `json:"connectors"`
 					// ProjectDir: a folder to work in ("" = the agent's own workspace)
 					ProjectDir *string `json:"projectDir"`
 				}
 				_ = r.Decode(&b)
+				conns, setConns, err := connectorsPatch(c, a, b.Connectors)
+				if err != nil {
+					return nil, err
+				}
 				if b.ProjectDir != nil {
 					prev := a.Workspace()
 					if err := a.SetProjectDir(strings.TrimSpace(*b.ProjectDir)); err != nil {
@@ -305,6 +346,9 @@ var Plugin = kernel.Register(kernel.Spec{
 					if b.Mode != nil {
 						s.Mode = *b.Mode
 						s.ModeUntil = time.Time{}
+					}
+					if setConns {
+						s.Connectors = conns
 					}
 					if b.NativeTools != nil {
 						s.NativeTools = nil
@@ -529,6 +573,15 @@ var Plugin = kernel.Register(kernel.Spec{
 					return nil, gateway.NotFound()
 				}
 				return view(a), nil
+			}})
+		// connectors agents can be given (MCP servers, built-in connectors)
+		g.Handle(c, gateway.Route{Method: "GET", Path: "/api/connectors",
+			Handle: func(context.Context, *gateway.Request) (any, error) {
+				reg, ok := kernel.Lookup[*tools.Registry](c, tools.ServiceKey)
+				if !ok {
+					return map[string]any{"connectors": []any{}}, nil
+				}
+				return map[string]any{"connectors": reg.Connectors()}, nil
 			}})
 		g.Handle(c, gateway.Route{Method: "GET", Path: "/api/agents/{id}/tools",
 			Handle: func(_ context.Context, r *gateway.Request) (any, error) {
