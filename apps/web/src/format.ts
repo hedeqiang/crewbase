@@ -146,15 +146,6 @@ const PROVIDER_NAMES: Record<string, string> = {
   deepseek: "DeepSeek",
   ollama: "Ollama",
   lmstudio: "LM Studio",
-  "acp-claude-code": "Claude Code",
-  "claude-code": "Claude Code",
-  codex: "Codex",
-  "acp-codex": "Codex",
-  antigravity: "Antigravity",
-  "acp-antigravity": "Antigravity",
-  "acp-cursor": "Cursor CLI",
-  "acp-opencode": "OpenCode",
-  "acp-grok": "Grok CLI",
   magpie: "magpie",
   grok: "Grok",
   qwen: "Qwen",
@@ -177,13 +168,11 @@ export function userProvider(id: string): { icon?: string; name?: string } | und
 }
 
 export function providerName(id: string): string {
-  return USER_PROV[id]?.name || PROVIDER_NAMES[id] || id.replace(/^acp-/, "").replace(/(^|-)(\w)/g, (_, a, b) => (a ? " " : "") + b.toUpperCase());
+  return USER_PROV[id]?.name || PROVIDER_NAMES[id] || id.replace(/(^|-)(\w)/g, (_, a, b) => (a ? " " : "") + b.toUpperCase());
 }
 
 export function modelLabel(models: ModelsResponse | null, r: ModelRef): string {
   const m = findModel(models, r);
-  // a subscription CLI's "default": whatever model the CLI is set to
-  if (m?.name && r.model === "default" && findProvider(models, r.provider)?.kind === "subscription") return t("model.cliDefault", { name: m.name });
   if (m?.name) return m.name;
   return `${providerName(r.provider)} · ${r.model}`;
 }
@@ -200,8 +189,8 @@ export function isExhausted(models: ModelsResponse | null, r: ModelRef): { until
 /** The model the agent would use next (first non-exhausted in its order). */
 export function activeModel(models: ModelsResponse | null, a: AgentView | undefined): ModelRef | null {
   const order = a?.models ?? [];
-  // a provider that is gone (a switched-off CLI) or a model switched off is
-  // skipped, as the router does
+  // a provider that is gone or a model switched off is skipped, as the
+  // router does
   const usable = (r: ModelRef) => {
     if (!models) return true;
     const p = findProvider(models, r.provider);
@@ -345,14 +334,13 @@ export function priceCost(p: ModelPricing, u: Usage): number {
   return cost / 1e6;
 }
 
-export type Billing = "api" | "subscription" | "local" | "unknown";
+export type Billing = "api" | "local" | "unknown";
 
-/** How calls to a model are paid for: a subscription CLI (acp-*), a local
- *  model, a priced API model, or an API model with no known price. */
+/** How calls to a model are paid for: a local model, a priced API model,
+ *  or an API model with no known price. */
 export function billingOf(models: ModelsResponse | null, r: ModelRef | undefined): Billing {
   if (!r) return "unknown";
   const kind = findProvider(models, r.provider)?.kind;
-  if (r.provider.startsWith("acp-") || kind === "subscription") return "subscription";
   if (kind === "local" || r.provider === "ollama" || r.provider === "lmstudio") return "local";
   const p = findModel(models, r)?.pricing;
   return p && (p.input || p.output) ? "api" : "unknown";
@@ -364,26 +352,23 @@ export interface ReplyUsage {
   input: number;
   output: number;
   cacheRead: number;
-  /** token counts are estimates (subscription CLIs report none) */
-  estimated: boolean;
   /** USD, set only when every call of the turn has a known price or is
-   *  free to this person (subscription, local), and one was priced */
+   *  free to this person (local), and one was priced */
   cost?: number;
-  /** set when no call was priced and all were one kind of free */
-  billing?: "subscription" | "local";
+  /** set when no call was priced and all ran on a local model */
+  local?: boolean;
   /** output tokens per second of model time; unset when the timing does
-   *  not support it (no step timing, too short, or a CLI whose step time
-   *  includes its own tool runs) */
+   *  not support it (no step timing, or too short) */
   speed?: number;
 }
 
 /** What a whole turn (every model call from turn/start to turn/end) used. */
 export function replyUsage(models: ModelsResponse | null, stats: TurnStats): ReplyUsage {
-  const out: ReplyUsage = { calls: stats.steps.length, input: 0, output: 0, cacheRead: 0, estimated: false };
+  const out: ReplyUsage = { calls: stats.steps.length, input: 0, output: 0, cacheRead: 0 };
   let cost = 0;
   let priced = 0;
   let unknown = 0;
-  const free = new Set<string>();
+  let local = 0;
   let ms = 0;
   let timedOut = 0;
   let timing = true;
@@ -393,21 +378,20 @@ export function replyUsage(models: ModelsResponse | null, stats: TurnStats): Rep
     out.output += s.usage.output;
     out.cacheRead += s.usage.cacheRead ?? 0;
     const b = billingOf(models, s.model);
-    if (b === "subscription") out.estimated = true;
     const price = b === "api" && s.model ? findModel(models, s.model)?.pricing : undefined;
     if (price) {
       cost += priceCost(price, s.usage);
       priced++;
     } else if (b === "unknown" || b === "api") unknown++;
-    else free.add(b);
-    if (b === "subscription" || s.ms === undefined) timing = false;
+    else local++;
+    if (s.ms === undefined) timing = false;
     else {
       ms += s.ms;
       timedOut += s.usage.output;
     }
   }
   if (!unknown && priced) out.cost = cost;
-  else if (!unknown && !priced && free.size === 1) out.billing = [...free][0] as "subscription" | "local";
+  else if (!unknown && !priced && local) out.local = true;
   // under half a second or a handful of tokens says little about speed
   if (timing && ms >= 500 && timedOut >= 20) out.speed = timedOut / (ms / 1000);
   return out;

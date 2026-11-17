@@ -141,18 +141,14 @@ export function MonoMark({ id, label, size = 14 }: { id: string; label: string; 
   );
 }
 
-// Provider id → icon key. ACP providers are "acp-<cli>".
+// Provider id → icon key.
 const BY_PROVIDER: Record<string, string> = {
   anthropic: "anthropic",
-  "acp-claude-code": "claude",
-  "claude-code": "claude",
   claude: "claude",
   openai: "openai",
-  "acp-codex": "codex",
   codex: "codex",
   gemini: "gemini",
   google: "gemini",
-  "acp-antigravity": "antigravity",
   antigravity: "antigravity",
   deepseek: "deepseek",
   ollama: "ollama",
@@ -160,14 +156,11 @@ const BY_PROVIDER: Record<string, string> = {
   vllm: "vllm",
   xai: "xai",
   grok: "grok",
-  "acp-grok": "grok",
   qwen: "qwen",
   moonshot: "moonshot",
   kimi: "kimi",
   openrouter: "openrouter",
-  "acp-cursor": "cursor",
   cursor: "cursor",
-  "acp-opencode": "opencode",
   opencode: "opencode",
   mistral: "mistral",
   groq: "groq",

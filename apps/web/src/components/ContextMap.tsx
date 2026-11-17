@@ -21,16 +21,15 @@ export const SEG_COLORS: Record<string, string> = {
   skills: "var(--seg-skills)",
   toolio: "var(--seg-toolio)",
   messages: "var(--seg-messages)",
-  cli: "var(--muted)",
   other: "var(--cat-8)",
   free: "var(--active)",
 };
 
-const KINDS = ["system", "memory", "skills", "tools", "toolio", "messages", "cli", "other", "free"];
+const KINDS = ["system", "memory", "skills", "tools", "toolio", "messages", "other", "free"];
 
 /** Label of a segment / item kind. */
-export function kindLabel(key: string, managed?: boolean, fallback?: string): string {
-  const k = `ctx.seg.${key === "tools" && managed ? "toolsManaged" : key}` as Key;
+export function kindLabel(key: string, fallback?: string): string {
+  const k = `ctx.seg.${key}` as Key;
   const v = t(k);
   return v === k ? (fallback ?? key) : v;
 }
@@ -57,7 +56,7 @@ function status(bd: ContextBreakdown): "ok" | "near" | "over" {
 
 function itemLabel(it: ContextItem): string {
   if (it.count) return t("cmap.more", { n: it.count });
-  if (it.kind === "cli" || it.kind === "other") return kindLabel(it.kind);
+  if (it.kind === "other") return kindLabel(it.kind);
   // MCP tools are "<server>__<tool>": the server is the group, shown apart
   if (it.kind === "tools" && it.group && it.label.startsWith(it.group + "__")) return it.label.slice(it.group.length + 2);
   if (it.kind === "messages" && it.group) {
@@ -76,7 +75,7 @@ function itemsByKind(bd: ContextBreakdown): Map<string, ContextItem[]> {
   }
   for (const s of bd.segments) {
     if (s.key === "free" || s.tokens <= 0 || out.has(s.key)) continue;
-    out.set(s.key, [{ id: "seg:" + s.key, kind: s.key, label: kindLabel(s.key, s.managed, s.label), tokens: s.tokens }]);
+    out.set(s.key, [{ id: "seg:" + s.key, kind: s.key, label: kindLabel(s.key, s.label), tokens: s.tokens }]);
   }
   return out;
 }
@@ -214,7 +213,6 @@ export function ContextMap({
     for (const s of bd?.segments ?? []) if (s.tokens > 0) m.set(s.key, s.tokens);
     return m;
   }, [bd]);
-  const managed = !!bd?.toolsManaged && !bd?.recorded;
   const withFree = showFree ?? (win > 0 && used / win >= 0.35);
 
   return createPortal(
@@ -275,7 +273,7 @@ export function ContextMap({
                       <span>{modelLabel(models, model)}</span>
                     </span>
                   )}
-                  <span className={"pill sm " + (bd.counted ? "blue" : "")} title={t(bd.counted ? (managed ? "ctx.reported" : "cmap.countedTip") : managed ? "ctx.managedEstimate" : "cmap.estimatedTip")}>
+                  <span className={"pill sm " + (bd.counted ? "blue" : "")} title={t(bd.counted ? "cmap.countedTip" : "cmap.estimatedTip")}>
                     {t(bd.counted ? "cmap.counted" : "cmap.estimated")}
                   </span>
                 </div>
@@ -294,7 +292,7 @@ export function ContextMap({
                         onClick={() => setShowFree(!withFree)}
                       >
                         <i className="free" />
-                        <span>{kindLabel(k, managed)}</span>
+                        <span>{kindLabel(k)}</span>
                         <b>{kfmt(totals.get(k) ?? 0)}</b>
                       </button>
                     ) : (
@@ -307,7 +305,7 @@ export function ContextMap({
                       onClick={() => setKind(kind === k ? null : k)}
                     >
                       <i style={{ background: SEG_COLORS[k] }} />
-                      <span>{kindLabel(k, managed)}</span>
+                      <span>{kindLabel(k)}</span>
                       <b>{kfmt(totals.get(k) ?? 0)}</b>
                     </button>
                     ),
@@ -337,7 +335,6 @@ export function ContextMap({
               </div>
 
               {bd.overThreshold && <p className="small warnline cxnote">{t("ctx.over")}</p>}
-              {managed && <p className="small cxnote">{bd.reported ? t("ctx.reported") : t("ctx.managedEstimate")}</p>}
               {bd.recorded && <p className="small cxnote">{t("cmap.recorded")}</p>}
               <p className="small cxnote">
                 {t("ctx.note")}
@@ -392,14 +389,14 @@ function Treemap({ bd, kind, sel, withFree, onPick }: { bd: ContextBreakdown; ki
         const style: CSSProperties = { left: r.x, top: r.y, width: Math.max(0, r.w - 2), height: Math.max(0, r.h - 2) };
         if (!free) (style as Record<string, string | number>)["--c"] = blockColor(b.kind);
         const label = free ? kindLabel("free") : itemLabel(b);
-        const cls = "cxblk" + (free ? " free" : "") + (kind && kind !== b.kind ? " dim" : "") + (sel?.id === b.id ? " on" : "") + (b.kind === "cli" || b.kind === "other" ? " opaque" : "");
+        const cls = "cxblk" + (free ? " free" : "") + (kind && kind !== b.kind ? " dim" : "") + (sel?.id === b.id ? " on" : "") + (b.kind === "other" ? " opaque" : "");
         const aria = `${label} · ${kfmt(b.tokens)} · ${pctOf(b.tokens, total)}%`;
         const inner = (
           <>
             {name && <span className="n">{label}</span>}
             {big && (
               <span className="v">
-                {kfmt(b.tokens)} · {free ? pctOf(b.tokens, total) + "%" : kindLabel(b.kind, bd.toolsManaged && !bd.recorded)}
+                {kfmt(b.tokens)} · {free ? pctOf(b.tokens, total) + "%" : kindLabel(b.kind)}
               </span>
             )}
           </>
@@ -449,7 +446,7 @@ function ItemList({ bd, kind, sel, onPick }: { bd: ContextBreakdown; kind: strin
           <span className="g">
             <span className="n">{itemLabel(it)}</span>
             <span className="k">
-              {kindLabel(it.kind, bd.toolsManaged && !bd.recorded)}
+              {kindLabel(it.kind)}
               {it.group && it.kind !== "messages" ? " · " + it.group : ""}
             </span>
           </span>
@@ -482,7 +479,7 @@ function Detail({
   const [c, setC] = useState<ContextItemContent | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const { copied, copy } = useCopy();
-  const opaque = block.kind === "cli" || block.kind === "other" || block.id.startsWith("seg:");
+  const opaque = block.kind === "other" || block.id.startsWith("seg:");
   useEffect(() => {
     setC(null);
     setErr(null);
@@ -504,7 +501,7 @@ function Detail({
         <div className="g">
           <b title={itemLabel(block)}>{itemLabel(block)}</b>
           <span>
-            {kindLabel(block.kind, bd.toolsManaged && !bd.recorded)}
+            {kindLabel(block.kind)}
             {block.group && block.kind !== "messages" ? " · " + block.group : ""}
           </span>
         </div>
@@ -519,7 +516,6 @@ function Detail({
       </div>
       <div className="cxdm">{t("cmap.pctOf", { tokens: block.tokens.toLocaleString(), pct: pctOf(block.tokens, total) })}</div>
       <div className="cxdb">
-        {block.kind === "cli" && <p className="small">{t("cmap.cliNote")}</p>}
         {block.kind === "other" && <p className="small">{t(bd.used > 0 && block.tokens > bd.used * 0.3 ? "cmap.otherNoteBig" : "cmap.otherNote")}</p>}
         {block.members && (
           <div className="cxmembers">

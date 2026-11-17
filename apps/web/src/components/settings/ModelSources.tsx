@@ -95,7 +95,7 @@ const when = (iso: string) => {
 const srcName =(st: CatalogStatus["sources"][number]) =>
   st.format === "openrouter" ? "OpenRouter" : st.format === "litellm" ? "LiteLLM" : st.url.replace(/^https?:\/\//, "").split("/")[0];
 
-/** Settings › 模型与订阅 › 模型资料: where context windows and prices come
+/** Settings › 模型 › 模型资料: where context windows and prices come
  *  from, when they were updated, 立即更新, and the source URLs. */
 export function ModelCatalog() {
   const [st, setSt] = useState<CatalogStatus | null>(null);

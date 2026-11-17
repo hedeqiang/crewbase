@@ -7,7 +7,7 @@ import { refreshModels, toast, useStore } from "../../store";
 import { ProviderMark } from "../ProviderMark";
 import { useSettingsData } from "../Settings";
 
-/** 模型与订阅 › 路由与切换. */
+/** 模型 › 路由与切换. */
 export function Routing() {
   const models = useStore((s) => s.models);
   const all = useMemo(() => allModels(models), [models]);

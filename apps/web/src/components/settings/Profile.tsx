@@ -62,13 +62,9 @@ export function Profile() {
               <Stat label={t("prof.messages")} value={String(u.messages)} />
               <Stat label={t("prof.switches")} value={String(u.switches)} sub={t("prof.interventions", { n: u.interventions })} />
               <Stat
-                label={t("prof.saved")}
-                value={"$" + u.savedUsd.toFixed(u.savedUsd < 10 ? 2 : 0)}
-                sub={
-                  t("prof.savedSub", { spent: "$" + u.spentUsd.toFixed(2) }) +
-                  ((u.gatewayUsd ?? 0) > 0 ? t("prof.viaGateway", { amount: "$" + (u.gatewayUsd ?? 0).toFixed(2) }) : "")
-                }
-                tone={u.savedUsd > 0 ? "ok" : undefined}
+                label={t("prof.spent")}
+                value={"$" + u.spentUsd.toFixed(u.spentUsd < 10 ? 2 : 0)}
+                sub={(u.gatewayUsd ?? 0) > 0 ? t("prof.viaGateway", { amount: "$" + (u.gatewayUsd ?? 0).toFixed(2) }) : ""}
               />
             </div>
             <div className="vsec">{t("prof.activity")}</div>
