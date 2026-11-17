@@ -30,13 +30,13 @@ const (
 
 // installExtras registers the resource / prompt tools the server
 // supports, on tc (the same context as its tools).
-func (c *conn) installExtras(tc *kernel.Context, sess *session) int {
+func (c *conn) installExtras(tc *kernel.Context, sess *session, f *ToolFilter) int {
 	ir := sess.cs.InitializeResult()
 	if ir == nil || ir.Capabilities == nil {
 		return 0
 	}
 	n := 0
-	if ir.Capabilities.Resources != nil {
+	if ir.Capabilities.Resources != nil && f.Allows(resourcesSuffix, ToolName(c.srv.Name, resourcesSuffix)) {
 		c.s.tools.Register(tc, &tools.Tool{
 			Name: ToolName(c.srv.Name, resourcesSuffix),
 			Description: truncate(fmt.Sprintf("[MCP %s] Resources the server exposes (files, records, documents). "+
@@ -46,11 +46,13 @@ func (c *conn) installExtras(tc *kernel.Context, sess *session) int {
 				"uri":    tools.Prop("string", "resource URI to read"),
 			}, "action"),
 			Category: tools.CategoryRead,
+			Source:   c.srv.Name,
+			Teams:    teamsOf(c.srv),
 			Execute:  c.resources,
 		})
 		n++
 	}
-	if ir.Capabilities.Prompts != nil {
+	if ir.Capabilities.Prompts != nil && f.Allows(promptSuffix, ToolName(c.srv.Name, promptSuffix)) {
 		c.s.tools.Register(tc, &tools.Tool{
 			Name: ToolName(c.srv.Name, promptSuffix),
 			Description: truncate(fmt.Sprintf("[MCP %s] Prompt templates the server offers. action=list shows them with their "+
@@ -61,6 +63,8 @@ func (c *conn) installExtras(tc *kernel.Context, sess *session) int {
 				"arguments": map[string]any{"type": "object", "additionalProperties": map[string]any{"type": "string"}},
 			}, "action"),
 			Category: tools.CategoryRead,
+			Source:   c.srv.Name,
+			Teams:    teamsOf(c.srv),
 			Execute:  c.prompts,
 		})
 		n++

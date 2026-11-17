@@ -3,7 +3,7 @@
 // an MCP server's tool list.
 import { useEffect, useState } from "react";
 import { Plus, RefreshCw, X } from "lucide-react";
-import { API, type McpServer, type McpTool, type Permissions, type PluginView } from "../../api";
+import { API, type McpServer, type McpTool, type McpToolFilter, type Permissions, type PluginView } from "../../api";
 import { t, type Key } from "../../i18n";
 import { toast, useStore } from "../../store";
 import { catLabel } from "../Settings";
@@ -136,13 +136,45 @@ export function ApproveDialog({ p, onClose, onDone }: { p: PluginView; onClose: 
 
 export const MCP_TONE: Record<string, string> = { ready: "ok", connecting: "blue", error: "red", disabled: "", login: "amber" };
 
-export function McpTools({ name, onProbed }: { name: string; onProbed: () => void }) {
+/** The filter after switching tool x on or off: off adds it to exclude;
+ *  on drops it from exclude (and adds it to include when an include list
+ *  would still keep it out). */
+export function toggleTool(f: McpToolFilter | null | undefined, x: McpTool, on: boolean): McpToolFilter {
+  let include = [...(f?.include ?? [])];
+  let exclude = [...(f?.exclude ?? [])];
+  if (!on) exclude = [...new Set([...exclude, x.original])];
+  else {
+    exclude = exclude.filter((p) => p !== x.original && p !== x.name);
+    if (include.length && !include.includes(x.original)) include = [...include, x.original];
+  }
+  return { include, exclude };
+}
+
+/** A server's tools as a checklist: switching one off keeps it from being
+ *  registered (sent to models). server unset = read-only list. */
+export function McpTools({ name, server, onProbed }: { name: string; server?: McpServer; onProbed: () => void }) {
   const [tools, setTools] = useState<McpTool[] | null>(null);
   const [probing, setProbing] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const filter = server?.tools;
+  const load = () => API.mcpTools(name).then((r) => setTools(r.tools ?? []), () => setTools([]));
   useEffect(() => {
-    API.mcpTools(name).then((r) => setTools(r.tools ?? []), () => setTools([]));
-  }, [name]);
+    void load();
+  }, [name, JSON.stringify(filter ?? null), server?.status?.tools]);
+  const toggle = async (x: McpTool, on: boolean) => {
+    setBusy(true);
+    try {
+      await API.patchMcp(name, { tools: toggleTool(filter, x, on) });
+      setTools((ts) => ts?.map((y) => (y.name === x.name ? { ...y, enabled: on } : y)) ?? ts);
+      onProbed();
+    } catch (e) {
+      toast(errMsg(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+  const off = tools?.filter((x) => x.enabled === false).length ?? 0;
   const probe = async () => {
     setProbing(true);
     try {
@@ -166,6 +198,7 @@ export function McpTools({ name, onProbed }: { name: string; onProbed: () => voi
           {t("ext.probe")}
         </button>
         {msg && <span className="small">{msg}</span>}
+        {server && tools && tools.length > 0 && <span className="small">{t("ext.toolsOnOff", { on: tools.length - off, n: tools.length })}</span>}
       </div>
       {tools === null ? (
         <p className="small">{t("common.loading")}</p>
@@ -173,10 +206,28 @@ export function McpTools({ name, onProbed }: { name: string; onProbed: () => voi
         <p className="small">{t("ext.noTools")}</p>
       ) : (
         tools.map((x) => (
-          <div className="runrow" key={x.name}>
+          <div className={"runrow" + (x.enabled === false ? " off" : "")} key={x.name}>
             <code>{x.original}</code>
-            <span className="g small">{x.description}</span>
+            <span className="g small" title={x.description}>
+              {x.description}
+            </span>
+            {x.large && (
+              <span className="pill amber sm" title={t("ext.toolLargeTip", { n: Math.round((x.schemaSize ?? 0) / 1000) })}>
+                {t("ext.toolLarge")}
+              </span>
+            )}
             <span className={"pill " + (x.category === "read" ? "" : "amber")}>{catLabel(x.category)}</span>
+            {server && (
+              <button
+                className="tg"
+                type="button"
+                role="switch"
+                disabled={busy}
+                aria-checked={x.enabled !== false}
+                aria-label={t("ext.toolSwitch", { name: x.original })}
+                onClick={() => toggle(x, x.enabled === false)}
+              />
+            )}
           </div>
         ))
       )}

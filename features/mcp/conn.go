@@ -42,15 +42,19 @@ type conn struct {
 	// started (its sandbox policy is read-only).
 	readOnly bool
 
+	instMu sync.Mutex // serializes install
+
 	mu      sync.Mutex
 	st      Status
 	cur     *session
 	infos   []ToolInfo
 	toolCtx *kernel.Context
+	filter  *ToolFilter // the server's current tool filter
+	list    []*sdk.Tool // the last tool list installed (for filter changes)
 }
 
 func newConn(s *Service, e *entry, srv Server, ctx *kernel.Context) *conn {
-	c := &conn{s: s, e: e, srv: srv, ctx: ctx, settled: make(chan struct{}), refresh: make(chan struct{}, 1)}
+	c := &conn{s: s, e: e, srv: srv, ctx: ctx, settled: make(chan struct{}), refresh: make(chan struct{}, 1), filter: srv.Tools.clone()}
 	c.st = Status{State: StateConnecting, Since: time.Now().UTC()}
 	ctx.Defer(func() { s.detach(e, c) })
 	// Runs after the supervising goroutine returned: drops the tools even
@@ -234,10 +238,29 @@ func (c *conn) serve(ctx context.Context, sess *session) {
 	}
 }
 
+// setFilter applies a new tool filter, re-registering the last list.
+func (c *conn) setFilter(f *ToolFilter) {
+	c.mu.Lock()
+	c.filter = f.clone()
+	list, sess := c.list, c.cur
+	c.mu.Unlock()
+	if list != nil {
+		c.install(list, sess)
+	}
+}
+
 // install replaces the registered tools with list (plus the resource /
-// prompt tools when sess advertises them).
+// prompt tools when sess advertises them), keeping those the server's
+// tool filter lets through.
 func (c *conn) install(list []*sdk.Tool, sess *session) {
-	infos := describe(c.srv, list)
+	c.instMu.Lock()
+	defer c.instMu.Unlock()
+	srv := c.srv
+	c.mu.Lock()
+	srv.Tools = c.filter
+	c.mu.Unlock()
+	infos := describe(srv, list)
+	registered := 0
 	// Register the new list first, then drop the old one: the scoped
 	// registry lets the newest registration of a name win and disposes in
 	// any order, so there is no window without the server's tools.
@@ -247,6 +270,15 @@ func (c *conn) install(list []*sdk.Tool, sess *session) {
 			break
 		}
 		info := infos[i]
+		if !info.Enabled {
+			continue
+		}
+		if info.Large { // logged once per tool, only while it is registered
+			if _, seen := c.s.large.LoadOrStore(c.srv.Name+"/"+info.Original, true); !seen {
+				c.ctx.Log().Warn("mcp: tool input schema is large; consider turning the tool off", "server", c.srv.Name, "tool", info.Original, "chars", info.SchemaSize)
+			}
+		}
+		registered++
 		params := inputSchema(t.InputSchema)
 		desc := t.Description
 		if desc == "" {
@@ -261,17 +293,18 @@ func (c *conn) install(list []*sdk.Tool, sess *session) {
 			AllowedRoots: GrantedRoots(c.srv),
 			Unconfined:   c.srv.Transport == TransportStdio && c.srv.Trust == TrustHost,
 			Teams:        teamsOf(c.srv),
+			Source:       c.srv.Name,
 			Execute:      c.execute(info.Original),
 		})
 	}
 	extra := 0
 	if sess != nil {
-		extra = c.installExtras(tc, sess)
+		extra = c.installExtras(tc, sess, srv.Tools)
 	}
 	c.mu.Lock()
 	old := c.toolCtx
-	c.toolCtx, c.infos = tc, infos
-	c.st.Tools = len(infos) + extra
+	c.toolCtx, c.infos, c.list = tc, infos, list
+	c.st.Tools = registered + extra
 	c.mu.Unlock()
 	if old != nil {
 		old.Dispose()
@@ -320,7 +353,14 @@ func describe(srv Server, list []*sdk.Tool) []ToolInfo {
 		} else if v, ok := srv.Categories[name]; ok {
 			cat = v
 		}
-		out = append(out, ToolInfo{Name: name, Original: t.Name, Description: t.Description, Category: cat})
+		size := 0
+		if t.InputSchema != nil {
+			if b, err := json.Marshal(t.InputSchema); err == nil {
+				size = len(b)
+			}
+		}
+		out = append(out, ToolInfo{Name: name, Original: t.Name, Description: t.Description, Category: cat,
+			Enabled: srv.Tools.Allows(t.Name, name), SchemaSize: size, Large: size > LargeSchema})
 	}
 	return out
 }

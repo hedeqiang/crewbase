@@ -93,6 +93,7 @@ var Plugin = kernel.Register(kernel.Spec{
 		if err := c.Provide(catalog.ConnectorKey("google"), catalog.Connector(connector{s})); err != nil {
 			return err
 		}
+		reg.AddConnectors(c, s.connectorInfos)
 		s.syncTools()
 		return nil
 	},

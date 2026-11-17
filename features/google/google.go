@@ -892,11 +892,32 @@ func (s *Service) syncTools() {
 			}
 			for _, t := range p.tools(s) {
 				t.Teams = teams
+				t.Source = p.CatalogID // agents' connector lists name it
 				s.reg.Register(sub, t)
 			}
 			s.subs[p.ID], s.subScope[p.ID] = sub, scope
 		}
 	}
+}
+
+// connectorInfos lists the connected products as connectors agents can be
+// given (by catalog id, the Source of their tools).
+func (s *Service) connectorInfos() []tools.ConnectorInfo {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	var out []tools.ConnectorInfo
+	for _, p := range Products {
+		ps, ok := s.st.Products[p.ID]
+		if !ok {
+			continue
+		}
+		scope := ps.Scope
+		if scope == "" {
+			scope = "global"
+		}
+		out = append(out, tools.ConnectorInfo{Name: p.CatalogID, Label: p.Name, Kind: "builtin", Scope: scope, Tools: len(p.tools(s))})
+	}
+	return out
 }
 
 // ---------------------------------------------------------------- API calls

@@ -59,6 +59,8 @@ export interface AgentView {
   workspace: string;
   effectiveMode: Mode;
   nativeTools?: string[] | null;
+  /** connectors (by name) the agent may use; unset/null = every connector its scope allows */
+  connectors?: string[] | null;
   /** "chat" for a blank chat (no persona, instructions or memory) */
   kind?: string;
   /** a sub-agent made for one delegated task (lives in its parent's task panel, not in the list) */
@@ -620,13 +622,32 @@ export interface McpServer {
   trust?: string;
   source?: string;
   oauth?: { clientId?: string; clientSecret?: string };
+  /** which of the server's tools are registered (globs); unset = all */
+  tools?: McpToolFilter | null;
   status: McpStatus;
+}
+export interface McpToolFilter {
+  include?: string[];
+  exclude?: string[];
 }
 export interface McpTool {
   name: string;
   original: string;
   description?: string;
   category: string;
+  /** the server's tool filter lets it through */
+  enabled?: boolean;
+  schemaSize?: number;
+  /** input schema over ~8k characters */
+  large?: boolean;
+}
+/** A connector agents can be given (GET /api/connectors). */
+export interface ConnectorInfo {
+  name: string;
+  label?: string;
+  kind: "mcp" | "builtin" | string;
+  scope: string;
+  tools: number;
 }
 
 export interface Permissions {
@@ -1129,6 +1150,7 @@ export const API = {
   deleteMcp: (name: string) => api("DELETE", `/api/mcp/${enc(name)}`),
   probeMcp: (name: string) => api<{ ok: boolean; error?: string; tools: McpTool[] }>("POST", `/api/mcp/${enc(name)}/probe`),
   mcpTools: (name: string) => api<{ tools: McpTool[] | null; status: McpStatus }>("GET", `/api/mcp/${enc(name)}/tools`),
+  connectors: () => api<{ connectors: ConnectorInfo[] | null }>("GET", "/api/connectors"),
 
   plugins: () => api<{ plugins: PluginView[] | null }>("GET", "/api/plugins/installed"),
   market: () => api<{ plugins: MarketEntry[] }>("GET", "/api/market"),

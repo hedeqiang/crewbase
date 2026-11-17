@@ -14,6 +14,7 @@ import { ProviderMark } from "./ProviderMark";
 import { shortPath, SubFeed } from "./Conversation";
 import { PanelView, useSlot } from "./UISlots";
 import { confirmDialog } from "./Confirm";
+import { AgentConnectors } from "./AgentConnectors";
 
 export function Panel() {
   const current = useStore((s) => s.current);
@@ -714,6 +715,8 @@ function AgentTab({ agent, sessionId }: { agent: AgentView; sessionId: string })
           </div>
         </>
       )}
+
+      <AgentConnectors agent={agent} />
 
       <div className="psec">{t("panel.context")}</div>
       <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12.5 }}>

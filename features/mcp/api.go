@@ -24,6 +24,8 @@ type Patch struct {
 	// TrustAnnotations / Categories: see Server.
 	TrustAnnotations *bool              `json:"trustAnnotations"`
 	Categories       *map[string]string `json:"categories"`
+	// Tools replaces the tool filter ({} or empty lists clear it).
+	Tools *ToolFilter `json:"tools"`
 }
 
 // Apply applies p to s.
@@ -57,6 +59,9 @@ func (p Patch) Apply(s *Server) {
 	}
 	if p.Categories != nil {
 		s.Categories = *p.Categories
+	}
+	if p.Tools != nil {
+		s.Tools = p.Tools.clone()
 	}
 }
 

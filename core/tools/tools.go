@@ -112,6 +112,11 @@ type Tool struct {
 	// Teams limits the tool to agents of these teams (e.g. an MCP server a
 	// team shares); elsewhere it is invisible. Empty = every agent.
 	Teams []string
+	// Source is the connector the tool comes from (an MCP server's name, a
+	// built-in connector's name such as "gmail"); "" for built-in tools.
+	// Agents with a connector list see only the listed sources' tools
+	// (connectors.go); tools without a Source are never filtered by it.
+	Source string
 	// Unconfined marks tools whose work happens outside Crewbase's sandbox
 	// (e.g. a host-trusted MCP server's process): in read-only mode only
 	// their read / none categories may run, whatever sandbox is loaded.
@@ -221,6 +226,7 @@ type Registry struct {
 	// agents plugin).
 	teamOf func(agent string) string
 	park   parking
+	conns  connectorState
 }
 
 // SetTeamOf installs the agent → team resolver team-scoped tools need.
@@ -234,6 +240,12 @@ func (r *Registry) inTeam(agent string, t *Tool) bool {
 		return false
 	}
 	return slices.Contains(t.Teams, r.teamOf(agent))
+}
+
+// visibleTo applies the per-agent filters on top of scoping: the tool's
+// teams and the agent's connector list.
+func (r *Registry) visibleTo(agent string, t *Tool) bool {
+	return r.inTeam(agent, t) && r.connectorAllowed(agent, t)
 }
 
 func NewRegistry(h *kernel.Host) *Registry {
@@ -256,7 +268,7 @@ func (r *Registry) Restrict(c *kernel.Context, keep scope.Filter) { r.reg.Restri
 // Get resolves a tool visible to agent.
 func (r *Registry) Get(agent, name string) (*Tool, bool) {
 	t, ok := r.reg.Get(agent, name)
-	if ok && !r.inTeam(agent, t) {
+	if ok && !r.visibleTo(agent, t) {
 		return nil, false
 	}
 	return t, ok
@@ -266,7 +278,7 @@ func (r *Registry) Get(agent, name string) (*Tool, bool) {
 func (r *Registry) Visible(agent string) []*Tool {
 	var out []*Tool
 	for _, n := range r.reg.Visible(agent) {
-		if r.inTeam(agent, n.Value) {
+		if r.visibleTo(agent, n.Value) {
 			out = append(out, n.Value)
 		}
 	}

@@ -268,8 +268,11 @@ func TestConnectRefreshAndSignOut(t *testing.T) {
 	if !v.Connected || v.Email != "me@example.com" || !e.product(v, "gmail").Connected || e.product(v, "calendar").Connected {
 		t.Fatalf("%+v", v)
 	}
-	if _, ok := e.reg.Get("", "gmail_search"); !ok {
-		t.Fatal("gmail tools missing")
+	if tl, ok := e.reg.Get("", "gmail_search"); !ok || tl.Source != "gmail" {
+		t.Fatal("gmail tools missing or untagged", tl)
+	}
+	if cs := e.reg.Connectors(); len(cs) != 1 || cs[0].Name != "gmail" || cs[0].Kind != "builtin" || cs[0].Tools == 0 {
+		t.Fatalf("connectors: %+v", cs)
 	}
 	if _, ok := e.reg.Get("", "calendar_list_events"); ok {
 		t.Fatal("calendar tools before connecting calendar")
