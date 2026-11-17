@@ -3,6 +3,16 @@
 Each `## <version>` section becomes the release notes of that version,
 shown in the desktop app's update window.
 
+## 0.5.9
+
+每次对话占用的上下文大幅减少；OpenAI 新模型改用 Responses 接口；更新改为在应用里原地下载。
+
+- 上下文：工具多的时候改为按需加载（Notion、GitHub 这类连接器的工具不再每次全部发送）。实测 180 个工具时每次请求从约 8.1 万降到约 4.5 千 token；Claude 用官方工具搜索并缓存对话历史
+- 上下文显示修正：Claude Code 等订阅 CLI 不再把 Crewbase 的工具算进去，总量用 CLI 上报的真实用量；自动压缩不再过早触发
+- 连接器可以按 Agent 分配（Agent 设置 › 可用的连接器），每个服务的工具可以逐个开关；Notion 这类大连接器会提示只给需要的 Agent
+- GPT-5 / GPT-6 等 OpenAI 新模型（官方和经 magpie）改用 Responses 接口，修复「带工具 + 推理强度」时报 400；账号不支持某个模型时自动换下一个，并用看得懂的话说明
+- 更新：不再弹出更新窗口，发现新版本后在侧栏里原地下载（有进度），下载完下次退出时自动安装，也可以点「重启以完成更新」；更新内容点「查看更新内容」查看
+
 ## 0.5.8
 
 电脑操作在真机上跑通了一遍：用你的 Chrome 发了一条推文，并修好了跑的过程中发现的问题。
