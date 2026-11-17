@@ -270,13 +270,13 @@ func (c *conn) install(list []*sdk.Tool, sess *session) {
 			break
 		}
 		info := infos[i]
-		if info.Large {
+		if !info.Enabled {
+			continue
+		}
+		if info.Large { // logged once per tool, only while it is registered
 			if _, seen := c.s.large.LoadOrStore(c.srv.Name+"/"+info.Original, true); !seen {
 				c.ctx.Log().Warn("mcp: tool input schema is large; consider turning the tool off", "server", c.srv.Name, "tool", info.Original, "chars", info.SchemaSize)
 			}
-		}
-		if !info.Enabled {
-			continue
 		}
 		registered++
 		params := inputSchema(t.InputSchema)
