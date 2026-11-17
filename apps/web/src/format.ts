@@ -27,9 +27,14 @@ export function statusTone(s: string): "run" | "wait" | "err" | "idle" | "ok" {
 /** Human text for an agent's status detail ("takeover:<reason>", "approval:<id>"). */
 /** A failure because no model is set up (wording from core/llm). */
 export const NO_MODEL = /provider not configured|no (usable |available )?(model|provider)s?\b|unknown provider/i;
+/** A failure because the account or plan behind a model cannot use it
+ *  (llm.ErrModelUnavailable; e.g. Codex on a ChatGPT account). Checked
+ *  before NO_MODEL: "no available model: …: model_unavailable: …" is this. */
+export const MODEL_UNAVAILABLE = /\bmodel_unavailable\b|not supported when using Codex with a ChatGPT account/i;
 
 export function detailLabel(detail?: string): string {
   if (!detail) return "";
+  if (MODEL_UNAVAILABLE.test(detail)) return t("conn.modelUnavailable");
   if (NO_MODEL.test(detail)) return t("conn.none");
   if (detail.startsWith("takeover:")) return t("status.takeover", { reason: detail.slice(9) || "login" });
   if (detail.startsWith("approval:")) return t("list.waitApprove");
