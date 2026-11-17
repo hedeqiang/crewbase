@@ -20,7 +20,10 @@ var (
 	reRate  = regexp.MustCompile(`(?i)rate.?limit|too many requests|\b429\b`)
 	reAuth  = regexp.MustCompile(`(?i)authentication required|auth required|run /login|not logged in|please log ?in|login required|unauthori[sz]ed|\b401\b|invalid api key|refresh token|token (has )?expired|codex login`)
 	reCtx   = regexp.MustCompile(`(?i)context window|context length|context_length_exceeded|prompt is too long|ran out of room`)
-	reBusy  = regexp.MustCompile(`(?i)overloaded|high demand|service unavailable|\b50[23]\b`)
+	// A model the account or plan cannot use ("The 'gpt-6.1-sol' model is
+	// not supported when using Codex with a ChatGPT account").
+	rePlanModel = regexp.MustCompile(`(?i)model\b.*\b(not supported when using|is not supported (on|for|with)|not available (on|for|with|to)|not enabled for|requires a)\b.*\b(account|plan|subscription|tier)\b`)
+	reBusy      = regexp.MustCompile(`(?i)overloaded|high demand|service unavailable|\b50[23]\b`)
 
 	reRetryIn = regexp.MustCompile(`(?i)(?:try again|retry|resets?) in (\d+)\s*(second|sec|minute|min|hour|hr|day)s?`)
 	reEpoch   = regexp.MustCompile(`\|(\d{10})\b`) // "Claude AI usage limit reached|1735689600"
@@ -33,6 +36,8 @@ func classifyText(s string) llm.ErrorKind {
 	switch {
 	case s == "":
 		return ""
+	case rePlanModel.MatchString(s):
+		return llm.ErrModelUnavailable
 	case reQuota.MatchString(s):
 		return llm.ErrQuotaExhausted
 	case reRate.MatchString(s):

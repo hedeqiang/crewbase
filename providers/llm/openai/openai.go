@@ -21,7 +21,9 @@
 //	    "maxTokensField": "max_tokens",          // or max_completion_tokens
 //	    "streamUsage": true,                     // send stream_options.include_usage
 //	    "shortToolIDs": false,                   // remap tool call ids to 9 alnum chars (Mistral)
-//	    "defaultContextWindow": 0                // reported for fetched models of unknown window
+//	    "defaultContextWindow": 0,               // reported for fetched models of unknown window
+//	    "responses": "auto",                     // auto | always | never (see responses.go)
+//	    "toolSearch": null                       // force OpenAI's hosted tool search on / off
 //	}]}
 package openai
 
@@ -65,7 +67,7 @@ type Preset struct {
 
 // Presets maps preset id → defaults.
 var Presets = map[string]Preset{
-	"openai":      {BaseURL: "https://api.openai.com/v1", APIKeyEnv: "OPENAI_API_KEY", EffortStyle: "openai", MaxTokensField: "max_completion_tokens", EffortModels: regexp.MustCompile(`^(o\d|gpt-5)`)},
+	"openai":      {BaseURL: "https://api.openai.com/v1", APIKeyEnv: "OPENAI_API_KEY", EffortStyle: "openai", MaxTokensField: "max_completion_tokens", EffortModels: regexp.MustCompile(`^(o\d|gpt-[5-9]|codex)`)},
 	"deepseek":    {BaseURL: "https://api.deepseek.com", APIKeyEnv: "DEEPSEEK_API_KEY", EffortStyle: "deepseek"},
 	"moonshot":    {BaseURL: "https://api.moonshot.cn/v1", APIKeyEnv: "MOONSHOT_API_KEY", EffortStyle: "none"},
 	"qwen":        {BaseURL: "https://dashscope.aliyuncs.com/compatible-mode/v1", APIKeyEnv: "DASHSCOPE_API_KEY", EffortStyle: "qwen", EffortModels: regexp.MustCompile(`qwen3|qwen-plus|qwen-turbo|qwen-flash|qwq`)},
@@ -99,9 +101,15 @@ type ProviderConfig struct {
 	SafetyCheck string `json:"safetyCheck,omitempty"`
 	// DefaultContextWindow is reported for fetched models whose window is unknown.
 	DefaultContextWindow int `json:"defaultContextWindow,omitempty"`
-	// Responses sends requests that use the native computer tool through
-	// the Responses API (default: on for the openai preset only).
-	Responses *bool `json:"responses,omitempty"`
+	// Responses chooses when the Responses API is used instead of Chat
+	// Completions: "auto" (OpenAI reasoning models, and native computer
+	// use), "always" or "never". Default: auto for the openai preset,
+	// never otherwise. JSON true / false (older configs) mean auto / never.
+	Responses ResponsesMode `json:"responses,omitempty"`
+	// ToolSearch forces OpenAI's hosted tool search (tool_search with
+	// defer_loading) on or off; by default it is on for GPT-5.4 and later
+	// on the openai preset when the request goes through Responses.
+	ToolSearch *bool `json:"toolSearch,omitempty"`
 }
 
 // Config is the plugin config.
@@ -124,7 +132,11 @@ type Adapter struct {
 	defWindow    int
 	httpClient   *http.Client
 	pollEvery    time.Duration // video job polling (default 10s)
-	responses    bool          // the computer tool through the Responses API
+	official     bool          // the openai preset (OpenAI's own API)
+	respMode     ResponsesMode // auto | always | never
+	respExplicit bool          // respMode came from the config
+	toolSearch   *bool
+	routes       *routeState // what was learned about the endpoints
 
 	mu       sync.Mutex
 	safety   string
@@ -188,10 +200,20 @@ func New(c *kernel.Context, pc ProviderConfig) (*Adapter, error) {
 	if pc.ShortToolIDs != nil {
 		a.shortIDs = *pc.ShortToolIDs
 	}
-	a.responses = pname == "openai"
-	if pc.Responses != nil {
-		a.responses = *pc.Responses
+	a.official = pname == "openai"
+	a.respMode = ResponsesNever
+	if a.official {
+		a.respMode = ResponsesAuto
 	}
+	switch pc.Responses {
+	case "":
+	case ResponsesAuto, ResponsesAlways, ResponsesNever:
+		a.respMode, a.respExplicit = pc.Responses, true
+	default:
+		return nil, fmt.Errorf("llm-openai: provider %q: responses must be auto, always or never, not %q", pc.ID, pc.Responses)
+	}
+	a.toolSearch = pc.ToolSearch
+	a.routes = &routeState{}
 	a.keys = keySource{C: c, Literal: pc.APIKey, Ref: pc.APIKeyRef, Env: env}
 	if pc.APIKey == "" && pc.APIKeyRef == "" && a.kind != "local" {
 		a.keys.DefRef = "keychain:crewbase/" + pc.ID
@@ -546,10 +568,22 @@ func (a *Adapter) paramsWith(req llm.Request, files map[string]string) (sdk.Chat
 // are forwarded as they arrive; tool calls are assembled by the SDK
 // accumulator and emitted when the stream completes (JustFinishedToolCall
 // is unreliable with parallel, interleaved tool-call deltas).
+//
+// Requests the Responses API serves better (see useResponses) go there,
+// with the fallbacks described in responses.go.
 func (a *Adapter) Stream(ctx context.Context, req llm.Request, onChunk func(llm.Chunk) error) (llm.Response, error) {
-	if a.computerTool(req) {
-		return a.streamResponses(ctx, req, onChunk)
+	if a.useResponses(req) {
+		return a.streamResponsesOrChat(ctx, req, onChunk)
 	}
+	resp, err := a.streamChat(ctx, req, onChunk)
+	if err != nil && a.canSelfHeal(err) {
+		return a.selfHeal(ctx, req, onChunk, err)
+	}
+	return resp, err
+}
+
+// streamChat performs the request through Chat Completions.
+func (a *Adapter) streamChat(ctx context.Context, req llm.Request, onChunk func(llm.Chunk) error) (llm.Response, error) {
 	opts, key, err := a.options(ctx)
 	if err != nil {
 		return llm.Response{}, err

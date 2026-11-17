@@ -1,18 +1,26 @@
 package openai
 
-// OpenAI's computer tool lives only in the Responses API: tools
-// [{"type":"computer"}]; the model returns computer_call items with an
-// ordered actions[] (and pending_safety_checks); each is answered with a
-// computer_call_output carrying a computer_screenshot, acknowledging the
-// safety checks the person confirmed. Requests that ask for
-// llm.NativeComputer on a model with the tool go this way (openai preset,
-// or "responses": true); everything else stays on Chat Completions.
+// The Responses API path (see routing.go for which requests take it).
+//
+// It serves normal agent turns: instructions, the conversation as input
+// items (messages with text, images and PDFs; function_call and
+// function_call_output items), function tools, reasoning effort and
+// summaries, max_output_tokens, streaming text / reasoning / tool calls,
+// usage with cached tokens and stop reasons. And OpenAI's computer tool,
+// which lives only here: tools [{"type":"computer"}]; the model returns
+// computer_call items with an ordered actions[] (and
+// pending_safety_checks); each is answered with a computer_call_output
+// carrying a computer_screenshot, acknowledging the safety checks the
+// person confirmed.
 //
 // The request body is built as JSON through the SDK's extra-fields
 // mechanism (option.WithJSONSet) and the stream is read from the raw
 // events, so the adapter does not depend on the SDK's evolving item
 // types. Requests are stateless (store: false): reasoning items are sent
-// back with their encrypted content, kept in the thinking part's Meta.
+// back with their encrypted content, kept in the thinking part's Meta
+// together with the provider and model that wrote them (encrypted
+// reasoning only verifies on the account that produced it, and a gateway
+// may route each model to a different account).
 
 import (
 	"context"
@@ -32,6 +40,8 @@ import (
 const (
 	// MetaReasoning is a reasoning item (raw JSON, encrypted content).
 	MetaReasoning = "openai:reasoning"
+	// MetaReasoningFrom is "<provider>/<model>" of a reasoning item.
+	MetaReasoningFrom = "openai:from"
 	// MetaItem is the id of a computer_call item.
 	MetaItem = "openai:item"
 )
@@ -39,7 +49,7 @@ const (
 // computerTool reports whether req goes through the Responses API with
 // the computer tool.
 func (a *Adapter) computerTool(req llm.Request) bool {
-	if !a.responses || !req.Wants(llm.NativeComputer) {
+	if a.respMode == ResponsesNever || !req.Wants(llm.NativeComputer) {
 		return false
 	}
 	var caps []string
@@ -49,19 +59,33 @@ func (a *Adapter) computerTool(req llm.Request) bool {
 	return llm.ComputerTool(req.Model, caps) == "computer"
 }
 
+// reasoningFrom tags reasoning items of this provider and model.
+func (a *Adapter) reasoningFrom(model string) string { return a.id + "/" + model }
+
+// responsesEffort maps a Crewbase effort to reasoning.effort ("" = none
+// sent): max is sent as xhigh, off as none.
+func responsesEffort(e string) string {
+	switch e = strings.ToLower(e); e {
+	case "max":
+		return "xhigh"
+	case "off":
+		return "none"
+	}
+	return e
+}
+
 // responsesBody is the Responses request (besides the model).
 func (a *Adapter) responsesBody(req llm.Request) map[string]any {
-	tl := []any{}
-	for _, t := range req.Tools {
-		tl = append(tl, map[string]any{"type": "function", "name": t.Name, "description": t.Description,
-			"parameters": schemaOrEmpty(t.Parameters), "strict": false})
+	tl, namespaces := a.responsesTools(req)
+	if a.computerTool(req) {
+		tl = append(tl, map[string]any{"type": "computer"})
 	}
-	tl = append(tl, map[string]any{"type": "computer"})
 	body := map[string]any{
-		"input":   responsesInput(req.Messages),
-		"tools":   tl,
-		"store":   false,
-		"include": []string{"reasoning.encrypted_content"},
+		"input": a.responsesInput(req, namespaces),
+		"store": false,
+	}
+	if len(tl) > 0 {
+		body["tools"] = tl
 	}
 	if req.System != "" {
 		body["instructions"] = req.System
@@ -69,17 +93,47 @@ func (a *Adapter) responsesBody(req llm.Request) map[string]any {
 	if req.MaxTokens > 0 {
 		body["max_output_tokens"] = req.MaxTokens
 	}
-	if e := strings.ToLower(req.Effort); e != "" && a.effortFor(req.Model) {
-		if e == "max" {
-			e = "xhigh"
+	if a.effortFor(req.Model) { // a reasoning model
+		body["include"] = []string{"reasoning.encrypted_content"}
+		r := map[string]any{}
+		if e := responsesEffort(req.Effort); e != "" {
+			r["effort"] = e
 		}
-		body["reasoning"] = map[string]any{"effort": e, "summary": "auto"}
+		if r["effort"] != "none" {
+			r["summary"] = "auto"
+		}
+		body["reasoning"] = r
 	}
 	return body
 }
 
+// responsesTools maps the function tools; namespaces names the tool
+// search namespaces sent (see toolsearch.go).
+func (a *Adapter) responsesTools(req llm.Request) ([]any, map[string]bool) {
+	if a.searchTools(req) {
+		return a.searchToolList(req.Tools)
+	}
+	var tl []any
+	for _, t := range req.Tools {
+		tl = append(tl, functionTool(t, false))
+	}
+	return tl, nil
+}
+
+func functionTool(t llm.ToolSchema, deferred bool) map[string]any {
+	f := map[string]any{"type": "function", "name": t.Name, "description": t.Description,
+		"parameters": schemaOrEmpty(t.Parameters), "strict": false}
+	if deferred {
+		f["defer_loading"] = true
+	}
+	return f
+}
+
 // responsesInput maps the conversation to Responses input items.
-func responsesInput(msgs []llm.Message) []any {
+// namespaces are the tool namespaces of this request: a recorded call's
+// namespace is kept only when the request still has it.
+func (a *Adapter) responsesInput(req llm.Request, namespaces map[string]bool) []any {
+	msgs := req.Messages
 	native := map[string]llm.ComputerCall{}
 	for _, m := range msgs {
 		for _, tc := range m.ToolCalls() {
@@ -88,6 +142,7 @@ func responsesInput(msgs []llm.Message) []any {
 			}
 		}
 	}
+	from := a.reasoningFrom(req.Model)
 	var out []any
 	for _, m := range msgs {
 		switch m.Role {
@@ -102,9 +157,19 @@ func responsesInput(msgs []llm.Message) []any {
 			for _, p := range m.Parts {
 				switch p.Type {
 				case "thinking":
-					if raw := p.Meta[MetaReasoning]; raw != "" && json.Valid([]byte(raw)) {
+					raw := p.Meta[MetaReasoning]
+					if raw == "" || !json.Valid([]byte(raw)) {
+						continue // another provider's thinking
+					}
+					if f := p.Meta[MetaReasoningFrom]; f != "" && f != from {
+						continue // encrypted for another account / model
+					}
+					flush()
+					out = append(out, json.RawMessage(raw))
+				case llm.PartProviderBlock:
+					if raw := p.Meta[MetaBlock]; raw != "" && namespaces != nil && json.Valid([]byte(raw)) {
 						flush()
-						out = append(out, json.RawMessage(raw))
+						out = append(out, json.RawMessage(raw)) // tool search items, in place
 					}
 				case "text":
 					text.WriteString(p.Text)
@@ -123,7 +188,11 @@ func responsesInput(msgs []llm.Message) []any {
 						out = append(out, item)
 						continue
 					}
-					out = append(out, map[string]any{"type": "function_call", "call_id": tc.ID, "name": tc.Name, "arguments": string(argsObject(tc.Args))})
+					item := map[string]any{"type": "function_call", "call_id": tc.ID, "name": tc.Name, "arguments": string(argsObject(tc.Args))}
+					if ns := p.Meta[MetaNamespace]; ns != "" && namespaces[ns] {
+						item["namespace"] = ns
+					}
+					out = append(out, item)
 				}
 			}
 			flush()
@@ -138,15 +207,7 @@ func responsesInput(msgs []llm.Message) []any {
 					}
 				case llm.PartAttachment:
 					if at := p.Attachment; at != nil {
-						content = append(content, map[string]any{"type": "input_text", "text": at.Fallback()})
-						switch {
-						case len(at.Data) > 0 && at.IsImage():
-							content = append(content, map[string]any{"type": "input_image", "image_url": dataURL(at), "detail": "auto"})
-						case len(at.Data) > 0 && at.IsPDF():
-							content = append(content, map[string]any{"type": "input_file", "filename": at.Name, "file_data": dataURL(at)})
-						case len(at.Data) > 0 && at.Alt != "":
-							content = append(content, map[string]any{"type": "input_text", "text": at.Alt})
-						}
+						content = append(content, attachmentInput(at)...)
 					}
 				case "tool_result":
 					r := p.ToolResult
@@ -190,6 +251,22 @@ func responsesInput(msgs []llm.Message) []any {
 	return out
 }
 
+// attachmentInput is a user attachment as input content: its label, then
+// the image or PDF itself, or its text when it cannot be sent natively.
+func attachmentInput(at *llm.Attachment) []any {
+	switch {
+	case len(at.Data) > 0 && at.IsImage():
+		return []any{map[string]any{"type": "input_text", "text": at.Fallback()},
+			map[string]any{"type": "input_image", "image_url": dataURL(at), "detail": "auto"}}
+	case len(at.Data) > 0 && at.IsPDF():
+		return []any{map[string]any{"type": "input_text", "text": at.Fallback()},
+			map[string]any{"type": "input_file", "filename": at.Name, "file_data": dataURL(at)}}
+	case at.Alt != "":
+		return []any{map[string]any{"type": "input_text", "text": at.Alt}}
+	}
+	return []any{map[string]any{"type": "input_text", "text": at.Fallback()}}
+}
+
 func safetyJSON(cs []llm.SafetyCheck) []any {
 	out := []any{}
 	for _, c := range cs {
@@ -204,14 +281,15 @@ func dataURL(at *llm.Attachment) string {
 
 // rItem is a Responses output item, as much of it as Crewbase reads.
 type rItem struct {
-	Type    string          `json:"type"`
-	ID      string          `json:"id"`
-	CallID  string          `json:"call_id"`
-	Name    string          `json:"name"`
-	Args    string          `json:"arguments"`
-	Action  json.RawMessage `json:"action"`
-	Actions json.RawMessage `json:"actions"`
-	Safety  []struct {
+	Type      string          `json:"type"`
+	ID        string          `json:"id"`
+	CallID    string          `json:"call_id"`
+	Name      string          `json:"name"`
+	Namespace string          `json:"namespace"`
+	Args      json.RawMessage `json:"arguments"` // a JSON string; an object for tool_search_call
+	Action    json.RawMessage `json:"action"`
+	Actions   json.RawMessage `json:"actions"`
+	Safety    []struct {
 		ID      string `json:"id"`
 		Code    string `json:"code"`
 		Message string `json:"message"`
@@ -224,22 +302,52 @@ type rItem struct {
 	Summary []struct {
 		Text string `json:"text"`
 	} `json:"summary"`
+	// tool search (see toolsearch.go)
+	Execution string            `json:"execution"`
+	Tools     []json.RawMessage `json:"tools"`
+}
+
+// args is a function_call's arguments string.
+func (it rItem) args() string {
+	var s string
+	if json.Unmarshal(it.Args, &s) == nil {
+		return s
+	}
+	return string(it.Args)
+}
+
+// rError is an error object of a stream event or failed response.
+type rError struct {
+	Code    any    `json:"code"`
+	Type    string `json:"type"`
+	Message string `json:"message"`
+}
+
+func (e *rError) code() string {
+	if e == nil {
+		return ""
+	}
+	c := e.Type
+	if e.Code != nil {
+		c = strings.TrimSpace(c + " " + fmt.Sprint(e.Code))
+	}
+	return c
 }
 
 // rEvent is a Responses stream event.
 type rEvent struct {
-	Type     string `json:"type"`
-	Delta    string `json:"delta"`
-	Message  string `json:"message"`
-	Code     string `json:"code"`
-	Response *struct {
-		ID     string            `json:"id"`
-		Status string            `json:"status"`
-		Output []json.RawMessage `json:"output"`
-		Error  *struct {
-			Code    string `json:"code"`
-			Message string `json:"message"`
-		} `json:"error"`
+	Type         string          `json:"type"`
+	Delta        string          `json:"delta"`
+	Message      string          `json:"message"`
+	Code         any             `json:"code"`
+	Error        *rError         `json:"error"`
+	SummaryIndex int             `json:"summary_index"`
+	Item         json.RawMessage `json:"item"`
+	Response     *struct {
+		ID         string            `json:"id"`
+		Status     string            `json:"status"`
+		Output     []json.RawMessage `json:"output"`
+		Error      *rError           `json:"error"`
 		Incomplete *struct {
 			Reason string `json:"reason"`
 		} `json:"incomplete_details"`
@@ -268,19 +376,47 @@ func (a *Adapter) streamResponses(ctx context.Context, req llm.Request, onChunk 
 	defer stream.Close()
 
 	var done *rEvent
+	var items []json.RawMessage // output_item.done, for servers whose completed event has no output
+	emitted := map[string]bool{}
+	emitCall := func(tc *llm.ToolCall) error {
+		if emitted[tc.ID] {
+			return nil
+		}
+		emitted[tc.ID] = true
+		return onChunk(llm.Chunk{Type: "tool_call", ToolCall: tc})
+	}
+	thinking := false
 	for stream.Next() {
 		var ev rEvent
 		if err := json.Unmarshal([]byte(stream.Current().RawJSON()), &ev); err != nil {
 			return llm.Response{}, &llm.Error{Kind: llm.ErrUnavailable, Provider: a.id, Message: "malformed stream event"}
 		}
 		switch ev.Type {
-		case "response.output_text.delta":
+		case "response.output_text.delta", "response.refusal.delta":
 			if err := onChunk(llm.Chunk{Type: "text", Text: ev.Delta}); err != nil {
 				return llm.Response{}, err
 			}
-		case "response.reasoning_summary_text.delta":
+		case "response.reasoning_summary_part.added":
+			if ev.SummaryIndex > 0 && thinking {
+				if err := onChunk(llm.Chunk{Type: "thinking", Text: "\n\n"}); err != nil {
+					return llm.Response{}, err
+				}
+			}
+		case "response.reasoning_summary_text.delta", "response.reasoning_text.delta":
+			thinking = true
 			if err := onChunk(llm.Chunk{Type: "thinking", Text: ev.Delta}); err != nil {
 				return llm.Response{}, err
+			}
+		case "response.output_item.done":
+			if len(ev.Item) == 0 {
+				continue
+			}
+			items = append(items, ev.Item)
+			var it rItem
+			if json.Unmarshal(ev.Item, &it) == nil && it.Type == "function_call" && it.CallID != "" {
+				if err := emitCall(&llm.ToolCall{ID: it.CallID, Name: it.Name, Args: normalizeArgs(it.args())}); err != nil {
+					return llm.Response{}, err
+				}
 			}
 		case "response.completed", "response.incomplete":
 			e := ev
@@ -288,14 +424,24 @@ func (a *Adapter) streamResponses(ctx context.Context, req llm.Request, onChunk 
 		case "response.failed":
 			msg, code := "response failed", ""
 			if ev.Response != nil && ev.Response.Error != nil {
-				msg, code = ev.Response.Error.Message, ev.Response.Error.Code
+				msg, code = ev.Response.Error.Message, ev.Response.Error.code()
 			}
 			return llm.Response{}, classify(a.id, 0, nil, msg, code, key)
 		case "error":
-			return llm.Response{}, classify(a.id, 0, nil, ev.Message, ev.Code, key)
+			msg, code := ev.Message, ""
+			if ev.Code != nil {
+				code = fmt.Sprint(ev.Code)
+			}
+			if ev.Error != nil {
+				msg, code = ev.Error.Message, ev.Error.code()
+			}
+			return llm.Response{}, classify(a.id, 0, nil, msg, code, key)
 		}
 	}
 	if err := stream.Err(); err != nil {
+		if missingEndpoint(err) {
+			return llm.Response{}, &errNoEndpoint{a.classifyErr(ctx, err, key)}
+		}
 		return llm.Response{}, a.classifyErr(ctx, err, key)
 	}
 	if done == nil || done.Response == nil {
@@ -305,9 +451,15 @@ func (a *Adapter) streamResponses(ctx context.Context, req llm.Request, onChunk 
 		return llm.Response{}, &llm.Error{Kind: llm.ErrUnavailable, Provider: a.id, Message: "stream ended before completion"}
 	}
 	r := done.Response
+	output := r.Output
+	if len(output) == 0 {
+		output = items
+	}
 	msg := llm.Message{Role: llm.RoleAssistant}
 	refused := false
-	for _, raw := range r.Output {
+	from := a.reasoningFrom(req.Model)
+	query := "" // of the last tool_search_call
+	for _, raw := range output {
 		var it rItem
 		if json.Unmarshal(raw, &it) != nil {
 			continue
@@ -318,7 +470,15 @@ func (a *Adapter) streamResponses(ctx context.Context, req llm.Request, onChunk 
 			for _, s := range it.Summary {
 				sum = append(sum, s.Text)
 			}
-			msg.Parts = append(msg.Parts, llm.Part{Type: "thinking", Text: strings.Join(sum, "\n\n"), Meta: map[string]string{MetaReasoning: string(raw)}})
+			if len(sum) == 0 {
+				for _, c := range it.Content {
+					if c.Type == "reasoning_text" && c.Text != "" {
+						sum = append(sum, c.Text)
+					}
+				}
+			}
+			msg.Parts = append(msg.Parts, llm.Part{Type: "thinking", Text: strings.Join(sum, "\n\n"),
+				Meta: map[string]string{MetaReasoning: string(raw), MetaReasoningFrom: from}})
 		case "message":
 			for _, c := range it.Content {
 				switch {
@@ -330,11 +490,17 @@ func (a *Adapter) streamResponses(ctx context.Context, req llm.Request, onChunk 
 				}
 			}
 		case "function_call":
-			tc := &llm.ToolCall{ID: it.CallID, Name: it.Name, Args: normalizeArgs(it.Args)}
-			msg.Parts = append(msg.Parts, llm.Part{Type: "tool_call", ToolCall: tc})
-			if err := onChunk(llm.Chunk{Type: "tool_call", ToolCall: tc}); err != nil {
+			tc := &llm.ToolCall{ID: it.CallID, Name: it.Name, Args: normalizeArgs(it.args())}
+			p := llm.Part{Type: "tool_call", ToolCall: tc}
+			if it.Namespace != "" {
+				p.Meta = map[string]string{MetaNamespace: it.Namespace}
+			}
+			msg.Parts = append(msg.Parts, p)
+			if err := emitCall(tc); err != nil {
 				return llm.Response{}, err
 			}
+		case "tool_search_call", "tool_search_output":
+			msg.Parts = append(msg.Parts, searchParts(it, raw, &query)...)
 		case "computer_call":
 			actions := it.Actions
 			if len(actions) == 0 || string(actions) == "null" {
@@ -346,7 +512,7 @@ func (a *Adapter) streamResponses(ctx context.Context, req llm.Request, onChunk 
 			}
 			tc := llm.EncodeComputerCall(it.CallID, c)
 			msg.Parts = append(msg.Parts, llm.Part{Type: "tool_call", ToolCall: &tc, Meta: map[string]string{MetaItem: it.ID}})
-			if err := onChunk(llm.Chunk{Type: "tool_call", ToolCall: &tc}); err != nil {
+			if err := emitCall(&tc); err != nil {
 				return llm.Response{}, err
 			}
 		}
@@ -355,16 +521,20 @@ func (a *Adapter) streamResponses(ctx context.Context, req llm.Request, onChunk 
 	if u := r.Usage; u != nil {
 		usage = llm.Usage{InputTokens: u.Input, OutputTokens: u.Output, CacheRead: u.Details.Cached}
 	}
+	reason := ""
+	if r.Incomplete != nil {
+		reason = r.Incomplete.Reason
+	}
 	stop := "end"
 	switch {
-	case refused:
+	case refused || (r.Status == "incomplete" && reason == "content_filter"):
 		stop = llm.StopRefusal
 	case len(msg.ToolCalls()) > 0:
 		stop = "tool_use"
-	case r.Status == "incomplete" && r.Incomplete != nil && r.Incomplete.Reason == "max_output_tokens":
+	case r.Status == "incomplete" && reason == "max_output_tokens":
 		stop = "max_tokens"
 	case r.Status == "incomplete":
-		return llm.Response{}, &llm.Error{Kind: llm.ErrBadRequest, Provider: a.id, Message: fmt.Sprintf("response incomplete: %+v", r.Incomplete)}
+		return llm.Response{}, &llm.Error{Kind: llm.ErrBadRequest, Provider: a.id, Message: fmt.Sprintf("response incomplete: %s", reason)}
 	}
 	return llm.Response{Message: msg, Usage: estimateUsage(usage, req, msg), StopReason: stop}, nil
 }

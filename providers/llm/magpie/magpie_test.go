@@ -3,6 +3,7 @@ package magpie_test
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -205,5 +206,103 @@ func TestEnabledModels(t *testing.T) {
 	}
 	if got := ids(ad); got != "claude/claude-opus-5-5,flux/flux-2,opus-anywhere" {
 		t.Fatal(got)
+	}
+}
+
+// OpenAI reasoning models go through magpie's /v1/responses, others stay
+// on Chat Completions; the Codex-account refusal is model_unavailable.
+func TestResponsesThroughMagpie(t *testing.T) {
+	var mu sync.Mutex
+	var paths []string
+	var responses, codexRefuses atomic.Bool // whether this magpie serves /v1/responses; refuses codex
+	responses.Store(true)
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/hello", func(w http.ResponseWriter, r *http.Request) { fmt.Fprint(w, `{"name":"magpie","version":"9.9.9"}`) })
+	mux.HandleFunc("/v1/models", func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, `{"object":"list","data":[
+		 {"id":"openai/gpt-6.1-sol","reasoning":true,"supported_reasoning_levels":[{"effort":"low"},{"effort":"medium"},{"effort":"high"},{"effort":"xhigh"}]},
+		 {"id":"codex/gpt-6.1-sol","reasoning":true},
+		 {"id":"deepseek/deepseek-v4-pro","reasoning":true},
+		 {"id":"claude/claude-opus-5-5","reasoning":true}]}`)
+	})
+	mux.HandleFunc("/v1/", func(w http.ResponseWriter, r *http.Request) {
+		var body map[string]any
+		json.NewDecoder(r.Body).Decode(&body)
+		mu.Lock()
+		paths = append(paths, r.URL.Path+":"+fmt.Sprint(body["model"]))
+		mu.Unlock()
+		w.Header().Set("Content-Type", "text/event-stream")
+		switch r.URL.Path {
+		case "/v1/responses":
+			if !responses.Load() {
+				http.NotFound(w, r)
+				return
+			}
+			if codexRefuses.Load() && body["model"] == "codex/gpt-6.1-sol" {
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(400)
+				fmt.Fprint(w, `{"error":{"message":"jsonrpc error -32603: {\"message\":\"The 'gpt-6.1-sol' model is not supported when using Codex with a ChatGPT account.\",\"code\":\"model_not_found\"}","type":"invalid_request_error"}}`)
+				return
+			}
+			fmt.Fprint(w, "data: "+`{"type":"response.output_text.delta","delta":"hi"}`+"\n\n")
+			fmt.Fprint(w, "data: "+`{"type":"response.completed","response":{"id":"r","status":"completed","output":[{"type":"message","content":[{"type":"output_text","text":"hi"}]}]}}`+"\n\n")
+		case "/v1/chat/completions":
+			fmt.Fprint(w, "data: "+`{"id":"x","choices":[{"index":0,"delta":{"content":"hi"},"finish_reason":"stop"}]}`+"\n\ndata: [DONE]\n\n")
+		}
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+	h := kernel.NewHost(nil)
+	defer h.Close()
+	h.Load(llm.Plugin, kernel.LoadOptions{})
+	if _, err := h.Load(magpie.Plugin, kernel.LoadOptions{Config: map[string]any{"baseURL": srv.URL + "/v1", "rescanInterval": "0"}}); err != nil {
+		t.Fatal(err)
+	}
+	ad, _ := kernel.Use[*llm.Registry](h.Root(), llm.ServiceKey).Get("magpie")
+	send := func(model string) error {
+		_, err := ad.Stream(context.Background(), llm.Request{Model: model, Effort: "medium", Tools: []llm.ToolSchema{{Name: "read_file"}},
+			Messages: []llm.Message{llm.TextMessage(llm.RoleUser, "hi")}}, func(llm.Chunk) error { return nil })
+		return err
+	}
+	lastPath := func() string {
+		mu.Lock()
+		defer mu.Unlock()
+		return paths[len(paths)-1]
+	}
+	for model, want := range map[string]string{
+		"openai/gpt-6.1-sol":       "/v1/responses",
+		"codex/gpt-6.1-sol":        "/v1/responses",
+		"deepseek/deepseek-v4-pro": "/v1/chat/completions",
+		"claude/claude-opus-5-5":   "/v1/chat/completions",
+	} {
+		if err := send(model); err != nil {
+			t.Fatalf("%s: %v", model, err)
+		}
+		if p := lastPath(); p != want+":"+model {
+			t.Errorf("%s went to %s", model, p)
+		}
+	}
+
+	codexRefuses.Store(true)
+	err := send("codex/gpt-6.1-sol")
+	var le *llm.Error
+	if !errors.As(err, &le) || le.Kind != llm.ErrModelUnavailable || le.Provider != "magpie" || !llm.ShouldFailover(err) {
+		t.Fatalf("codex account: %v", err)
+	}
+
+	// a magpie without /v1/responses: Chat Completions, remembered across rescans
+	responses.Store(false)
+	if err := send("openai/gpt-6.1-sol"); err != nil {
+		t.Fatal(err)
+	}
+	kernel.Use[*magpie.Discovery](h.Root(), magpie.ServiceKey).Rescan(context.Background())
+	if err := send("openai/gpt-6.1-sol"); err != nil {
+		t.Fatal(err)
+	}
+	mu.Lock()
+	tail := strings.Join(paths[len(paths)-3:], " ")
+	mu.Unlock()
+	if tail != "/v1/responses:openai/gpt-6.1-sol /v1/chat/completions:openai/gpt-6.1-sol /v1/chat/completions:openai/gpt-6.1-sol" {
+		t.Fatalf("fallback: %s", tail)
 	}
 }

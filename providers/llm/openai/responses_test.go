@@ -38,8 +38,7 @@ func TestResponsesComputer(t *testing.T) {
 		sse(w, `{"id":"c","choices":[{"index":0,"delta":{"content":"hi"},"finish_reason":"stop"}]}`, "[DONE]")
 	}))
 	defer srv.Close()
-	on := true
-	a := newAdapter(t, srv.URL, func(pc *ProviderConfig) { pc.Responses = &on; pc.EffortStyle = "openai" })
+	a := newAdapter(t, srv.URL, func(pc *ProviderConfig) { pc.Responses = ResponsesAuto; pc.EffortStyle = "openai" })
 	req := llm.Request{Model: "gpt-6.1-sol", System: "sys", Effort: "low", NativeTools: []string{llm.NativeComputer},
 		Tools:    []llm.ToolSchema{{Name: "computer_apps", Description: "list", Parameters: map[string]any{"type": "object"}}},
 		Messages: []llm.Message{llm.TextMessage(llm.RoleUser, "search penguin")}}
@@ -121,8 +120,8 @@ func TestResponsesComputer(t *testing.T) {
 		t.Fatalf("acknowledged without confirmation: %v", out)
 	}
 
-	// without the native tool (or on a model without it): Chat Completions
-	for _, r := range []llm.Request{{Model: "gpt-6.1-sol"}, {Model: "gpt-4o", NativeTools: []string{llm.NativeComputer}}} {
+	// a model that neither reasons nor has the tool: Chat Completions
+	for _, r := range []llm.Request{{Model: "gpt-4.1"}, {Model: "gpt-4o", NativeTools: []string{llm.NativeComputer}}} {
 		r.Messages = []llm.Message{llm.TextMessage(llm.RoleUser, "x")}
 		if _, err := a.Stream(context.Background(), r, func(llm.Chunk) error { return nil }); err != nil {
 			t.Fatal(err)

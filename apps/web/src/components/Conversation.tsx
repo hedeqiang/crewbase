@@ -70,6 +70,7 @@ import {
   costfmt,
   until,
   NO_MODEL,
+  MODEL_UNAVAILABLE,
   providerName,
 } from "../format";
 import { Avatar, channelColor, colorFor, ink } from "./Avatar";
@@ -724,7 +725,9 @@ function FeedRow({ it, agents, showModel, before, after }: { it: FeedItem; agent
       return (
         <div className={"sys " + (it.tone === "error" ? "err" : it.tone)}>
           {it.tone === "error" && <span className="dot err" />}
-          {it.tone === "error" && NO_MODEL.test(it.text) ? (
+          {it.tone === "error" && MODEL_UNAVAILABLE.test(it.text) ? (
+            <span title={it.text}>{t("chat.modelUnavailableErr")}</span>
+          ) : it.tone === "error" && NO_MODEL.test(it.text) ? (
             <>
               <span>{t("chat.noModelErr")}</span>
               <button className="linkbtn" type="button" onClick={openConnect}>
@@ -773,6 +776,7 @@ const REASONS: Record<string, true> = {
   "chat.reason.quota_exhausted": true,
   "chat.reason.rate_limited": true,
   "chat.reason.unavailable": true,
+  "chat.reason.model_unavailable": true,
 };
 
 /** What a subscription CLI did with its own tools: one quiet line,

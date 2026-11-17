@@ -969,6 +969,7 @@ export const en: Partial<Record<Key, string>> = {
   "chat.reason.quota_exhausted": "hit its usage limit",
   "chat.reason.rate_limited": "was rate limited",
   "chat.reason.unavailable": "is unavailable",
+  "chat.reason.model_unavailable": "isn't available on this account",
   "chat.refusal": "{name}'s model refused this request (provider safety policy). Try rewording it, or try another model.",
   "chat.resumed": "Queue resumed",
   "chat.send": "Send ({key})",
@@ -1668,7 +1669,9 @@ export const en: Partial<Record<Key, string>> = {
   "conn.noneDesc": "Connect one so agents can reply.",
   "conn.connect": "Connect a model",
   "chat.noModelErr": "This turn couldn't start: no model is available yet.",
-  "chat.cliWontStart": "This turn couldn't start: the subscription tool's program (such as Claude Code) won't launch, maybe a build for another chip or a broken download. Run claude once in a terminal to check it works, or reinstall it and try again; Crewbase prefers the claude you installed yourself.",
+  "chat.modelUnavailableErr": "This turn couldn't finish: this model isn't available on the account or plan behind it (Codex signed in with a ChatGPT account, for example, may not offer it). Crewbase won't pick it for a while; choose another model, or add a fallback to the agent's model order.",
+  "conn.modelUnavailable": "Model not available on this account",
+  "chat.cliWontStart":"This turn couldn't start: the subscription tool's program (such as Claude Code) won't launch, maybe a build for another chip or a broken download. Run claude once in a terminal to check it works, or reinstall it and try again; Crewbase prefers the claude you installed yourself.",
   "wel.sub": "Subscription",
 
   // ---- Settings › Chat apps (imx.*)

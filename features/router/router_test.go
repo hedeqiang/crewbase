@@ -1,6 +1,7 @@
 package router_test
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -185,5 +186,50 @@ func TestSwitchedOffModelSkipped(t *testing.T) {
 	e.Decode(&m)
 	if m.Model.Provider != "ollama" {
 		t.Fatalf("switched-off model chosen: %s", m.Model.Provider)
+	}
+}
+
+// A model the account cannot use (Codex on a ChatGPT plan) fails over and
+// stays aside for hours, unlike a passing outage.
+func TestModelUnavailableOnAccountKeptAside(t *testing.T) {
+	h := kernel.NewHost(nil)
+	t.Cleanup(h.Close)
+	root := t.TempDir()
+	for _, x := range []struct {
+		s   kernel.Spec
+		cfg map[string]any
+	}{
+		{session.Plugin, nil}, {prompt.Plugin, nil}, {tools.Plugin, nil},
+		{llm.Plugin, nil}, {mock.Plugin, map[string]any{"ids": []string{"claude-code", "ollama"}}},
+		{agent.Plugin, map[string]any{"root": root, "defaultModels": []string{"claude-code/default", "ollama/default"}}},
+	} {
+		h.Load(x.s, kernel.LoadOptions{Config: x.cfg})
+	}
+	r := h.Root()
+	now := time.Date(2026, 11, 17, 10, 0, 0, 0, time.UTC)
+	rt := router.New(r, kernel.Use[*llm.Registry](r, llm.ServiceKey), func() time.Time { return now })
+	router.QuotaExhausted.Listen(r, func(_ context.Context, e router.Exhausted) (llm.ModelRef, bool) {
+		return llm.ModelRef{Provider: "ollama", Model: "default"}, true
+	})
+	a, _ := kernel.Use[*agent.Registry](r, agent.ServiceKey).Create(agent.Spec{Name: "Iris"})
+	failed := llm.ModelRef{Provider: "claude-code", Model: "default"}
+	cause := &llm.Error{Kind: llm.ErrModelUnavailable, Provider: "claude-code",
+		Message: "The 'gpt-6.1-sol' model is not supported when using Codex with a ChatGPT account."}
+	if !llm.ShouldFailover(cause) {
+		t.Fatal("model_unavailable should fail over")
+	}
+	if next, ok := rt.Failover(context.Background(), a, failed, cause); !ok || next.Provider != "ollama" {
+		t.Fatalf("failover %v %v", next, ok)
+	}
+	st := rt.States()
+	if len(st) != 1 || st[0].Reason != "model_unavailable" || st[0].Until.Sub(now) < 6*time.Hour {
+		t.Fatalf("states %+v", st)
+	}
+	if sel, _ := rt.Select(a); sel.Provider != "ollama" {
+		t.Fatalf("unavailable model selected again: %v", sel)
+	}
+	now = now.Add(3 * time.Hour) // a 10-minute outage backoff would have expired
+	if sel, _ := rt.Select(a); sel.Provider != "ollama" {
+		t.Fatalf("unavailable model back too soon: %v", sel)
 	}
 }

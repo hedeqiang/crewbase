@@ -174,7 +174,12 @@ function Exhausted() {
     </>
   );
 }
-const REASONS: Record<string, true> = { "chat.reason.quota_exhausted": true, "chat.reason.rate_limited": true, "chat.reason.unavailable": true };
+const REASONS: Record<string, true> = {
+  "chat.reason.quota_exhausted": true,
+  "chat.reason.rate_limited": true,
+  "chat.reason.unavailable": true,
+  "chat.reason.model_unavailable": true,
+};
 
 /** The model part of "provider/model" ("magpie/deepseek/deepseek-flash" and
  *  "deepseek/deepseek-flash" are both DeepSeek Flash). */
