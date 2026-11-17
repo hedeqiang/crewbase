@@ -59,6 +59,11 @@ type Spec struct {
 	// NativeTools enables provider-hosted tools (llm.NativeWebSearch,
 	// llm.NativeReadURL) when the agent's model supports them.
 	NativeTools []string `json:"nativeTools,omitempty"`
+	// Connectors limits which connectors (MCP servers, built-in connectors
+	// such as Gmail; by name) the agent may use. nil = every connector its
+	// scope allows; a list = only those (empty = none). Built-in tools are
+	// never limited by it.
+	Connectors *[]string `json:"connectors,omitempty"`
 	// Ephemeral agents (subagents) are never persisted; their workspace is
 	// removed on delete and leftovers are swept at startup.
 	Ephemeral bool `json:"ephemeral,omitempty"`
@@ -218,6 +223,15 @@ func TeamOf(id string) string {
 
 // TeamID is the agent's team.
 func (s Spec) TeamID() string { return TeamOf(s.Team) }
+
+// ConnectorList is the agent's connector list; ok=false means no limit
+// (Connectors unset).
+func (s Spec) ConnectorList() (names []string, ok bool) {
+	if s.Connectors == nil {
+		return nil, false
+	}
+	return slices.Clone(*s.Connectors), true
+}
 
 // Home holds the agent's own files (INSTRUCTIONS.md, MEMORY.md, .memory/):
 // its own directory, also when it works in a project folder, so they never
@@ -1148,6 +1162,14 @@ var Plugin = kernel.Register(kernel.Spec{
 				}
 				return ""
 			})
+			// an agent's connector list limits the connector tools it sees
+			tr.SetConnectorsOf(func(id string) ([]string, bool) {
+				if a, ok := r.Get(id); ok {
+					return a.Spec().ConnectorList()
+				}
+				return nil, false
+			})
+			Updated.Listen(c, func(Spec) { tr.Touch() })
 		}
 		// Instructions and memory are prompt fragments resolved per agent.
 		pa := kernel.Use[*prompt.Assembler](c, prompt.ServiceKey)

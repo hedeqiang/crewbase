@@ -194,6 +194,9 @@ func (r *runner) createEphemeral(parent *agent.Agent, mode string, models []llm.
 		spec.Models = ps.Models
 		spec.Folder = ps.Folder
 		spec.Team = ps.Team
+		if l, ok := ps.ConnectorList(); ok {
+			spec.Connectors = &l // a sub-agent may use no more connectors than its parent
+		}
 		mode = agent.Stricter(parent.Mode(), mode)
 	}
 	if len(models) > 0 {
