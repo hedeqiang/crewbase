@@ -382,6 +382,14 @@
 - [x] 真机：旧数据目录启动后老 Agent 全部换到 magpie，经 magpie 的 Claude Opus 5.5 真实回复
 - [ ] 旧会话里遗留的「[Claude Code tool: …]」行按普通文字显示；个人资料图表里旧的 subscription 用量显示原始类别名
 
+## 对话按「轮」显示（2026-11-17）
+- [x] 前端按 turn/start…turn/end 把一个 Agent 的一轮投影成一条：过程说明（小号灰字）、步骤、最终答复（正文）；思考过程一轮一个；流式输出和「正在工作」在这一轮内部
+- [x] 审批结果改为步骤上的标签，不再单独占一行
+- [x] 真机：Haiku / Sonnet / DeepSeek V4 Pro（思考 + 两次工具调用）/ 频道两个 Agent 并行
+- [x] DeepSeek 思考 + 工具调用：不回传思考内容也能正常完成（实测）
+- [ ] 经 magpie 的 GPT-6.1 Sol（high）没有返回推理摘要，界面上看不到它的思考过程
+- [ ] 流式输出时还不知道是过程说明还是答复，先按正文显示，调工具后才变小
+
 ## OpenAI 走 Responses API（2026-11-17）
 - [x] responses: auto | always | never；auto（官方 OpenAI 默认、magpie 设为 auto）让 OpenAI 推理模型（gpt-5+ / o 系列 / codex，及 openai/ codex/ *-openai/ 前缀）走 /responses，其余仍走 Chat Completions
 - [x] Responses 路径覆盖普通对话：instructions、多轮工具调用、图片 / PDF、推理强度与摘要、max_output_tokens、流式文本 / 推理 / 工具调用、缓存用量、停止原因、错误分类
