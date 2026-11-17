@@ -8,7 +8,8 @@
     "build": "node scripts/check-i18n.mjs && tsc -p . && vite build",
     "typecheck": "tsc -p .",
     "preview": "vite preview",
-    "check-i18n": "node scripts/check-i18n.mjs"
+    "check-i18n": "node scripts/check-i18n.mjs",
+    "test": "node --experimental-strip-types scripts/treemap.test.ts"
   },
   "dependencies": {
     "@lobehub/icons-static-svg": "^1.102.0",
