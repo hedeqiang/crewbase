@@ -25,7 +25,7 @@ func TestProbeModelsAndCache(t *testing.T) {
 		t.Fatal(err)
 	}
 	ms, _ := a.Models(ctx)
-	if len(ms) != 3 || ms[1].ID != "fast" || ms[2].ID != "smart" {
+	if len(ms) != 2 || ms[0].ID != "fast" || ms[1].ID != "smart" {
 		t.Fatalf("models %+v", ms)
 	}
 	b := newFake(t, Options{StateDir: state}, nil)
@@ -35,7 +35,7 @@ func TestProbeModelsAndCache(t *testing.T) {
 	if b.Running() {
 		t.Fatal("reading the cache must not start the CLI")
 	}
-	if ms, _ := b.Models(ctx); len(ms) != 3 {
+	if ms, _ := b.Models(ctx); len(ms) != 2 {
 		t.Fatalf("cached models %+v", ms)
 	}
 }
@@ -74,7 +74,7 @@ func TestSetModelSendsVariant(t *testing.T) {
 		t.Fatal(err)
 	}
 	ms, _ := a.Models(t.Context())
-	if len(ms) != 3 || ms[2].ID != "opus" || len(ms[2].Efforts) != 3 {
+	if len(ms) != 2 || ms[1].ID != "opus" || len(ms[1].Efforts) != 3 {
 		t.Fatalf("models %+v", ms)
 	}
 	req := llm.Request{Agent: "a1", Session: "s1", Model: "opus", Effort: "high", Messages: []llm.Message{user("/picks")}}
@@ -103,7 +103,7 @@ func TestConfigOptionModels(t *testing.T) {
 		t.Fatal(err)
 	}
 	ms, _ := a.Models(t.Context())
-	if len(ms) != 3 || ms[1].ID != "gpt-6-astra" || ms[2].ID != "gpt-6.1-sol" {
+	if len(ms) != 2 || ms[0].ID != "gpt-6-astra" || ms[1].ID != "gpt-6.1-sol" {
 		t.Fatalf("models from the config option %+v", ms)
 	}
 	// with the CLI's own list (normally `codex debug models`)
@@ -139,7 +139,7 @@ func TestModelCacheKeyedByVersions(t *testing.T) {
 	if c.loadCachedModels() {
 		t.Fatal("a new bridge must re-learn the list")
 	}
-	if ms, _ := c.Models(t.Context()); len(ms) != 3 {
+	if ms, _ := c.Models(t.Context()); len(ms) != 2 {
 		t.Fatalf("the old list still shows until then: %+v", ms)
 	}
 }
@@ -170,7 +170,7 @@ func TestProbeReadsCodexList(t *testing.T) {
 			t.Fatal(err)
 		}
 		ms, _ := a.Models(t.Context())
-		if len(ms) < 2 || ms[1].ID != c.first {
+		if len(ms) < 1 || ms[0].ID != c.first {
 			t.Fatalf("%q: models %+v", c.first, ms)
 		}
 	}

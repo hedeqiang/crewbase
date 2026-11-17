@@ -147,8 +147,8 @@ func (a *Adapter) Kind() string { return "subscription" }
 func (a *Adapter) RunsOwnTools() bool { return true }
 
 // Models returns configured models, else those learned from the CLI and
-// its bridge (see shape.go), after a "default" that keeps the CLI's own
-// choice. It never starts the process.
+// its bridge (see shape.go); a "default" that keeps the CLI's own choice
+// until they are known. It never starts the process.
 func (a *Adapter) Models(context.Context) ([]llm.ModelInfo, error) {
 	if len(a.cfg.Models) > 0 {
 		out := make([]llm.ModelInfo, 0, len(a.cfg.Models))
@@ -165,7 +165,11 @@ func (a *Adapter) Models(context.Context) ([]llm.ModelInfo, error) {
 	es := a.entries
 	a.mu.Unlock()
 	out := make([]llm.ModelInfo, 0, len(es)+1)
-	out = append(out, llm.ModelInfo{ID: defaultModel, Provider: a.id, Name: a.cfg.Name, ContextWindow: a.cfg.ContextWindow, Capabilities: []string{"code"}, Efforts: llm.NoEfforts, Enabled: true})
+	// "default" (the CLI's own choice) is listed only until the real
+	// models are known; requests for it keep working either way.
+	if len(es) == 0 {
+		out = append(out, llm.ModelInfo{ID: defaultModel, Provider: a.id, Name: a.cfg.Name, ContextWindow: a.cfg.ContextWindow, Capabilities: []string{"code"}, Efforts: llm.NoEfforts, Enabled: true})
+	}
 	for _, e := range es {
 		mi := llm.ModelInfo{ID: e.ID, Provider: a.id, Name: e.Name, ContextWindow: a.cfg.ContextWindow, ContextEstimated: true, Capabilities: []string{"code"}, Efforts: llm.NoEfforts, Enabled: true}
 		if e.ContextWindow > 0 {

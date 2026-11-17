@@ -89,8 +89,8 @@ func TestCodexPrefersCLIList(t *testing.T) {
 		}
 	}
 	ms, _ := a.Models(t.Context())
-	if ms[1].ID != "gpt-6.1-sol" || ms[1].ContextWindow != 500000 || !slices.Contains(ms[1].Capabilities, "vision") || len(ms[1].Efforts) != 5 {
-		t.Fatalf("model info %+v", ms[1])
+	if ms[0].ID != "gpt-6.1-sol" || ms[0].ContextWindow != 500000 || !slices.Contains(ms[0].Capabilities, "vision") || len(ms[0].Efforts) != 5 {
+		t.Fatalf("model info %+v", ms[0])
 	}
 
 	// without the CLI's list the bridge's presets fold into models with levels

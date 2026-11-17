@@ -231,6 +231,14 @@ function Routes() {
       toast(e?.message ?? String(e));
     }
   };
+  // The same model reached another way (directly vs through a gateway) is
+  // a spare route: while it is not connected and the other one is, it
+  // stays in the rules but is not shown (removing the row removes both).
+  const hidden = (i: number) => {
+    const r = routes?.[i];
+    if (!routes || !r?.model || !offline(r.model)) return false;
+    return routes.some((x, j) => j !== i && x.task === r.task && sameModel(x.model, r.model) && !offline(x.model));
+  };
   const taskLabel = (k: string) => {
     const key = `rt.task.${k}` as Key;
     return t(key) === key ? k : t(key);
@@ -249,7 +257,7 @@ function Routes() {
               <span className="small">{t("rt.routesNone")}</span>
             </div>
           )}
-          {routes.map((r, i) => (
+          {routes.map((r, i) => (hidden(i) ? null : (
             <div className="srow routerow" key={i}>
               <span className="ssel">
                 <select
@@ -275,7 +283,7 @@ function Routes() {
                 placeholder={taskKind(r.task) === "chat" ? t("rt.pickModel") : t(taskKind(r.task) === "image" ? "rt.pickImageModel" : "rt.pickVideoModel")}
               />
               {/* the same model reached two ways (directly, through a gateway): say which this row is */}
-              {r.model && routes.some((x, j) => j !== i && x.task === r.task && sameModel(x.model, r.model)) && (
+              {r.model && routes.some((x, j) => j !== i && !hidden(j) && x.task === r.task && sameModel(x.model, r.model)) && (
                 <span className="pill sm">{viaOf(r.model)}</span>
               )}
               {offline(r.model) && (
@@ -283,11 +291,11 @@ function Routes() {
                   {t("rt.offline")}
                 </span>
               )}
-              <button className="ix" type="button" aria-label={t("panel.remove")} onClick={() => edit(routes.filter((_, j) => j !== i))}>
+              <button className="ix" type="button" aria-label={t("panel.remove")} onClick={() => edit(routes.filter((_, j) => j !== i && !(hidden(j) && routes[j].task === r.task && sameModel(routes[j].model, r.model))))}>
                 <X size={13} />
               </button>
             </div>
-          ))}
+          )))}
         </div>
       )}
       {routes && (

@@ -215,7 +215,18 @@ var Plugin = kernel.Register(kernel.Spec{
 		}
 		apply(load())
 		g.Handle(c, gateway.Route{Method: "GET", Path: "/api/settings",
-			Handle: func(context.Context, *gateway.Request) (any, error) { return load(), nil }})
+			Handle: func(context.Context, *gateway.Request) (any, error) {
+				// show the order a new agent really gets: concrete models,
+				// providers that are gone left out
+				st := load()
+				if av := agents.AvailableDefaults(); len(av) > 0 {
+					st.DefaultModels = st.DefaultModels[:0]
+					for _, m := range av {
+						st.DefaultModels = append(st.DefaultModels, m.Full())
+					}
+				}
+				return st, nil
+			}})
 		g.Handle(c, gateway.Route{Method: "PATCH", Path: "/api/settings",
 			Validate: func(r *gateway.Request) error {
 				var b Settings

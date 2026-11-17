@@ -1197,6 +1197,25 @@ var Plugin = kernel.Register(kernel.Spec{
 		if ms := renameProviders(r.defaults); ms != nil {
 			r.defaults = ms
 		}
+		// agents that point at a CLI's "default" get its concrete model once
+		// the CLI's list is known (shortly after start, then now and then)
+		c.Go(func(ctx context.Context) {
+			t := time.NewTimer(15 * time.Second)
+			defer t.Stop()
+			for {
+				select {
+				case <-ctx.Done():
+					return
+				case <-t.C:
+					if reg, ok := kernel.Lookup[*llm.Registry](c, llm.ServiceKey); ok {
+						if n := r.resolvePlaceholders(ctx, reg); n > 0 {
+							c.Log().Info("agents: named the concrete model of CLI defaults", "agents", n)
+						}
+					}
+					t.Reset(10 * time.Minute)
+				}
+			}
+		})
 		// team-scoped tools (a team's shared MCP servers) need the agent's team
 		if tr, ok := kernel.Lookup[*tools.Registry](c, tools.ServiceKey); ok {
 			tr.SetTeamOf(func(id string) string {
@@ -1260,6 +1279,10 @@ func (r *Registry) DefaultModels() []llm.ModelRef {
 	return append([]llm.ModelRef(nil), r.defaults...)
 }
 
+// AvailableDefaults is the model order a new agent gets now: the
+// configured order with concrete models, minus providers that are gone.
+func (r *Registry) AvailableDefaults() []llm.ModelRef { return r.availableDefaults() }
+
 // availableDefaults is the default order restricted to configured
 // providers; when none of them is configured (e.g. no CLI installed), the
 // first model of each available provider is used instead so a new agent
@@ -1285,17 +1308,32 @@ func (r *Registry) availableDefaults() []llm.ModelRef {
 }
 
 func (r *Registry) computeDefaults(reg *llm.Registry, defs []llm.ModelRef) []llm.ModelRef {
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
 	var out []llm.ModelRef
+	seen := map[string]bool{}
 	for _, m := range defs {
-		if _, ok := reg.Get(m.Provider); ok && !reg.ModelOff(m) {
+		ad, ok := reg.Get(m.Provider)
+		if !ok || reg.ModelOff(m) {
+			continue // a provider that is gone (e.g. the old Gemini CLI) or a switched-off model
+		}
+		// "default" is a placeholder for "whatever the CLI picks": name the
+		// concrete model so people see (and the router tracks) what runs.
+		if m.Model == "" || m.Model == "default" {
+			if ms, err := reg.ModelsOf(ctx, ad); err == nil {
+				if id := pickModelFor(ad, ms); id != "" {
+					m.Model = id
+				}
+			}
+		}
+		if k := m.String(); !seen[k] {
+			seen[k] = true
 			out = append(out, m)
 		}
 	}
 	if len(out) > 0 {
 		return out
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-	defer cancel()
 	for _, ad := range reg.List() {
 		if ad.ID() == "mock" {
 			continue
@@ -1304,7 +1342,7 @@ func (r *Registry) computeDefaults(reg *llm.Registry, defs []llm.ModelRef) []llm
 		if err != nil {
 			continue
 		}
-		if id := pickModel(ms); id != "" {
+		if id := pickModelFor(ad, ms); id != "" {
 			out = append(out, llm.ModelRef{Provider: ad.ID(), Model: id})
 		}
 		if len(out) == 3 {
@@ -1372,7 +1410,93 @@ func sameRefs(a, b []llm.ModelRef) bool {
 // a gateway) offers many; the first enabled match wins.
 var preferredModels = []string{"claude-opus-5-5", "claude-sonnet-5-5", "gpt-6.1", "gpt-6", "deepseek-v4-pro", "deepseek-flash", "gemini"}
 
+// resolvePlaceholders replaces "default" model refs of subscription CLIs
+// in agent specs with the CLI's first concrete model, once it lists
+// some; it returns how many agents changed.
+func (r *Registry) resolvePlaceholders(ctx context.Context, reg *llm.Registry) int {
+	concrete := map[string]string{} // provider → model ("" = not known)
+	resolve := func(provider string) string {
+		if v, ok := concrete[provider]; ok {
+			return v
+		}
+		concrete[provider] = ""
+		ad, ok := reg.Get(provider)
+		if !ok || ad.Kind() != "subscription" {
+			return ""
+		}
+		c, cancel := context.WithTimeout(ctx, 3*time.Second)
+		defer cancel()
+		ms, err := reg.ModelsOf(c, ad)
+		if err != nil {
+			return ""
+		}
+		concrete[provider] = pickModelFor(ad, ms)
+		return concrete[provider]
+	}
+	n := 0
+	for _, a := range r.List() {
+		changed := false
+		ms := a.Spec().Models
+		for _, m := range ms {
+			if m.Model == "default" && resolve(m.Provider) != "" {
+				changed = true
+			}
+		}
+		if !changed {
+			continue
+		}
+		if err := a.Update(func(s *Spec) {
+			seen := map[string]bool{}
+			out := s.Models[:0:0]
+			for _, m := range s.Models {
+				if m.Model == "default" {
+					if v := resolve(m.Provider); v != "" {
+						m.Model = v
+					}
+				}
+				if k := m.String(); !seen[k] {
+					seen[k] = true
+					out = append(out, m)
+				}
+			}
+			s.Models = out
+		}); err == nil {
+			n++
+		}
+	}
+	if n > 0 {
+		r.mu.Lock()
+		r.fallback = nil
+		r.mu.Unlock()
+	}
+	return n
+}
+
+// pickModelFor picks ad's model for a placeholder: a subscription CLI's
+// first concrete model in its own order (the one it would run itself,
+// e.g. Claude Code's "opus"); otherwise the best-known strong model.
+func pickModelFor(ad llm.Adapter, ms []llm.ModelInfo) string {
+	if ad.Kind() == "subscription" {
+		for _, m := range ms {
+			if m.Enabled && m.ID != "default" {
+				return m.ID
+			}
+		}
+	}
+	return pickModel(ms)
+}
+
 func pickModel(ms []llm.ModelInfo) string {
+	// a CLI's "default" entry only stands in when it lists nothing else
+	real := ms[:0:0]
+	for _, m := range ms {
+		if m.ID != "default" {
+			real = append(real, m)
+		}
+	}
+	if len(real) > 0 {
+		ms = real
+	}
 	for _, want := range preferredModels {
 		for _, m := range ms {
 			if m.Enabled && strings.Contains(m.ID, want) {

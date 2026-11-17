@@ -101,7 +101,7 @@ func TestStreamAndSessionReuse(t *testing.T) {
 		t.Fatalf("version %q", v)
 	}
 	ms, _ := a.Models(context.Background())
-	if len(ms) != 3 || ms[1].ID != "fast" || ms[2].ID != "smart" {
+	if len(ms) != 2 || ms[0].ID != "fast" || ms[1].ID != "smart" {
 		t.Fatalf("models %+v", ms)
 	}
 	pid := a.Pid()
