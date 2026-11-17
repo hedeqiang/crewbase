@@ -71,6 +71,7 @@ import (
 	"time"
 
 	"github.com/hedeqiang/crewbase/capabilities/approval"
+	"github.com/hedeqiang/crewbase/capabilities/credentials"
 	"github.com/hedeqiang/crewbase/core/agentloop"
 	"github.com/hedeqiang/crewbase/core/llm"
 	"github.com/hedeqiang/crewbase/core/session"
@@ -151,13 +152,22 @@ type Service struct {
 	add func(r resolved) error
 	// reader reads the CLIs' session files (see recorder.go)
 	reader *transcript.Reader
+
+	// managed from the UI (see manage.go)
+	c       *kernel.Context
+	reg     *llm.Registry
+	opMu    sync.Mutex                 // one management operation at a time
+	live    map[string]*kernel.Context // adapter contexts, by agent id
+	errs    map[string]string          // last mount / probe error, by agent id
+	ov      *overrides
+	secrets func() secretStore
 }
 
 // Rescan registers CLIs installed since the last scan (a CLI installed
 // while Crewbase runs shows up without a restart). It returns the ids added.
 func (s *Service) Rescan() []string {
 	var added []string
-	for _, ac := range agentList(s.cfg) {
+	for _, ac := range agentList(s.config()) {
 		s.mu.Lock()
 		_, have := s.adapters[ac.ID]
 		s.mu.Unlock()
@@ -177,7 +187,7 @@ func (s *Service) Rescan() []string {
 
 // Detect lists subscription CLIs (installed or not) for the settings page.
 func (s *Service) Detect(ctx context.Context) []CLIInfo {
-	infos := Detect(ctx, s.cfg)
+	infos := Detect(ctx, s.config())
 	s.Rescan()
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -201,6 +211,7 @@ func (s *Service) Adapter(agentID string) (*Adapter, bool) {
 var Plugin = kernel.Register(kernel.Spec{
 	Name:        "@crewbase/llm-acp",
 	Inject:      []string{llm.ServiceKey},
+	Optional:    []string{credentials.ServiceKey},
 	Description: "Subscription CLIs (Claude Code, Codex, Antigravity, ...) over ACP.",
 	Apply: func(c *kernel.Context) error {
 		cfg, err := kernel.Decode[Config](c)
@@ -215,28 +226,53 @@ var Plugin = kernel.Register(kernel.Spec{
 		}
 		notes := cfg.ToolNotes == nil || *cfg.ToolNotes
 		reg := kernel.Use[*llm.Registry](c, llm.ServiceKey)
-		svc := &Service{cfg: cfg, adapters: map[string]*Adapter{}, reader: transcript.NewReader()}
-		goFn := func(fn func(context.Context)) bool {
-			if c.Disposed() {
-				return false
+		svc := &Service{cfg: cfg, adapters: map[string]*Adapter{}, reader: transcript.NewReader(),
+			c: c, reg: reg, live: map[string]*kernel.Context{}, errs: map[string]string{}}
+		svc.secrets = func() secretStore {
+			if cs, ok := kernel.Lookup[*credentials.Service](c, credentials.ServiceKey); ok {
+				return cs
 			}
-			c.Go(fn)
-			return true
+			return nil
 		}
+		if svc.ov, err = loadOverrides(cfg.StateDir); err != nil {
+			c.Log().Warn("acp: "+overridesFile+" not read; built-in settings apply", "err", err)
+			svc.ov = &overrides{}
+		}
+		svc.loadEnv(c.Context())
+		// each adapter lives in its own context, so one CLI can be
+		// re-registered (edited, disabled, removed) without the others
 		svc.add = func(r resolved) error {
+			ac := c.Fork("")
+			goFn := func(fn func(context.Context)) bool {
+				if ac.Disposed() {
+					return false
+				}
+				ac.Go(fn)
+				return true
+			}
 			a := newAdapter(providerID(r.ID), r, Options{AutoApprove: cfg.AutoApprove, Approve: approver(c), MCP: mcpGranter(c), Log: c.Log(), IdleTimeout: idle, ToolNotes: notes, Go: goFn, StateDir: cfg.StateDir,
 				FilesChanged: func(agent, sess string, paths []string) {
 					FilesChanged.Emit(c.Host(), FilesChange{Agent: agent, Session: sess, Paths: paths})
 				}})
-			// processes stop when the plugin context's goroutines are
+			// processes stop when the adapter context's goroutines are
 			// cancelled; Close also drops sessions and the idle timer
-			c.Defer(a.Close)
-			if err := reg.Register(c, a); err != nil {
+			ac.Defer(a.Close)
+			if err := reg.Register(ac, a); err != nil {
+				ac.Dispose()
 				return err
 			}
 			svc.mu.Lock()
 			svc.adapters[r.ID] = a
+			svc.live[r.ID] = ac
 			svc.mu.Unlock()
+			ac.Defer(func() {
+				svc.mu.Lock()
+				if svc.adapters[r.ID] == a {
+					delete(svc.adapters, r.ID)
+					delete(svc.live, r.ID)
+				}
+				svc.mu.Unlock()
+			})
 			// the model picker lists the CLI's own models, not only
 			// "default": from the cache at once, then learned again in the
 			// background when the cache is old or was learned with another
@@ -265,14 +301,15 @@ var Plugin = kernel.Register(kernel.Spec{
 			})
 			return nil
 		}
-		for _, ac := range agentList(cfg) {
+		for _, ac := range agentList(svc.config()) {
 			r := resolve(ac)
 			if !r.runnable() {
 				c.Log().Debug("acp agent not available", "agent", ac.ID, "cli", r.CLI, "installed", r.cliPath != "")
 				continue
 			}
 			if err := svc.add(r); err != nil {
-				return err
+				c.Log().Warn("acp agent not registered", "agent", ac.ID, "err", err)
+				svc.setErr(ac.ID, err)
 			}
 		}
 		// pick up CLIs installed later

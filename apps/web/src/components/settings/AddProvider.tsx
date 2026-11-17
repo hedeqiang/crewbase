@@ -17,7 +17,7 @@ type Step = "pick" | "key";
  *  models step: the listing is fetched again with the stored key, models
  *  can be ticked / unticked or typed by hand, and a blank key keeps the
  *  stored one. */
-export function AddProviderDialog({ onClose, existing, edit }: { onClose: () => void; existing: string[]; edit?: UserProvider }) {
+export function AddProviderDialog({ onClose, existing, edit, onAddCli }: { onClose: () => void; existing: string[]; edit?: UserProvider; onAddCli?: () => void }) {
   const [presets, setPresets] = useState<ProviderPreset[] | null>(null);
   const [loadErr, setLoadErr] = useState("");
   const [step, setStep] = useState<Step>(edit ? "key" : "pick");
@@ -232,6 +232,17 @@ export function AddProviderDialog({ onClose, existing, edit }: { onClose: () => 
                   </button>
                 )}
               </div>
+              {onAddCli && (
+                <>
+                  <div className="ap-sec">{t("sub.section")}</div>
+                  <div className="ap-grid">
+                    <button type="button" className="ap-card" onClick={onAddCli}>
+                      <span className="ap-plus">+</span>
+                      <span>{t("sub.addCliCard")}</span>
+                    </button>
+                  </div>
+                </>
+              )}
               <p className="small ap-note">{t("ap.subNote")}</p>
             </>
           ) : (

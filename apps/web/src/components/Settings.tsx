@@ -1,9 +1,10 @@
 import { AddProviderDialog } from "./settings/AddProvider";
+import { SubscriptionDialog, SubscriptionPanel, subState } from "./settings/Subscriptions";
 import { MagpieModelsDialog, ModelCatalog } from "./settings/ModelSources";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { ChevronLeft, Info, ListChecks, Pencil, Plus, Search, Workflow } from "lucide-react";
 import { NAV, SECTION_ICONS } from "./settings/nav";
-import { API, desktop, type DesktopPermission, type DesktopUpdateState, type UpdateInfo, type ApprovalHistoryItem, type ModelInfo, type ProviderView, type RememberedChoice, type Settings as SettingsData, type UserProvider } from "../api";
+import { API, desktop, type DesktopPermission, type DesktopUpdateState, type UpdateInfo, type ApprovalHistoryItem, type ModelInfo, type ProviderView, type RememberedChoice, type Settings as SettingsData, type Subscription, type UserProvider } from "../api";
 import { getLang, t, type Key, type Lang } from "../i18n";
 import { ago, kfmt, modeLabel, modelKind, priceLong, priceShort, providerName, until } from "../format";
 import { openSession, refreshModels, setBubbles, setLang, setState, toast, useStore, type Bubbles, type SettingsSection, resync } from "../store";
@@ -674,15 +675,32 @@ function Models() {
   const [editing, setEditing] = useState<UserProvider | null>(null);
   const [choosingMagpie, setChoosingMagpie] = useState(false);
   const [userProv, setUserProv] = useState<UserProvider[]>([]);
-  const pname = (id: string) => userProv.find((u) => u.id === id)?.name || providerName(id);
+  // subscription CLIs (managed here; disabled ones are not model providers)
+  const [subs, setSubs] = useState<Subscription[]>([]);
+  const [addingCli, setAddingCli] = useState(false);
+  const subOf = (id: string) => subs.find((x) => x.provider === id);
+  const pname = (id: string) => userProv.find((u) => u.id === id)?.name || subOf(id)?.name || providerName(id);
   const loadUser = () =>
     API.providers()
       .then((r) => setUserProv(r.providers))
       .catch(() => setUserProv([]));
+  const loadSubs = () =>
+    API.subscriptions()
+      .then((r) => setSubs(r.subscriptions ?? []))
+      .catch(() => setSubs([]));
   useEffect(() => {
     void loadUser();
+    void loadSubs();
   }, [models]);
-  const providers = models?.providers ?? [];
+  // disabled CLIs (and custom ones that cannot start) stay listed so they
+  // can be turned back on or fixed
+  const offSubs = subs.filter((x) => !x.active && (!x.enabled || x.kind === "custom") && !(models?.providers ?? []).some((p) => p.id === x.provider));
+  const isOff = (id: string) => offSubs.some((x) => x.provider === id);
+  const providers = useMemo(
+    () => [...(models?.providers ?? []), ...offSubs.map((x): ProviderView => ({ id: x.provider, kind: "subscription", models: [], error: x.enabled ? x.error || subState(x) : undefined }))],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [models, subs],
+  );
   const exhaustedOf = (p: ProviderView) =>
     (models?.exhausted ?? []).filter((x) => x.model === p.id || x.model.startsWith(p.id + "/"));
   const isEx = (p: ProviderView) => exhaustedOf(p).length > 0 || (!!p.quota?.known && p.quota.remaining <= 0);
@@ -690,18 +708,19 @@ function Models() {
     const ql = q.trim().toLowerCase();
     const out: [string, ProviderView[]][] = [];
     for (const kind of ["subscription", "api", "local"]) {
-      const ps = providers.filter((p) => (p.kind === kind || (kind === "api" && !["subscription", "local"].includes(p.kind))) && (!ql || p.id.toLowerCase().includes(ql) || providerName(p.id).toLowerCase().includes(ql)));
+      const ps = providers.filter((p) => (p.kind === kind || (kind === "api" && !["subscription", "local"].includes(p.kind))) && (!ql || p.id.toLowerCase().includes(ql) || pname(p.id).toLowerCase().includes(ql)));
       if (ps.length) out.push([kind, ps]);
     }
     return out;
-  }, [providers, q]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [providers, q, subs, userProv]);
   const cur = providers.find((p) => p.id === sel) ?? groups[0]?.[1][0];
   // every model of the selected provider with its on/off switch (the
   // pickers' list leaves out what magpie / added providers have off)
   const [sw, setSw] = useState<{ provider: string; models: ModelInfo[] } | null>(null);
   const [swBusy, setSwBusy] = useState<string | null>(null);
   useEffect(() => {
-    if (!cur) return;
+    if (!cur || isOff(cur.id)) return;
     let live = true;
     API.modelSwitches(cur.id).then(
       (r) => live && setSw({ provider: cur.id, models: r.models ?? [] }),
@@ -726,6 +745,8 @@ function Models() {
       setSwBusy(null);
     }
   };
+  const curSub = cur ? subOf(cur.id) : undefined;
+  const curOff = !!cur && isOff(cur.id);
   const users = cur ? Object.values(agents).filter((a) => (a.models ?? []).some((r) => r.provider === cur.id)) : [];
 
   return (
@@ -752,7 +773,16 @@ function Models() {
           </>
         }
       />
-      {adding && <AddProviderDialog existing={providers.map((p) => p.id)} onClose={() => setAdding(false)} />}
+      {adding && (
+        <AddProviderDialog
+          existing={providers.map((p) => p.id)}
+          onClose={() => setAdding(false)}
+          onAddCli={() => {
+            setAdding(false);
+            setAddingCli(true);
+          }}
+        />
+      )}
       {editing && (
         <AddProviderDialog
           existing={providers.map((p) => p.id)}
@@ -764,6 +794,18 @@ function Models() {
         />
       )}
       {choosingMagpie && <MagpieModelsDialog onClose={() => setChoosingMagpie(false)} />}
+      {addingCli && (
+        <SubscriptionDialog
+          existing={subs.map((x) => x.id)}
+          onClose={() => setAddingCli(false)}
+          onSaved={(x) => {
+            setAddingCli(false);
+            setSel(x.provider);
+            void loadSubs();
+            void refreshModels();
+          }}
+        />
+      )}
       {tab === "routing" ? (
         <Routing />
       ) : tab === "catalog" ? (
@@ -783,13 +825,14 @@ function Models() {
               <div key={kind}>
                 <div className="pvg">{t(`kind.${kind}` as Key)}</div>
                 {ps.map((p) => {
-                  const st = providerState(p, isEx(p));
+                  const off = isOff(p.id) && !subOf(p.id)?.enabled;
+                  const st = off ? "" : providerState(p, isEx(p));
                   return (
-                    <button key={p.id} type="button" className="pvi" aria-current={cur?.id === p.id} onClick={() => setSel(p.id)}>
+                    <button key={p.id} type="button" className={"pvi" + (off ? " off" : "")} aria-current={cur?.id === p.id} onClick={() => setSel(p.id)}>
                       <ProviderMark provider={p.id} size={22} />
                       <span className="g">
                         <b>{pname(p.id)}</b>
-                        <span>{p.error ? t("set.errorState") : isEx(p) ? t("set.exhaustedState") : t("set.connectedState")}</span>
+                        <span>{off ? t("sub.disabledState") : p.error ? t("set.errorState") : isEx(p) ? t("set.exhaustedState") : t("set.connectedState")}</span>
                       </span>
                       {st && <span className={"sdot " + st} />}
                     </button>
@@ -797,6 +840,10 @@ function Models() {
                 })}
               </div>
             ))}
+            <button className="btn sm pvadd" type="button" onClick={() => setAddingCli(true)}>
+              <Plus size={13} />
+              {t("sub.addCli")}
+            </button>
           </div>
           {cur && (
             <div className="pvd">
@@ -808,9 +855,13 @@ function Models() {
                     {cur.id} · {t(`kind.${cur.kind}` as Key)}
                   </span>
                 </div>
-                <span className={"pill " + (cur.error ? "red" : isEx(cur) ? "red" : "ok")}>
-                  {cur.error ? t("set.errorState") : isEx(cur) ? t("set.exhaustedState") : t("set.connectedState")}
-                </span>
+                {curSub && !curSub.enabled ? (
+                  <span className="pill">{t("sub.disabledState")}</span>
+                ) : (
+                  <span className={"pill " + (cur.error ? "red" : isEx(cur) ? "red" : "ok")}>
+                    {cur.error ? t("set.errorState") : isEx(cur) ? t("set.exhaustedState") : t("set.connectedState")}
+                  </span>
+                )}
               </div>
               <div className="pvusers">
                 {users.length ? (
@@ -827,6 +878,15 @@ function Models() {
                   <span className="small">{t("set.inUseNone")}</span>
                 )}
               </div>
+              {curSub && (
+                <SubscriptionPanel
+                  sub={curSub}
+                  users={users}
+                  onChanged={() => {
+                    void loadSubs();
+                  }}
+                />
+              )}
               {cur.error && <div className="confirmbar errbar">{cur.error}</div>}
               {cur.bridge?.outdated && (
                 <div className="confirmbar warnbar" role="status">
@@ -876,6 +936,7 @@ function Models() {
                   {t("set.exhaustedUntil", { model: x.model, time: until(x.until) })}
                 </div>
               ))}
+              {!curOff && (<>
               <div className="psec2">{t("set.quota")}</div>
               <div className="box">
                 {cur.quota?.known ? (
@@ -904,6 +965,7 @@ function Models() {
               </div>
               {listed.length > 0 && <p className="small mswnote">{t("set.modelSwitchNote")}</p>}
               {listed.length === 0 ? <div className="empty">{t("set.noModels")}</div> : <ModelTable provider={cur} models={listed} busy={swBusy} onFlip={flip} />}
+              </>)}
             </div>
           )}
         </div>

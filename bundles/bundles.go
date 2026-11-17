@@ -55,6 +55,7 @@ import (
 	_ "github.com/hedeqiang/crewbase/features/schedule"
 	_ "github.com/hedeqiang/crewbase/features/skills"
 	_ "github.com/hedeqiang/crewbase/features/subagent"
+	_ "github.com/hedeqiang/crewbase/features/subscriptions"
 	_ "github.com/hedeqiang/crewbase/features/taskboard"
 	_ "github.com/hedeqiang/crewbase/features/teams"
 	_ "github.com/hedeqiang/crewbase/features/telemetry"
@@ -207,6 +208,7 @@ var Desktop = kernel.Bundle{Name: "desktop", Entries: []kernel.Entry{
 	{ID: "plugin-manager-api", Name: "@crewbase/plugin-manager-api"},
 	{ID: "console", Name: "@crewbase/console", Config: map[string]any{"dir": "${root}"}},
 	{ID: "providers-api", Name: "@crewbase/providers-api"},
+	{ID: "subscriptions-api", Name: "@crewbase/subscriptions-api"},
 	{ID: "model-catalog-api", Name: "@crewbase/model-catalog-api"},
 	{ID: "usage-api", Name: "@crewbase/usage-api"},
 	{ID: "roles", Name: "@crewbase/roles"},
