@@ -19,13 +19,32 @@ var severity = map[string]int{
 // ClassifyCommand derives the action category of a shell command line.
 // It is a best-effort heuristic for the rules engine (Ask on push / delete
 // / publish); the sandbox, not this function, is what confines a command.
-func ClassifyCommand(cmd string) string {
+func ClassifyCommand(cmd string) string { return classifyCommand(cmd, false) }
+
+// ClassifyCommandSandboxed is ClassifyCommand for a command that runs
+// confined to the workspace (sandbox mode): deleting local files there is
+// no different from overwriting them, so it does not ask. Deletes that
+// reach outside (gh repo delete, ...) and push / publish still do.
+func ClassifyCommandSandboxed(cmd string) string { return classifyCommand(cmd, true) }
+
+// localDelete marks a segment that only deletes files or refs on this
+// machine (rm, find -delete, git clean, ...).
+const localDelete = "local-delete"
+
+func classifyCommand(cmd string, sandboxed bool) string {
 	best := tools.CategoryExec
 	// Two views: quotes as separators (sees `sh -c 'git push'`) and quotes
 	// removed (keeps `find . -name '*.o' -delete` in one piece).
 	unquoted := strings.NewReplacer("'", "", "\"", "").Replace(cmd)
 	for _, seg := range append(segments(cmd, true), segments(unquoted, false)...) {
-		if c := classifySegment(seg); severity[c] > severity[best] {
+		c := classifySegment(seg)
+		if c == localDelete {
+			c = tools.CategoryDelete
+			if sandboxed {
+				c = tools.CategoryExec
+			}
+		}
+		if severity[c] > severity[best] {
 			best = c
 		}
 	}
@@ -113,12 +132,12 @@ func classifySegment(f []string) string {
 		case "push":
 			return tools.CategoryPush
 		case "clean", "rm":
-			return tools.CategoryDelete
+			return localDelete
 		case "send-email":
 			return tools.CategoryPublish
 		case "branch":
 			if has(rest, "-D", "-d", "--delete") {
-				return tools.CategoryDelete
+				return localDelete
 			}
 		}
 	case "gh":
@@ -136,10 +155,10 @@ func classifySegment(f []string) string {
 			return tools.CategoryPublish
 		}
 	case "rm", "rmdir", "unlink", "shred", "srm", "trash":
-		return tools.CategoryDelete
+		return localDelete
 	case "find":
 		if has(f, "-delete") {
-			return tools.CategoryDelete
+			return localDelete
 		}
 	case "npm", "pnpm", "yarn", "bun":
 		s, _ := sub(f)

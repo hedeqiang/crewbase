@@ -1332,7 +1332,7 @@ export const en: Partial<Record<Key, string>> = {
   "mode.host.desc": "Runs directly on the host; only for trusted builds and ops",
   "mode.read-only.desc": "Reads data sources and web pages only; cannot write files, run commands or send messages out",
   "mode.recommended": "Recommended",
-  "mode.sandbox.desc": "Files and commands stay inside a container; only the project folder is mounted",
+  "mode.sandbox.desc": "Free rein inside an isolated box: network, installs, edits and deletes in the project; pushing and publishing still ask you",
   "na.backup": "Switches to {model} when quota runs out; workspace and context are kept",
   "na.color": "Color",
   "na.created": "Created {name}",

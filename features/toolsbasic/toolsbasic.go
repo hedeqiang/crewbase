@@ -8,6 +8,8 @@ package toolsbasic
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"path/filepath"
@@ -27,7 +29,7 @@ import (
 // Config is the plugin config.
 type Config struct {
 	// AllowHosts turns on the network allowlist in confined modes (empty =
-	// no network in read-only / sandbox modes).
+	// no network in read-only mode, open network in sandbox mode).
 	AllowHosts []string `json:"allowHosts,omitempty"`
 	// DefaultTimeout / MaxTimeout bound bash (Go durations; 2m / 10m).
 	DefaultTimeout string `json:"defaultTimeout,omitempty"`
@@ -52,6 +54,29 @@ type basic struct {
 // EffectiveMode normalizes a call's run mode: "" is the default (sandbox);
 // anything unknown fails closed to read-only.
 func EffectiveMode(m string) string { return sandbox.EffectiveRunMode(m) }
+
+// cacheEnv points package managers' caches at a temp directory the sandbox
+// can write (the user's own ~/.npm, ~/Library/Caches, ~/go are read-only
+// there), one per workspace so agents do not share a cache.
+func cacheEnv(mode, workspace string) []string {
+	if mode != agent.ModeSandbox || workspace == "" {
+		return nil
+	}
+	sum := sha256.Sum256([]byte(workspace))
+	dir := filepath.Join("/tmp", "crewbase-cache", hex.EncodeToString(sum[:6]))
+	return []string{
+		"XDG_CACHE_HOME=" + dir,
+		"npm_config_cache=" + filepath.Join(dir, "npm"),
+		"PNPM_HOME=" + filepath.Join(dir, "pnpm"),
+		"YARN_CACHE_FOLDER=" + filepath.Join(dir, "yarn"),
+		"BUN_INSTALL_CACHE_DIR=" + filepath.Join(dir, "bun"),
+		"PIP_CACHE_DIR=" + filepath.Join(dir, "pip"),
+		"UV_CACHE_DIR=" + filepath.Join(dir, "uv"),
+		"GOCACHE=" + filepath.Join(dir, "go-build"),
+		"GOMODCACHE=" + filepath.Join(dir, "go-mod"),
+		"CARGO_HOME=" + filepath.Join(dir, "cargo"),
+	}
+}
 
 // PolicyFor maps a call to its sandbox policy.
 func PolicyFor(call tools.Call, allowHosts []string) sandbox.Policy {
@@ -105,7 +130,8 @@ func (b *basic) bashTool() *tools.Tool {
 	return &tools.Tool{
 		Name: "bash",
 		Description: "Run a shell command (/bin/sh -c) in the agent workspace and return its exit code and output. " +
-			"In read-only and sandbox modes the command runs inside a sandbox: writes outside the workspace and network access are blocked. " +
+			"In sandbox mode the command runs confined to the workspace with network access (installing dependencies and fetching work; package caches live in a private temp dir). " +
+			"In read-only mode writes and network access are blocked. " +
 			"If the result says the sandbox blocked the command, do not retry; ask the user for a wider run mode. " +
 			"For anything long-running (builds, test suites, dev servers, downloads) pass background: true: it returns at once, " +
 			"you keep working, and you get a message when it ends (job_output / job_stop / job_list).",
@@ -119,6 +145,9 @@ func (b *basic) bashTool() *tools.Tool {
 		PathArgs: []string{"cwd"},
 		Classify: func(call tools.Call) (string, string) {
 			cmd := call.String("command")
+			if EffectiveMode(call.Mode) == agent.ModeSandbox {
+				return ClassifyCommandSandboxed(cmd), "bash: " + oneLine(cmd, 200)
+			}
 			return ClassifyCommand(cmd), "bash: " + oneLine(cmd, 200)
 		},
 		Execute: b.bash,
@@ -167,7 +196,7 @@ func (b *basic) bash(ctx context.Context, call tools.Call) (tools.Result, error)
 			timeout = min(time.Duration(args.Timeout*float64(time.Second)), MaxJobTimeout)
 		}
 		return b.jobs.start(call, args.Command, shell.ExecRequest{
-			Command: args.Command, Cwd: cwd, Timeout: timeout, Policy: PolicyFor(call, b.hosts),
+			Command: args.Command, Cwd: cwd, Timeout: timeout, Policy: PolicyFor(call, b.hosts), Env: cacheEnv(mode, call.Workspace),
 		})
 	}
 	timeout := b.timeout
@@ -179,7 +208,7 @@ func (b *basic) bash(ctx context.Context, call tools.Call) (tools.Result, error)
 	}
 	res, err := b.sh.Exec(ctx, shell.ExecRequest{
 		Command: args.Command, Cwd: cwd, Timeout: timeout,
-		Policy: PolicyFor(call, b.hosts),
+		Policy: PolicyFor(call, b.hosts), Env: cacheEnv(mode, call.Workspace),
 	})
 	if err != nil {
 		if errors.Is(err, sandbox.ErrUnavailable) {
@@ -220,7 +249,7 @@ func (b *basic) formatRun(r shell.RunResult) tools.Result {
 	}
 	if r.Blocked {
 		s.WriteString("The sandbox blocked an operation of this command (it is not a bug in the command). Do not retry it as is; " +
-			"stay inside the workspace without network, or ask the user to switch to a wider run mode.\n")
+			"stay inside the workspace (and without network in read-only mode), or ask the user to switch to a wider run mode.\n")
 	}
 	if r.Enforcement == sandbox.EnforcementPartial {
 		s.WriteString("Note: sandbox enforcement is partial")
@@ -444,7 +473,13 @@ func (b *basic) deleteTool() *tools.Tool {
 		}, "path"),
 		Category: tools.CategoryDelete,
 		PathArgs: []string{"path"},
-		Classify: func(call tools.Call) (string, string) { return tools.CategoryDelete, "delete " + call.String("path") },
+		Classify: func(call tools.Call) (string, string) {
+			if EffectiveMode(call.Mode) == agent.ModeSandbox {
+				// confined to the workspace, where writing is already allowed
+				return tools.CategoryWrite, "delete " + call.String("path")
+			}
+			return tools.CategoryDelete, "delete " + call.String("path")
+		},
 		Execute: func(ctx context.Context, call tools.Call) (tools.Result, error) {
 			var args struct {
 				Path      string `json:"path"`

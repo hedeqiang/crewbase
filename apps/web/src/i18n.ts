@@ -40,7 +40,7 @@ const zh = {
   "mode.sandbox": "容器沙箱",
   "mode.host": "宿主机授权",
   "mode.read-only.desc": "只读数据源和网页，不能写文件、执行命令或对外发消息",
-  "mode.sandbox.desc": "文件与命令限制在容器内，只挂载项目目录",
+  "mode.sandbox.desc": "在隔离环境里随便用：可联网、装依赖、改删项目文件；推送和对外发布仍会先问你",
   "mode.host.desc": "直接在本机执行，仅用于受信任的编译与运维",
   "mode.recommended": "推荐",
 

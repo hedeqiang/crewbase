@@ -151,7 +151,8 @@ func TestFileTools(t *testing.T) {
 		t.Fatalf("%q", exe.Result.Content)
 	}
 	exe, cat = e.run("sandbox", "delete_file", map[string]any{"path": "notes", "recursive": true})
-	if exe.Result.IsError || cat != tools.CategoryDelete {
+	// confined to the workspace, a delete counts as a write in sandbox mode
+	if exe.Result.IsError || cat != tools.CategoryWrite {
 		t.Fatal(exe.Result, cat)
 	}
 	// escapes are refused by fs even without the run-mode guard

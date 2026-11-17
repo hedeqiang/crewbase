@@ -18,8 +18,8 @@ func TestPolicyForRunModes(t *testing.T) {
 		want  sandbox.Policy
 	}{
 		{agent.ModeReadOnly, nil, sandbox.Policy{Mode: sandbox.ModeReadOnly, ProtectedRoots: []string{ws}, Network: sandbox.NetworkNone}},
-		{agent.ModeSandbox, nil, sandbox.Policy{Mode: sandbox.ModeWorkspaceWrite, WritableRoots: []string{ws}, ProtectedRoots: cfg, Network: sandbox.NetworkNone}},
-		{"", nil, sandbox.Policy{Mode: sandbox.ModeWorkspaceWrite, WritableRoots: []string{ws}, ProtectedRoots: cfg, Network: sandbox.NetworkNone}},
+		{agent.ModeSandbox, nil, sandbox.Policy{Mode: sandbox.ModeWorkspaceWrite, WritableRoots: []string{ws}, ProtectedRoots: cfg, Network: sandbox.NetworkOpen}},
+		{"", nil, sandbox.Policy{Mode: sandbox.ModeWorkspaceWrite, WritableRoots: []string{ws}, ProtectedRoots: cfg, Network: sandbox.NetworkOpen}},
 		{agent.ModeHost, nil, sandbox.Policy{Mode: sandbox.ModeFull, Network: sandbox.NetworkOpen}},
 		{"bogus", nil, sandbox.Policy{Mode: sandbox.ModeReadOnly, ProtectedRoots: []string{ws}, Network: sandbox.NetworkNone}},
 		{agent.ModeSandbox, []string{"pypi.org"}, sandbox.Policy{Mode: sandbox.ModeWorkspaceWrite, WritableRoots: []string{ws}, ProtectedRoots: cfg, Network: sandbox.NetworkAllowlist, AllowHosts: []string{"pypi.org"}}},

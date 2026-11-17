@@ -178,8 +178,8 @@ func EffectiveRunMode(m string) string {
 }
 
 // PolicyFor maps an agent run mode preset to a sandbox policy (docs/06 §2):
-// read-only → read-only, sandbox → workspace-write on the workspace, host →
-// full. Unknown modes fail closed to read-only. allowHosts, when non-empty,
+// read-only → read-only, sandbox → workspace-write on the workspace with
+// the network open, host → full. Unknown modes fail closed to read-only. allowHosts, when non-empty,
 // turns on the network allowlist for the confined modes.
 func PolicyFor(runMode, workspace string, allowHosts []string) Policy {
 	var p Policy
@@ -190,7 +190,11 @@ func PolicyFor(runMode, workspace string, allowHosts []string) Policy {
 		// The coding CLIs' project config in the workspace stays read-only:
 		// a command must not hand the next CLI turn hooks, MCP servers or
 		// an allow-list (agent.CLIConfigNames).
-		p = Policy{Mode: ModeWorkspaceWrite, WritableRoots: []string{workspace}, ProtectedRoots: agent.CLIConfigPaths(workspace), Network: NetworkNone}
+		// The network is open: inside the sandbox the agent installs
+		// dependencies, clones and fetches like on any dev box. What
+		// leaves the machine on purpose (push, publish, POST) is still
+		// asked by the rules engine.
+		p = Policy{Mode: ModeWorkspaceWrite, WritableRoots: []string{workspace}, ProtectedRoots: agent.CLIConfigPaths(workspace), Network: NetworkOpen}
 	default: // read-only and anything unknown
 		p = Policy{Mode: ModeReadOnly, Network: NetworkNone}
 		if workspace != "" {
