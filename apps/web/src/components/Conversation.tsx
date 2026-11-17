@@ -261,8 +261,13 @@ function WithMentions({ text }: { text: string }) {
   );
 }
 
+/** Characters of a user message shown before it folds. */
+const LONG_MSG = 400;
+
 function UserMsg({ it }: { it: Extract<FeedItem, { k: "user" }> }) {
   const acts = useContext(MsgCtx);
+  const long = (it.text?.length ?? 0) > LONG_MSG * 1.5;
+  const [expanded, setExpanded] = useState(false);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(it.text);
   const [busy, setBusy] = useState(false);
@@ -331,9 +336,14 @@ function UserMsg({ it }: { it: Extract<FeedItem, { k: "user" }> }) {
     <div className="m-user">
       {it.attachments?.length ? <MsgAttachments agent={it.to} items={it.attachments} /> : null}
       {(it.text || !it.attachments?.length) && (
-        <div className="bubble">
+        <div className={"bubble" + (long && !expanded ? " clipped" : "")}>
           {it.from && <span className="from">{it.from}</span>}
-          <WithMentions text={it.text} />
+          <WithMentions text={long && !expanded ? it.text.slice(0, LONG_MSG) + "…" : it.text} />
+          {long && (
+            <button type="button" className="bubmore" onClick={() => setExpanded(!expanded)}>
+              {expanded ? t("msg.collapse") : t("msg.expand", { n: it.text.length.toLocaleString() })}
+            </button>
+          )}
         </div>
       )}
       {it.text && (
@@ -1450,7 +1460,8 @@ function ApprovalCard({ it, agent }: { it: Extract<FeedItem, { k: "approval" }>;
   const cmd = it.call ? argsPreview(it.call.args) : "";
   return (
     <div className={"qcard" + (pending ? " wait" : "")}>
-      <h4>{t("appr.wants", { agent: name, summary })}</h4>
+      {/* the title says what kind of action; the command itself shows once, below */}
+      <h4>{t("appr.wants", { agent: name, summary: cmd && toolLabel(it.req.tool) ? toolLabel(it.req.tool) : summary })}</h4>
       <div className="qs">{approvalWhy(it.req, it.time)}</div>
       {cmd && <code className="cmd">{cmd}</code>}
       {req.preview && (
@@ -1459,8 +1470,8 @@ function ApprovalCard({ it, agent }: { it: Extract<FeedItem, { k: "approval" }>;
           <Markdown text={req.preview} />
         </details>
       )}
-      {/* the friendly tool name; ids only in the tooltip (approvalWhy above says the category) */}
-      {toolLabel(it.req.tool) && (
+      {/* the friendly tool name (when the title did not already use it); ids only in the tooltip */}
+      {toolLabel(it.req.tool) && !cmd && (
         <div className="small" title={[it.req.tool, it.req.category].filter(Boolean).join(" · ")}>
           {toolLabel(it.req.tool)}
         </div>
@@ -1707,7 +1718,21 @@ function Composer({
     setState({ hostConfirm: null });
   };
 
-  const setOverride = (r: ModelRef | null) => setModelOverride(agent.id, r ? refString(r) : null);
+  // In a one-to-one conversation the pick becomes the agent's first model
+  // (kept by the daemon: the panel, other devices and a reload agree; the
+  // rest of its order stays as fallbacks). In a channel it applies to the
+  // next messages from this composer only.
+  const setOverride = (r: ModelRef | null) => {
+    if (channel || !r) {
+      setModelOverride(agent.id, r ? refString(r) : null);
+      return;
+    }
+    setModelOverride(agent.id, null);
+    const rest = (agent.models ?? []).filter((m) => !(m.provider === r.provider && m.model === r.model));
+    void API.patchAgent(agent.id, { modelRefs: [refString(r), ...rest.map((m) => refString(m))] })
+      .then(() => toast(t("comp.modelSet", { name: agent.name, model: shortModelEffort(models, r)?.name ?? r.model })))
+      .catch((e: any) => toast(e?.message ?? String(e)));
+  };
 
   const order = agent.models ?? [];
   const mode = agent.effectiveMode || agent.mode || "sandbox";

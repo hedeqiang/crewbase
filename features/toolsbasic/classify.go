@@ -56,9 +56,13 @@ func classifyCommand(cmd string, sandboxed bool) string {
 // treating them as separators (over-approximation is fine here).
 func segments(cmd string, quotes bool) [][]string {
 	seps := []string{"&&", "\n", "||", "\n", ";", "\n", "|", "\n", "&", "\n",
-		"$(", "\n", "`", "\n", "(", "\n", ")", "\n", "{", "\n", "}", "\n"}
+		"$(", "\n", "`", "\n", "(", "\n", ")", "\n"}
 	if quotes {
-		seps = append(seps, "'", "\n", "\"", "\n")
+		// with quotes as separators a quoted "%{http_code}" is cut off
+		// anyway; braces split { cmd; } groups. Without quotes, braces
+		// stay: they are mostly ${VAR} and format strings, and splitting
+		// there cut `curl -w "%{http_code}" -X POST …` in two.
+		seps = append(seps, "'", "\n", "\"", "\n", "{", "\n", "}", "\n")
 	}
 	repl := strings.NewReplacer(seps...)
 	var out [][]string

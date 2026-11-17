@@ -803,11 +803,20 @@ export function connectEvents() {
   });
   on("session.event", (d: SessionEvent) => applySessionEvent(d));
   on("agent.status", (d: { agent: string; status: AgentView["status"]; detail?: string }) => {
+    const before = state.agents[d.agent];
     setState((s) => {
       const a = s.agents[d.agent];
       if (!a) return {};
       return { agents: { ...s.agents, [d.agent]: { ...a, status: d.status, detail: d.detail } } };
     });
+    // the daemon drops events for a client that falls behind (a long
+    // streamed reply): when an agent settles, read it again so its queue
+    // is not left showing work that is done
+    if (before && d.status !== "running" && before.queue.length > 0)
+      void API.agent(d.agent).then(
+        (a) => setState((s) => ({ agents: { ...s.agents, [a.id]: a } })),
+        () => {},
+      );
   });
   on("agent.updated", (d: AgentView) => {
     const isNew = !state.agents[d.id];

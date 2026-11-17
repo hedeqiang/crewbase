@@ -37,3 +37,17 @@ func TestCacheEnvOnlyInSandbox(t *testing.T) {
 		t.Fatalf("per-workspace caches: %v %v", a, b)
 	}
 }
+
+// A curl POST after a quoted write-out format with braces is still a
+// publish (it used to be cut in two at the brace).
+func TestCurlPostAfterBraces(t *testing.T) {
+	cmd := `python3 -c 'print(1)' > /tmp/p.json && curl -sS -o /tmp/r.json -w "HTTP_STATUS:%{http_code}\n" -X POST -H "Content-Type: application/json" --data-binary @/tmp/p.json https://httpbin.org/post; echo "exit=$?"`
+	for _, f := range []func(string) string{ClassifyCommand, ClassifyCommandSandboxed} {
+		if got := f(cmd); got != tools.CategoryPublish {
+			t.Fatalf("got %s", got)
+		}
+	}
+	if got := ClassifyCommand(`{ git push; }`); got != tools.CategoryPush {
+		t.Fatalf("brace group: %s", got)
+	}
+}

@@ -429,6 +429,8 @@ export function project(events: SessionEvent[], cards?: ReadonlySet<string>): Pr
         break;
       case "compaction/summary":
         push({ k: "compact", id, summary: d.summary ?? "", before: d.tokensBefore ?? 0, after: d.tokensAfter ?? 0 }, e.time);
+        // the footer's context figure follows the compaction until the next step
+        if (d.tokensAfter && context[e.agent ?? ""]) context[e.agent ?? ""] = { ...context[e.agent ?? ""], tokens: d.tokensAfter };
         if (d.uptoSeq) compactedUpto[e.agent ?? ""] = d.uptoSeq;
         break;
       case "turn/start": {

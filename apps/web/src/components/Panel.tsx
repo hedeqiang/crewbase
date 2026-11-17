@@ -341,8 +341,9 @@ function TaskTab({ agent }: { agent: AgentView }) {
         <dl className="kv">
           <dt>{t("panel.status")}</dt>
           <dd>
-            <span className={"pill " + pillTone(agent.status)}>{statusLabel(agent.status)}</span>
-            {agent.detail && <span className="small">{detailLabel(agent.detail)}</span>}
+            {/* waiting for an approval: one pill that says so, not 等你处理 + 等你批准 */}
+            <span className={"pill " + pillTone(agent.status)}>{agent.status === "waiting" && agent.detail ? detailLabel(agent.detail) : statusLabel(agent.status)}</span>
+            {agent.detail && agent.status !== "waiting" && <span className="small">{detailLabel(agent.detail)}</span>}
           </dd>
           <dt>{t("panel.model")}</dt>
           <dd>

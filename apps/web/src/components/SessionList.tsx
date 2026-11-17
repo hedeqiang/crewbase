@@ -107,7 +107,8 @@ export function SessionList() {
   const agentRow = (a: AgentView) => {
     const snip = snippet(a.session);
     const topic = summaries[a.session]?.topic;
-    const waiting = (pendingBy[a.id] ?? 0) > 0 || !!takeoverReason(a);
+    // the 需要你 section already lists what it waits for: no second chip here
+    const waiting = needs === 0 && ((pendingBy[a.id] ?? 0) > 0 || !!takeoverReason(a));
     return (
       <button key={a.id} className="ci" data-session={a.session} type="button" aria-current={sel(a.session)} onClick={() => openSession(a.session)} onContextMenu={(e) => openRowMenu(e, { kind: "agent", agent: a })}>
         <Avatar agent={a} size={32} status={!isChat(a)} />

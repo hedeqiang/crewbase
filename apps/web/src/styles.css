@@ -2085,3 +2085,7 @@ button.cxblk:focus-visible { outline: 2px solid var(--accent); outline-offset: -
 .m-agent.turn .tans { margin-top: 6px; }
 .m-agent.turn .thinking p { margin: 0 0 8px; }
 .m-agent.turn .typing.in { padding: 6px 0 0; margin: 0; }
+
+/* a very long message folds; the button shows the rest */
+.m-user .bubble .bubmore { display: block; margin-top: 6px; font-size: 12px; font-weight: 500; color: var(--accent-text); background: none; border: 0; padding: 0; cursor: pointer; }
+.feed[data-bubbles="solid"] .m-user .bubble .bubmore { color: inherit; text-decoration: underline; }

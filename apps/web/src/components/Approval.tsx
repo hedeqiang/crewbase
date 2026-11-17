@@ -30,7 +30,7 @@ export function ApprovalActions({ req, small = false, extra }: { req: ApprovalRe
 
   if (mode === "reject")
     return (
-      <div className="rejbox">
+      <div className="rejbox" ref={(el) => el?.scrollIntoView({ block: "nearest", behavior: "smooth" })}>
         <textarea
           className="fi"
           rows={2}
@@ -56,7 +56,7 @@ export function ApprovalActions({ req, small = false, extra }: { req: ApprovalRe
 
   if (mode === "confirm")
     return (
-      <div className="rejbox">
+      <div className="rejbox" ref={(el) => el?.scrollIntoView({ block: "nearest", behavior: "smooth" })}>
         <p className="small warnline">{t("appr.confirmRemember", { agent: name, category: req.category || req.tool })}</p>
         <div className="acts">
           <button className="btn warn" type="button" disabled={busy} onClick={() => decide("allowed-once", { remember: true, confirmed: true })}>
