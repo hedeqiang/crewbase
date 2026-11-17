@@ -1982,6 +1982,8 @@ const zh = {
   "gws.pasteHint": "如果你是在另一台电脑上登录的，浏览器最后会打不开页面：把那个页面的地址粘贴到这里即可完成连接。",
   "sub.section": "订阅 CLI",
   "sub.offGroup": "已停用 · {n}",
+  "sub.more": "更多操作",
+  "sub.disableHint": "不再加载，用到它的 Agent 换用下一个模型",
   "sub.addCli": "添加订阅 CLI",
   "sub.addCliCard": "自定义 CLI（ACP）",
   "sub.addTitle": "添加自定义订阅 CLI",

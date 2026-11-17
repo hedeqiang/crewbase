@@ -2070,7 +2070,9 @@ button.cxblk:focus-visible { outline: 2px solid var(--accent); outline-offset: -
 .pvi.off { opacity: .55; }
 .pvi.off:hover, .pvi.off[aria-current="true"] { opacity: .8; }
 .pvlist .pvadd { align-self: flex-start; margin: 10px 8px 4px; flex: none; }
-.subact { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 14px; }
+.subact { display: flex; align-items: center; gap: 4px; }
+.subact .ix.sm { width: 30px; height: 30px; border-radius: 8px; }
+.subact .btn.sm { margin: 0 2px; }
 .confirmbar.subnote { margin: 12px 0 0; border-color: var(--border); background: var(--hover); color: var(--text2); }
 .subfacts { margin-top: 12px; display: flex; flex-direction: column; gap: 8px; font-size: 12.5px; }
 .subfacts > div { display: grid; grid-template-columns: 72px minmax(0, 1fr); column-gap: 10px; align-items: baseline; }

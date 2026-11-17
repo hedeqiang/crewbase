@@ -1,4 +1,5 @@
-import { Loader2, Pencil, Plus, Power, RefreshCw, Trash2, X } from "lucide-react";
+import { Loader2, MoreHorizontal, Pencil, Plus, Power, RefreshCw, Trash2, X } from "lucide-react";
+import { Popover, useMenu } from "../Popover";
 import { useState } from "react";
 import { API, type AgentView, type Subscription } from "../../api";
 import { t } from "../../i18n";
@@ -52,9 +53,12 @@ export function subState(s: Subscription): string {
 
 /** The facts and actions of a subscription CLI in the provider detail
  *  pane: 刷新模型 / 编辑 / 停用·启用 / 删除 (custom only). */
-export function SubscriptionPanel({ sub, users, onChanged }: { sub: Subscription; users: AgentView[]; onChanged: () => void }) {
+/** The header actions of a subscription CLI: refresh and edit, with
+ *  switching off and deleting in a "more" menu. */
+export function SubscriptionActions({ sub, users, onChanged }: { sub: Subscription; users: AgentView[]; onChanged: () => void }) {
   const [busy, setBusy] = useState<"" | "refresh" | "toggle" | "delete">("");
   const [editing, setEditing] = useState(false);
+  const more = useMenu();
   const fail = (e: any) => toast(t("ap.failed", { error: e?.message ?? String(e) }));
   const done = async () => {
     onChanged();
@@ -74,6 +78,7 @@ export function SubscriptionPanel({ sub, users, onChanged }: { sub: Subscription
     }
   };
   const toggle = async () => {
+    more.close();
     if (sub.enabled) {
       const text = users.length ? t("sub.disableQUsers", { name: sub.name, n: users.length }) : t("sub.disableQ", { name: sub.name });
       if (!(await confirmDialog({ text, ok: t("sub.disable"), danger: true }))) return;
@@ -90,8 +95,9 @@ export function SubscriptionPanel({ sub, users, onChanged }: { sub: Subscription
     }
   };
   const remove = async () => {
+    more.close();
     const text = users.length ? t("sub.deleteQUsers", { name: sub.name, n: users.length }) : t("sub.deleteQ", { name: sub.name });
-    if (!(await confirmDialog(text))) return;
+    if (!(await confirmDialog({ text, ok: t("sub.delete"), danger: true }))) return;
     setBusy("delete");
     try {
       await API.removeSubscription(sub.id);
@@ -103,30 +109,70 @@ export function SubscriptionPanel({ sub, users, onChanged }: { sub: Subscription
       setBusy("");
     }
   };
+  return (
+    <div className="subact">
+      {sub.enabled ? (
+        <>
+          <button className="ix sm" type="button" disabled={!!busy} onClick={() => void refresh()} aria-label={t("sub.refresh")} title={t("sub.refreshTitle")}>
+            {busy === "refresh" ? <Loader2 size={15} className="spin" /> : <RefreshCw size={15} />}
+          </button>
+          <button className="btn sm" type="button" disabled={!!busy} onClick={() => setEditing(true)}>
+            <Pencil size={13} />
+            {t("ap.editBtn")}
+          </button>
+        </>
+      ) : (
+        <button className="btn pri sm" type="button" disabled={!!busy} onClick={() => void toggle()}>
+          {busy === "toggle" ? <Loader2 size={13} className="spin" /> : <Power size={13} />}
+          {t("sub.enable")}
+        </button>
+      )}
+      <button className="ix sm" type="button" ref={more.ref} disabled={!!busy} onClick={more.toggle} aria-haspopup="menu" aria-label={t("sub.more")} title={t("sub.more")}>
+        {busy === "delete" || (busy === "toggle" && sub.enabled) ? <Loader2 size={15} className="spin" /> : <MoreHorizontal size={15} />}
+      </button>
+      <Popover anchor={more.anchor} open={more.open} onClose={more.close} align="end" width={220}>
+        {!sub.enabled && (
+          <button className="mi" type="button" onClick={() => { more.close(); setEditing(true); }}>
+            <Pencil size={14} />
+            {t("ap.editBtn")}
+          </button>
+        )}
+        {sub.enabled && (
+          <button className="mi top" type="button" onClick={() => void toggle()}>
+            <Power size={14} />
+            <span className="g">
+              <b>{t("sub.disable")}</b>
+              <span>{t("sub.disableHint")}</span>
+            </span>
+          </button>
+        )}
+        {sub.removable && (
+          <button className="mi dng" type="button" onClick={() => void remove()}>
+            <Trash2 size={14} />
+            {t("sub.delete")}
+          </button>
+        )}
+      </Popover>
+      {editing && (
+        <SubscriptionDialog
+          edit={sub}
+          onClose={() => setEditing(false)}
+          onSaved={() => {
+            setEditing(false);
+            void done();
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+/** What a subscription CLI is and how it starts. */
+export function SubscriptionPanel({ sub }: { sub: Subscription }) {
   const cmd = joinCommand(sub.acpCommand);
   const state = subState(sub);
   return (
     <>
-      <div className="subact">
-        <button className="btn sm" type="button" disabled={!!busy || !sub.enabled} onClick={() => void refresh()} title={t("sub.refreshTitle")}>
-          {busy === "refresh" ? <Loader2 size={13} className="spin" /> : <RefreshCw size={13} />}
-          {busy === "refresh" ? t("sub.refreshing") : t("sub.refresh")}
-        </button>
-        <button className="btn sm" type="button" disabled={!!busy} onClick={() => setEditing(true)}>
-          <Pencil size={13} />
-          {t("ap.editBtn")}
-        </button>
-        <button className={"btn sm" + (sub.enabled ? "" : " pri")} type="button" disabled={!!busy} onClick={() => void toggle()}>
-          {busy === "toggle" ? <Loader2 size={13} className="spin" /> : <Power size={13} />}
-          {sub.enabled ? t("sub.disable") : t("sub.enable")}
-        </button>
-        {sub.removable && (
-          <button className="btn dng sm" type="button" disabled={!!busy} onClick={() => void remove()}>
-            {busy === "delete" ? <Loader2 size={13} className="spin" /> : <Trash2 size={13} />}
-            {t("sub.delete")}
-          </button>
-        )}
-      </div>
       {!sub.enabled && <div className="confirmbar subnote">{t("sub.disabledNote")}</div>}
       <div className="box subfacts">
         <div>
@@ -164,16 +210,6 @@ export function SubscriptionPanel({ sub, users, onChanged }: { sub: Subscription
           </div>
         )}
       </div>
-      {editing && (
-        <SubscriptionDialog
-          edit={sub}
-          onClose={() => setEditing(false)}
-          onSaved={() => {
-            setEditing(false);
-            void done();
-          }}
-        />
-      )}
     </>
   );
 }

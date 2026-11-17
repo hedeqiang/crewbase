@@ -1,5 +1,5 @@
 import { AddProviderDialog } from "./settings/AddProvider";
-import { SubscriptionDialog, SubscriptionPanel, subState } from "./settings/Subscriptions";
+import { SubscriptionActions, SubscriptionDialog, SubscriptionPanel, subState } from "./settings/Subscriptions";
 import { MagpieModelsDialog, ModelCatalog } from "./settings/ModelSources";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { ChevronDown, ChevronLeft, ChevronRight, Info, ListChecks, Pencil, Plus, Search, Workflow } from "lucide-react";
@@ -880,6 +880,7 @@ function Models() {
                     {cur.error ? t("set.errorState") : isEx(cur) ? t("set.exhaustedState") : t("set.connectedState")}
                   </span>
                 )}
+                {curSub && <SubscriptionActions sub={curSub} users={users} onChanged={() => void loadSubs()} />}
               </div>
               <div className="pvusers">
                 {users.length ? (
@@ -897,13 +898,7 @@ function Models() {
                 )}
               </div>
               {curSub && (
-                <SubscriptionPanel
-                  sub={curSub}
-                  users={users}
-                  onChanged={() => {
-                    void loadSubs();
-                  }}
-                />
+                <SubscriptionPanel sub={curSub} />
               )}
               {cur.error && <div className="confirmbar errbar">{cur.error}</div>}
               {cur.bridge?.outdated && (
