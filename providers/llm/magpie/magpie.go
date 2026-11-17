@@ -14,6 +14,11 @@
 //     OpenAI's shapes;
 //   - requests use OpenAI Chat Completions at `/v1`, with the key
 //     `magpie-crewbase` so magpie's Usage counts them as Crewbase;
+//     OpenAI reasoning models (`openai/…`, `codex/…`, `…-openai/…`, or a
+//     catalog entry marked reasoning under those) use `/v1/responses`,
+//     which magpie serves too (OpenAI's newer models refuse function
+//     tools with a reasoning effort on Chat Completions); see the openai
+//     adapter's routing.go for the fallbacks;
 //   - subscription allowances come from `GET /v1/magpie/quotas` (cached
 //     ~60s, best effort; see Adapter.Quota);
 //   - magpie is one more provider beside the user's own, never a
@@ -186,7 +191,8 @@ func enabledSet(ids []string) map[string]bool {
 	return m
 }
 
-// Stream sends the request through magpie's Chat Completions endpoint.
+// Stream sends the request through magpie's Chat Completions or Responses
+// endpoint (see the package comment).
 func (a *Adapter) Stream(ctx context.Context, req llm.Request, onChunk func(llm.Chunk) error) (llm.Response, error) {
 	a.mu.RLock()
 	inner := a.inner
@@ -369,7 +375,7 @@ func (a *Adapter) refresh(ctx context.Context) (bool, error) {
 	}
 	inner, err := openai.New(a.c, openai.ProviderConfig{
 		ID: ProviderID, BaseURL: a.root + "/v1", APIKey: AppKey, Kind: Kind,
-		Models: specs, EffortStyle: "auto",
+		Models: specs, EffortStyle: "auto", Responses: openai.ResponsesAuto,
 		Headers: map[string]string{"User-Agent": "Crewbase"},
 	})
 	if err != nil {
@@ -377,6 +383,7 @@ func (a *Adapter) refresh(ctx context.Context) (bool, error) {
 	}
 	inner.SetHTTPClient(a.client)
 	a.mu.Lock()
+	inner.InheritRoutes(a.inner) // e.g. a /responses route found missing
 	a.inner, a.all, a.version = inner, infos, ver
 	a.filterLocked()
 	a.providers, a.modelProv = provs, modelProv
