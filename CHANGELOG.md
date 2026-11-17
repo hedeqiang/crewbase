@@ -3,6 +3,17 @@
 Each `## <version>` section becomes the release notes of that version,
 shown in the desktop app's update window.
 
+## 0.5.11
+
+订阅 CLI 可以管理了；Agent 的模型都显示为具体模型；上下文面板不再出现一大块说不清的「格式开销」。
+
+- 订阅 CLI（设置 › 模型与订阅）：可以刷新模型、编辑名称 / 启动命令 / 环境变量、停用和重新启用，也可以添加自定义的 ACP CLI 和删除它；改动立即生效，不用重启。刷新和编辑在标题旁，停用和删除收在「⋯」菜单里；停用的 CLI 不再自动加载，收在列表底部「已停用」里
+- 新 Agent 的默认模型顺序改为具体模型（如 Claude Code Opus、Codex GPT-6-Astra），不再是「Claude Code（默认模型）」；已经删掉的提供方（旧的 Gemini CLI）不再出现；老 Agent 里的「默认模型」会自动换成具体模型
+- 模型列表里不再有多余的「default」一项；切换 Claude Code 的模型（如 Haiku）实测生效
+- Codex 用 ChatGPT 账号时不支持的模型（如 GPT-6.1-Sol）在第一次被拒后自动关闭，并换到下一个能用的模型；Antigravity 账号被停用时显示原因并自动换模型，不再把提示当成回复
+- 上下文面板按实际发出的请求拆分：附件提取的全文、截图和插件追加的内容都有对应的块，「格式开销」只剩真正的估算误差
+- 按任务分流里同一个模型的两条路线（直连和经 magpie）只显示可用的那条
+
 ## 0.5.10
 
 上下文面板改成可以点开看内容的色块图；Claude Code / Codex 对话也能看到它们自己真实的提示词和工具。

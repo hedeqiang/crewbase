@@ -368,6 +368,13 @@
 - [x] 中文名 Agent 的 id / 工作目录：模板建的用模板 key，自定义名字转拼音
 - [x] 容器沙箱放开：联网、包缓存、工作区内删除不再询问（推送 / 发布 / 花钱仍问）
 
+## 订阅 CLI 管理与具体模型（2026-11-17）
+- [x] 订阅 CLI 刷新 / 编辑 / 停用 / 添加自定义 / 删除，热生效（features/subscriptions、providers/llm/acp/manage.go）
+- [x] 默认模型顺序与老 Agent 的 <cli>/default 换成具体模型；去掉列表里的 default
+- [x] 真机：Claude Code sonnet / haiku 切换生效；Codex 账号不支持的模型自动关闭并换模型；Antigravity 账号停用识别为认证错误并换模型；Cursor auto 可用
+- [ ] Antigravity 账号停用的提示只在内存里，重启后要等下一次请求才再次显示
+- [ ] 本机 Claude Code 的设置把 sonnet 指到了 opus（ANTHROPIC_DEFAULT_SONNET_MODEL），Crewbase 选 sonnet 实际跑的是 opus；这是用户自己的 CLI 配置
+
 ## OpenAI 走 Responses API（2026-11-17）
 - [x] responses: auto | always | never；auto（官方 OpenAI 默认、magpie 设为 auto）让 OpenAI 推理模型（gpt-5+ / o 系列 / codex，及 openai/ codex/ *-openai/ 前缀）走 /responses，其余仍走 Chat Completions
 - [x] Responses 路径覆盖普通对话：instructions、多轮工具调用、图片 / PDF、推理强度与摘要、max_output_tokens、流式文本 / 推理 / 工具调用、缓存用量、停止原因、错误分类
@@ -388,6 +395,7 @@
 ## 迭代日志
 | 日期 | 迭代 | 结果 |
 |---|---|---|
+| 2026-11-17 | 0.5.11 准备 | 订阅 CLI 管理、具体模型替代 default、Codex/Antigravity 账号限制处理、上下文面板按实际请求拆分；四个 CLI 真机跑通 |
 | 2026-11-17 | v0.5.10 | 上下文色块图 + 读取 Claude Code / Codex 本机会话记录；自己走查界面修 7 处体验问题；Go 全量测试通过，真机验证 Claude Code 上下文 |
 | 2026-11-15 | 团队 | ADR-0003 三期：团队骨架（团队 → 频道，名册 / 委派 / 频道限定在团队内）；人和权限（团队角色、公开 / 私密、个人对话；网关守卫 + 列表过滤 + 事件推送过滤）；团队共享（团队记忆、团队共享 MCP、默认权限、IM 绑定团队、团队用量）。浏览器 + 配对手机 + 真实模型全流程验证，修复：刷新后丢失所选团队、新建 Agent 未用团队默认权限、手机端出现无法打开的「管理团队」、成员设备显示主人的名字、报错为英文 |
 | 2026-11-15 | 18–19 | 可靠性与团队：重启续跑被打断的一轮；等审批时直接发消息即视为拒绝并读到新消息；记忆进提示词有上限、夜间整理记忆；后台委派、队友名册、主理人模板（真实模型验证并行分派与汇总）；群聊旁听（两级过滤、默认安静、只读） |
