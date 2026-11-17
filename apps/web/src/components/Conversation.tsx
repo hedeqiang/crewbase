@@ -564,10 +564,10 @@ function Feed({
       {!loading && items.length === 0 && !channel && (
         <div className="feedintro">
           <Avatar agent={agent} size={56} />
-          <b>{t("chat.empty", { name: agent.name })}</b>
+          <b>{agent.kind === "chat" ? t("chat.plainEmpty") : t("chat.empty", { name: agent.name })}</b>
           {/* the role says what it is for; a folder only when the person chose one */}
           {agent.role && agent.kind !== "chat" && <span className="small">{agent.role}</span>}
-          <span className="small">{agent.sharedWorkspace ? t("chat.emptyInDir", { dir: shortPath(agent.sharedWorkspace) }) : t("chat.emptyDesc")}</span>
+          <span className="small">{agent.kind === "chat" ? t("chat.plainEmptyDesc") : agent.sharedWorkspace ? t("chat.emptyInDir", { dir: shortPath(agent.sharedWorkspace) }) : t("chat.emptyDesc")}</span>
         </div>
       )}
       {!loading && channel && !items.some((i) => i.k === "user" || i.k === "agent" || i.k === "turn") && (

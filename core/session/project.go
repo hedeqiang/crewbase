@@ -2,6 +2,8 @@ package session
 
 import (
 	"github.com/hedeqiang/crewbase/core/llm"
+	"slices"
+	"strings"
 )
 
 // Payloads of well-known events.
@@ -11,6 +13,9 @@ type UserMessage struct {
 	From string `json:"from,omitempty"` // human member name
 	// To addresses a specific agent in a channel (@mention); "" = owner.
 	To string `json:"to,omitempty"`
+	// Also are the other agents the same message was given to (several
+	// @mentions in one channel message).
+	Also []string `json:"also,omitempty"`
 	// Attachments are files in the receiving agent's workspace.
 	Attachments []llm.Attachment `json:"attachments,omitempty"`
 }
@@ -218,6 +223,27 @@ func DeriveMessages(events []Event, agent string, names map[string]string) []llm
 			text := m.Text
 			if m.From != "" {
 				text = "[" + m.From + "]: " + text
+			}
+			// in a channel, a request for someone else is context, not work;
+			// one given to several agents says who else has it
+			name := func(id string) string {
+				if n := names[id]; n != "" {
+					return n
+				}
+				return id
+			}
+			switch all := append([]string{m.To}, m.Also...); {
+			case m.To == "":
+			case !slices.Contains(all, agent):
+				text = "[for " + name(m.To) + ", not you: do not answer or act on it]\n" + text
+			case len(all) > 1:
+				var others []string
+				for _, id := range all {
+					if id != agent {
+						others = append(others, name(id))
+					}
+				}
+				text = "[also sent to " + strings.Join(others, ", ") + ", who will each do their own part: do only the part addressed to you, do not delegate or answer theirs]\n" + text
 			}
 			if stopped[e.Seq] {
 				text += "\n" + StoppedNote

@@ -133,6 +133,9 @@ type Input struct {
 	// Resumed marks an input whose turn was cut off by a restart and is
 	// picked up again (its message is already in the log).
 	Resumed bool `json:"resumed,omitempty"`
+	// Logged: the message was recorded when it was posted (one channel
+	// message given to several agents is recorded once).
+	Logged bool `json:"logged,omitempty"`
 }
 
 // background-work result tags: nobody waits for their turn end

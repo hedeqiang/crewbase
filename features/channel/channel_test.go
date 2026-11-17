@@ -241,3 +241,54 @@ func TestDeletedChannelLeavesSessionList(t *testing.T) {
 		t.Fatalf("channels: %+v", l)
 	}
 }
+
+// One message that @mentions two members reaches both, is recorded once,
+// and each sees the other's request only as context.
+func TestMessageToTwoMembers(t *testing.T) {
+	svc, reg := setup(t)
+	a, _ := reg.Create(agent.Spec{Name: "Ana"})
+	b, _ := reg.Create(agent.Spec{Name: "Ben"})
+	c, _ := reg.Create(agent.Spec{Name: "Cy"})
+	ch, err := svc.Create("pair", []string{a.ID(), b.ID(), c.ID()}, "", "desktop")
+	if err != nil {
+		t.Fatal(err)
+	}
+	res, err := svc.Post(ch.ID, "@Ana count the rows; @Ben write a title", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(res.Agents) != 2 || res.Agents[0] != a.ID() || res.Agents[1] != b.ID() {
+		t.Fatalf("delivered to %v", res.Agents)
+	}
+	waitAll(a, b, c)
+	ss, _ := reg.Sessions().Get(ch.ID)
+	n := 0
+	for _, e := range ss.Events() {
+		if e.Type == session.TypeUserMessage {
+			n++
+		}
+	}
+	if n != 1 {
+		t.Fatalf("message recorded %d times", n)
+	}
+	turns := map[string]int{}
+	for _, e := range ss.Events() {
+		if e.Type == session.TypeTurnEnd {
+			turns[e.Agent]++
+		}
+	}
+	if turns[a.ID()] != 1 || turns[b.ID()] != 1 || turns[c.ID()] != 0 {
+		t.Fatalf("turns %v", turns)
+	}
+	// Cy was not mentioned: the request is marked as someone else's
+	for _, m := range session.DeriveMessages(ss.Events(), c.ID(), reg.Names()) {
+		if m.Role == llm.RoleUser && strings.Contains(m.Text(), "count the rows") && !strings.Contains(m.Text(), "not you") {
+			t.Fatalf("not marked for someone else: %q", m.Text())
+		}
+	}
+	for _, m := range session.DeriveMessages(ss.Events(), b.ID(), reg.Names()) {
+		if m.Role == llm.RoleUser && strings.Contains(m.Text(), "count the rows") && (strings.Contains(m.Text(), "not you") || !strings.Contains(m.Text(), "also sent to Ana")) {
+			t.Fatalf("Ben should see the request as shared with Ana: %q", m.Text())
+		}
+	}
+}

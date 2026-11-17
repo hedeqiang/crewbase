@@ -299,7 +299,7 @@ export function project(events: SessionEvent[], cards?: ReadonlySet<string>): Pr
       case "message/user":
         for (const k of Object.keys(lastTurn)) delete lastTurn[k];
         // a message joined into a running turn belongs to that turn
-        if (!pendingFrom.has(d.to ?? "") && !turns.has(d.to ?? "")) pendingFrom.set(d.to ?? "", e.seq);
+        for (const to of [d.to ?? "", ...((d.also as string[] | undefined) ?? [])]) if (!pendingFrom.has(to) && !turns.has(to)) pendingFrom.set(to, e.seq);
         if (INJECTED.test(d.text ?? "")) break;
         breakTurns();
         if (BG_FROM.has(d.from ?? "") && /^\[[^\]]+\]/.test(d.text ?? "")) {

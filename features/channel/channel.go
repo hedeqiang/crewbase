@@ -273,22 +273,32 @@ func (s *Service) setOwner(ss *session.Session, owner, by, reason string) error 
 
 var mentionRe = regexp.MustCompile(`@([\p{L}\p{N}_-]+)`)
 
-// resolveMention finds a member agent mentioned by id or display name.
+// resolveMention finds the first member agent mentioned by id or display
+// name.
 func (s *Service) resolveMention(ss *session.Session, text string) string {
+	if ids := s.resolveMentions(ss, text); len(ids) > 0 {
+		return ids[0]
+	}
+	return ""
+}
+
+// resolveMentions finds every member agent mentioned, in order, once each.
+func (s *Service) resolveMentions(ss *session.Session, text string) []string {
 	members := ss.Meta().Agents
+	var out []string
 	for _, m := range mentionRe.FindAllStringSubmatch(text, -1) {
 		want := strings.ToLower(m[1])
 		for _, id := range members {
 			a, ok := s.agents.Get(id)
-			if !ok {
+			if !ok || slices.Contains(out, id) {
 				continue
 			}
 			if strings.ToLower(id) == want || strings.ToLower(a.Spec().Name) == want {
-				return id
+				out = append(out, id)
 			}
 		}
 	}
-	return ""
+	return out
 }
 
 // PostResult tells the caller who got the message and their queue position.
@@ -296,6 +306,8 @@ type PostResult struct {
 	Agent    string `json:"agent"`
 	Input    string `json:"input"`
 	Position int    `json:"position"` // 0 = being worked on next
+	// Agents are all the members the message went to (several @mentions).
+	Agents []string `json:"agents,omitempty"`
 }
 
 // Post sends a human message. "@agent" gives this one task to that member
@@ -310,7 +322,14 @@ func (s *Service) Post(id, text, from string) (PostResult, error) {
 	case StateArchived:
 		return PostResult{}, errors.New("channel is archived")
 	}
-	target := s.resolveMention(ss, text)
+	targets := s.resolveMentions(ss, text)
+	if len(targets) > 1 {
+		return s.postMany(ss, id, text, from, targets)
+	}
+	target := ""
+	if len(targets) == 1 {
+		target = targets[0]
+	}
 	if target == "" {
 		target = Owner(ss)
 	}
@@ -335,6 +354,32 @@ func (s *Service) Post(id, text, from string) (PostResult, error) {
 		pos++
 	}
 	return PostResult{Agent: target, Input: in.ID, Position: pos}, nil
+}
+
+// postMany gives one message to several mentioned members: it is recorded
+// once (addressed to all of them) and each gets it as its own task.
+func (s *Service) postMany(ss *session.Session, id, text, from string, targets []string) (PostResult, error) {
+	if State(ss) == StatePaused {
+		_ = s.setState(ss, StateActive, from)
+	}
+	if _, err := ss.Append(session.TypeUserMessage, "", session.UserMessage{Text: text, From: from, To: targets[0], Also: targets[1:]}); err != nil {
+		return PostResult{}, err
+	}
+	res := PostResult{Agents: targets}
+	for i, t := range targets {
+		a, ok := s.agents.Get(t)
+		if !ok {
+			continue
+		}
+		in, err := a.Enqueue(agent.Input{Session: id, Text: text, From: from, Logged: true})
+		if err != nil {
+			return res, err
+		}
+		if i == 0 {
+			res.Agent, res.Input = t, in.ID
+		}
+	}
+	return res, nil
 }
 
 // HandOver moves ownership from the current owner to `to`, recording the

@@ -172,7 +172,8 @@ export function NewAgent({ draft: f, setDraft }: { draft: Draft; setDraft: (d: D
   }, [teamDefault]);
   // Default: the same preference the daemon uses for new agents (a strong
   // model from what is available), not simply the first listed.
-  const settingsDefault = useStore((s) => s.profile.defaultModels?.[0]);
+  const defaultOrder = useStore((s) => s.profile.defaultModels);
+  const settingsDefault = defaultOrder?.[0];
   const preferred = useMemo(() => {
     if (settingsDefault) {
       const hit = all.find((m) => refString(m.ref) === settingsDefault || refString({ ...m.ref, effort: undefined }) === settingsDefault.split("@")[0]);
@@ -186,13 +187,24 @@ export function NewAgent({ draft: f, setDraft }: { draft: Draft; setDraft: (d: D
   }, [all, settingsDefault]);
   const primary = f.model ?? preferred;
   const primaryLevels = effortsFor(primary ? findModel(models, primary) : undefined);
-  const backup = all.find((m) => primary && !sameRef(m.ref, primary))?.ref ?? null;
+  // Fallbacks follow the default order (Settings › 路由与切换), not the next
+  // model in the list (which could be a far more expensive one).
+  const backups = useMemo(() => {
+    const out: ModelRef[] = [];
+    for (const r of defaultOrder ?? []) {
+      const base = r.split("@")[0];
+      const hit = all.find((m) => refString({ ...m.ref, effort: undefined }) === base);
+      if (hit && !(primary && sameRef(hit.ref, primary)) && !out.some((x) => sameRef(x, hit.ref))) out.push(hit.ref);
+    }
+    return out.slice(0, 2);
+  }, [all, defaultOrder, primary]);
+  const backup = backups[0] ?? null;
   const set = (p: Partial<Draft>) => setDraft({ ...f, ...p });
   const [importing, setImporting] = useState(false);
   const modelRefs = () => {
     const refs: string[] = [];
     if (primary) refs.push(refString({ ...primary, effort: f.effort || undefined }));
-    if (backup) refs.push(refString(backup));
+    for (const b of backups) refs.push(refString(b));
     return refs;
   };
 
@@ -377,7 +389,7 @@ export function NewAgent({ draft: f, setDraft }: { draft: Draft; setDraft: (d: D
                 {backup ? (
                   <>
                     <ProviderMark provider={backup.provider} model={backup.model} size={12} />
-                    <span className="ml">{t("na.backup", { model: shortModel(models, backup) })}</span>
+                    <span className="ml">{t("na.backup", { model: backups.map((b) => shortModel(models, b)).join(" → ") })}</span>
                   </>
                 ) : (
                   t("na.noBackup")

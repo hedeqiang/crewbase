@@ -31,7 +31,7 @@ export function CodeBlock({ code, lang }: { code: string; lang?: string }) {
 
 function inline(s: string, key = ""): ReactNode[] {
   const out: ReactNode[] = [];
-  const re = /(`[^`\n]+`)|(\*\*[^*\n]+\*\*)|(\*[^*\n]+\*)|(\[[^\]\n]+\]\((https?:\/\/[^)\s]+)\))|(https?:\/\/[^\s<>()]+[^\s<>().,;:!?'"])|(~~[^~\n]+~~)/g;
+  const re = /(`[^`\n]+`)|(\*\*[^*\n]+\*\*)|(\*[^*\n]+\*)|(\[[^\]\n]+\]\((https?:\/\/[^)\s]+)\))|(https?:\/\/[^\s<>()\u3000-\u303f\uff00-\uffef]+[^\s<>().,;:!?'"\u3000-\u303f\uff00-\uffef])|(~~[^~\n]+~~)/g;
   let last = 0;
   let m: RegExpExecArray | null;
   let i = 0;
