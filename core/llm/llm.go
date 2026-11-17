@@ -206,6 +206,10 @@ type Usage struct {
 	CacheWrite   int `json:"cacheWrite,omitempty"`
 	// ServerTools counts provider-hosted tool calls (billed per call).
 	ServerTools map[string]int `json:"serverTools,omitempty"`
+	// Context is the size of the model's context after the reply as its
+	// runtime reported it (a coding CLI's ACP usage_update): its own system
+	// prompt and tools included. 0 = not reported.
+	Context int `json:"context,omitempty"`
 }
 
 // Chunk is one streaming piece.
@@ -286,6 +290,20 @@ type Adapter interface {
 // (Attachment.Text): extracted content plus the workspace path.
 type FileAccepter interface {
 	AcceptsFile(model, mime string) bool
+}
+
+// OwnTools is optionally implemented by adapters whose model runs its own
+// tools (coding CLIs over ACP): Request.Tools never reach the model, so
+// they take no room in its context. Such a model may still be offered some
+// Crewbase tools another way (features/mcpserver).
+type OwnTools interface {
+	RunsOwnTools() bool
+}
+
+// RunsOwnTools reports whether ad's model ignores Request.Tools (OwnTools).
+func RunsOwnTools(ad Adapter) bool {
+	o, ok := ad.(OwnTools)
+	return ok && o.RunsOwnTools()
 }
 
 // ModelCap reports whether model lists capability c in ms; known=false

@@ -138,6 +138,10 @@ func newAdapter(id string, r resolved, opts Options) *Adapter {
 func (a *Adapter) ID() string   { return a.id }
 func (a *Adapter) Kind() string { return "subscription" }
 
+// RunsOwnTools implements llm.OwnTools: the CLI runs its own tools and never
+// sees Request.Tools (only Crewbase's MCP server tools, see mcp.go).
+func (a *Adapter) RunsOwnTools() bool { return true }
+
 // Models returns configured models, else those learned from the CLI and
 // its bridge (see shape.go), after a "default" that keeps the CLI's own
 // choice. It never starts the process.
@@ -528,7 +532,7 @@ func (a *Adapter) Stream(ctx context.Context, req llm.Request, onChunk func(llm.
 	if used > 0 {
 		in = max(used-out, in)
 	}
-	return llm.Response{Message: msg, Usage: llm.Usage{InputTokens: in, OutputTokens: out}, StopReason: stop}, nil
+	return llm.Response{Message: msg, Usage: llm.Usage{InputTokens: in, OutputTokens: out, Context: used}, StopReason: stop}, nil
 }
 
 // claim finds a reusable session for the conversation or prepares a new one,
