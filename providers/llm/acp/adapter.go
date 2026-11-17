@@ -92,6 +92,10 @@ type Adapter struct {
 	versions    string    // the CLI and bridge versions running now
 	bridge      *llm.Bridge
 	closed      bool
+
+	// cliSessions: the ACP session each agent + Crewbase session ran in
+	// last (see recorder.go)
+	cliSessions map[string]cliSession
 }
 
 // conv is a Crewbase conversation mapped onto an ACP session.
@@ -439,6 +443,7 @@ func (a *Adapter) Stream(ctx context.Context, req llm.Request, onChunk func(llm.
 		c.prints = nil
 		return llm.Response{}, err
 	}
+	a.noteSession(req.Agent, req.Session, c.s)
 
 	t := newTurn(a.cfg.Name, a.toolNotes, onChunk, func() {
 		_ = p.conn.Notify(mSessionCancel, map[string]string{"sessionId": c.s.id})

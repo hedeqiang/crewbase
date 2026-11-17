@@ -46,7 +46,8 @@ type ModelConfig struct {
 //	  "autoApprove": false,
 //	  "idleTimeoutSec": 600,
 //	  "toolNotes": true,
-//	  "builtins": true
+//	  "builtins": true,
+//	  "readCliTranscripts": true
 //	}
 type Config struct {
 	Agents []AgentConfig `json:"agents"`
@@ -65,6 +66,10 @@ type Config struct {
 	// Builtins includes the built-in agent table (default true). With false
 	// only the listed agents are considered.
 	Builtins *bool `json:"builtins,omitempty"`
+	// ReadCLITranscripts lets the context panel show what a CLI really
+	// sends, read from the session files it writes (Claude Code
+	// transcripts, Codex rollouts; read only). Default true.
+	ReadCLITranscripts *bool `json:"readCliTranscripts,omitempty"`
 }
 
 // entrypoint is one way to start an agent in ACP mode.
