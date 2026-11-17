@@ -42,14 +42,20 @@ import (
 	"sync"
 
 	"github.com/hedeqiang/crewbase/core/agent"
+	"github.com/hedeqiang/crewbase/core/agentloop"
+	"github.com/hedeqiang/crewbase/core/llm"
 	"github.com/hedeqiang/crewbase/core/session"
 	"github.com/hedeqiang/crewbase/core/tools"
 	"github.com/hedeqiang/crewbase/features/gateway"
 	"github.com/hedeqiang/crewbase/kernel"
 )
 
-// ServiceKey is the key of the MCP server service (*Service).
-const ServiceKey = "mcp-server"
+// ServiceKey is the key of the MCP server service (*Service). The service
+// is the agent loop's ToolBridge: the context meter and the compaction
+// trigger count the tools it offers a CLI instead of Crewbase's registry.
+const ServiceKey = agentloop.ToolBridgeKey
+
+var _ agentloop.ToolBridge = (*Service)(nil)
 
 // Path is where the server is mounted on the gateway.
 const Path = "/mcp"
@@ -201,6 +207,17 @@ func (s *Service) visible(agentID, kind string) []*tools.Tool {
 		}
 	}
 	slices.SortFunc(out, func(a, b *tools.Tool) int { return strings.Compare(a.Name, b.Name) })
+	return out
+}
+
+// BridgedSchemas implements agentloop.ToolBridge: the tools agentID is
+// offered in a session of kind (what tools/list returns), as schemas.
+func (s *Service) BridgedSchemas(agentID, kind string) []llm.ToolSchema {
+	ts := s.visible(agentID, kind)
+	out := make([]llm.ToolSchema, 0, len(ts))
+	for _, t := range ts {
+		out = append(out, llm.ToolSchema{Name: t.Name, Description: t.Description, Parameters: inputSchema(t)})
+	}
 	return out
 }
 
