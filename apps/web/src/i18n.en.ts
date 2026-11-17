@@ -1162,6 +1162,7 @@ export const en: Partial<Record<Key, string>> = {
   "cmap.failed": "Could not load: {error}",
   "cmap.truncated": "Too long: showing the first 100 KB.",
   "cmap.cliNote": "This is the CLI's own system prompt and tools. The CLI manages them, so Crewbase cannot see their contents. The Crewbase tools it is given are listed separately.",
+  "cmap.otherNoteBig": "The provider counted much more than can be itemised. Usually something was attached or added that was not recorded (e.g. the app just restarted); after the next message the map follows the request actually sent.",
   "cmap.otherNote": "What the provider counted beyond the itemised estimate: the provider's own tool-use instructions, JSON structure and tokenizer differences. There is nothing separate to show for it.",
   "cmap.role.user": "User",
   "cmap.role.assistant": "Assistant",

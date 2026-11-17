@@ -168,6 +168,9 @@ func messageItems(msgs []llm.Message) []*Item {
 		var texts []string
 		for _, p := range m.Parts {
 			n := llm.EstimateTokens(p.Text) + 4
+			if p.Attachment != nil {
+				n += llm.EstimateAttachment(p.Attachment)
+			}
 			switch {
 			case p.ToolCall != nil:
 				tc := *p.ToolCall

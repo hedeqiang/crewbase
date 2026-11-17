@@ -520,7 +520,7 @@ function Detail({
       <div className="cxdm">{t("cmap.pctOf", { tokens: block.tokens.toLocaleString(), pct: pctOf(block.tokens, total) })}</div>
       <div className="cxdb">
         {block.kind === "cli" && <p className="small">{t("cmap.cliNote")}</p>}
-        {block.kind === "other" && <p className="small">{t("cmap.otherNote")}</p>}
+        {block.kind === "other" && <p className="small">{t(bd.used > 0 && block.tokens > bd.used * 0.3 ? "cmap.otherNoteBig" : "cmap.otherNote")}</p>}
         {block.members && (
           <div className="cxmembers">
             {block.members.map((m) => (

@@ -178,3 +178,46 @@ func TestUsageLeavesOutDeferredTools(t *testing.T) {
 		}
 	}
 }
+
+// The meter itemises the request the loop really sent: text a Request
+// listener added (like an attachment's extracted text) is a block of its
+// own, not an unexplained remainder.
+func TestUsageShowsWhatTheLoopSent(t *testing.T) {
+	big := strings.Repeat("extracted document text ", 2000)
+	e := newEnv(t, t.TempDir(), nil, func(load func(kernel.Spec, map[string]any)) {
+		load(kernel.Spec{Name: "test-inject", Apply: func(c *kernel.Context) error {
+			agentloop.Request.Use(c, func(ctx context.Context, x agentloop.RequestArgs, next kernel.Next[agentloop.RequestArgs, *llm.Request]) (*llm.Request, error) {
+				x.Request.System += "\n\n" + big
+				return next(ctx, x)
+			})
+			return nil
+		}}, nil)
+	})
+	a, _ := e.agents.Create(agent.Spec{Name: "K"})
+	ss, _ := a.Session()
+	before, _ := e.comp.Usage(a.ID(), "")
+	send(t, a, ss.ID(), "hello")
+	b, err := e.comp.Usage(a.ID(), "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var sys int
+	for _, s := range b.Segments {
+		if s.Key == "system" {
+			sys = s.Tokens
+		}
+	}
+	want := llm.EstimateTokens(big)
+	if sys < want || b.Estimated < before.Estimated+want {
+		t.Fatalf("system %d, estimated %d → %d; want the %d added tokens counted", sys, before.Estimated, b.Estimated, want)
+	}
+	found := false
+	for _, it := range b.Items {
+		if it.Label == "additions" && it.Tokens >= want {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("no additions item: %+v", b.Items)
+	}
+}

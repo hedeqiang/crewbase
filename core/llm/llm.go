@@ -90,6 +90,9 @@ type Attachment struct {
 	// Text then only a label), for adapters whose native path failed
 	// (e.g. a provider file upload).
 	Alt string `json:"-"`
+	// Tokens is the context the attachment took when it was sent (set on
+	// a recorded copy of a request whose bytes were dropped); 0 = unknown.
+	Tokens int `json:"-"`
 }
 
 // IsImage reports whether the attachment is a raster image models can view.
@@ -535,6 +538,32 @@ func EstimateTokens(s string) int {
 	return n + (ascii+3)/4
 }
 
+// EstimateAttachment estimates the context an attachment takes as it will
+// be sent: its bytes when loaded, its text form otherwise.
+func EstimateAttachment(at *Attachment) int {
+	switch {
+	case at.Tokens > 0:
+		return at.Tokens
+	case len(at.Data) > 0 && at.IsImage():
+		return 1600 // a large image is about 1.6k tokens on most providers
+	case len(at.Data) > 0:
+		return len(at.Data)/40 + 1600 // PDFs: text plus page images, roughly
+	case at.Text == "" && at.Size > 0:
+		// not loaded yet (the log keeps only the reference): judge by size
+		switch {
+		case at.IsImage():
+			return 1600
+		case at.IsPDF():
+			return int(at.Size)/40 + 1600
+		case strings.HasPrefix(at.Mime, "text/") || strings.Contains(at.Mime, "json") || strings.Contains(at.Mime, "xml"):
+			// ≈4 bytes a token over mixed text; the inline text is capped
+			// near 120k characters
+			return min(int(at.Size)/4, 120_000)
+		}
+	}
+	return EstimateTokens(at.Fallback())
+}
+
 // EstimateRequest estimates tokens of a request.
 func EstimateRequest(req Request) int {
 	n := EstimateTokens(req.System)
@@ -548,14 +577,7 @@ func EstimateRequest(req Request) int {
 				n += EstimateTokens(p.ToolResult.Content) + 8
 			}
 			if at := p.Attachment; at != nil {
-				switch {
-				case len(at.Data) > 0 && at.IsImage():
-					n += 1600 // a large image is about 1.6k tokens on most providers
-				case len(at.Data) > 0:
-					n += len(at.Data)/40 + 1600 // PDFs: text plus page images, roughly
-				default:
-					n += EstimateTokens(at.Fallback())
-				}
+				n += EstimateAttachment(at)
 			}
 		}
 	}

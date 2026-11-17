@@ -151,6 +151,7 @@ type loop struct {
 	cur    sync.Map // agent id → agent.Input of the running turn
 	parked parkBook
 	offers offers
+	sent   sentLog
 }
 
 // Plugin is the default driver.
@@ -181,6 +182,9 @@ var Plugin = kernel.Register(kernel.Spec{
 		l.toolsReg.Register(c, l.searchTool())
 		l.toolsReg.SetGate(l.gate)
 		if err := c.Provide(ToolPlannerKey, ToolPlanner(l)); err != nil {
+			return err
+		}
+		if err := c.Provide(SentRequestsKey, SentRequests(l)); err != nil {
 			return err
 		}
 		var dmu sync.Mutex
@@ -536,6 +540,7 @@ func (l *loop) step(ctx context.Context, a *agent.Agent, ss *session.Session, re
 		}
 		req = *reqp
 		req.Model = ref.Model // the model choice is not adjustable here
+		l.record(a, ss, req)
 		_, _ = ss.Append(session.TypeStepStart, a.ID(), StepStart{Step: n, Model: ref, ContextTokens: est, ContextWindow: win})
 
 		resp, err := ad.Stream(ctx, req, func(ch llm.Chunk) error {

@@ -1445,6 +1445,7 @@ const zh = {
   "cmap.failed": "无法加载：{error}",
   "cmap.truncated": "内容太长，只显示前 100 KB。",
   "cmap.cliNote": "这是 CLI 自己的系统提示词和工具，由 CLI 管理，Crewbase 看不到具体内容。Crewbase 提供给它的工具单独列在“Crewbase 工具”里。",
+  "cmap.otherNoteBig": "模型服务商的实际计数比能拆出来的内容多出很多。通常是上一次请求后有附件或插件内容没被记录到（例如应用刚重启）；再发一条消息后会按实际发出的请求重新拆分。",
   "cmap.otherNote": "模型服务商实际计数比各项估算多出的部分：服务商为工具调用加的格式说明、JSON 结构和分词差异。这部分没有可以单独查看的内容。",
   "cmap.role.user": "用户",
   "cmap.role.assistant": "助手",

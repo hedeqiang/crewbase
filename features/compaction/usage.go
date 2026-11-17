@@ -255,6 +255,21 @@ func (s *Service) usage(agentID, sessionID string) (Breakdown, []*Item, error) {
 			}
 		}
 	default:
+		// What the loop really sent last adds what re-deriving the request
+		// cannot see: loaded attachments (a document's extracted text,
+		// images), and what Request listeners added to the system prompt
+		// and tools. The prompt and tools themselves stay current.
+		if sr, ok := kernel.Lookup[agentloop.SentRequests](s.c, agentloop.SentRequestsKey); ok {
+			if q, seq, ok := sr.LastSent(agentID, sessionID); ok && !compactedSince(events, agentID, seq) {
+				items, b.Estimated = s.withSent(q, items, segs, ts, msgs), 0
+				b.Segments = b.Segments[:0]
+				for _, k := range segKeys {
+					b.Segments = append(b.Segments, Segment{Key: k, Label: labels[k], Tokens: segs[k]})
+					b.Estimated += segs[k]
+				}
+				b.Used = b.Estimated
+			}
+		}
 		if c := s.counted(events, agentID, ref); c.used > 0 {
 			b.Used, b.Counted, b.Cache = c.used, true, c.cache
 			if extra := c.used - b.Estimated; extra > 0 {
@@ -303,6 +318,9 @@ func countParts(segs map[string]int, msgs []llm.Message) {
 	for _, m := range msgs {
 		for _, p := range m.Parts {
 			n := llm.EstimateTokens(p.Text) + 4
+			if p.Attachment != nil {
+				n += llm.EstimateAttachment(p.Attachment)
+			}
 			key := SegMessages
 			if p.ToolCall != nil {
 				n += llm.EstimateTokens(string(p.ToolCall.Args)) + 8
@@ -516,4 +534,54 @@ func (s *Service) estimate(a *agent.Agent, kind string, model llm.ModelRef, even
 		Messages: session.DeriveMessages(events, a.ID(), s.agents.Names()),
 		Tools:    agentloop.ToolSchemas(s.toolsR, a, kind),
 	})
+}
+
+// compactedSince reports whether agentID's history was compacted after seq.
+func compactedSince(events []session.Event, agentID string, seq int64) bool {
+	for i := len(events) - 1; i >= 0 && events[i].Seq > seq; i-- {
+		if e := events[i]; e.Type == session.TypeCompaction && (e.Agent == agentID || e.Agent == "") {
+			return true
+		}
+	}
+	return false
+}
+
+// withSent merges the last sent request q into the derived breakdown: its
+// system additions and extra tools are added, and its messages (with the
+// attachments as loaded) replace the derived ones they cover.
+func (s *Service) withSent(q *agentloop.RecordedRequest, items []*Item, segs map[string]int, current []llm.ToolSchema, msgs []llm.Message) []*Item {
+	for _, blk := range q.System {
+		if blk.Name != "additions" {
+			continue
+		}
+		n := llm.EstimateTokens(blk.Text) + 1
+		segs[SegSystem] += n
+		items = append(items, &Item{ID: "sys:additions", Kind: SegSystem, Label: "additions", Tokens: n, content: one("text", "markdown", blk.Text)})
+	}
+	have := map[string]bool{}
+	for _, t := range current {
+		have[t.Name] = true
+	}
+	for _, t := range q.Tools {
+		if t.Deferred || have[t.Name] {
+			continue
+		}
+		raw, _ := json.Marshal(t)
+		n := llm.EstimateTokens(string(raw))
+		segs[SegTools] += n
+		items = append(items, toolItem(t, recordedGroup(t), n))
+	}
+	if len(msgs) < len(q.Messages) {
+		return items // the history changed under it; keep the derived view
+	}
+	kept := items[:0]
+	for _, it := range items {
+		if it.Kind != SegMessages && it.Kind != SegToolIO {
+			kept = append(kept, it)
+		}
+	}
+	segs[SegMessages], segs[SegToolIO] = 0, 0
+	all := append(append([]llm.Message(nil), q.Messages...), msgs[len(q.Messages):]...)
+	countParts(segs, all)
+	return append(kept, messageItems(all)...)
 }
