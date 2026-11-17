@@ -1944,8 +1944,7 @@ button.psec.toggle { width: 100%; background: none; border: 0; font-family: inhe
 .updlink { font-size: 11.5px; color: var(--muted); padding: 0; text-decoration: underline; text-decoration-color: var(--border2); text-underline-offset: 2px; }
 .updlink:hover { color: var(--text); text-decoration-color: currentColor; }
 .updic { position: relative; width: 22px; height: 22px; flex: none; display: grid; place-items: center; border-radius: 50%; color: var(--accent-text); background: var(--accent-soft); }
-.updic.ring { background: none; }
-.updic.ring > svg.lucide { position: absolute; color: var(--accent-text); }
+.updic.dl { background: none; }
 .updic.ok { color: var(--ok-text); background: var(--ok-soft); }
 .updic.warn { color: var(--amber-text); background: var(--amber-soft); }
 .updic.go { color: #fff; background: var(--accent); }
@@ -1956,7 +1955,7 @@ button.psec.toggle { width: 100%; background: none; border: 0; font-family: inhe
 .updring .trk { stroke: var(--accent-soft); }
 .updring .arc { stroke: var(--accent); stroke-linecap: round; transition: stroke-dashoffset .35s ease; }
 .updring.spin { animation: updspin 1s linear infinite; }
-.updic .bob { animation: updbob 1.6s ease-in-out infinite; }
+.updring .arw { fill: none; stroke: var(--accent-text); stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; animation: updbob 1.6s ease-in-out infinite; }
 .updst { display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .updst.err { color: var(--danger-text); }
 .updst .updlink { font-size: inherit; }
@@ -1966,5 +1965,5 @@ button.psec.toggle { width: 100%; background: none; border: 0; font-family: inhe
 .updnoteslang { margin: 4px 0 0; }
 @keyframes updin { from { opacity: 0; transform: translateY(6px); } }
 @keyframes updspin { from { transform: rotate(-90deg); } to { transform: rotate(270deg); } }
-@keyframes updbob { 0%, 100% { transform: translateY(-1.5px); opacity: .65; } 50% { transform: translateY(1.5px); opacity: 1; } }
+@keyframes updbob { 0%, 100% { transform: translateY(-1px); opacity: .6; } 50% { transform: translateY(1px); opacity: 1; } }
 @keyframes updglow { 0%, 100% { box-shadow: 0 0 0 0 var(--accent-soft); } 50% { box-shadow: 0 0 0 4px var(--accent-soft); } }

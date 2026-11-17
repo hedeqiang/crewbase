@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { AlertCircle, ArrowDown, ArrowDownToLine, Check, RotateCw, X } from "lucide-react";
+import { AlertCircle, ArrowDownToLine, Check, RotateCw, X } from "lucide-react";
 import type { DesktopUpdateState } from "../api";
 import { openExternal } from "../api";
 import { getLang, t } from "../i18n";
@@ -8,8 +8,9 @@ import { Markdown } from "./Markdown";
 
 const RELEASES = "https://github.com/hedeqiang/crewbase/releases";
 
-/** A ring that fills with the download; spins while the size is unknown. */
-export function UpdateRing({ progress, spin, size = 22 }: { progress?: number; spin?: boolean; size?: number }) {
+/** A ring that fills with the download; spins while the size is unknown.
+ *  arrow: a small arrow that breathes in its middle. */
+export function UpdateRing({ progress, spin, arrow, size = 22 }: { progress?: number; spin?: boolean; arrow?: boolean; size?: number }) {
   const r = 9;
   const c = 2 * Math.PI * r;
   const p = Math.max(0, Math.min(1, progress ?? 0));
@@ -17,6 +18,12 @@ export function UpdateRing({ progress, spin, size = 22 }: { progress?: number; s
     <svg className={"updring" + (spin ? " spin" : "")} width={size} height={size} viewBox="0 0 22 22" aria-hidden="true">
       <circle className="trk" cx="11" cy="11" r={r} />
       <circle className="arc" cx="11" cy="11" r={r} strokeDasharray={c} strokeDashoffset={spin ? c * 0.72 : c * (1 - p)} />
+      {arrow && !spin && (
+        // the ring is turned -90° (so the arc starts at the top): turn back
+        <g transform="rotate(90 11 11)">
+          <path className="arw" d="M11 7v7.2M8.2 11.6 11 14.4l2.8-2.8" />
+        </g>
+      )}
     </svg>
   );
 }
@@ -71,7 +78,7 @@ export function UpdatePill() {
     case "checking":
       body = (
         <>
-          <span className="updic">
+          <span className="updic dl">
             <UpdateRing spin />
           </span>
           <span className="g">
@@ -113,9 +120,8 @@ export function UpdatePill() {
     case "downloading":
       body = (
         <>
-          <span className="updic ring" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={pct} aria-label={t("upd.pillDownloading")}>
-            <UpdateRing progress={st.progress} spin={!st.total} />
-            <ArrowDown size={10} className="bob" />
+          <span className="updic dl" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={pct} aria-label={t("upd.pillDownloading")}>
+            <UpdateRing progress={st.progress} spin={!st.total} arrow />
           </span>
           <span className="g">
             <b>{t("upd.pillDownloading")}</b>
