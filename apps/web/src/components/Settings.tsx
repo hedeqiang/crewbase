@@ -6,7 +6,7 @@ import { NAV, SECTION_ICONS } from "./settings/nav";
 import { API, desktop, type DesktopPermission, type DesktopUpdateState, type UpdateInfo, type ApprovalHistoryItem, type ModelInfo, type ProviderView, type RememberedChoice, type Settings as SettingsData, type UserProvider } from "../api";
 import { getLang, t, type Key, type Lang } from "../i18n";
 import { ago, kfmt, modeLabel, modelKind, priceLong, priceShort, providerName, until } from "../format";
-import { openSession, refreshModels, setBubbles, setLang, setState, toast, useStore, type Bubbles, type SettingsSection, resync } from "../store";
+import { openSession, refreshModels, setBubbles, setLang, setLinkCards, setState, toast, useStore, type Bubbles, type SettingsSection, resync } from "../store";
 import { Automation } from "./settings/Automation";
 import { Extensions } from "./settings/Extensions";
 import { Profile } from "./settings/Profile";
@@ -258,6 +258,16 @@ function KeepRunning() {
   );
 }
 
+/** 显示链接预览: cards under links in messages (on by default). */
+function LinkCardsRow() {
+  const on = useStore((s) => s.linkCards);
+  return (
+    <Row title={t("set.linkCards")} desc={t("set.linkCardsDesc")}>
+      <button className="tg" type="button" role="switch" aria-checked={on} aria-label={t("set.linkCards")} onClick={() => setLinkCards(!on)} />
+    </Row>
+  );
+}
+
 /** Your message bubbles: grey, or the agent's colour (light / solid). */
 function BubbleSeg() {
   const v = useStore((s) => s.bubbles);
@@ -416,6 +426,7 @@ function General() {
           <Row title={t("set.bubbles")} desc={t("set.bubblesDesc")}>
             <BubbleSeg />
           </Row>
+          <LinkCardsRow />
           <Row title={t("set.language")} desc={t("set.languageDesc")}>
             <span className="ssel">
               <select value={lang} onChange={(e) => setLang(e.target.value as Lang)}>

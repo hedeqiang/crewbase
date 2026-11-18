@@ -2090,3 +2090,40 @@ button.cxblk:focus-visible { outline: 2px solid var(--accent); outline-offset: -
 /* a very long message folds; the button shows the rest */
 .m-user .bubble .bubmore { display: block; margin-top: 6px; font-size: 12px; font-weight: 500; color: var(--accent-text); background: none; border: 0; padding: 0; cursor: pointer; }
 .feed[data-bubbles="solid"] .m-user .bubble .bubmore { color: inherit; text-decoration: underline; }
+
+/* link cards (components/LinkCards.tsx): under your messages and the answer */
+.lcards { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; width: 100%; max-width: 460px; min-width: 0; }
+.lcards.mine { align-items: flex-end; margin-top: 6px; }
+.lcard { display: flex; min-width: 0; max-width: 100%; border: 1px solid var(--border2); border-radius: 12px; background: var(--surface); overflow: hidden; color: var(--text); text-decoration: none; }
+.lcards.mine .lcard { width: 100%; }
+a.lcard:hover, .lvideo .ltext:hover { background: var(--hover); }
+.lpage { align-items: stretch; }
+.lcard .ltext { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; padding: 10px 12px; color: inherit; text-decoration: none; }
+.lcard .lsite { display: flex; align-items: center; gap: 6px; min-width: 0; font-size: 12px; color: var(--muted); }
+.lcard .lsite span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lcard .lico { width: 14px; height: 14px; border-radius: 3px; flex: none; object-fit: contain; }
+.lcard .ltitle, .lcard .ldesc { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; overflow-wrap: anywhere; }
+.lcard .ltitle { font-size: 14px; font-weight: 600; line-height: 1.35; }
+.lcard .ldesc { font-size: 12.5px; line-height: 1.45; color: var(--text2); }
+.lcard .lthumb { flex: none; width: 104px; align-self: stretch; min-height: 78px; max-height: 120px; object-fit: cover; background: var(--sunken); border-left: 1px solid var(--border); }
+.lvideo { flex-direction: column; }
+.lplayer { position: relative; width: 100%; background: #000; }
+.lplayer iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
+.lposter { position: absolute; inset: 0; padding: 0; border: 0; cursor: pointer; background: #111; display: block; width: 100%; }
+.lposter.blank { background: linear-gradient(135deg, #2a2a2e, #111); }
+.lposter img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.lplay { position: absolute; left: 50%; top: 50%; width: 54px; height: 54px; margin: -27px 0 0 -27px; border-radius: 50%; display: grid; place-items: center; color: #fff; background: rgba(0, 0, 0, .55); box-shadow: 0 0 0 1px rgba(255, 255, 255, .25); transition: transform .12s, background .12s; }
+.lplay svg { margin-left: 3px; }
+.lposter:hover .lplay, .lposter:focus-visible .lplay { background: rgba(0, 0, 0, .75); transform: scale(1.06); }
+.lvideo .ltext { padding: 8px 12px 10px; }
+.lvideo .ltitle { -webkit-line-clamp: 1; }
+.limg { display: block; width: fit-content; background: var(--sunken); }
+.limg img { display: block; max-width: 100%; max-height: 320px; object-fit: contain; }
+.lmedia { background: #000; }
+.lmedia video { display: block; width: 100%; max-height: 360px; }
+.laudio { flex-direction: column; gap: 6px; padding: 10px 12px; }
+.laudio audio { width: 100%; }
+@media (max-width: 640px) {
+  .lcards { max-width: 100%; }
+  .lcard .lthumb { width: 84px; min-height: 70px; }
+}

@@ -38,6 +38,7 @@ import (
 	_ "github.com/hedeqiang/crewbase/features/im"
 	_ "github.com/hedeqiang/crewbase/features/imconfig"
 	_ "github.com/hedeqiang/crewbase/features/mcp"
+	_ "github.com/hedeqiang/crewbase/features/linkpreview"
 	_ "github.com/hedeqiang/crewbase/features/media"
 	_ "github.com/hedeqiang/crewbase/features/members"
 	_ "github.com/hedeqiang/crewbase/features/memory"
@@ -205,6 +206,8 @@ var Desktop = kernel.Bundle{Name: "desktop", Entries: []kernel.Entry{
 	{ID: "roles", Name: "@crewbase/roles"},
 	{ID: "ui-api", Name: "@crewbase/ui-api"},
 	{ID: "attachments-api", Name: "@crewbase/attachments-api"},
+	// Link cards (docs/previews.md): GET /api/unfurl, public addresses only.
+	{ID: "linkpreview", Name: "@crewbase/linkpreview"},
 	{ID: "voice-api", Name: "@crewbase/voice-api"},
 	{ID: "devices", Name: "@crewbase/devices", Config: map[string]any{"dir": "${root}"}},
 	{ID: "members", Name: "@crewbase/members", Config: map[string]any{"dir": "${root}"}},
@@ -222,6 +225,7 @@ var Server = kernel.Bundle{Name: "server", Entries: []kernel.Entry{
 	{ID: "gateway", Name: "@crewbase/gateway", Config: map[string]any{"addr": "127.0.0.1:7788", "tokenFile": "${root}/token"}},
 	{ID: "api", Name: "@crewbase/api"},
 	{ID: "channel-api", Name: "@crewbase/channel-api"},
+	{ID: "linkpreview", Name: "@crewbase/linkpreview"},
 	{ID: "devices", Name: "@crewbase/devices", Config: map[string]any{"dir": "${root}"}},
 	{ID: "members", Name: "@crewbase/members", Config: map[string]any{"dir": "${root}"}},
 	{ID: "teams", Name: "@crewbase/teams", Config: map[string]any{"dir": "${root}"}},
