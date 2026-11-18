@@ -453,7 +453,19 @@ export function openSubRun(session: string) {
   void loadSession(session);
 }
 
+// the new chat being created, so a second 新对话 / ⌘N in the meantime opens
+// it instead of creating another
+let creatingChat: Promise<void> | null = null;
+
 export async function newChat(folder?: string) {
+  if (creatingChat) return creatingChat;
+  creatingChat = newChatOnce(folder).finally(() => {
+    creatingChat = null;
+  });
+  return creatingChat;
+}
+
+async function newChatOnce(folder?: string) {
   // an untouched new chat in the same place is reused: ⌘N twice does not
   // leave a row of empty "新对话"s behind
   const blank = Object.values(state.agents).find(

@@ -320,6 +320,7 @@ function SubRunView({ session, parentSession }: { session: string; parentSession
 function TaskTab({ agent }: { agent: AgentView }) {
   const models = useStore((s) => s.models);
   const m = activeModel(models, agent);
+  const chat = agent.kind === "chat";
   const act = async (a: "stop" | "pause" | "resume") => {
     try {
       await API.action(agent.id, a);
@@ -373,12 +374,14 @@ function TaskTab({ agent }: { agent: AgentView }) {
             </>
           )}
         </dl>
+        {/* a plain chat has no queue to pause: just Stop, while it answers */}
+        {(!chat || agent.status === "running" || agent.status === "waiting") && (
         <div className="acts">
           <button className="btn" type="button" disabled={agent.status !== "running" && agent.status !== "waiting"} onClick={() => act("stop")}>
             <Square size={12} />
             {t("panel.stop")}
           </button>
-          {agent.paused ? (
+          {chat ? null : agent.paused ? (
             <button className="btn" type="button" onClick={() => act("resume")}>
               <Play size={12} />
               {t("panel.resume")}
@@ -390,9 +393,12 @@ function TaskTab({ agent }: { agent: AgentView }) {
             </button>
           )}
         </div>
+        )}
       </div>
-      <div className="psec">{agent.kind === "chat" ? t("chat.queue", { n: agent.queue.length }) : t("panel.queue", { name: agent.name, n: agent.queue.length })}</div>
-      {agent.queue.length === 0 ? (
+      {(!chat || agent.queue.length > 0) && (
+        <div className="psec">{chat ? t("chat.queue", { n: agent.queue.length }) : t("panel.queue", { name: agent.name, n: agent.queue.length })}</div>
+      )}
+      {chat && agent.queue.length === 0 ? null : agent.queue.length === 0 ? (
         <p className="small" style={{ margin: 0 }}>
           {t("panel.queueEmpty")}
         </p>
@@ -413,8 +419,8 @@ function TaskTab({ agent }: { agent: AgentView }) {
           </div>
         ))
       )}
-      <Followups agent={agent} />
-      {agent.kind !== "chat" && <WorkTasks agent={agent} />}
+      {!chat && <Followups agent={agent} />}
+      {!chat && <WorkTasks agent={agent} />}
     </>
   );
 }
