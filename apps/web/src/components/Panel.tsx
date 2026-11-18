@@ -8,6 +8,7 @@ import { activeModel, allModels, detailLabel, effortLabel, hhmm, isExhausted, kf
 import { project, type SubRun } from "../projection";
 import { openSubRun, refreshChannel, setState, toast, useStore, sessionAgent } from "../store";
 import { FilesTab } from "./Files";
+import { PreviewTab } from "./Preview";
 import { Avatar, LookPicker } from "./Avatar";
 import { Popover, useMenu } from "./Popover";
 import { ProviderMark } from "./ProviderMark";
@@ -30,12 +31,13 @@ export function Panel() {
   const tabs: [typeof tab, string][] = [
     ["task", t("panel.task")],
     ["files", t("panel.files")],
+    ["preview", t("panel.preview")],
     ["agent", agent.kind === "chat" ? t("chat.settingsTab") : agent.name || t("panel.agent")],
     ...pluginTabs.map((c): [typeof tab, string] => [`ui:${c.key}`, c.title || c.key]),
   ];
   const pluginTab = tab.startsWith("ui:") ? pluginTabs.find((c) => "ui:" + c.key === tab) : undefined;
   return (
-    <aside className="panel">
+    <aside className={"panel" + (tab === "preview" ? " wide" : "")}>
       <div className="ptabs" role="tablist">
         {tabs.map(([k, l]) => (
           <button key={k} className="ptab" type="button" role="tab" aria-selected={tab === k} onClick={() => setState({ panelTab: k })}>
@@ -58,6 +60,7 @@ export function Panel() {
           </>
         )}
         {tab === "files" && <FilesTab agent={agent} />}
+        {tab === "preview" && <PreviewTab key={current ?? agent.session} session={current ?? agent.session} />}
         {tab === "agent" && <AgentTab key={agent.id} agent={agent} sessionId={current ?? agent.session} />}
         {pluginTab && (
           <div className="uitab">

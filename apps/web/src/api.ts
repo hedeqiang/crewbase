@@ -294,11 +294,27 @@ export interface ContextItemContent extends ContextItem {
   truncated?: boolean;
 }
 
+/** A page shown in the right panel's 预览 tab (features/preview Opened). */
+export interface PreviewInfo {
+  title: string;
+  /** for kind "path" possibly stale (a stopped server): reopen the path */
+  url: string;
+  kind: "path" | "url";
+  /** workspace-relative file or folder */
+  path?: string;
+  agent?: string;
+  source: string;
+  call?: string;
+  time: string;
+}
+
 export interface FileEntry {
   name: string;
   dir: boolean;
   size: number;
   modified: string;
+  /** a folder with an index.html (it can be previewed) */
+  index?: boolean;
 }
 export interface FileContent {
   path: string;
@@ -1118,6 +1134,10 @@ export const API = {
   files: (id: string, path: string) => api<{ entries: FileEntry[] }>("GET", `/api/agents/${enc(id)}/files?path=${enc(path)}`),
   file: (id: string, path: string) => api<FileContent>("GET", `/api/agents/${enc(id)}/file?path=${enc(path)}`),
   saveFile: (id: string, path: string, content: string) => api("PUT", `/api/agents/${enc(id)}/file`, { path, content }),
+  // 预览 (features/preview)
+  openPreview: (id: string, path: string, session?: string, title?: string) => api<PreviewInfo>("POST", `/api/agents/${enc(id)}/preview`, { path, session, title }),
+  previewHTML: (id: string, html: string, session?: string, title?: string) => api<PreviewInfo>("POST", `/api/agents/${enc(id)}/preview/html`, { html, session, title }),
+  previews: (session: string) => api<{ previews: PreviewInfo[] }>("GET", `/api/sessions/${enc(session)}/previews`),
 
   remembered: () => api<{ remembered: RememberedChoice[] }>("GET", "/api/approvals/remembered"),
   forget: (agent: string, category: string) => api("DELETE", `/api/approvals/remembered/${enc(agent)}/${enc(category)}`),

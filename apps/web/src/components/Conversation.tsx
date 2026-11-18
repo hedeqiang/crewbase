@@ -55,6 +55,7 @@ import { TakeoverCard, takeoverReason } from "./Browser";
 import { cloudVoice, dictate, dictationSupported, primeVoice, speak, speaking, speakSupported } from "../voice";
 import { addFiles, clearFiles, filesFrom, MsgAttachments, PendingChips } from "./Attachments";
 import { MediaCard } from "./Media";
+import { LocalPreviewCards, PreviewLine } from "./Preview";
 import {
   activeModel,
   ago,
@@ -855,6 +856,7 @@ function AgentMsg({ it, agent, showModel, bare }: { it: AgentItem; agent?: Agent
             <Markdown text={it.text} />
           </div>
         )}
+        {it.text && <LocalPreviewCards text={it.text} />}
         {it.refusal && (
           <div className="refusal">
             <Info size={14} />
@@ -978,6 +980,8 @@ function TurnMsg({ it, agent }: { it: Extract<FeedItem, { k: "turn" }>; agent?: 
         {it.parts.map((p) =>
           p.k === "steps" ? (
             <Steps key={p.id} steps={p.steps} agent={it.agent} />
+          ) : p.k === "preview" ? (
+            <PreviewLine key={p.id} p={p.p} session={sid} />
           ) : p.narration ? (
             p.it.text || p.it.searches.length ? (
               <div className={"narr" + (it.open ? " fresh" : "")} key={p.it.id}>

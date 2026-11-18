@@ -449,6 +449,8 @@ var Plugin = kernel.Register(kernel.Spec{
 			Dir      bool      `json:"dir"`
 			Size     int64     `json:"size"`
 			Modified time.Time `json:"modified"`
+			// Index: a folder with an index.html (the files panel offers 预览)
+			Index bool `json:"index,omitempty"`
 		}
 		g.Handle(c, gateway.Route{Method: "GET", Path: "/api/agents/{id}/files",
 			Handle: func(_ context.Context, r *gateway.Request) (any, error) {
@@ -473,7 +475,13 @@ var Plugin = kernel.Register(kernel.Spec{
 					if err != nil {
 						continue
 					}
-					out = append(out, entry{Name: d.Name(), Dir: d.IsDir(), Size: info.Size(), Modified: info.ModTime()})
+					e := entry{Name: d.Name(), Dir: d.IsDir(), Size: info.Size(), Modified: info.ModTime()}
+					if e.Dir {
+						if fi, err := os.Stat(filepath.Join(p, d.Name(), "index.html")); err == nil && fi.Mode().IsRegular() {
+							e.Index = true
+						}
+					}
+					out = append(out, e)
 				}
 				sort.Slice(out, func(i, j int) bool {
 					if out[i].Dir != out[j].Dir {
