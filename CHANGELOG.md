@@ -3,6 +3,13 @@
 Each `## <version>` section becomes the release notes of that version,
 shown in the desktop app's update window.
 
+## 0.5.15
+
+新建 Agent 只要起个名字：职责说明由模型自动写好。
+
+- 新建 Agent 去掉了「这个 Agent 负责什么」，填名称（和可选的职责标签）就能建；没有说明的 Agent 会在后台由模型根据名称写一份，例如「翻译」「前端工程师」「架构师」，几十秒内写好，之后可以在 Agent 设置里改。从模板建的照旧用模板自带的说明
+- 写说明用哪个模型可以在「设置 › 模型 › 路由与切换 › 按任务分流」里选（新任务「Agent 职责说明」）；不选时用会话标题的模型
+
 ## 0.5.14
 
 新对话改成普通聊天；频道里一次 @ 多人都能收到；一批实际使用中发现的问题修好了。
