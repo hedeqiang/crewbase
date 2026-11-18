@@ -77,6 +77,7 @@ import {
 import { Avatar, channelColor, colorFor, ink } from "./Avatar";
 import { ApprovalActions } from "./Approval";
 import { Markdown } from "./Markdown";
+import { LinkCards } from "./LinkCards";
 import { Popover, useMenu } from "./Popover";
 import { ProviderMark } from "./ProviderMark";
 import { ContextMap } from "./ContextMap";
@@ -344,6 +345,7 @@ function UserMsg({ it }: { it: Extract<FeedItem, { k: "user" }> }) {
           )}
         </div>
       )}
+      {it.text && <LinkCards text={it.text} mine />}
       {it.text && (
         <div className="msgacts">
           {editable && (
@@ -871,6 +873,8 @@ function AgentMsg({ it, agent, showModel, bare }: { it: AgentItem; agent?: Agent
             ))}
           </div>
         )}
+        {/* the answer, once the turn is over (never narration or a stream) */}
+        {it.stats && it.text && <LinkCards text={it.text} />}
         {it.stats && <ReplyStats stats={it.stats} />}
         {hasActs && (
           <div className="msgacts">

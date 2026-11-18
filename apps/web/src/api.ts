@@ -1032,6 +1032,7 @@ export type ToldEntry = { time: string; session: string; via: string; text: stri
 export type Working = { tasks: WorkTask[]; notes: WorkNote[]; told: ToldEntry[] };
 
 export const API = {
+  unfurl: (url: string) => api<LinkCard>("GET", `/api/unfurl?url=${enc(url)}`),
   updates: () => api<UpdateInfo>("GET", "/api/updates"),
   checkUpdates: () => api<UpdateInfo>("POST", "/api/updates/check"),
   teams: () => api<{ teams: TeamView[] }>("GET", "/api/teams"),
@@ -1331,4 +1332,17 @@ export interface ProviderTestResult {
   error?: string;
   /** the key was accepted but models cannot be listed: type ids */
   manualModels?: boolean;
+}
+
+/** GET /api/unfurl: what a link card shows (features/linkpreview). */
+export interface LinkCard {
+  url: string;
+  kind: "page" | "video" | "image" | "audio";
+  title?: string;
+  description?: string;
+  siteName?: string;
+  image?: string;
+  icon?: string;
+  embed?: { provider: string; src: string; aspect: number };
+  media?: string;
 }

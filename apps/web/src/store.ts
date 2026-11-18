@@ -146,6 +146,8 @@ export interface State {
   theme: Theme;
   /** your bubbles: neutral grey, or the agent's (channel's) colour, light or solid */
   bubbles: Bubbles;
+  /** cards under links in messages (设置 › 通用), per browser */
+  linkCards: boolean;
   lang: Lang;
   palette: boolean;
   overrides: Record<string, string | null>; // agentId → model ref for next messages
@@ -262,6 +264,7 @@ let state: State = {
     const v = LS.get("bubbles");
     return v === "tint" || v === "solid" ? v : "neutral";
   })(),
+  linkCards: LS.get("linkCards") !== "off",
   lang: getLang(),
   palette: false,
   overrides: loadOverrides(),
@@ -315,6 +318,11 @@ export type Bubbles = "neutral" | "tint" | "solid";
 export function setBubbles(b: Bubbles) {
   LS.set("bubbles", b === "neutral" ? null : b);
   setState({ bubbles: b });
+}
+
+export function setLinkCards(on: boolean) {
+  LS.set("linkCards", on ? null : "off");
+  setState({ linkCards: on });
 }
 
 export function setTheme(t: Theme) {
