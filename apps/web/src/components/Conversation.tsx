@@ -1573,7 +1573,18 @@ function Composer({
 
   const setDraft = (v: string) => setState((s) => ({ drafts: { ...s.drafts, [sessionId]: v } }));
   const overrideRef = override && !channel ? parseRef(override) : null;
-  const shown = overrideRef ?? activeModel(models, agent) ?? lastModel ?? null;
+  // in a channel the button is about the agent the draft is for: the
+  // first member it @mentions, else the owner (who gets unaddressed messages)
+  const target = useMemo(() => {
+    if (!channel) return agent;
+    for (const m of draft.matchAll(/(?:^|\s)@([\p{L}\p{N}_-]+)/gu)) {
+      const want = m[1].toLowerCase();
+      const hit = channel.members.map((id) => agents[id]).find((a) => a && (a.id.toLowerCase() === want || a.name.toLowerCase() === want));
+      if (hit) return hit;
+    }
+    return agent;
+  }, [channel, draft, agents, agent]);
+  const shown = overrideRef ?? activeModel(models, target) ?? (target === agent ? lastModel : undefined) ?? null;
   const prov = shown ? findProvider(models, shown.provider) : undefined;
   const quota = prov?.quota?.known ? Math.round(prov.quota.remaining * 100) : null;
   const pct = ctx && ctx.window > 0 ? Math.min(100, Math.round((ctx.tokens / ctx.window) * 100)) : null;
@@ -1725,23 +1736,21 @@ function Composer({
     setState({ hostConfirm: null });
   };
 
-  // In a one-to-one conversation the pick becomes the agent's first model
-  // (kept by the daemon: the panel, other devices and a reload agree; the
-  // rest of its order stays as fallbacks). In a channel it applies to the
-  // next messages from this composer only.
+  // The pick becomes the first model of the agent the message is for (kept
+  // by the daemon: the panel, other devices and a reload agree; the rest of
+  // its order stays as fallbacks). 按模型顺序 clears a one-to-one override.
   const setOverride = (r: ModelRef | null) => {
-    if (channel || !r) {
-      setModelOverride(agent.id, r ? refString(r) : null);
+    if (!r) {
+      setModelOverride(agent.id, null);
       return;
     }
-    setModelOverride(agent.id, null);
-    const rest = (agent.models ?? []).filter((m) => !(m.provider === r.provider && m.model === r.model));
-    void API.patchAgent(agent.id, { modelRefs: [refString(r), ...rest.map((m) => refString(m))] })
-      .then(() => toast(t("comp.modelSet", { name: agent.name, model: shortModelEffort(models, r)?.name ?? r.model })))
+    if (!channel) setModelOverride(agent.id, null);
+    const rest = (target.models ?? []).filter((m) => !(m.provider === r.provider && m.model === r.model));
+    void API.patchAgent(target.id, { modelRefs: [refString(r), ...rest.map((m) => refString(m))] })
+      .then(() => toast(t("comp.modelSet", { name: target.name, model: shortModelEffort(models, r)?.name ?? r.model })))
       .catch((e: any) => toast(e?.message ?? String(e)));
   };
 
-  const order = agent.models ?? [];
   const mode = agent.effectiveMode || agent.mode || "sandbox";
 
   if (viewer)
@@ -1938,7 +1947,7 @@ function Composer({
             type="button"
             ref={modelM.ref}
             onClick={modelM.toggle}
-            title={channel ? t("ch.modelOwner", { name: agent.name }) : t("comp.modelTitle")}
+            title={channel ? t("ch.modelOf", { name: target.name }) : t("comp.modelTitle")}
             aria-haspopup="menu"
           >
             {shown ? (
@@ -2045,24 +2054,8 @@ function Composer({
         </p>
       </Popover>
 
-      <Popover anchor={modelM.anchor} open={modelM.open && !!channel} onClose={modelM.close} placement="top" align="end" width={300}>
-        <div className="mlbl">{t("ch.modelOwner", { name: agent.name })}</div>
-        {order.map((r, i) => (
-          <div key={refString(r)} className="mi">
-            <ProviderMark provider={r.provider} model={r.model} size={16} />
-            <span className="g">
-              {modelLabel(models, r)}
-              <span>{i === 0 ? t("comp.modelPrimary") : t("comp.modelBackup")}</span>
-            </span>
-          </div>
-        ))}
-        <hr />
-        <p className="small" style={{ margin: "4px 9px 6px" }}>
-          {t("ch.modelNote")}
-        </p>
-      </Popover>
-      <Popover anchor={modelM.anchor} open={modelM.open && !channel} onClose={modelM.close} placement="top" align="end" width={260}>
-        <ModelPicker models={models} agent={agent} override={overrideRef} shown={shown} setOverride={setOverride} close={modelM.close} />
+      <Popover anchor={modelM.anchor} open={modelM.open} onClose={modelM.close} placement="top" align="end" width={260}>
+        <ModelPicker models={models} agent={target} override={overrideRef} shown={shown} setOverride={setOverride} close={modelM.close} />
       </Popover>
 
       {ctxM.open && <ContextMap agent={agent} sessionId={sessionId} channel={!!channel} ctx={ctx} onClose={ctxM.close} />}
