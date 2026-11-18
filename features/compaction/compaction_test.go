@@ -113,8 +113,31 @@ func newEnv(t *testing.T, root string, compCfg map[string]any, pre ...func(load 
 
 func send(t *testing.T, a *agent.Agent, sess, text string) {
 	t.Helper()
+	// each send is its own turn: wait until this message has been answered
+	// (a message sent while the previous turn still runs joins it)
+	ss, err := a.Session()
+	if err != nil {
+		t.Fatal(err)
+	}
+	ends := func() int {
+		n := 0
+		for _, e := range ss.Events() {
+			if e.Type == session.TypeTurnEnd && e.Agent == a.ID() && (sess == "" || e.Session == sess) {
+				n++
+			}
+		}
+		return n
+	}
+	before := ends()
 	if _, err := a.Enqueue(agent.Input{Text: text, Session: sess}); err != nil {
 		t.Fatal(err)
+	}
+	deadline := time.Now().Add(10 * time.Second)
+	for ends() == before {
+		if time.Now().After(deadline) {
+			t.Fatal("no turn end for the message")
+		}
+		time.Sleep(5 * time.Millisecond)
 	}
 	if !agentloop.WaitIdle(a, 5*time.Second) {
 		t.Fatal("agent did not become idle")
