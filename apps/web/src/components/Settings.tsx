@@ -884,7 +884,7 @@ function Models() {
               <div className="psec2">{t("set.quota")}</div>
               <div className="box">
                 {cur.quota?.known ? (
-                  <QuotaRow label={t("set.quota")} remaining={cur.quota.remaining} resetsAt={cur.quota.resetsAt} />
+                  <QuotaRow remaining={cur.quota.remaining} resetsAt={cur.quota.resetsAt} />
                 ) : (
                   <span className="small">{t("set.quotaUnknown")}</span>
                 )}
@@ -997,12 +997,12 @@ function ModelTable({ provider, models, busy, onFlip, switches = true }: { provi
   );
 }
 
-function QuotaRow({ label, remaining, resetsAt }: { label: string; remaining: number; resetsAt?: string }) {
+function QuotaRow({ label, remaining, resetsAt }: { label?: string; remaining: number; resetsAt?: string }) {
   const pct = Math.round(Math.max(0, Math.min(1, remaining)) * 100);
   const out = pct <= 0;
   return (
-    <div className="qrow">
-      <span>{label}</span>
+    <div className={"qrow" + (label ? "" : " nolabel")}>
+      {label && <span>{label}</span>}
       <div className="meter">
         <i className={out ? "red" : pct <= 10 ? "amber" : ""} style={{ width: Math.max(out ? 100 : pct, 2) + "%" }} />
       </div>
