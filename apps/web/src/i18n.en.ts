@@ -1491,6 +1491,7 @@ export const en: Partial<Record<Key, string>> = {
   "rt.until": "Recovers automatically in {time}",
   "set.addProvider": "Add provider",
   "set.appearance": "Appearance",
+  "set.doneEditing": "Done",
   "set.availableModels": "Available models · {n}",
   "set.cap.code": "Coding",
   "set.cap.embedding": "Embedding",

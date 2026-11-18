@@ -701,8 +701,11 @@ function Models() {
   // pickers' list leaves out what magpie / added providers have off)
   const [sw, setSw] = useState<{ provider: string; models: ModelInfo[] } | null>(null);
   const [swBusy, setSwBusy] = useState<string | null>(null);
+  // the full list with switches loads only when the person asks to edit
+  const [editingList, setEditingList] = useState(false);
+  useEffect(() => setEditingList(false), [cur?.id]);
   useEffect(() => {
-    if (!cur) return;
+    if (!cur || !editingList) return;
     let live = true;
     API.modelSwitches(cur.id).then(
       (r) => live && setSw({ provider: cur.id, models: r.models ?? [] }),
@@ -711,8 +714,14 @@ function Models() {
     return () => {
       live = false;
     };
-  }, [cur?.id, cur?.models]);
-  const listed = cur ? (sw?.provider === cur.id && sw.models.length ? sw.models : cur.models) : [];
+  }, [cur?.id, cur?.models, editingList]);
+  // by default only the models in use (enabled); 编辑 shows every model the
+  // provider offers, with its switch
+  const listed = cur
+    ? editingList && sw?.provider === cur.id && sw.models.length
+      ? sw.models
+      : cur.models.filter((m) => m.enabled !== false)
+    : [];
   const flip = async (m: ModelInfo) => {
     if (!cur) return;
     setSwBusy(m.id);
@@ -885,21 +894,29 @@ function Models() {
                   {t("set.availableModels", { n: listed.length })}
                   {listed.some((m) => m.enabled === false) && <span className="small"> · {t("set.modelsOff", { n: listed.filter((m) => m.enabled === false).length })}</span>}
                 </span>
-                {cur.id === "magpie" && (
+                {cur.id === "magpie" ? (
                   <button className="btn sm" type="button" onClick={() => setChoosingMagpie(true)}>
                     <ListChecks size={13} />
                     {t("mp.choose")}
                   </button>
-                )}
-                {userProv.some((u) => u.id === cur.id) && (
+                ) : userProv.some((u) => u.id === cur.id) ? (
                   <button className="btn sm" type="button" onClick={() => setEditing(userProv.find((u) => u.id === cur.id)!)}>
                     <ListChecks size={13} />
                     {t("ap.editModels")}
                   </button>
+                ) : (
+                  <button className="btn sm" type="button" aria-pressed={editingList} onClick={() => setEditingList(!editingList)}>
+                    <ListChecks size={13} />
+                    {editingList ? t("set.doneEditing") : t("ap.editModels")}
+                  </button>
                 )}
               </div>
-              {listed.length > 0 && <p className="small mswnote">{t("set.modelSwitchNote")}</p>}
-              {listed.length === 0 ? <div className="empty">{t("set.noModels")}</div> : <ModelTable provider={cur} models={listed} busy={swBusy} onFlip={flip} />}
+              {editingList && listed.length > 0 && <p className="small mswnote">{t("set.modelSwitchNote")}</p>}
+              {listed.length === 0 ? (
+                <div className="empty">{t("set.noModels")}</div>
+              ) : (
+                <ModelTable provider={cur} models={listed} busy={swBusy} onFlip={flip} switches={editingList} />
+              )}
             </div>
           )}
         </div>
@@ -910,7 +927,7 @@ function Models() {
 
 /** A provider's models, grouped by what they produce (chat / image / video)
  *  when it serves more than one kind, each with its on/off switch. */
-function ModelTable({ provider, models, busy, onFlip }: { provider: ProviderView; models: ModelInfo[]; busy: string | null; onFlip: (m: ModelInfo) => void }) {
+function ModelTable({ provider, models, busy, onFlip, switches = true }: { provider: ProviderView; models: ModelInfo[]; busy: string | null; onFlip: (m: ModelInfo) => void; switches?: boolean }) {
   const kinds = (["chat", "image", "video"] as const).filter((k) => models.some((m) => modelKind(m) === k));
   return (
     <>
@@ -959,7 +976,7 @@ function ModelTable({ provider, models, busy, onFlip }: { provider: ProviderView
                     ) : (
                       <span className={"mkind sm k-" + kind}>{t(`set.kind.${kind}`)}</span>
                     )}
-                    <button
+                    {switches && <button
                       className="tg"
                       type="button"
                       role="switch"
@@ -968,7 +985,7 @@ function ModelTable({ provider, models, busy, onFlip }: { provider: ProviderView
                       aria-label={t("set.modelSwitch", { name: m.name || m.id })}
                       title={on ? t("set.modelOnTitle") : t("set.modelOffTitle")}
                       onClick={() => busy !== m.id && onFlip(m)}
-                    />
+                    />}
                   </div>
                 );
               })}

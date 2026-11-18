@@ -1270,6 +1270,7 @@ const zh = {
   "set.exhaustedUntil": "{model} 已达上限，{time} 前不再使用 · 已自动切到各自的备用模型",
   "set.inUse": "正在使用：",
   "set.inUseNone": "还没有 Agent 使用",
+  "set.doneEditing": "完成",
   "set.availableModels": "可用模型 · {n}",
   "set.noModels": "这个提供方没有报告模型",
   "set.modelSwitchNote": "关闭的模型会从所有模型选择里隐藏（输入框、新建 Agent、路由与模型顺序），也不会被自动选用。",
