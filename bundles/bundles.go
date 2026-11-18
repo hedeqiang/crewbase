@@ -130,6 +130,7 @@ var Base = kernel.Bundle{Name: "base", Entries: []kernel.Entry{
 	{ID: "followups", Name: "@crewbase/followups"},
 	{ID: "alerts", Name: "@crewbase/alerts"},
 	{ID: "topics", Name: "@crewbase/topics"},
+	{ID: "agent-brief", Name: "@crewbase/agent-brief"},
 	{ID: "audit", Name: "@crewbase/audit", Config: map[string]any{"dir": "${root}"}},
 	{ID: "goals", Name: "@crewbase/goals"},
 	{ID: "taskboard", Name: "@crewbase/taskboard"},

@@ -16,6 +16,7 @@ const (
 	TaskCode      = "code"
 	TaskLongDoc   = "long-doc"
 	TaskTitle     = "title" // short session topics (cheap model)
+	TaskBrief     = "brief" // an agent's instructions written from its name
 	// Media tasks route to image / video models (features/media). They are
 	// never picked by Classify: the generation tools ask for them.
 	TaskImage   = "image"
@@ -24,7 +25,7 @@ const (
 )
 
 // Tasks lists every routable task kind (the settings UI offers these).
-var Tasks = []string{TaskTitle, TaskRoutine, TaskSummarize, TaskCode, TaskLongDoc, TaskImage, TaskVideo}
+var Tasks = []string{TaskTitle, TaskBrief, TaskRoutine, TaskSummarize, TaskCode, TaskLongDoc, TaskImage, TaskVideo}
 
 // TaskKind is the model kind a task needs: image / video for the media
 // tasks, chat for everything else.

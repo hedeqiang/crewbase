@@ -356,17 +356,6 @@ export function NewAgent({ draft: f, setDraft }: { draft: Draft; setDraft: (d: D
                   <input id="naRole" className="fi" value={f.role} maxLength={16} placeholder={t("na.rolePh")} onChange={(e) => set({ role: e.target.value })} />
                 </div>
               </div>
-              <label className="fl" htmlFor="naDesc">
-                {t("na.desc")}
-              </label>
-              <textarea
-                id="naDesc"
-                className="fi na-desc"
-                rows={f.desc.length > 160 ? 8 : 3}
-                value={f.desc}
-                placeholder={t("na.descPh")}
-                onChange={(e) => set({ desc: e.target.value })}
-              />
             </div>
 
             <div className="na-card rows">
