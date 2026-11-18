@@ -590,6 +590,11 @@ func (l *loop) step(ctx context.Context, a *agent.Agent, ss *session.Session, re
 
 func (l *loop) failover(ctx context.Context, a *agent.Agent, ss *session.Session, ref llm.ModelRef, cause error, tried map[string]bool) (llm.ModelRef, bool) {
 	tried[ref.String()] = true
+	// A gateway answers a model it does not have with a generic error
+	// (magpie: 503 无可用渠道); the provider's own list says what it is.
+	if !l.modelListed(ctx, ref) {
+		cause = &llm.Error{Kind: llm.ErrModelNotFound, Provider: ref.Provider, Message: cause.Error()}
+	}
 	r, ok := l.router()
 	if !ok {
 		return ref, false
@@ -605,6 +610,30 @@ func (l *loop) failover(ctx context.Context, a *agent.Agent, ss *session.Session
 	}
 	_, _ = ss.Append(session.TypeModelSwitched, a.ID(), session.ModelSwitchData{From: ref, To: next, Reason: reason, Detail: cause.Error()})
 	return next, true
+}
+
+// modelListed reports whether ref's provider lists the model; true when
+// it cannot tell (no list, an error, or the CLI-style "default").
+func (l *loop) modelListed(ctx context.Context, ref llm.ModelRef) bool {
+	ad, ok := l.llms.Get(ref.Provider)
+	if !ok {
+		return false
+	}
+	if ref.Model == "" || ref.Model == "default" {
+		return true
+	}
+	c, cancel := context.WithTimeout(ctx, 2*time.Second)
+	defer cancel()
+	ms, err := l.llms.ModelsOf(c, ad)
+	if err != nil || len(ms) == 0 {
+		return true
+	}
+	for _, m := range ms {
+		if m.ID == ref.Model {
+			return true
+		}
+	}
+	return false
 }
 
 // WaitIdle blocks until the agent has no queued input and is not running,

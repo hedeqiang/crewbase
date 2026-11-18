@@ -232,8 +232,12 @@ var Plugin = kernel.Register(kernel.Spec{
 					return gateway.BadRequest("host mode cannot be enabled at creation")
 				}
 				for _, m := range b.Models {
-					if _, err := llm.ParseRef(m); err != nil {
+					ref, err := llm.ParseRef(m)
+					if err != nil {
 						return gateway.BadRequest("%v", err)
+					}
+					if err := knownModel(llms, ref); err != nil {
+						return err
 					}
 				}
 				return nil
@@ -283,8 +287,12 @@ var Plugin = kernel.Register(kernel.Spec{
 				if refs, ok := b["modelRefs"].([]any); ok {
 					for _, x := range refs {
 						s, _ := x.(string)
-						if _, err := llm.ParseRef(s); err != nil {
+						ref, err := llm.ParseRef(s)
+						if err != nil {
 							return gateway.BadRequest("%v", err)
+						}
+						if err := knownModel(llms, ref); err != nil {
+							return err
 						}
 					}
 				}
@@ -756,6 +764,32 @@ var Plugin = kernel.Register(kernel.Spec{
 		return nil
 	},
 })
+
+// knownModel refuses a model its provider does not offer: a connected
+// provider whose list is known and lacks it, or a provider that is not
+// connected. A typo would otherwise only show at the first message, as a
+// failover. "default" (the provider's own choice) is always accepted.
+func knownModel(llms *llm.Registry, ref llm.ModelRef) error {
+	ad, ok := llms.Get(ref.Provider)
+	if !ok {
+		return gateway.BadRequest("no connected provider %q", ref.Provider)
+	}
+	if ref.Model == "" || ref.Model == "default" {
+		return nil
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	ms, err := llms.ModelsOf(ctx, ad)
+	if err != nil || len(ms) == 0 {
+		return nil // cannot tell: let the first request decide
+	}
+	for _, m := range ms {
+		if m.ID == ref.Model {
+			return nil
+		}
+	}
+	return gateway.BadRequest("%s has no model %q", ref.Provider, ref.Model)
+}
 
 func contains(xs []string, s string) bool {
 	for _, x := range xs {

@@ -972,6 +972,7 @@ export const en: Partial<Record<Key, string>> = {
   "chat.paused": "Queue paused",
   "chat.placeholderChannel": "Message #{name}, @ to pick an agent",
   "chat.queued": "Queued · #{n}",
+  "chat.reason.model_not_found": "does not exist (the provider has no such model)",
   "chat.reason.other": "failed",
   "chat.reason.quota_exhausted": "hit its usage limit",
   "chat.reason.rate_limited": "was rate limited",

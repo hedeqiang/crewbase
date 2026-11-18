@@ -196,7 +196,10 @@ export function activeModel(models: ModelsResponse | null, a: AgentView | undefi
     const p = findProvider(models, r.provider);
     if (!p) return false;
     const m = p.models.find((x) => x.id === r.model);
-    return !m || m.enabled !== false;
+    // a model the provider does not list is not what runs (the router moves
+    // past it); "default" is the provider's own pick
+    if (!m) return p.models.length === 0 || r.model === "default";
+    return m.enabled !== false;
   };
   for (const r of order) if (usable(r) && !isExhausted(models, r)) return r;
   for (const r of order) if (usable(r)) return r;

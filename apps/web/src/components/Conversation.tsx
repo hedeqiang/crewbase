@@ -809,6 +809,7 @@ const REASONS: Record<string, true> = {
   "chat.reason.rate_limited": true,
   "chat.reason.unavailable": true,
   "chat.reason.model_unavailable": true,
+  "chat.reason.model_not_found": true,
 };
 
 function AgentMsg({ it, agent, showModel, bare }: { it: AgentItem; agent?: AgentView; showModel: boolean; bare?: boolean }) {
