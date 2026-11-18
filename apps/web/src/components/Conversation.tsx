@@ -45,7 +45,6 @@ import {
   Pencil,
   RefreshCw,
   History,
-  Hash as TokensIcon,
 } from "lucide-react";
 import { display, enterSends, MAC } from "../shortcuts";
 import { API, desktop, parseRef, refString, useRawURL, type AgentView, type ChannelView, type ModelRef } from "../api";
@@ -207,8 +206,7 @@ function ReplyStats({ stats }: { stats: TurnStats }) {
       {total > 0 && (
         <span className="rs-r">
           <span className="rs-tok" title={tokTitle} aria-label={tokTitle}>
-            <TokensIcon size={11} aria-hidden />
-            {tokfmt(total)}
+            {tokfmt(total)} tokens
           </span>
           {u.cost !== undefined && (
             <span className="rs-cost" title={t("msg.costTitle")}>
@@ -927,7 +925,7 @@ function Wrap({ bare, final, agent, children }: { bare?: boolean; final?: boolea
 /** One agent's turn: one header, then its thinking (one toggle), what it
  *  said while working (narration, small), its steps and its answer, in
  *  order; while it runs, the text being written grows at the end. */
-function TurnMsg({ it, agent, showModel }: { it: Extract<FeedItem, { k: "turn" }>; agent?: AgentView; showModel: boolean }) {
+function TurnMsg({ it, agent }: { it: Extract<FeedItem, { k: "turn" }>; agent?: AgentView; showModel?: boolean }) {
   const models = useStore((s) => s.models);
   const sid = useContext(SessionCtx);
   const live = useStore((s) => (it.open ? s.streams[sid + "|" + it.agent] : undefined));
@@ -949,8 +947,9 @@ function TurnMsg({ it, agent, showModel }: { it: Extract<FeedItem, { k: "turn" }
         <div className="mh">
           <b>{agent ? speaker(agent) : it.agent}</b>
           <span className="t">{hhmm(it.time)}</span>
+          {/* while it works, which model; a finished turn names it in its footer */}
           {sm && last?.model && !answer && (
-            <span className={"via" + (showModel ? "" : " hov")} title={modelLabel(models, last.model)}>
+            <span className="via" title={modelLabel(models, last.model)}>
               {sm.name}
               {sm.effort && <span className="effs">{sm.effort}</span>}
             </span>
