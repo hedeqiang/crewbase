@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import { PanelLeft, PanelRight } from "lucide-react";
 import { t } from "../i18n";
 import { ago } from "../format";
-import { isChat, openSession, sessionAgent, setState, useStore } from "../store";
+import { chatTitle, isChat, openSession, sessionAgent, setState, useStore } from "../store";
 import { Avatar, AvatarRaw } from "./Avatar";
 import { ApprovalActions } from "./Approval";
 import { takeoverReason } from "./Browser";
@@ -83,7 +83,7 @@ export function ConvHeader({ draftColor, draftShape, draftFace }: { draftColor: 
         {view === "chat" && !isChannel && agent && (
           <>
             <Avatar agent={agent} size={24} />
-            <b className="nm">{isChat(agent) ? summaries[agent.session]?.topic || agent.name : agent.name}</b>
+            <b className="nm">{isChat(agent) ? chatTitle(agent, summaries[agent.session]?.topic) : agent.name}</b>
             {isChat(agent) ? <span className="role">{t("chat.blankTag")}</span> : agent.role && <span className="role">{agent.role}</span>}
             {state && (
               <span className={"hst " + state.cls}>

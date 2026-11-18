@@ -2,7 +2,7 @@ import { Archive, Bot, Check, FolderInput, FolderMinus, Hash, MessageSquare, Mor
 import { useEffect, useRef, useState, type MouseEvent, type ReactNode } from "react";
 import { API, type AgentView, type SessionMeta } from "../api";
 import { t } from "../i18n";
-import { isChat, newChat, openNewAgent, openNewChannel, refreshSessions, resync, setState, toast, useFolders, useStore } from "../store";
+import { chatTitle, isChat, newChat, openNewAgent, openNewChannel, refreshSessions, resync, setState, toast, useFolders, useStore } from "../store";
 import { teamOf } from "../api";
 import { Avatar } from "./Avatar";
 
@@ -181,7 +181,7 @@ function AddToFolder({ folder, onClose }: { folder: string; onClose: () => void 
   const rows = [
     ...Object.values(agents)
       .filter((a) => teamOf(a) === team && (a.folder ?? "") !== folder)
-      .map((a) => ({ id: "a:" + a.id, name: a.kind === "chat" ? summaries[a.session]?.topic || a.name : a.name, sub: a.folder || t("rm.topLevel"), agent: a })),
+      .map((a) => ({ id: "a:" + a.id, name: a.kind === "chat" ? chatTitle(a, summaries[a.session]?.topic) : a.name, sub: a.folder || t("rm.topLevel"), agent: a })),
     ...Object.values(sessions)
       .filter((m) => m.kind === "channel" && teamOf(m) === team && (m.folder ?? "") !== folder)
       .map((m) => ({ id: "c:" + m.id, name: "# " + (m.title || m.id), sub: m.folder || t("rm.topLevel"), agent: undefined })),

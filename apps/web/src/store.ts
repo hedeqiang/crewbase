@@ -386,6 +386,14 @@ function syncSettingsHash() {
 
 export const isChat = (a?: AgentView) => a?.kind === "chat";
 
+/** The name the daemon gives a chat before anything else names it. */
+const CHAT_DEFAULT_NAME = "新对话";
+
+/** What a chat is called: its name (the daemon renames a chat after its
+ *  generated topic, and a name the person gave it stays), else the topic
+ *  while it still has the default name. */
+export const chatTitle = (a: AgentView, topic?: string) => (a.name && a.name !== CHAT_DEFAULT_NAME ? a.name : topic || a.name);
+
 // a function declaration (hoisted): the initial state reads it at load
 function teamKey() {
   return "crewbase.team";

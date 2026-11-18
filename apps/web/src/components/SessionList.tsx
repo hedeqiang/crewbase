@@ -12,6 +12,7 @@ import {
   myName,
   openNewAgent,
   isChat,
+  chatTitle,
   newChat,
   openNewChannel,
   openSession,
@@ -114,7 +115,7 @@ export function SessionList() {
         <Avatar agent={a} size={32} status={!isChat(a)} />
         <span className="ct">
           <span className="l1">
-            <b>{isChat(a) ? topic || a.name : a.name}</b>
+            <b>{isChat(a) ? chatTitle(a, topic) : a.name}</b>
             {waiting && <span className="wchip">{t("list.wait")}</span>}
             <span className="tm">{snip?.time ? listTime(snip.time) : ""}</span>
           </span>
