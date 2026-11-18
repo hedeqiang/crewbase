@@ -202,6 +202,17 @@ const midWidth = () => window.matchMedia("(max-width: 1100px)").matches;
 
 const HIST_MAX = 30;
 
+const MODELS_CACHE = "crewbase.models";
+
+function cachedModels(): ModelsResponse | null {
+  try {
+    const v = JSON.parse(localStorage.getItem(MODELS_CACHE) || "null");
+    return v && Array.isArray(v.providers) ? v : null;
+  } catch {
+    return null;
+  }
+}
+
 let state: State = {
   authed: null,
   tier: "desktop",
@@ -213,7 +224,9 @@ let state: State = {
   agents: {},
   sessions: {},
   approvals: [],
-  models: null,
+  // the last list this browser saw: the welcome page and pickers show it at
+  // once instead of "looking for models", and refreshModels replaces it
+  models: cachedModels(),
   connecting: false,
   summaries: {},
   channels: {},
@@ -385,6 +398,7 @@ function syncSettingsHash() {
 }
 
 export const isChat = (a?: AgentView) => a?.kind === "chat";
+
 
 /** The name the daemon gives a chat before anything else names it. */
 const CHAT_DEFAULT_NAME = "新对话";
@@ -592,11 +606,16 @@ export const openConnect = () => setState({ connecting: true });
 
 export async function refreshModels() {
   try {
-    // names and icons of providers added from the UI (older daemons lack the route)
-    const up = await API.providers().catch(() => null);
+    // names and icons of providers added from the UI (older daemons lack
+    // the route), fetched alongside the models rather than before them
+    const [up, r] = await Promise.all([API.providers().catch(() => null), API.models()]);
     if (up) setUserProviders(up.providers ?? []);
-    const r = await API.models();
     setState({ models: r });
+    try {
+      localStorage.setItem(MODELS_CACHE, JSON.stringify(r));
+    } catch {
+      /* private window or full: not kept */
+    }
   } catch {
     /* ignore */
   }
