@@ -1,5 +1,6 @@
 import { Fragment, type ReactNode } from "react";
-import { Check, Copy } from "lucide-react";
+import { AppWindow, Check, Copy } from "lucide-react";
+import { previewSnippet } from "./Preview";
 import { useCopy } from "../clipboard";
 import { t } from "../i18n";
 import { toast } from "../store";
@@ -18,6 +19,12 @@ export function CodeBlock({ code, lang }: { code: string; lang?: string }) {
   return (
     <div className={"codewrap" + (lang ? " haslang" : "")}>
       {lang && <span className="codelang">{lang}</span>}
+      {/^html?$/i.test(lang ?? "") && code.trim() && (
+        <button type="button" className="codecopy codeprev" aria-label={t("preview.btn")} title={t("preview.inPanel")} onClick={() => void previewSnippet(code)}>
+          <AppWindow size={13} />
+          <span>{t("preview.btn")}</span>
+        </button>
+      )}
       <button type="button" className={"codecopy" + (copied ? " on" : "")} aria-label={label} title={label} onClick={() => void copy(code).then((ok) => ok || toast(t("msg.copyFailed")))}>
         {copied ? <Check size={13} /> : <Copy size={13} />}
         <span>{copied ? t("msg.copied") : t("msg.copy")}</span>

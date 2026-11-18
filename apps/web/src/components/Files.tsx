@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ChevronRight, Download, FileText, Folder, FolderOpen, Pencil, RefreshCw, Save, X } from "lucide-react";
+import { AppWindow, ChevronRight, Download, FileText, Folder, FolderOpen, Pencil, RefreshCw, Save, X } from "lucide-react";
 import { API, rawURL, useRawURL, type AgentView, type FileContent, type FileEntry } from "../api";
 import { t } from "../i18n";
 import { ago } from "../format";
@@ -7,6 +7,7 @@ import { setState, toast, useStore } from "../store";
 import { Markdown } from "./Markdown";
 import { shortPath } from "./Conversation";
 import { confirmDialog } from "./Confirm";
+import { previewPath } from "./Preview";
 
 function sizeFmt(n: number): string {
   if (n < 1024) return n + " B";
@@ -64,23 +65,42 @@ function Dir({ agentId, path, depth, sel, onPick }: { agentId: string; path: str
         if (e.dir)
           return (
             <div key={p}>
-              <button className="tn" type="button" style={{ paddingLeft: 6 + depth * 14 }} aria-expanded={!!open[p]} onClick={() => setOpen((o) => ({ ...o, [p]: !o[p] }))}>
-                <ChevronRight size={12} className="tch" />
-                {open[p] ? <FolderOpen size={14} /> : <Folder size={14} />}
-                <span className="g">{e.name}</span>
-              </button>
+              <div className={"tnrow" + (e.index ? " pv" : "")}>
+                <button className="tn" type="button" style={{ paddingLeft: 6 + depth * 14 }} aria-expanded={!!open[p]} onClick={() => setOpen((o) => ({ ...o, [p]: !o[p] }))}>
+                  <ChevronRight size={12} className="tch" />
+                  {open[p] ? <FolderOpen size={14} /> : <Folder size={14} />}
+                  <span className="g">{e.name}</span>
+                </button>
+                {e.index && <PreviewBtn agentId={agentId} path={p + "/"} />}
+              </div>
               {open[p] && <Dir agentId={agentId} path={p} depth={depth + 1} sel={sel} onPick={onPick} />}
             </div>
           );
+        const html = HTML_RE.test(e.name);
         return (
-          <button key={p} className="tn" type="button" aria-current={sel === p} style={{ paddingLeft: 24 + depth * 14 }} onClick={() => onPick(p)} title={`${sizeFmt(e.size)} · ${ago(e.modified)}`}>
-            <FileText size={14} />
-            <span className="g">{e.name}</span>
-            <span className="small">{sizeFmt(e.size)}</span>
-          </button>
+          <div key={p} className={"tnrow" + (html ? " pv" : "")}>
+            <button className="tn" type="button" aria-current={sel === p} style={{ paddingLeft: 24 + depth * 14 }} onClick={() => onPick(p)} title={`${sizeFmt(e.size)} · ${ago(e.modified)}`}>
+              <FileText size={14} />
+              <span className="g">{e.name}</span>
+              <span className="small">{sizeFmt(e.size)}</span>
+            </button>
+            {html && <PreviewBtn agentId={agentId} path={p} />}
+          </div>
         );
       })}
     </>
+  );
+}
+
+const HTML_RE = /\.html?$/i;
+
+/** 预览: opens an HTML file or a folder with index.html in the 预览 tab. */
+function PreviewBtn({ agentId, path }: { agentId: string; path: string }) {
+  return (
+    <button className="tnpv" type="button" title={t("preview.inPanel")} onClick={() => void previewPath(agentId, path)}>
+      <AppWindow size={12} />
+      {t("preview.btn")}
+    </button>
   );
 }
 
@@ -143,6 +163,7 @@ function Preview({ agentId, path, onClose }: { agentId: string; path: string; on
             </button>
           </>
         )}
+        {edit === null && HTML_RE.test(path) && <PreviewBtn agentId={agentId} path={path} />}
         {edit === null && f && (
           <a className="ix" href={rawURL(agentId, path)} download={path.split("/").pop()} aria-label={t("files.download")} title={t("files.download")}>
             <Download size={13} />

@@ -43,6 +43,7 @@ import (
 	_ "github.com/hedeqiang/crewbase/features/memory"
 	_ "github.com/hedeqiang/crewbase/features/modelcatalog"
 	_ "github.com/hedeqiang/crewbase/features/plugins"
+	_ "github.com/hedeqiang/crewbase/features/preview"
 	_ "github.com/hedeqiang/crewbase/features/providers"
 	_ "github.com/hedeqiang/crewbase/features/redact"
 	_ "github.com/hedeqiang/crewbase/features/relay"
@@ -205,6 +206,9 @@ var Desktop = kernel.Bundle{Name: "desktop", Entries: []kernel.Entry{
 	{ID: "roles", Name: "@crewbase/roles"},
 	{ID: "ui-api", Name: "@crewbase/ui-api"},
 	{ID: "attachments-api", Name: "@crewbase/attachments-api"},
+	// 预览: preview_open and the right panel's preview tab (docs/previews.md).
+	{ID: "preview", Name: "@crewbase/preview"},
+	{ID: "preview-api", Name: "@crewbase/preview-api"},
 	{ID: "voice-api", Name: "@crewbase/voice-api"},
 	{ID: "devices", Name: "@crewbase/devices", Config: map[string]any{"dir": "${root}"}},
 	{ID: "members", Name: "@crewbase/members", Config: map[string]any{"dir": "${root}"}},

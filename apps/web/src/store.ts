@@ -23,6 +23,7 @@ import {
   type StreamChunk,
   type SystemInfo,
   type UIContribution,
+  type PreviewInfo,
   getToken,
 } from "./api";
 import { tunnelEvents, viaRelay } from "./tunnel";
@@ -32,7 +33,7 @@ import { modelKind, setUserProviders } from "./format";
 
 export type View = "chat" | "newAgent" | "settings";
 /** Built-in tabs, or `ui:<key>` for a plugin's sidebar-right.tab. */
-export type PanelTab = "task" | "files" | "agent" | `ui:${string}`;
+export type PanelTab = "task" | "files" | "preview" | "agent" | `ui:${string}`;
 export type Theme = "system" | "light" | "dark";
 export type SettingsSection =
   | "general"
@@ -125,6 +126,8 @@ export interface State {
   modelsTab: "providers" | "routing" | "catalog";
   /** File to open in the right panel's 文件 tab. */
   fileOpen: string | null;
+  /** A page to show in the right panel's 预览 tab (n bumps per request). */
+  previewOpen: { session: string; item: PreviewInfo; n: number } | null;
   /** Bumped on SSE "mcp" pushes so settings pages can refetch. */
   mcpTick: number;
   events: Record<string, SessionEvent[]>;
@@ -236,6 +239,7 @@ let state: State = {
   createIn: "",
   modelsTab: "providers",
   fileOpen: null,
+  previewOpen: null,
   mcpTick: 0,
   events: {},
   loadErr: {},
@@ -461,6 +465,11 @@ export async function refreshTeams() {
 }
 
 /** 新对话: a blank chat on the default model, opened right away. */
+/** Shows a page in the right panel's 预览 tab (the panel opens too). */
+export function openPreview(session: string, item: PreviewInfo) {
+  setState((s) => ({ panelOpen: true, panelTab: "preview", previewOpen: { session, item, n: (s.previewOpen?.n ?? 0) + 1 } }));
+}
+
 /** Opens a sub-agent's run in the right panel (the panel opens too). */
 export function openSubRun(session: string) {
   setState({ subView: session, panelOpen: true, panelTab: "task" });
@@ -784,6 +793,8 @@ function applySessionEvent(ev: SessionEvent) {
   if (ev.type === "session/meta") void refreshSessions();
   if (ev.type === "message/assistant" || ev.type === "turn/end") clearStream(ev.session, ev.agent);
   if (ev.type === "tool/call" && ev.agent) clearStream(ev.session, ev.agent);
+  // an agent opened a preview in the conversation on screen: show it
+  if (ev.type === "preview/opened" && ev.data?.url && ev.session === state.current) openPreview(ev.session, { ...ev.data, agent: ev.data.agent || ev.agent });
   const cur = state.events[ev.session];
   if (!cur) return; // not loaded; will be fetched when opened
   const last = cur.length ? cur[cur.length - 1].seq : 0;

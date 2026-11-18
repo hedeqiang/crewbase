@@ -1,6 +1,6 @@
 // Projects a session's event log into conversation feed items.
 
-import type { ApprovalRequest, Attachment, ModelRef, Part, SessionEvent, ToolCall, ToolResult } from "./api";
+import type { ApprovalRequest, Attachment, ModelRef, Part, PreviewInfo, SessionEvent, ToolCall, ToolResult } from "./api";
 
 export interface Step {
   call: ToolCall;
@@ -74,7 +74,11 @@ export type AgentItem = Extract<FeedItem, { k: "agent" }>;
 
 /** A piece of a turn: a model message (narration when it came with tool
  *  calls) or a run of tool steps. */
-export type TurnPart = { k: "msg"; it: AgentItem; narration: boolean } | { k: "steps"; id: string; steps: Step[] };
+export type TurnPart =
+  | { k: "msg"; it: AgentItem; narration: boolean }
+  | { k: "steps"; id: string; steps: Step[] }
+  /** preview_open showed a page in the right panel (preview/opened) */
+  | { k: "preview"; id: string; p: PreviewInfo };
 
 /** What a finished turn used, on the last reply of the turn. */
 export interface TurnStats {
@@ -497,6 +501,9 @@ export function project(events: SessionEvent[], cards?: ReadonlySet<string>): Pr
           push({ k: "chstate", id, state: d.state, by: d.by }, e.time);
         }
         seenState = true;
+        break;
+      case "preview/opened":
+        if (d.url) turnFor(e.agent ?? "", id, e.time).parts.push({ k: "preview", id, p: { ...d, agent: d.agent || e.agent, time: d.time || e.time } });
         break;
       case "computer/action": {
         const st = d.call ? steps.get(d.call) : undefined;
