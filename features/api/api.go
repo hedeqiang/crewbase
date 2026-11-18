@@ -315,6 +315,9 @@ var Plugin = kernel.Register(kernel.Spec{
 					Face        *string   `json:"face"`
 					Folder      *string   `json:"folder"`
 					Models      *[]string `json:"modelRefs"`
+					// Session is where the person changed it (the timeline
+					// that records a new first model); "" = the agent's own.
+					Session string `json:"session"`
 					NativeTools *[]string `json:"nativeTools"`
 					// Connectors: the connectors (by name) the agent may use;
 					// null = every connector its scope allows.
@@ -339,6 +342,10 @@ var Plugin = kernel.Register(kernel.Spec{
 					}
 				}
 				prevMode := a.Mode()
+				var prevFirst llm.ModelRef
+				if ms := a.Spec().Models; len(ms) > 0 {
+					prevFirst = ms[0]
+				}
 				err = a.Update(func(s *agent.Spec) {
 					set := func(dst *string, v *string) {
 						if v != nil {
@@ -376,6 +383,18 @@ var Plugin = kernel.Register(kernel.Spec{
 				})
 				if err != nil {
 					return nil, err
+				}
+				// a new first model is worth a line in the conversation
+				if ms := a.Spec().Models; b.Models != nil && len(ms) > 0 && ms[0].String() != prevFirst.String() {
+					ss, err := a.Session()
+					if b.Session != "" {
+						if x, e := sessions.Get(b.Session); e == nil && slices.Contains(x.Meta().Agents, a.ID()) {
+							ss, err = x, nil
+						}
+					}
+					if err == nil {
+						_, _ = ss.Append(session.TypeModelChosen, a.ID(), session.ModelSwitchData{From: prevFirst, To: ms[0], Reason: "chosen"})
+					}
 				}
 				if b.Mode != nil && *b.Mode != prevMode {
 					if ss, err := a.Session(); err == nil {

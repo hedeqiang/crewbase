@@ -772,6 +772,8 @@ function FeedRow({ it, agents, showModel }: { it: FeedItem; agents: Record<strin
                 {t("conn.connect")}
               </button>
             </>
+          ) : it.key === "chat.modelChosen" && it.vars ? (
+            <span>{t("chat.modelChosen", { agent: agents[it.vars.agent]?.name ?? it.vars.agent, to: (() => { const r = parseRef(it.vars.to ?? ""); return r ? shortModelEffort(models, r).name : it.vars.to ?? ""; })() })}</span>
           ) : (
             <span>{it.key ? t(it.key as Key, it.vars) : it.text}</span>
           )}
@@ -1747,7 +1749,7 @@ function Composer({
     }
     if (!channel) setModelOverride(agent.id, null);
     const rest = (target.models ?? []).filter((m) => !(m.provider === r.provider && m.model === r.model));
-    void API.patchAgent(target.id, { modelRefs: [refString(r), ...rest.map((m) => refString(m))] })
+    void API.patchAgent(target.id, { modelRefs: [refString(r), ...rest.map((m) => refString(m))], session: sessionId })
       .then(() => toast(t("comp.modelSet", { name: target.name, model: shortModelEffort(models, r)?.name ?? r.model })))
       .catch((e: any) => toast(e?.message ?? String(e)));
   };

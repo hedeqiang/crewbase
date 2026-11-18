@@ -420,6 +420,10 @@ export function project(events: SessionEvent[], cards?: ReadonlySet<string>): Pr
         }
         break;
       }
+      case "model/chosen":
+        push({ k: "sys", id, tone: "muted", text: "", key: "chat.modelChosen", vars: { agent: e.agent ?? "", to: d.to ? `${d.to.provider}/${d.to.model}` : "" } }, e.time);
+        if (d.to) lastModel[e.agent ?? ""] = d.to;
+        break;
       case "model/switched":
         push({ k: "switch", id, agent: e.agent ?? "", from: d.from, to: d.to, reason: d.reason ?? "", detail: d.detail }, e.time);
         if (d.to) lastModel[e.agent ?? ""] = d.to;
