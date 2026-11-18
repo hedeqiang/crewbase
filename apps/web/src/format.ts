@@ -276,11 +276,13 @@ export function shortModel(models: ModelsResponse | null, r: ModelRef): string {
   return tidyModelName(name.split(" · ")[0].replace(/\s*\((?:via|through)[^)]*\)\s*$/i, "").trim());
 }
 
-/** Friendly model names: "DeepSeek-V4.1-Flash" → "DeepSeek Flash",
- *  "deepseek-flash" → "DeepSeek Flash", "claude-opus-5-5" → "Claude Opus 5.5". */
+/** Friendly model names, keeping the version the full name has (so the
+ *  short name matches the model list): "DeepSeek-V4.1-Flash" →
+ *  "DeepSeek V4.1 Flash", "deepseek-flash" → "DeepSeek Flash",
+ *  "claude-opus-5-5" → "Claude Opus 5.5". */
 export function tidyModelName(n: string): string {
-  const ds = /^deepseek[-\s]?(?:v[\d.]+[-\s])?(flash|pro|chat|reasoner)(?:[-\s].*)?$/i.exec(n);
-  if (ds) return "DeepSeek " + ds[1][0].toUpperCase() + ds[1].slice(1).toLowerCase();
+  const ds = /^deepseek[-\s]?(?:(v[\d.]+)[-\s])?(flash|pro|chat|reasoner)(?:[-\s].*)?$/i.exec(n);
+  if (ds) return "DeepSeek " + (ds[1] ? ds[1].toUpperCase() + " " : "") + ds[2][0].toUpperCase() + ds[2].slice(1).toLowerCase();
   const cl = /^claude-(opus|sonnet|haiku|fable|mythos)-(\d+)(?:-(\d+))?$/i.exec(n);
   if (cl) return `Claude ${cl[1][0].toUpperCase()}${cl[1].slice(1)} ${cl[2]}${cl[3] ? "." + cl[3] : ""}`;
   if (/^[a-z0-9]+(?:-[a-z0-9.]+)+$/.test(n) && !/\d{4}/.test(n)) {
