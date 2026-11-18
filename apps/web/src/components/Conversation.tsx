@@ -876,7 +876,7 @@ function AgentMsg({ it, agent, showModel, bare }: { it: AgentItem; agent?: Agent
           </div>
         )}
         {/* the answer, once the turn is over (never narration or a stream) */}
-        {it.stats && it.text && <LinkCards text={it.text} />}
+        {it.stats && it.text && <LinkCards text={it.text} exclude={it.asked} />}
         {it.stats && <ReplyStats stats={it.stats} />}
         {hasActs && (
           <div className="msgacts">

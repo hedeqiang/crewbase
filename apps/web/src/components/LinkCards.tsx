@@ -61,10 +61,13 @@ function unfurl(url: string): Promise<LinkCard | null> {
   return p;
 }
 
-export function LinkCards({ text, mine }: { text: string; mine?: boolean }) {
+/** exclude: text whose links already have cards (an answer repeating the
+ *  links of the message it answers shows no second card). */
+export function LinkCards({ text, mine, exclude }: { text: string; mine?: boolean; exclude?: string }) {
   const on = useStore((s) => s.linkCards);
   if (!on) return null;
-  const links = cardLinks(text);
+  const seen = exclude ? new Set(cardLinks(exclude)) : null;
+  const links = cardLinks(text).filter((u) => !seen?.has(u));
   if (!links.length) return null;
   return (
     <div className={"lcards" + (mine ? " mine" : "")}>

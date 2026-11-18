@@ -104,6 +104,8 @@ export type FeedItem = (
       stats?: TurnStats;
       /** seq of the first user message of this reply's turn */
       turnFrom?: number;
+      /** text of the messages this turn answers (their links have cards) */
+      asked?: string;
     }
   | { k: "handover"; id: string; from: string; to: string; note: string; files: string[]; time: string }
   | { k: "owner"; id: string; owner: string; prev?: string; by?: string; reason: string }
@@ -258,6 +260,7 @@ export function project(events: SessionEvent[], cards?: ReadonlySet<string>): Pr
   // the open turn per agent: its first user message, model calls, last reply
   type Open = { from?: number; steps: TurnStep[]; last?: Extract<FeedItem, { k: "agent" }>; stepAt?: number };
   const turns = new Map<string, Open>();
+  const askedBy = new Map<string, string>(); // agent → text of messages since its last turn ended
   const pendingFrom = new Map<string, number>(); // agent → first user message since its last turn
 
   // the open turn item per agent; content of that agent goes into it
@@ -312,6 +315,7 @@ export function project(events: SessionEvent[], cards?: ReadonlySet<string>): Pr
           break;
         }
         push({ k: "user", id, seq: e.seq, text: d.text ?? "", from: d.from, time: e.time, to: d.to, attachments: d.attachments }, e.time);
+        for (const to of [d.to ?? "", ...((d.also as string[] | undefined) ?? [])]) askedBy.set(to, (askedBy.get(to) ?? "") + "\n" + (d.text ?? ""));
         break;
       case "message/assistant": {
         const parts: Part[] = d.message?.parts ?? [];
@@ -454,12 +458,16 @@ export function project(events: SessionEvent[], cards?: ReadonlySet<string>): Pr
       case "turn/end": {
         const ag = e.agent ?? "";
         openTurns.delete(ag);
+        const answered = askedBy.get(ag);
         const ti = cur.get(ag);
         if (ti) ti.open = false;
         breakTurns(ag);
         const turn = turns.get(ag);
         turns.delete(ag);
         if (turn?.last) {
+          turn.last.asked = (answered ?? "") + (askedBy.get("") ?? "");
+          askedBy.delete(ag);
+          askedBy.delete("");
           turn.last.stats = { steps: turn.steps, status: d.status ?? "" };
           turn.last.turnFrom = turn.from;
           if (turn.from !== undefined) lastTurn[ag] = { item: turn.last.id, from: turn.from };
