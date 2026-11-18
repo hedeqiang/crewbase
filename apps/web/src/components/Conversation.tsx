@@ -1594,12 +1594,19 @@ function Composer({
     const next = draft.slice(0, mention.start) + "@" + handle + " " + draft.slice(caret);
     setDraft(next);
     setMention(null);
-    const pos = mention.start + handle.length + 2;
-    requestAnimationFrame(() => {
-      el.focus();
-      el.setSelectionRange(pos, pos);
-    });
+    // placed when the new text is rendered, before any further keystroke:
+    // a caret set a frame later moved behind letters typed in between
+    caretAfter.current = mention.start + handle.length + 2;
   };
+  const caretAfter = useRef<number | null>(null);
+  useLayoutEffect(() => {
+    const el = ta.current;
+    const pos = caretAfter.current;
+    if (!el || pos === null) return;
+    caretAfter.current = null;
+    el.focus();
+    el.setSelectionRange(pos, pos);
+  }, [draft]);
 
   const archived = channel?.state === "archived";
 
