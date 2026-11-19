@@ -59,6 +59,10 @@ export interface AgentView {
   workspace: string;
   effectiveMode: Mode;
   nativeTools?: string[] | null;
+  /** when deferred tools are held back: "" auto | "always" | "never" */
+  toolSearch?: string;
+  /** deferred tools or groups loaded from the start */
+  alwaysLoad?: string[] | null;
   /** connectors (by name) the agent may use; unset/null = every connector its scope allows */
   connectors?: string[] | null;
   /** "chat" for a blank chat (no persona, instructions or memory) */
@@ -1268,6 +1272,8 @@ export const API = {
   browserInput: (id: string, b: BrowserInput) => api("POST", `/api/agents/${enc(id)}/browser/input`, b),
 
   usage: () => api<UsageStats>("GET", "/api/usage"),
+  agentToolGroups: (id: string) =>
+    api<{ groups: { name: string; count: number; summary: string; deferred: boolean }[] | null; deferredTokens: number }>("GET", `/api/agents/${enc(id)}/tools`),
   vault: () => api<{ items: VaultItem[] }>("GET", "/api/vault"),
   addSecret: (name: string, value: string) => api<VaultItem>("POST", "/api/vault", { name, value }),
   replaceSecret: (id: string, value: string) => api<VaultItem>("PUT", "/api/vault", { id, value }),

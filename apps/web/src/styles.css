@@ -2226,3 +2226,4 @@ a.lcard:hover, .lvideo .ltext:hover { background: var(--hover); }
 .pstvar.need > .mono { color: var(--amber-text); font-weight: 600; }
 .pstskill { align-items: flex-start; }
 .pstskill .pill { margin-left: 6px; }
+.tlseg { display: flex; width: 100%; } .tlseg button { flex: 1; }

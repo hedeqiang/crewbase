@@ -334,8 +334,15 @@ var Plugin = kernel.Register(kernel.Spec{
 					Connectors json.RawMessage `json:"connectors"`
 					// ProjectDir: a folder to work in ("" = the agent's own workspace)
 					ProjectDir *string `json:"projectDir"`
+					// ToolSearch: "" (auto) | always | never; AlwaysLoad: tool
+					// names or groups loaded from the start.
+					ToolSearch *string   `json:"toolSearch"`
+					AlwaysLoad *[]string `json:"alwaysLoad"`
 				}
 				_ = r.Decode(&b)
+				if b.ToolSearch != nil && *b.ToolSearch != "" && *b.ToolSearch != tools.DeferAuto && *b.ToolSearch != tools.DeferAlways && *b.ToolSearch != tools.DeferNever {
+					return nil, gateway.BadRequest("toolSearch is auto, always or never")
+				}
 				conns, setConns, err := connectorsPatch(c, a, b.Connectors)
 				if err != nil {
 					return nil, err
@@ -374,6 +381,20 @@ var Plugin = kernel.Register(kernel.Spec{
 					}
 					if setConns {
 						s.Connectors = conns
+					}
+					if b.ToolSearch != nil {
+						s.ToolSearch = *b.ToolSearch
+						if s.ToolSearch == tools.DeferAuto {
+							s.ToolSearch = ""
+						}
+					}
+					if b.AlwaysLoad != nil {
+						s.AlwaysLoad = nil
+						for _, n := range *b.AlwaysLoad {
+							if n = strings.TrimSpace(n); n != "" && !slices.Contains(s.AlwaysLoad, n) {
+								s.AlwaysLoad = append(s.AlwaysLoad, n)
+							}
+						}
 					}
 					if b.NativeTools != nil {
 						s.NativeTools = nil
@@ -630,7 +651,31 @@ var Plugin = kernel.Register(kernel.Spec{
 				if !ok {
 					return map[string]any{"tools": []any{}}, nil
 				}
-				return map[string]any{"tools": reg.Schemas(a.ID())}, nil
+				// groups: the agent's tool families and whether each is in the
+				// tier tool search holds back (Settings: 工具加载)
+				type group struct {
+					tools.Group
+					Deferred bool `json:"deferred"`
+				}
+				var deferred, core []*tools.Tool
+				for _, t := range reg.Offerable(a.ID(), "agent") {
+					if t.Load == tools.LoadMeta {
+						continue
+					}
+					if t.Deferred() {
+						deferred = append(deferred, t)
+					} else {
+						core = append(core, t)
+					}
+				}
+				var groups []group
+				for _, g := range tools.Groups(deferred) {
+					groups = append(groups, group{Group: g, Deferred: true})
+				}
+				for _, g := range tools.Groups(core) {
+					groups = append(groups, group{Group: g})
+				}
+				return map[string]any{"tools": reg.Schemas(a.ID()), "groups": groups, "deferredTokens": tools.SchemaTokens(deferred)}, nil
 			}})
 
 		// ---- sessions

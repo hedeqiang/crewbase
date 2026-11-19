@@ -746,6 +746,8 @@ function AgentTab({ agent, sessionId }: { agent: AgentView; sessionId: string })
 
       <AgentConnectors agent={agent} />
 
+      <ToolLoading agent={agent} />
+
       <div className="psec">{t("panel.context")}</div>
       <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12.5 }}>
         <span>{win ? `${kfmt(used)} / ${kfmt(win)}` : "—"}</span>
@@ -848,4 +850,97 @@ function Brief({ agent }: { agent: AgentView }) {
       </button>
     </div>
   );
+}
+
+/** 工具加载: whether the agent's on-demand tools (MCP servers, connectors,
+ *  heavy built-ins) go out with every request or are searched for, and
+ *  which groups stay loaded from the start. */
+function ToolLoading({ agent }: { agent: AgentView }) {
+  const [groups, setGroups] = useState<{ name: string; count: number; summary: string }[] | null>(null);
+  const [tokens, setTokens] = useState(0);
+  useEffect(() => {
+    let live = true;
+    API.agentToolGroups(agent.id).then(
+      (r) => {
+        if (!live) return;
+        setGroups((r.groups ?? []).filter((g) => g.deferred));
+        setTokens(r.deferredTokens ?? 0);
+      },
+      () => live && setGroups([]),
+    );
+    return () => {
+      live = false;
+    };
+  }, [agent.id]);
+  if (!groups || groups.length === 0) return null; // nothing is ever held back
+  const mode = agent.toolSearch || "auto";
+  const always = new Set(agent.alwaysLoad ?? []);
+  const patch = async (p: { toolSearch?: string; alwaysLoad?: string[] }) => {
+    try {
+      await API.patchAgent(agent.id, p);
+      toast(t("panel.saved"));
+    } catch (e: any) {
+      toast(e?.message ?? String(e));
+    }
+  };
+  return (
+    <>
+      <div className="psec">{t("tl.title")}</div>
+      <div className="seg tlseg" role="radiogroup" aria-label={t("tl.title")}>
+        {(["auto", "never", "always"] as const).map((m) => (
+          <button key={m} type="button" role="radio" aria-checked={mode === m} aria-pressed={mode === m} onClick={() => void patch({ toolSearch: m })}>
+            {t(`tl.mode.${m}` as Key)}
+          </button>
+        ))}
+      </div>
+      <div className="small" style={{ marginTop: 6 }}>
+        {t(`tl.desc.${mode}` as Key, { n: groups.reduce((a, g) => a + g.count, 0), k: kfmt(tokens) })}
+      </div>
+      {mode !== "never" && (
+        <>
+          <div className="small muted" style={{ margin: "10px 0 6px" }}>
+            {t("tl.always")}
+          </div>
+          <div className="tglist tlgroups">
+            {groups.map((g) => (
+              <div className="tgrow" key={g.name}>
+                <span className="g">
+                  <b>
+                    {groupLabel(g).name} <span className="muted">· {t("tl.count", { n: g.count })}</span>
+                  </b>
+                  <span>{groupLabel(g).desc}</span>
+                </span>
+                <button
+                  className="tg"
+                  type="button"
+                  role="switch"
+                  aria-checked={always.has(g.name)}
+                  aria-label={g.name}
+                  onClick={() => {
+                    const next = new Set(always);
+                    if (next.has(g.name)) next.delete(g.name);
+                    else next.add(g.name);
+                    void patch({ alwaysLoad: [...next] });
+                  }}
+                />
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+    </>
+  );
+}
+
+/** A tool group's name and line in the interface language (built-in groups
+ *  are translated; an MCP server keeps its name). */
+function groupLabel(g: { name: string; summary: string }): { name: string; desc: string } {
+  const k = `tg.${g.name}` as Key;
+  const v = t(k);
+  if (v !== k) {
+    const [name, desc] = v.split("|");
+    return { name, desc: desc ?? g.summary };
+  }
+  const mcp = /^MCP server tools, e\.g\. (.*)$/.exec(g.summary);
+  return { name: g.name, desc: mcp ? t("tg.mcp", { names: mcp[1] }) : g.summary };
 }
