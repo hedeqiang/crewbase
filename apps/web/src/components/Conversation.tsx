@@ -465,6 +465,10 @@ function Versions({ older, current, agents }: { older: FeedItem[][]; current: Fe
   );
 }
 
+/** Messages and turns of a conversation rendered at first (and added per
+ *  显示更早的). */
+const FEED_WINDOW = 80;
+
 /** Segments as rendered: runs of regenerated answers followed by the one
  *  the model sees become versions; other runs stay as they are. */
 type Block = { kind: "rows"; items: FeedItem[] } | { kind: "sup"; rw: Rewind; items: FeedItem[] } | { kind: "versions"; older: FeedItem[][]; current: FeedItem[] };
@@ -544,13 +548,40 @@ function Feed({
       );
   }, [items, agents, channel, agent.id, sessionId]);
 
+  // A long conversation renders its latest blocks only; 显示更早的 adds more
+  // above, keeping what is on screen where it was.
+  const [shownN, setShownN] = useState(FEED_WINDOW);
+  useEffect(() => setShownN(FEED_WINDOW), [sessionId]);
+  // cut before the last shownN messages / turns, at a message boundary
+  const { cut, hidden } = useMemo(() => {
+    let n = 0;
+    for (let i = items.length - 1; i >= 0; i--) {
+      const k = items[i].k;
+      if (k === "user" || k === "turn" || k === "agent") n++;
+      if (n > shownN && k === "user") return { cut: i + 1, hidden: items.slice(0, i + 1).filter((x) => x.k === "user" || x.k === "turn" || x.k === "agent").length };
+    }
+    return { cut: 0, hidden: 0 };
+  }, [items, shownN]);
+  const all = useMemo(() => blocks(cut ? items.slice(cut) : items), [items, cut]);
+  const anchor = useRef<number | null>(null);
+  const showOlder = () => {
+    const el = ref.current;
+    anchor.current = el ? el.scrollHeight - el.scrollTop : null;
+    setShownN((n) => n + FEED_WINDOW);
+  };
   const onScroll = () => {
     const el = ref.current;
     if (el) stick.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
   };
   useLayoutEffect(() => {
     const el = ref.current;
-    if (el && stick.current) el.scrollTop = el.scrollHeight;
+    if (!el) return;
+    if (anchor.current !== null) {
+      el.scrollTop = el.scrollHeight - anchor.current;
+      anchor.current = null;
+      return;
+    }
+    if (stick.current) el.scrollTop = el.scrollHeight;
   });
 
   // your bubbles can take the agent's colour (a channel's own colour)
@@ -593,7 +624,12 @@ function Feed({
         </div>
       )}
       <SessionCtx.Provider value={sessionId}>
-      {blocks(items).map((b) =>
+      {hidden > 0 && (
+        <button className="feedolder" type="button" onClick={showOlder}>
+          {t("chat.showOlder", { n: hidden })}
+        </button>
+      )}
+      {all.map((b) =>
         b.kind === "sup" ? (
           <Superseded key={"sup" + b.items[0].id} rw={b.rw} rows={b.items} agents={agents} />
         ) : b.kind === "versions" ? (

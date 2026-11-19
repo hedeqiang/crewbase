@@ -811,6 +811,7 @@ const zh = {
   "chat.reason.model_unavailable": "在当前账号下不可用",
   "chat.reason.model_not_found": "不存在（提供方没有这个模型）",
   "chat.modelChosen": "{agent} 之后改用 {to}",
+  "chat.showOlder": "显示更早的 {n} 条",
   "chat.reason.other": "出错",
   "chat.turnFailed": "这一轮失败了：{error}",
   "chat.turnCancelled": "已停止",
