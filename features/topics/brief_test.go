@@ -65,4 +65,3 @@ func TestBriefFallsBackAndFirstTurnWaits(t *testing.T) {
 		t.Fatalf("first turn did not wait for the brief: %q", system)
 	}
 }
-
