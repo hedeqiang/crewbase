@@ -231,6 +231,12 @@ function Viewer({ item, onClose }: { item: PreviewInfo; onClose: () => void }) {
         <a className="ix" href={shown} target="_blank" rel="noopener noreferrer" aria-label={t("preview.openBrowser")} title={t("preview.openBrowser")}>
           <ExternalLink size={13} />
         </a>
+        {/* a tablet/phone width wider than the panel is drawn smaller: say how much */}
+        {scale < 1 && (
+          <span className="prvscale small muted" title={t("preview.scaled", { w: want ?? 0 })}>
+            {Math.round(scale * 100)}%
+          </span>
+        )}
         <span className="prvseg" role="radiogroup" aria-label={t("preview.width")}>
           {(
             [

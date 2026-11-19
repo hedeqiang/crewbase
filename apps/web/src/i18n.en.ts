@@ -602,6 +602,7 @@ export const en: Partial<Record<Key, string>> = {
   "preview.reload": "Reload",
   "preview.openBrowser": "Open in browser",
   "preview.width": "Width",
+  "preview.scaled": "Shown at {w}px wide, scaled down to fit the panel",
   "preview.desktop": "Desktop",
   "preview.tablet": "Tablet",
   "preview.phone": "Phone",

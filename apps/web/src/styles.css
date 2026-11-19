@@ -2198,3 +2198,4 @@ a.lcard:hover, .lvideo .ltext:hover { background: var(--hover); }
   .crow .cbtn:not(.cmodel):not(.round) > svg.lucide:last-child:not(:first-child) { display: none; }
   .crow .cmodel { flex-shrink: 0; max-width: 180px; }
 }
+.prvscale { font-variant-numeric: tabular-nums; flex: none; }

@@ -938,6 +938,7 @@ const zh = {
   "preview.reload": "刷新",
   "preview.openBrowser": "在浏览器中打开",
   "preview.width": "宽度",
+  "preview.scaled": "按 {w}px 宽显示，缩小以适应面板",
   "preview.desktop": "桌面",
   "preview.tablet": "平板",
   "preview.phone": "手机",
