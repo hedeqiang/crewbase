@@ -28,19 +28,22 @@ export function Panel() {
   const pluginTabs = useSlot("sidebar-right.tab");
   const subView = useStore((s) => s.subView);
   if (!agent) return null;
+  const chat = agent.kind === "chat";
+  const view: typeof tab = chat && tab === "files" ? "task" : tab;
+  // a plain chat has no workspace to browse (an HTML answer can still be previewed)
   const tabs: [typeof tab, string][] = [
     ["task", t("panel.task")],
-    ["files", t("panel.files")],
+    ...(chat ? [] : ([["files", t("panel.files")]] as [typeof tab, string][])),
     ["preview", t("panel.preview")],
     ["agent", agent.kind === "chat" ? t("chat.settingsTab") : agent.name || t("panel.agent")],
     ...pluginTabs.map((c): [typeof tab, string] => [`ui:${c.key}`, c.title || c.key]),
   ];
-  const pluginTab = tab.startsWith("ui:") ? pluginTabs.find((c) => "ui:" + c.key === tab) : undefined;
+  const pluginTab = view.startsWith("ui:") ? pluginTabs.find((c) => "ui:" + c.key === view) : undefined;
   return (
-    <aside className={"panel" + (tab === "preview" ? " wide" : "")}>
+    <aside className={"panel" + (view === "preview" ? " wide" : "")}>
       <div className="ptabs" role="tablist">
         {tabs.map(([k, l]) => (
-          <button key={k} className="ptab" type="button" role="tab" aria-selected={tab === k} onClick={() => setState({ panelTab: k })}>
+          <button key={k} className="ptab" type="button" role="tab" aria-selected={view === k} onClick={() => setState({ panelTab: k })}>
             {l}
           </button>
         ))}
@@ -50,18 +53,18 @@ export function Panel() {
         </button>
       </div>
       <div className="pbody">
-        {subView && tab === "task" ? (
+        {subView && view === "task" ? (
           <SubRunView key={subView} session={subView} parentSession={current ?? agent.session} />
         ) : (
           <>
-        {tab === "task" && (channel ? <ChannelTask key={channel.id} channel={channel} /> : <TaskTab agent={agent} />)}
-        {tab === "task" && <SubRuns session={current ?? agent.session} />}
-        {tab === "task" && agent.kind !== "chat" && <TaskBoard key={current ?? agent.session} session={current ?? agent.session} />}
+        {view === "task" && (channel ? <ChannelTask key={channel.id} channel={channel} /> : <TaskTab agent={agent} />)}
+        {view === "task" && <SubRuns session={current ?? agent.session} />}
+        {view === "task" && agent.kind !== "chat" && <TaskBoard key={current ?? agent.session} session={current ?? agent.session} />}
           </>
         )}
-        {tab === "files" && <FilesTab agent={agent} />}
-        {tab === "preview" && <PreviewTab key={current ?? agent.session} session={current ?? agent.session} />}
-        {tab === "agent" && <AgentTab key={agent.id} agent={agent} sessionId={current ?? agent.session} />}
+        {view === "files" && <FilesTab agent={agent} />}
+        {view === "preview" && <PreviewTab key={current ?? agent.session} session={current ?? agent.session} />}
+        {view === "agent" && <AgentTab key={agent.id} agent={agent} sessionId={current ?? agent.session} />}
         {pluginTab && (
           <div className="uitab">
             <div className="uitabh">
