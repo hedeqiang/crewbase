@@ -11,19 +11,27 @@ package agentloop
 //   - adapters with native tool search (llm.ToolSearcher, e.g. Anthropic)
 //     get every tool with the deferred ones marked (llm.ToolSchema.Deferred);
 //     the provider searches and loads them;
-//   - every other adapter gets the core tools, the tool_search meta-tool,
-//     a prompt section naming the deferred groups, and the tools the agent
-//     has loaded in this session (tools/loaded events), after the core
-//     tools in load order. A call to a deferred tool the model has not
-//     loaded loads it and asks for a retry; any other unknown tool points
-//     at tool_search.
+//   - every other adapter gets the core tools, the tool_search and
+//     call_tool meta-tools and a prompt section naming the deferred groups.
+//     A tool the agent loads (tools/loaded events) is not added to the
+//     request's tools right away: that would change the start of the
+//     prompt and throw away the provider's prompt cache. tool_search
+//     answers with the loaded tools' full definitions instead, and the
+//     model calls them through call_tool. They join the request's tools,
+//     after the core ones in load order, only when the cache is cold
+//     anyway: after a compaction, or when the agent's last request is
+//     older than the cache lifetime (cacheTTL). A call to a deferred tool
+//     the model has not loaded loads it and asks for a retry; any other
+//     unknown tool points at tool_search.
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"slices"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/hedeqiang/crewbase/core/agent"
 	"github.com/hedeqiang/crewbase/core/llm"
@@ -33,6 +41,18 @@ import (
 
 // ToolSearchName is the generic tool-search meta-tool.
 const ToolSearchName = "tool_search"
+
+// CallToolName is the generic path's proxy for loaded tools that are not
+// in the request's tools yet.
+const CallToolName = "call_tool"
+
+// cacheTTL is how long a provider keeps a prompt cache warm without use
+// (Anthropic and OpenAI: about 5 minutes). Past it, adding tools costs
+// nothing extra.
+const cacheTTL = 5 * time.Minute
+
+// clock is the time a request is planned at (tests move it).
+var clock = time.Now
 
 // Search result limits.
 const (
@@ -83,20 +103,25 @@ func (o *offers) get(agent, sess string) (map[string]bool, bool) {
 // tiers splits the tools a may be offered in ss into core (always sent,
 // including the agent's AlwaysLoad) and deferred, in registration order.
 func (l *loop) tiers(a *agent.Agent, kind string) (core, deferred []*tools.Tool, meta *tools.Tool) {
+	core, deferred, metas := l.tiersAll(a, kind)
+	return core, deferred, metas[ToolSearchName]
+}
+
+// tiersAll is tiers with every meta-tool by name.
+func (l *loop) tiersAll(a *agent.Agent, kind string) (core, deferred []*tools.Tool, metas map[string]*tools.Tool) {
 	always := a.Spec().AlwaysLoad
+	metas = map[string]*tools.Tool{}
 	for _, t := range l.toolsReg.Offerable(a.ID(), kind) {
 		switch {
 		case t.Load == tools.LoadMeta:
-			if t.Name == ToolSearchName {
-				meta = t
-			}
+			metas[t.Name] = t
 		case t.Deferred() && !slices.Contains(always, t.Name) && !slices.Contains(always, tools.GroupOf(t)):
 			deferred = append(deferred, t)
 		default:
 			core = append(core, t)
 		}
 	}
-	return core, deferred, meta
+	return core, deferred, metas
 }
 
 // deferConfig is the loop's thresholds with the agent's override.
@@ -114,7 +139,8 @@ func (l *loop) planTools(a *agent.Agent, ss *session.Session, ad llm.Adapter, mo
 	if a.IsChat() {
 		return toolPlan{Mode: planAll} // a plain chat offers no tools
 	}
-	core, deferred, meta := l.tiers(a, ss.Meta().Kind)
+	core, deferred, metas := l.tiersAll(a, ss.Meta().Kind)
+	meta := metas[ToolSearchName]
 	schemas := func(ts []*tools.Tool) []llm.ToolSchema {
 		out := make([]llm.ToolSchema, 0, len(ts))
 		for _, t := range ts {
@@ -165,24 +191,70 @@ func (l *loop) planTools(a *agent.Agent, ss *session.Session, ad llm.Adapter, mo
 	if meta != nil {
 		out = append(out, meta.Schema())
 		offered[meta.Name] = true
-	}
-	for _, n := range tools.Loaded(ss.Events(), a.ID()) {
-		if t, ok := byName[n]; ok && !offered[n] {
-			out = append(out, t.Schema())
-			offered[n] = true
+		if p := metas[CallToolName]; p != nil {
+			out = append(out, p.Schema())
+			offered[p.Name] = true
 		}
 	}
-	var rest []*tools.Tool
-	for _, t := range deferred {
-		if !offered[t.Name] {
-			rest = append(rest, t)
+	// loaded tools are callable (through call_tool, or by name); only those
+	// loaded before the cache last went cold are in the request's tools
+	events := ss.Events()
+	inTools := map[string]bool{}
+	for _, n := range promotedGeneric(events, a.ID(), clock()) {
+		inTools[n] = true
+	}
+	for _, n := range tools.Loaded(events, a.ID()) {
+		t, ok := byName[n]
+		if !ok || offered[n] {
+			continue
+		}
+		offered[n] = true
+		if inTools[n] {
+			out = append(out, t.Schema())
 		}
 	}
 	section := ""
 	if meta != nil {
-		section = searchSection(rest)
+		// every deferred group, loaded or not: the section stays the same
+		// as tools load, so the system prompt keeps its cache
+		section = searchSection(deferred)
 	}
 	return toolPlan{Tools: out, Section: section, Mode: planGeneric, offered: offered}
+}
+
+// promotedGeneric lists the loaded tools a generic request sends in its
+// tools: those loaded before the agent's cache last went cold (its latest
+// compaction, or a request more than cacheTTL after the one before), in
+// load order. A request now, after more than cacheTTL, is such a point.
+func promotedGeneric(events []session.Event, agentID string, now time.Time) []string {
+	var cold int64
+	var last time.Time
+	for _, e := range events {
+		if e.Agent != agentID && !(e.Type == session.TypeCompaction && e.Agent == "") {
+			continue
+		}
+		switch e.Type {
+		case session.TypeCompaction:
+			cold = e.Seq
+		case session.TypeStepStart:
+			if !last.IsZero() && e.Time.Sub(last) > cacheTTL {
+				cold = e.Seq
+			}
+			last = e.Time
+		case session.TypeAssistantMessage:
+			last = e.Time // the cache was last used when the answer came
+		}
+	}
+	if !last.IsZero() && now.Sub(last) > cacheTTL {
+		return tools.Loaded(events, agentID)
+	}
+	var before []session.Event
+	for _, e := range events {
+		if e.Seq < cold {
+			before = append(before, e)
+		}
+	}
+	return tools.Loaded(before, agentID)
 }
 
 // promotedForNative lists the loaded tools a native-search request sends
@@ -230,7 +302,8 @@ func searchSection(rest []*tools.Tool) string {
 		fmt.Fprintf(&b, "- %s (%d): %s\n", g.Name, g.Count, g.Summary)
 	}
 	b.WriteString("To use one, first call " + ToolSearchName + " with what you want to do (e.g. \"create a page\", \"list pull requests\"). " +
-		"The matching tools are loaded and you can call them from your next step. Do not guess tool names that are not loaded.")
+		"It answers with the matching tools' definitions; call one with " + CallToolName + " (its name and arguments that match its parameters), " +
+		"or directly when it is in your tools. Do not guess tool names that are not loaded.")
 	return b.String()
 }
 
@@ -248,8 +321,8 @@ func (l *loop) gate(call tools.Call, t *tools.Tool, found bool) (tools.Result, b
 		if _, err := tools.MarkLoaded(ss, call.Agent, []string{call.Name}, tools.ViaCall); err != nil {
 			return tools.Errorf("could not load %s: %v", call.Name, err), true
 		}
-		return tools.Errorf("%s was not loaded, so you called it without seeing its parameters. It is loaded now: "+
-			"from your next step its full definition is in your tools. Call it again with arguments that match that definition.", call.Name), true
+		return tools.Errorf("%s was not loaded, so you called it without seeing its parameters. It is loaded now; its definition:\n%s\n"+
+			"Call it again through %s with arguments that match these parameters.", call.Name, definition(t), CallToolName), true
 	}
 	if !found {
 		return tools.Errorf("unknown tool: %s. Use %s to find the tool you need (an empty query lists the tool groups).", call.Name, ToolSearchName), true
@@ -334,12 +407,13 @@ func (l *loop) runSearch(_ context.Context, call tools.Call) (tools.Result, erro
 	names := make([]string, 0, len(found))
 	hits := make([]SearchHit, 0, len(found))
 	var b strings.Builder
-	b.WriteString("Loaded these tools; you can call them from your next step:\n")
+	b.WriteString("Loaded these tools. Call one with " + CallToolName + " {\"name\": \"<tool>\", \"arguments\": {...}} " +
+		"(or directly if it is in your tools); its arguments must match the parameters below.\n")
 	for _, t := range found {
 		names = append(names, t.Name)
 		h := SearchHit{Name: t.Name, Group: tools.GroupOf(t), Description: tools.OneLine(t.Description)}
 		hits = append(hits, h)
-		fmt.Fprintf(&b, "- %s [%s]: %s\n", h.Name, h.Group, h.Description)
+		fmt.Fprintf(&b, "\n- %s [%s]: %s\n%s\n", h.Name, h.Group, h.Description, definition(t))
 	}
 	if _, err := tools.MarkLoaded(ss, call.Agent, names, tools.ViaSearch); err != nil {
 		return tools.Errorf("could not load the tools: %v", err), nil
@@ -360,4 +434,64 @@ func recordNativeLoads(ss *session.Session, agentID string, m llm.Message) {
 	if len(names) > 0 {
 		_, _ = tools.MarkLoaded(ss, agentID, names, tools.ViaNative)
 	}
+}
+
+// definition is a tool's full description and parameters, as tool_search
+// and the gate show them (the model calls it through call_tool).
+func definition(t *tools.Tool) string {
+	p, _ := json.Marshal(t.Schema().Parameters)
+	d := strings.TrimSpace(t.Description)
+	return "  description: " + strings.ReplaceAll(d, "\n", "\n  ") + "\n  parameters: " + string(p)
+}
+
+// callTool is the generic path's proxy: the loop runs a call to it as a
+// call to the tool it names (unwrapCall), so recording, approvals and the
+// person's view all see the real tool. It runs itself only when the call
+// cannot be unwrapped.
+func (l *loop) callTool() *tools.Tool {
+	return &tools.Tool{
+		Name: CallToolName,
+		Description: "Call a tool that " + ToolSearchName + " loaded but that is not in your tools yet. " +
+			"name: the tool's name; arguments: an object matching that tool's parameters, as " + ToolSearchName + " showed them.",
+		Params: tools.Schema(map[string]any{
+			"name":      tools.Prop("string", "The loaded tool's exact name."),
+			"arguments": map[string]any{"type": "object", "description": "The tool's arguments, matching its parameters."},
+		}, "name"),
+		Category: tools.CategoryNone,
+		Load:     tools.LoadMeta,
+		Execute: func(_ context.Context, call tools.Call) (tools.Result, error) {
+			return tools.Errorf("%s needs {\"name\": \"<a loaded tool>\", \"arguments\": {...}}; use %s first to load the tool you need.", CallToolName, ToolSearchName), nil
+		},
+	}
+}
+
+// unwrapCall turns a call_tool call into the call it stands for. It
+// accepts arguments given as a JSON string too (some models send that).
+func unwrapCall(name string, args json.RawMessage) (string, json.RawMessage, bool) {
+	if name != CallToolName {
+		return name, args, false
+	}
+	var w struct {
+		Name      string          `json:"name"`
+		Arguments json.RawMessage `json:"arguments"`
+	}
+	if json.Unmarshal(args, &w) != nil {
+		return name, args, false
+	}
+	w.Name = strings.TrimSpace(w.Name)
+	if w.Name == "" || w.Name == CallToolName || w.Name == ToolSearchName {
+		return name, args, false
+	}
+	inner := w.Arguments
+	var str string
+	if json.Unmarshal(inner, &str) == nil {
+		inner = json.RawMessage(str)
+	}
+	if len(inner) == 0 || string(inner) == "null" {
+		inner = json.RawMessage("{}")
+	}
+	if !json.Valid(inner) {
+		return name, args, false
+	}
+	return w.Name, inner, true
 }

@@ -143,7 +143,7 @@ func (l *loop) persistSent(a *agent.Agent, ss *session.Session, rec *RecordedReq
 		planned[t.Name] = true
 	}
 	for _, t := range rec.Tools {
-		if !planned[t.Name] && t.Name != ToolSearchName && !t.Deferred {
+		if !planned[t.Name] && t.Name != ToolSearchName && t.Name != CallToolName && !t.Deferred {
 			n.Tools = append(n.Tools, t)
 		}
 	}

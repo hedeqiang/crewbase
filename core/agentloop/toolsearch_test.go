@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -140,7 +141,7 @@ func TestFewDeferredToolsAreAllSent(t *testing.T) {
 	send(t, a2, "hi")
 	agentloop.WaitIdle(a2, 5*time.Second)
 	reqs := s.requests()
-	if got := reqs[len(reqs)-1].Tools; len(got) != 4 || got[3].Name != agentloop.ToolSearchName {
+	if got := reqs[len(reqs)-1].Tools; len(got) != 5 || got[3].Name != agentloop.ToolSearchName || got[4].Name != agentloop.CallToolName {
 		t.Fatalf("forced: %v", names(got))
 	}
 }
@@ -167,34 +168,31 @@ func TestGenericToolSearchLoadsTools(t *testing.T) {
 		t.Fatalf("%d requests", len(reqs))
 	}
 	first := reqs[0]
-	if got := names(first.Tools); strings.Join(got, ",") != "core_00,core_01,core_02,tool_search" {
+	if got := names(first.Tools); strings.Join(got, ",") != "core_00,core_01,core_02,tool_search,call_tool" {
 		t.Fatalf("first step tools = %v", got)
 	}
 	if !strings.Contains(first.System, "- notion (79):") || !strings.Contains(first.System, "- github (71):") ||
 		!strings.Contains(first.System, "call tool_search") {
 		t.Fatalf("system = %s", first.System)
 	}
-	// the search result names the tools with a one-line description
+	// the search result gives each tool's full definition, to call through call_tool
 	res := toolResult(t, ss, "c1")
-	if !strings.Contains(res.Content, "- notion__API_post_page [notion]: Notion | Create a page.") {
+	if !strings.Contains(res.Content, "- notion__API_post_page [notion]: Notion | Create a page.") ||
+		!strings.Contains(res.Content, "parameters: {") || !strings.Contains(res.Content, "call_tool") {
 		t.Fatalf("search result = %s", res.Content)
 	}
-	second := names(reqs[1].Tools)
-	if len(second) != 7 || second[3] != agentloop.ToolSearchName || !has(reqs[1].Tools[4:], "notion__API_post_page") {
-		t.Fatalf("second step tools = %v", second)
-	}
+	// a loaded tool is callable by name too
 	if r := toolResult(t, ss, "c2"); r.IsError || r.Content != "ran notion__API_post_page" {
 		t.Fatalf("call = %+v", r)
 	}
-	// a later load appends after the earlier ones: the prefix is stable
+	// loading changes neither the tools nor the system prompt: every request
+	// of the warm stretch has the same prefix
+	for i, r := range reqs {
+		if strings.Join(names(r.Tools), ",") != strings.Join(names(first.Tools), ",") || r.System != first.System {
+			t.Fatalf("request %d prefix changed: %v", i, names(r.Tools))
+		}
+	}
 	fourth := names(reqs[3].Tools)
-	if strings.Join(fourth[:7], ",") != strings.Join(second, ",") || fourth[7] != "github__list_pull_requests" {
-		t.Fatalf("fourth step tools = %v", fourth)
-	}
-	// loaded tools leave the group index in the prompt
-	if strings.Contains(reqs[3].System, "- notion (79):") || !strings.Contains(reqs[3].System, "- notion (76):") {
-		t.Fatalf("index not updated: %s", reqs[3].System)
-	}
 
 	// compaction summarises the history away; the loaded set stays
 	_, _ = ss.Append(session.TypeCompaction, a.ID(), map[string]any{"summary": "earlier work", "uptoSeq": ss.Events()[len(ss.Events())-1].Seq})
@@ -213,9 +211,42 @@ func TestGenericToolSearchLoadsTools(t *testing.T) {
 	a2, _ := e2.agents.Get(a.ID())
 	send(t, a2, "again")
 	agentloop.WaitIdle(a2, 5*time.Second)
+	// the compaction made the cache cold: the tools loaded before it are
+	// in the request's tools now, after the core ones in load order
 	after := names(s2.requests()[0].Tools)
-	if strings.Join(after, ",") != strings.Join(fourth, ",") {
-		t.Fatalf("after restart = %v, want %v", after, fourth)
+	if strings.Join(after[:5], ",") != strings.Join(fourth, ",") || len(after) != 9 || !slices.Contains(after[5:], "notion__API_post_page") || after[8] != "github__list_pull_requests" {
+		t.Fatalf("after compaction = %v", after)
+	}
+}
+
+func TestLoadedToolsJoinWhenTheCacheIsCold(t *testing.T) {
+	e := newEnv(t, t.TempDir())
+	e.register(coreTools(2)...)
+	e.register(fixture(t)...)
+	ad, _ := e.llms.Get("claude-code")
+	var s scripted
+	s.steps = []func(llm.Request) llm.Response{
+		call("c1", agentloop.ToolSearchName, `{"query":"select:github__merge_pull_request"}`),
+	}
+	s.install(ad.(*mock.Adapter))
+	a, _ := e.agents.Create(agent.Spec{Name: "Idle"})
+	send(t, a, "load it")
+	agentloop.WaitIdle(a, 5*time.Second)
+	// soon after: still not in the tools
+	send(t, a, "again")
+	agentloop.WaitIdle(a, 5*time.Second)
+	reqs := s.requests()
+	if has(reqs[len(reqs)-1].Tools, "github__merge_pull_request") {
+		t.Fatalf("added while the cache is warm")
+	}
+	// past the cache lifetime: added (it costs nothing now)
+	restore := agentloop.SetClock(func() time.Time { return time.Now().Add(agentloop.CacheTTL + time.Minute) })
+	defer restore()
+	send(t, a, "later")
+	agentloop.WaitIdle(a, 5*time.Second)
+	reqs = s.requests()
+	if !has(reqs[len(reqs)-1].Tools, "github__merge_pull_request") {
+		t.Fatalf("not added after the cache went cold: %v", names(reqs[len(reqs)-1].Tools))
 	}
 }
 
@@ -244,7 +275,7 @@ func TestToolSearchIndexAndUnknownTools(t *testing.T) {
 		call("i1", agentloop.ToolSearchName, `{}`),
 		call("u1", "github__merge_pull_request", `{"owner":"o","repo":"r","pullNumber":1}`),
 		call("u2", "made_up_tool", `{}`),
-		call("u3", "github__merge_pull_request", `{"owner":"o","repo":"r","pullNumber":1}`),
+		call("u3", agentloop.CallToolName, `{"name":"github__merge_pull_request","arguments":{"owner":"o","repo":"r","pullNumber":1}}`),
 	}
 	s.install(ad.(*mock.Adapter))
 	a, _ := e.agents.Create(agent.Spec{Name: "Guesser"})
@@ -254,7 +285,7 @@ func TestToolSearchIndexAndUnknownTools(t *testing.T) {
 	if r := toolResult(t, ss, "i1"); !strings.Contains(r.Content, "- notion (79 tools):") || !strings.Contains(r.Content, "- github (71 tools):") {
 		t.Fatalf("index = %s", r.Content)
 	}
-	if r := toolResult(t, ss, "u1"); !r.IsError || !strings.Contains(r.Content, "It is loaded now") {
+	if r := toolResult(t, ss, "u1"); !r.IsError || !strings.Contains(r.Content, "It is loaded now") || !strings.Contains(r.Content, `"pullNumber"`) {
 		t.Fatalf("unloaded deferred call = %+v", r)
 	}
 	if r := toolResult(t, ss, "u2"); !r.IsError || !strings.Contains(r.Content, "Use tool_search") {
@@ -263,9 +294,18 @@ func TestToolSearchIndexAndUnknownTools(t *testing.T) {
 	if r := toolResult(t, ss, "u3"); r.IsError || r.Content != "ran github__merge_pull_request" {
 		t.Fatalf("retry = %+v", r)
 	}
+	// loaded, but not added to the request's tools: the prefix (and its
+	// cache) stays the same
 	reqs := s.requests()
-	if !has(reqs[2].Tools, "github__merge_pull_request") {
-		t.Fatalf("not loaded after the call: %v", names(reqs[2].Tools))
+	if has(reqs[2].Tools, "github__merge_pull_request") || len(reqs[2].Tools) != len(reqs[0].Tools) {
+		t.Fatalf("tools changed after a load: %v", names(reqs[2].Tools))
+	}
+	// the call through call_tool is recorded as the real tool
+	for _, ev := range ss.Events() {
+		var d session.ToolCallData
+		if ev.Type == session.TypeToolCall && ev.Decode(&d) == nil && d.Call.ID == "u3" && d.Call.Name != "github__merge_pull_request" {
+			t.Fatalf("recorded as %q", d.Call.Name)
+		}
 	}
 }
 
@@ -356,7 +396,7 @@ func TestSchemaSizeOf180Tools(t *testing.T) {
 	n1, b1 := size(reqs[1])
 	t.Logf("before: %d tools, %d chars (≈%d tokens); after: %d tools + index, %d chars (≈%d tokens)",
 		n0, b0, llm.EstimateRequest(reqs[0]), n1, b1, llm.EstimateRequest(reqs[1]))
-	if n0 != 179 || n1 != 30 || b1*5 > b0 {
+	if n0 != 179 || n1 != 31 || b1*5 > b0 {
 		t.Fatalf("before %d/%d after %d/%d", n0, b0, n1, b1)
 	}
 }

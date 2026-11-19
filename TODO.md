@@ -19,7 +19,6 @@
 - [ ] 经 magpie 的 GPT-6.1 Sol（high）不返回推理摘要，界面看不到它的思考过程
 - [ ] magpie 的 openai/* 路线是否透传 OpenAI 原生 tool_search（默认关，可用 toolSearch 强制）
 - [ ] magpie 的 codex/* 走 /responses 的流式事件形状，未连真实接口验证
-- [ ] 通用工具搜索路径每加载一个工具会让一次提示缓存失效
 
 ### 电脑操作
 - [ ] 真机验收：备忘录新建、Finder 操作（X 发帖已验证）

@@ -181,6 +181,7 @@ var Plugin = kernel.Register(kernel.Spec{
 			prompts:  kernel.Use[*prompt.Assembler](c, prompt.ServiceKey),
 		}
 		l.toolsReg.Register(c, l.searchTool())
+		l.toolsReg.Register(c, l.callTool())
 		l.toolsReg.SetGate(l.gate)
 		if err := c.Provide(ToolPlannerKey, ToolPlanner(l)); err != nil {
 			return err
@@ -320,15 +321,17 @@ func (l *loop) turn(parent context.Context, a *agent.Agent, in agent.Input) {
 			if ctx.Err() != nil {
 				break
 			}
+			// a call through call_tool runs (and is recorded) as the tool it names
+			name, args, _ := unwrapCall(tc.Name, tc.Args)
 			exe := l.toolsReg.Run(ctx, l.c, tools.Call{
-				ID: tc.ID, Name: tc.Name, Args: tc.Args, Agent: a.ID(), Session: ss,
+				ID: tc.ID, Name: name, Args: args, Agent: a.ID(), Session: ss,
 				Mode: agent.Stricter(a.Mode(), in.Mode), Workspace: a.Workspace(),
 			})
 			stop = stop || exe.Result.StopTurn
 			if exe.Parked {
 				l.parkedNow(a.ID(), ss.ID(), exe)
 			} else {
-				watch.see(tc.Name, tc.Args, exe.Result)
+				watch.see(name, args, exe.Result)
 			}
 		}
 		switch v := watch.verdict(); v.action {
