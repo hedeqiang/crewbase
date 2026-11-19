@@ -151,3 +151,20 @@ func keyCode(name string) (uint16, bool, error) {
 	}
 	return 0, false, fmt.Errorf("unknown key %q", name)
 }
+
+// modFlags turns held keys ("cmd", "shift+alt", "") into CGEvent flags.
+func modFlags(mods string) (uint64, error) {
+	mods = strings.TrimSpace(mods)
+	if mods == "" {
+		return 0, nil
+	}
+	var f uint64
+	for _, part := range strings.FieldsFunc(strings.ToLower(mods), func(r rune) bool { return r == '+' || r == ' ' || r == ',' }) {
+		m, ok := modifierNames[part]
+		if !ok {
+			return 0, fmt.Errorf("unknown modifier %q (use cmd, shift, alt, ctrl, fn)", part)
+		}
+		f |= m
+	}
+	return f, nil
+}

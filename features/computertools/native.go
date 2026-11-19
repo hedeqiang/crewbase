@@ -195,22 +195,32 @@ func translateAnthropic(member string, raw json.RawMessage, app string, g geomet
 		}
 		return g.pixels(c[0], c[1])
 	}
-	click := map[string]computer.ActionKind{"left_click": computer.Click, "right_click": computer.RightClick, "double_click": computer.DoubleClick}
+	click := map[string]computer.ActionKind{"left_click": computer.Click, "right_click": computer.RightClick, "double_click": computer.DoubleClick,
+		"triple_click": computer.TripleClick, "middle_click": computer.MiddleClick, "mouse_move": computer.MouseMove}
+	// text on a click, drag or scroll is the keys held during it ("shift")
+	mods := func() (string, error) {
+		if in.Text == "" {
+			return "", nil
+		}
+		return MapMods(in.Text)
+	}
 	switch member {
 	case "screenshot":
 		return []nstep{{shot: true}}, nil
-	case "left_click", "right_click", "double_click":
-		if in.Text != "" {
-			return nil, errUnsupported("clicking with modifier keys")
+	case "left_click", "right_click", "double_click", "triple_click", "middle_click", "mouse_move":
+		m, err := mods()
+		if err != nil {
+			return nil, err
 		}
 		x, y, err := point(in.Coordinate)
 		if err != nil {
 			return nil, err
 		}
-		return []nstep{act(computer.Action{Kind: click[member], App: app, X: x, Y: y})}, nil
+		return []nstep{act(computer.Action{Kind: click[member], App: app, X: x, Y: y, Mods: m})}, nil
 	case "left_click_drag":
-		if in.Text != "" {
-			return nil, errUnsupported("dragging with modifier keys")
+		m, err := mods()
+		if err != nil {
+			return nil, err
 		}
 		x, y, err := point(in.StartCoordinate)
 		if err != nil {
@@ -220,10 +230,11 @@ func translateAnthropic(member string, raw json.RawMessage, app string, g geomet
 		if err != nil {
 			return nil, err
 		}
-		return []nstep{act(computer.Action{Kind: computer.Drag, App: app, X: x, Y: y, ToX: tx, ToY: ty})}, nil
+		return []nstep{act(computer.Action{Kind: computer.Drag, App: app, X: x, Y: y, ToX: tx, ToY: ty, Mods: m})}, nil
 	case "scroll":
-		if in.Text != "" {
-			return nil, errUnsupported("scrolling with modifier keys")
+		m, err := mods()
+		if err != nil {
+			return nil, err
 		}
 		x, y, err := point(in.Coordinate)
 		if err != nil {
@@ -233,7 +244,7 @@ func translateAnthropic(member string, raw json.RawMessage, app string, g geomet
 		if n <= 0 {
 			n = 3
 		}
-		a := computer.Action{Kind: computer.Scroll, App: app, X: x, Y: y}
+		a := computer.Action{Kind: computer.Scroll, App: app, X: x, Y: y, Mods: m}
 		if err := scrollBy(&a, in.ScrollDirection, n); err != nil {
 			return nil, err
 		}
@@ -259,7 +270,11 @@ func translateAnthropic(member string, raw json.RawMessage, app string, g geomet
 		return out, nil
 	case "wait":
 		return []nstep{{wait: seconds(in.Duration, 1)}}, nil
-	case "zoom", "triple_click", "middle_click", "mouse_move", "left_mouse_down", "left_mouse_up", "hold_key", "cursor_position":
+	case "zoom":
+		// a closer look at part of the screen: the next screenshot is the
+		// window again (our shots are already of one app at full scale)
+		return []nstep{{shot: true, note: "zoom: here is the window at full size; screenshots of one app are not scaled down"}}, nil
+	case "left_mouse_down", "left_mouse_up", "hold_key", "cursor_position":
 		return nil, errUnsupported(member)
 	}
 	return nil, fmt.Errorf("unknown computer action %q", member)
@@ -300,8 +315,12 @@ func translateOpenAI(raw json.RawMessage, app string, g geometry) ([]nstep, erro
 			case "screenshot":
 				return []nstep{{shot: true}}, nil
 			case "click", "double_click":
+				var m string
 				if len(a.Keys) > 0 {
-					return nil, errUnsupported("clicking with modifier keys")
+					var err error
+					if m, err = MapMods(strings.Join(a.Keys, "+")); err != nil {
+						return nil, err
+					}
 				}
 				kind := computer.Click
 				switch {
@@ -309,6 +328,8 @@ func translateOpenAI(raw json.RawMessage, app string, g geometry) ([]nstep, erro
 					kind = computer.DoubleClick
 				case a.Button == "right":
 					kind = computer.RightClick
+				case a.Button == "wheel" || a.Button == "middle":
+					kind = computer.MiddleClick
 				case a.Button != "" && a.Button != "left":
 					return nil, errUnsupported("the " + a.Button + " button")
 				}
@@ -316,7 +337,7 @@ func translateOpenAI(raw json.RawMessage, app string, g geometry) ([]nstep, erro
 				if err != nil {
 					return nil, err
 				}
-				return []nstep{act(computer.Action{Kind: kind, App: app, X: x, Y: y})}, nil
+				return []nstep{act(computer.Action{Kind: kind, App: app, X: x, Y: y, Mods: m})}, nil
 			case "drag":
 				if len(a.Path) < 2 {
 					return nil, errors.New("drag needs a path of at least two points")
@@ -329,7 +350,11 @@ func translateOpenAI(raw json.RawMessage, app string, g geometry) ([]nstep, erro
 				tx, ty, _ := g.pixels(q.X, q.Y)
 				return []nstep{act(computer.Action{Kind: computer.Drag, App: app, X: x, Y: y, ToX: tx, ToY: ty})}, nil
 			case "move":
-				return []nstep{{note: "pointer moves are not performed (hover has no effect here)"}}, nil
+				x, y, err := point()
+				if err != nil {
+					return nil, err
+				}
+				return []nstep{act(computer.Action{Kind: computer.MouseMove, App: app, X: x, Y: y})}, nil
 			case "scroll":
 				x, y, err := point()
 				if err != nil {
@@ -403,8 +428,12 @@ func translateGemini(fn string, raw json.RawMessage, app string, g geometry) ([]
 			return nil, err
 		}
 		return []nstep{act(computer.Action{Kind: click[fn], App: app, X: x, Y: y})}, nil
-	case "move":
-		return []nstep{{note: "pointer moves are not performed (hover has no effect here)"}}, nil
+	case "move", "hover_at":
+		x, y, err := point(in.X, in.Y)
+		if err != nil {
+			return nil, err
+		}
+		return []nstep{act(computer.Action{Kind: computer.MouseMove, App: app, X: x, Y: y})}, nil
 	case "drag_and_drop":
 		x, y, err := point(in.StartX, in.StartY)
 		if err != nil {
@@ -583,7 +612,7 @@ func (s *Service) classifyNative(call tools.Call) (string, string) {
 	}
 	obs := s.latest(call.Agent, app.ID)
 	for _, st := range steps {
-		if st.act != nil && (st.act.Kind == computer.Click || st.act.Kind == computer.DoubleClick) {
+		if st.act != nil && st.act.Clicks() {
 			// coordinates hit what is there now, not what was observed
 			if o, err := s.comp.Observe(ctx, app.ID, s.maxNodes); err == nil {
 				obs = &o
@@ -696,6 +725,9 @@ func (s *Service) nativeSteps(ctx context.Context, call tools.Call, c llm.Comput
 			shot = &at
 			g := s.geometryOf(call.Agent, app.ID)
 			lines = append(lines, fmt.Sprintf("Screenshot of %s's window (%.0f×%.0f points, saved as %s).", app.Name, g.winW, g.winH, at.Path))
+			if st.note != "" {
+				lines = append(lines, st.note)
+			}
 		case st.wait > 0:
 			select {
 			case <-ctx.Done():
@@ -768,4 +800,22 @@ func (s *Service) offerNative(ctx context.Context, x agentloop.RequestArgs, next
 	// adapters declare it only where they can (others ignore it)
 	req.NativeTools = append(slices.Clone(req.NativeTools), llm.NativeComputer)
 	return req, nil
+}
+
+// heldKeys are the keys a click, drag or scroll may hold.
+var heldKeys = map[string]bool{"cmd": true, "shift": true, "alt": true, "ctrl": true, "fn": true}
+
+// MapMods maps a vendor's held keys ("SHIFT", "Meta", "shift+ctrl") to
+// ours ("shift", "cmd+shift"), refusing anything but modifier keys.
+func MapMods(s string) (string, error) {
+	m, err := MapKeys(strings.ReplaceAll(strings.TrimSpace(s), " ", "+"))
+	if err != nil {
+		return "", err
+	}
+	for _, k := range strings.Split(m, "+") {
+		if !heldKeys[k] {
+			return "", fmt.Errorf("%q is not a modifier key: only cmd, shift, alt, ctrl and fn can be held during a click", k)
+		}
+	}
+	return m, nil
 }

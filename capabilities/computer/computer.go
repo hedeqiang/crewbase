@@ -130,6 +130,9 @@ const (
 	Click       ActionKind = "click"        // Point (or Element's centre)
 	DoubleClick ActionKind = "double_click" // Point
 	RightClick  ActionKind = "right_click"  // Point
+	TripleClick ActionKind = "triple_click" // Point (selects a line or paragraph)
+	MiddleClick ActionKind = "middle_click" // Point
+	MouseMove   ActionKind = "mouse_move"   // Point: moves the pointer (hover menus, tooltips)
 	Scroll      ActionKind = "scroll"       // Point + DX/DY (lines)
 	Drag        ActionKind = "drag"         // Point → To
 	// app lifecycle
@@ -152,6 +155,17 @@ type Action struct {
 	ToY     float64    `json:"toY,omitempty"`
 	DX      int        `json:"dx,omitempty"`
 	DY      int        `json:"dy,omitempty"`
+	// Mods are keys held during a click, drag or scroll: "cmd", "shift+alt".
+	Mods string `json:"mods,omitempty"`
+}
+
+// Clicks reports whether the action clicks (any button, any count).
+func (a Action) Clicks() bool {
+	switch a.Kind {
+	case Click, DoubleClick, TripleClick, RightClick, MiddleClick:
+		return true
+	}
+	return false
 }
 
 // Foreground reports whether the action needs the app in front and moves
@@ -159,7 +173,7 @@ type Action struct {
 // user input).
 func (a Action) Foreground() bool {
 	switch a.Kind {
-	case Click, DoubleClick, RightClick, Scroll, Drag, Activate:
+	case Click, DoubleClick, TripleClick, RightClick, MiddleClick, MouseMove, Scroll, Drag, Activate:
 		return true
 	}
 	return false

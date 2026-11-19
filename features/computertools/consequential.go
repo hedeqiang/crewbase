@@ -104,12 +104,12 @@ func consequence(a computer.Action, obs *computer.Observation, messaging bool) (
 		switch {
 		case a.Element > 0:
 			el = findElement(&obs.Root, a.Element)
-		case a.Kind == computer.Click || a.Kind == computer.DoubleClick:
+		case a.Clicks():
 			el = hitTest(&obs.Root, a.X, a.Y)
 		}
 	}
 	switch a.Kind {
-	case computer.Press, computer.Click, computer.DoubleClick:
+	case computer.Press, computer.Click, computer.DoubleClick, computer.TripleClick, computer.MiddleClick:
 		if el != nil && actionable(el.Role) {
 			if c := nameCategory(el.Name); c != "" {
 				return Consequence{c, el.Name}, true

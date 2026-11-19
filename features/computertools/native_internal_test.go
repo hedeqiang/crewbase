@@ -75,8 +75,7 @@ func TestTranslateAnthropic(t *testing.T) {
 	for _, bad := range []struct{ action, input, want string }{
 		{"left_click", `{"coordinate":[1,2]}`, "screenshot first"}, // no screenshot yet
 		{"left_click", `{}`, "needs coordinate"},
-		{"left_click", `{"coordinate":[1,2],"text":"shift"}`, "modifier"},
-		{"zoom", `{"region":[0,0,10,10]}`, "not available"},
+		{"left_click", `{"coordinate":[1,2],"text":"a"}`, "not a modifier"},
 		{"hold_key", `{"text":"shift","duration":1}`, "not available"},
 		{"scroll", `{"coordinate":[1,2],"scroll_direction":"sideways"}`, "direction"},
 		{"teleport", `{}`, "unknown"},
@@ -123,11 +122,11 @@ func TestTranslateOpenAI(t *testing.T) {
 			t.Errorf("step %d: %+v, want %+v", i, ss[i].act, w)
 		}
 	}
-	if ss[7].note == "" || ss[8].wait != time.Second || !ss[9].shot {
+	if ss[7].act == nil || ss[7].act.Kind != computer.MouseMove || ss[8].wait != time.Second || !ss[9].shot {
 		t.Fatalf("move / wait / screenshot: %+v", ss[7:])
 	}
 	// one bad action fails the whole call before anything runs
-	bad := llm.ComputerCall{Vendor: llm.ComputerOpenAI, Actions: json.RawMessage(`[{"type":"type","text":"x"},{"type":"click","button":"wheel","x":1,"y":1}]`)}
+	bad := llm.ComputerCall{Vendor: llm.ComputerOpenAI, Actions: json.RawMessage(`[{"type":"type","text":"x"},{"type":"click","button":"back","x":1,"y":1}]`)}
 	if _, err := translate(bad, "com.app", retina); err == nil || !strings.Contains(err.Error(), "action 2") {
 		t.Fatalf("bad batch: %v", err)
 	}
@@ -192,5 +191,41 @@ func TestMapKeys(t *testing.T) {
 		if _, err := MapKeys(bad); err == nil {
 			t.Errorf("%q accepted", bad)
 		}
+	}
+}
+
+// The actions the native tools used to refuse.
+func TestTranslateMoreActions(t *testing.T) {
+	retina := geometry{scale: 2, winW: 800, winH: 600}
+	anth := func(action, input string) llm.ComputerCall {
+		return llm.ComputerCall{Vendor: llm.ComputerAnthropic, Action: action, Input: json.RawMessage(input)}
+	}
+	for _, c := range []struct {
+		action, input string
+		want          computer.Action
+	}{
+		{"triple_click", `{"coordinate":[20,40]}`, computer.Action{Kind: computer.TripleClick, X: 10, Y: 20}},
+		{"middle_click", `{"coordinate":[20,40]}`, computer.Action{Kind: computer.MiddleClick, X: 10, Y: 20}},
+		{"mouse_move", `{"coordinate":[20,40]}`, computer.Action{Kind: computer.MouseMove, X: 10, Y: 20}},
+		{"left_click", `{"coordinate":[20,40],"text":"cmd"}`, computer.Action{Kind: computer.Click, X: 10, Y: 20, Mods: "cmd"}},
+		{"left_click_drag", `{"start_coordinate":[0,0],"coordinate":[20,40],"text":"shift"}`, computer.Action{Kind: computer.Drag, ToX: 10, ToY: 20, Mods: "shift"}},
+		{"scroll", `{"coordinate":[20,40],"scroll_direction":"down","scroll_amount":2,"text":"ctrl"}`, computer.Action{Kind: computer.Scroll, X: 10, Y: 20, DY: 2, Mods: "ctrl"}},
+	} {
+		ss, err := translate(anth(c.action, c.input), "com.app", retina)
+		if err != nil || len(ss) != 1 || ss[0].act == nil {
+			t.Fatalf("%s: %v %+v", c.action, err, ss)
+		}
+		c.want.App = "com.app"
+		if !reflect.DeepEqual(*ss[0].act, c.want) {
+			t.Errorf("%s: %+v, want %+v", c.action, *ss[0].act, c.want)
+		}
+	}
+	if ss, err := translate(anth("zoom", `{"region":[0,0,10,10]}`), "com.app", retina); err != nil || len(ss) != 1 || !ss[0].shot || ss[0].note == "" {
+		t.Fatalf("zoom: %v %+v", err, ss)
+	}
+	oa := llm.ComputerCall{Vendor: llm.ComputerOpenAI, Actions: json.RawMessage(`[{"type":"click","button":"wheel","x":20,"y":40},{"type":"click","button":"left","keys":["SHIFT"],"x":20,"y":40}]`)}
+	ss, err := translate(oa, "com.app", retina)
+	if err != nil || ss[0].act.Kind != computer.MiddleClick || ss[1].act.Mods != "shift" {
+		t.Fatalf("openai: %v %+v %+v", err, ss[0].act, ss[1].act)
 	}
 }

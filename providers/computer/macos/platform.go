@@ -53,6 +53,7 @@ type mouseButton int
 const (
 	buttonLeft mouseButton = iota
 	buttonRight
+	buttonMiddle
 )
 
 // Platform errors, mapped to computer errors by the provider.
@@ -102,6 +103,6 @@ type platform interface {
 
 	PostKey(pid int, code uint16, flags uint64) error
 	PostText(pid int, s string) error
-	PostMouse(kind mouseKind, b mouseButton, x, y float64, clicks int) error
-	PostScroll(x, y float64, dx, dy int) error
+	PostMouse(kind mouseKind, b mouseButton, x, y float64, clicks int, flags uint64) error
+	PostScroll(x, y float64, dx, dy int, flags uint64) error
 }

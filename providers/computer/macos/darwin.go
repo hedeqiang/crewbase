@@ -835,26 +835,24 @@ func (darwinPlatform) PostText(pid int, s string) error {
 	return nil
 }
 
-func (darwinPlatform) PostMouse(kind mouseKind, b mouseButton, x, y float64, clicks int) error {
+func (darwinPlatform) PostMouse(kind mouseKind, b mouseButton, x, y float64, clicks int, flags uint64) error {
+	// kCGEvent{Left,Right,Other}Mouse{Down,Up,Dragged}, kCGEventMouseMoved
 	var typ, button uint32
 	switch kind {
 	case mouseMove:
-		typ = 5 // kCGEventMouseMoved
+		typ = 5
 	case mouseDown:
-		typ = 1 // kCGEventLeftMouseDown
-		if b == buttonRight {
-			typ = 3
-		}
+		typ = map[mouseButton]uint32{buttonLeft: 1, buttonRight: 3, buttonMiddle: 25}[b]
 	case mouseUp:
-		typ = 2
-		if b == buttonRight {
-			typ = 4
-		}
+		typ = map[mouseButton]uint32{buttonLeft: 2, buttonRight: 4, buttonMiddle: 26}[b]
 	case mouseDrag:
-		typ = 6 // kCGEventLeftMouseDragged
+		typ = map[mouseButton]uint32{buttonLeft: 6, buttonRight: 7, buttonMiddle: 27}[b]
 	}
-	if b == buttonRight {
+	switch b {
+	case buttonRight:
 		button = 1
+	case buttonMiddle:
+		button = 2
 	}
 	ev := cgEventCreateMouseEvent(0, typ, cgPoint{x, y}, button)
 	if ev == 0 {
@@ -863,6 +861,9 @@ func (darwinPlatform) PostMouse(kind mouseKind, b mouseButton, x, y float64, cli
 	if clicks > 0 {
 		cgEventSetIntegerValueField(ev, kCGMouseEventClickState, int64(clicks))
 	}
+	if flags != 0 {
+		cgEventSetFlags(ev, flags)
+	}
 	cgEventPost(kCGHIDEventTap, ev)
 	cfRelease(ev)
 	return nil
@@ -870,10 +871,13 @@ func (darwinPlatform) PostMouse(kind mouseKind, b mouseButton, x, y float64, cli
 
 // PostScroll scrolls by lines; dy > 0 scrolls down (content moves up),
 // dx > 0 scrolls right.
-func (darwinPlatform) PostScroll(x, y float64, dx, dy int) error {
+func (darwinPlatform) PostScroll(x, y float64, dx, dy int, flags uint64) error {
 	ev := cgEventCreateScrollWheelEvent2(0, kCGScrollEventUnitLine, 2, int32(-dy), int32(-dx), 0)
 	if ev == 0 {
 		return errors.New("could not create a scroll event")
+	}
+	if flags != 0 {
+		cgEventSetFlags(ev, flags)
 	}
 	cgEventPost(kCGHIDEventTap, ev)
 	cfRelease(ev)

@@ -240,15 +240,26 @@ func (f *fake) PostText(pid int, s string) error {
 	return nil
 }
 
-func (f *fake) PostMouse(kind mouseKind, b mouseButton, x, y float64, clicks int) error {
+func (f *fake) PostMouse(kind mouseKind, b mouseButton, x, y float64, clicks int, flags uint64) error {
 	f.input()
-	f.mouse = append(f.mouse, fmt.Sprintf("%d/%d@%g,%g", kind, b, x, y))
+	s := fmt.Sprintf("%d/%d@%g,%g", kind, b, x, y)
+	if clicks > 1 {
+		s += fmt.Sprintf("x%d", clicks)
+	}
+	if flags != 0 {
+		s += fmt.Sprintf("+%#x", flags)
+	}
+	f.mouse = append(f.mouse, s)
 	return nil
 }
 
-func (f *fake) PostScroll(x, y float64, dx, dy int) error {
+func (f *fake) PostScroll(x, y float64, dx, dy int, flags uint64) error {
 	f.input()
-	f.mouse = append(f.mouse, fmt.Sprintf("scroll@%g,%g %d,%d", x, y, dx, dy))
+	s := fmt.Sprintf("scroll@%g,%g %d,%d", x, y, dx, dy)
+	if flags != 0 {
+		s += fmt.Sprintf("+%#x", flags)
+	}
+	f.mouse = append(f.mouse, s)
 	return nil
 }
 

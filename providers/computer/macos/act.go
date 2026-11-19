@@ -24,7 +24,8 @@ func (p *Provider) Act(ctx context.Context, a computer.Action) (computer.Result,
 	case computer.Open:
 		return p.open(ctx, a.App)
 	case computer.Press, computer.SetValue, computer.Focus, computer.Menu, computer.Type, computer.Key,
-		computer.Click, computer.DoubleClick, computer.RightClick, computer.Scroll, computer.Drag, computer.Activate:
+		computer.Click, computer.DoubleClick, computer.TripleClick, computer.RightClick, computer.MiddleClick, computer.MouseMove,
+		computer.Scroll, computer.Drag, computer.Activate:
 	default:
 		return computer.Result{}, fmt.Errorf("unknown action %q", a.Kind)
 	}
@@ -47,7 +48,8 @@ func (p *Provider) Act(ctx context.Context, a computer.Action) (computer.Result,
 		return computer.Result{}, err
 	}
 	switch a.Kind {
-	case computer.Type, computer.Key, computer.SetValue, computer.Click, computer.DoubleClick, computer.RightClick, computer.Scroll, computer.Drag:
+	case computer.Type, computer.Key, computer.SetValue, computer.Click, computer.DoubleClick, computer.TripleClick, computer.RightClick,
+		computer.MiddleClick, computer.MouseMove, computer.Scroll, computer.Drag:
 		defer p.posting()() // our events are not the person's input (IdleFor)
 	}
 
@@ -442,43 +444,64 @@ func (p *Provider) pointer(ctx context.Context, st *appState, app computer.App, 
 	if err := ctx.Err(); err != nil {
 		return computer.Result{}, err
 	}
+	flags, err := modFlags(a.Mods)
+	if err != nil {
+		return computer.Result{}, err
+	}
+	// held keys travel as flags on each mouse event: apps read them there
+	// (cmd-click, shift-click), as they do for synthesized clicks generally
 	before := p.fingerprint(st, 0)
-	if err := p.pf.PostMouse(mouseMove, buttonLeft, gx, gy, 0); err != nil {
+	if err := p.pf.PostMouse(mouseMove, buttonLeft, gx, gy, 0, flags); err != nil {
 		return computer.Result{}, err
 	}
 	time.Sleep(30 * time.Millisecond)
 	click := func(b mouseButton, n int) error {
-		if err := p.pf.PostMouse(mouseDown, b, gx, gy, n); err != nil {
+		if err := p.pf.PostMouse(mouseDown, b, gx, gy, n, flags); err != nil {
 			return err
 		}
 		time.Sleep(20 * time.Millisecond)
-		return p.pf.PostMouse(mouseUp, b, gx, gy, n)
+		return p.pf.PostMouse(mouseUp, b, gx, gy, n, flags)
+	}
+	// a double or triple click is clicks numbered 1, 2, 3 in quick succession
+	clicks := func(b mouseButton, n int) error {
+		for i := 1; i <= n; i++ {
+			if i > 1 {
+				time.Sleep(40 * time.Millisecond)
+			}
+			if err := click(b, i); err != nil {
+				return err
+			}
+		}
+		return nil
 	}
 	switch a.Kind {
 	case computer.Click:
 		err = click(buttonLeft, 1)
 	case computer.RightClick:
 		err = click(buttonRight, 1)
+	case computer.MiddleClick:
+		err = click(buttonMiddle, 1)
 	case computer.DoubleClick:
-		if err = click(buttonLeft, 1); err == nil {
-			time.Sleep(40 * time.Millisecond)
-			err = click(buttonLeft, 2)
-		}
+		err = clicks(buttonLeft, 2)
+	case computer.TripleClick:
+		err = clicks(buttonLeft, 3)
+	case computer.MouseMove:
+		// done above: the pointer is there
 	case computer.Scroll:
-		err = p.pf.PostScroll(gx, gy, a.DX, a.DY)
+		err = p.pf.PostScroll(gx, gy, a.DX, a.DY, flags)
 	case computer.Drag:
-		if err = p.pf.PostMouse(mouseDown, buttonLeft, gx, gy, 1); err != nil {
+		if err = p.pf.PostMouse(mouseDown, buttonLeft, gx, gy, 1, flags); err != nil {
 			break
 		}
 		const steps = 12
 		for i := 1; i <= steps && err == nil; i++ {
 			time.Sleep(15 * time.Millisecond)
 			f := float64(i) / steps
-			err = p.pf.PostMouse(mouseDrag, buttonLeft, gx+(tx-gx)*f, gy+(ty-gy)*f, 1)
+			err = p.pf.PostMouse(mouseDrag, buttonLeft, gx+(tx-gx)*f, gy+(ty-gy)*f, 1, flags)
 		}
 		if err == nil {
 			time.Sleep(30 * time.Millisecond)
-			err = p.pf.PostMouse(mouseUp, buttonLeft, tx, ty, 1)
+			err = p.pf.PostMouse(mouseUp, buttonLeft, tx, ty, 1, flags)
 		}
 	}
 	if err != nil {

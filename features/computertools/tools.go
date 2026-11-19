@@ -25,6 +25,7 @@ type step struct {
 	ToY     *float64 `json:"to_y,omitempty"`
 	DX      int      `json:"dx,omitempty"`
 	DY      int      `json:"dy,omitempty"`
+	Mods    string   `json:"mods,omitempty"`
 	Version int64    `json:"version,omitempty"`
 }
 
@@ -32,6 +33,7 @@ var stepKinds = map[string]computer.ActionKind{
 	"press": computer.Press, "set_value": computer.SetValue, "focus": computer.Focus, "menu": computer.Menu,
 	"type": computer.Type, "key": computer.Key,
 	"click": computer.Click, "double_click": computer.DoubleClick, "right_click": computer.RightClick,
+	"triple_click": computer.TripleClick, "middle_click": computer.MiddleClick, "move": computer.MouseMove,
 	"scroll": computer.Scroll, "drag": computer.Drag,
 }
 
@@ -46,10 +48,10 @@ func f(p *float64) float64 {
 func (st step) action(app string) (computer.Action, error) {
 	kind, ok := stepKinds[st.Action]
 	if !ok {
-		return computer.Action{}, fmt.Errorf("unknown action %q (want press, set_value, focus, menu, type, key, click, double_click, right_click, scroll or drag)", st.Action)
+		return computer.Action{}, fmt.Errorf("unknown action %q (want press, set_value, focus, menu, type, key, click, double_click, triple_click, right_click, middle_click, move, scroll or drag)", st.Action)
 	}
 	a := computer.Action{Kind: kind, App: app, Element: st.Element, Keys: strings.TrimSpace(st.Keys), Path: st.Menu,
-		X: f(st.X), Y: f(st.Y), ToX: f(st.ToX), ToY: f(st.ToY), DX: st.DX, DY: st.DY, Version: st.Version}
+		X: f(st.X), Y: f(st.Y), ToX: f(st.ToX), ToY: f(st.ToY), DX: st.DX, DY: st.DY, Version: st.Version, Mods: strings.TrimSpace(st.Mods)}
 	if st.Text != nil {
 		a.Text = *st.Text
 	}
@@ -75,7 +77,7 @@ func (st step) action(app string) (computer.Action, error) {
 		if a.Keys == "" {
 			return a, errors.New(`key needs keys, e.g. "cmd+n", "return", "down"`)
 		}
-	case computer.Click, computer.DoubleClick, computer.RightClick:
+	case computer.Click, computer.DoubleClick, computer.TripleClick, computer.RightClick, computer.MiddleClick, computer.MouseMove:
 		if !point && st.Element <= 0 {
 			return a, fmt.Errorf("%s needs x and y (window points) or element", st.Action)
 		}
@@ -524,7 +526,7 @@ const ladderHead = "How to act, most reliable first: "
 const ladder = ladderHead +
 	"(1) menu (menu: [\"文件\", \"新建备忘录\"]), press and set_value on element numbers [n] from computer_observe — these run in the background without moving the user's mouse; " +
 	"(2) type (into the focused element) and key (\"cmd+n\", \"return\", \"down\") for the keyboard; " +
-	"(3) click / double_click / right_click / scroll / drag at window coordinates only when the outline lacks the target (observe with screenshot: true to see it); these bring the app to the front and wait while the user is using the computer. " +
+	"(3) click / double_click / triple_click / right_click / middle_click / move / scroll / drag at window coordinates only when the outline lacks the target (observe with screenshot: true to see it); mods holds keys during them (\"cmd\" for cmd-click); these bring the app to the front and wait while the user is using the computer. " +
 	"After anything that changes the window, call computer_observe again: element numbers belong to one outline. " +
 	"Sending, deleting and paying are confirmed by the user every time; password fields are never typed into (ask the user). " +
 	"Websites: prefer browser_* (your own browser). If a site will not load or rejects your browser, operate the user's own browser (Chrome, Safari…) with these tools instead: it has the user's logins, and the user is asked the first time."
@@ -532,8 +534,8 @@ const ladder = ladderHead +
 func stepProps() map[string]any {
 	num := func(d string) map[string]any { return tools.Prop("number", d) }
 	return map[string]any{
-		"action": map[string]any{"type": "string", "enum": []string{"press", "set_value", "focus", "menu", "type", "key", "click", "double_click", "right_click", "scroll", "drag"},
-			"description": "press / set_value / focus: an element; menu: a menu path; type / key: the keyboard; click … drag: window coordinates"},
+		"action": map[string]any{"type": "string", "enum": []string{"press", "set_value", "focus", "menu", "type", "key", "click", "double_click", "triple_click", "right_click", "middle_click", "move", "scroll", "drag"},
+			"description": "press / set_value / focus: an element; menu: a menu path; type / key: the keyboard; click … drag: window coordinates (move: only moves the pointer, e.g. to open a hover menu)"},
 		"element": tools.Prop("integer", "element number [n] from the latest computer_observe"),
 		"text":    tools.Prop("string", "set_value: the new value; type: text to type into the focused element"),
 		"keys":    tools.Prop("string", `key: a key or chord, e.g. "return", "cmd+n", "cmd+shift+z", "down"`),
@@ -544,6 +546,7 @@ func stepProps() map[string]any {
 		"to_y":    num("drag: end y"),
 		"dx":      tools.Prop("integer", "scroll: lines right (negative: left)"),
 		"dy":      tools.Prop("integer", "scroll: lines down (negative: up)"),
+		"mods":    tools.Prop("string", `keys held during a click, drag or scroll, e.g. "cmd", "shift", "cmd+shift"`),
 		"version": tools.Prop("integer", "the Version computer_observe reported; a changed window is then refused instead of acted on"),
 	}
 }
