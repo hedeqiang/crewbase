@@ -186,6 +186,28 @@ export function isExhausted(models: ModelsResponse | null, r: ModelRef): { until
   return null;
 }
 
+/** What an exhausted model's pill says: a limit only when it is one. */
+export function exhaustedLabel(ex: { until: string; reason: string }): string {
+  switch (ex.reason) {
+    case "quota_exhausted":
+    case "rate_limited":
+      return t("comp.modelExhausted");
+    case "auth":
+      return t("comp.modelAuth");
+    case "model_not_found":
+      return t("comp.modelGone");
+    case "model_unavailable":
+      return t("conn.modelUnavailable");
+    default:
+      return t("comp.modelDown");
+  }
+}
+
+/** Its tooltip: when it is tried again. */
+export function exhaustedHint(ex: { until: string; reason: string }): string {
+  return ex.until ? t("comp.modelRetry", { time: until(ex.until) }) : "";
+}
+
 /** The model the agent would use next (first non-exhausted in its order). */
 export function activeModel(models: ModelsResponse | null, a: AgentView | undefined): ModelRef | null {
   const order = a?.models ?? [];

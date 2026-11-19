@@ -2,7 +2,7 @@ import { useLayoutEffect, useRef, useState, type ReactNode, type RefObject } fro
 import { Check, ChevronLeft, ChevronRight, Search } from "lucide-react";
 import type { AgentView, ModelRef, ModelsResponse } from "../api";
 import { t } from "../i18n";
-import { allModels, effortLabel, findModel, isExhausted, modelLabel, modelMeta, modelOff, sameRef, until } from "../format";
+import { allModels, effortLabel, exhaustedHint, exhaustedLabel, findModel, isExhausted, modelLabel, modelMeta, modelOff, sameRef } from "../format";
 import { ProviderMark } from "./ProviderMark";
 
 /** Levels offered in the menu ("" = the model's own default). */
@@ -170,7 +170,7 @@ export function ModelPicker({
                     <span>
                       {order[0] && sameRef(order[0], r) ? t("comp.modelPrimary") : t("comp.modelBackup")}
                       {e ? ` · ${effortLabel(e)}` : ""}
-                      {ex ? ` · ${t("comp.modelExhausted")}${ex.until ? " · " + t("set.quotaResets", { time: until(ex.until) }) : ""}` : ""}
+                      {ex ? ` · ${exhaustedLabel(ex)}${ex.until ? " · " + exhaustedHint(ex) : ""}` : ""}
                     </span>
                   </span>
                   <span className="ck">{override && sameRef(override, r) && <Check size={14} />}</span>

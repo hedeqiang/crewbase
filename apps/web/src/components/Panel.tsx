@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { AlarmClock, Archive, ArrowDown, ArrowUp, Check, ChevronLeft, ChevronRight, CircleMinus, CircleX, Globe, GripVertical, Link2, Minimize2, Pause, Play, Plus, Shuffle, Square, Trash, UserPlus, X } from "lucide-react";
 import { API, refString, type Followup, type AgentView, type ChannelView, type ContextBreakdown, type ModelRef } from "../api";
 import { t, type Key } from "../i18n";
-import { activeModel, allModels, detailLabel, effortLabel, hhmm, isExhausted, kfmt, modeLabel, modelLabel, modelMeta, modelOff, pillTone, sameRef, statusLabel, until } from "../format";
+import { activeModel, allModels, detailLabel, effortLabel, exhaustedHint, exhaustedLabel, hhmm, isExhausted, kfmt, modeLabel, modelLabel, modelMeta, modelOff, pillTone, sameRef, statusLabel, until } from "../format";
 import { project, type SubRun } from "../projection";
 import { openSubRun, refreshChannel, setState, toast, useStore, sessionAgent } from "../store";
 import { FilesTab } from "./Files";
@@ -656,7 +656,9 @@ function AgentTab({ agent, sessionId }: { agent: AgentView; sessionId: string })
                 {off ? (
                   <span className="pill" title={t("set.modelOffHint")}>{t("set.modelOffSkipped")}</span>
                 ) : ex ? (
-                  <span className="pill red">{t("comp.modelExhausted")}</span>
+                  <span className="pill red" title={exhaustedHint(ex)}>
+                    {exhaustedLabel(ex)}
+                  </span>
                 ) : sameRef(active, r) ? (
                   <span className="pill ok">{t("panel.modelCurrent")}</span>
                 ) : (
