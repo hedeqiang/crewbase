@@ -1973,7 +1973,7 @@ function Composer({
             <span className="lbl">{t("comp.hostLocal")}</span>
             <ChevronDown size={14} />
           </button>
-          <button className={"cbtn" + (mode === "host" ? " danger" : "")} type="button" ref={permM.ref} onClick={permM.toggle} aria-haspopup="menu" disabled={!manage} title={manage ? undefined : t("tier.mobileMode")}>
+          <button className={"cbtn" + (mode === "host" ? " danger" : "")} type="button" ref={permM.ref} onClick={permM.toggle} aria-haspopup="menu" disabled={!manage} title={manage ? modeLabel(mode) : t("tier.mobileMode")}>
             {mode === "host" ? <Monitor size={15} /> : <Hand size={15} />}
             <span className="lbl">{modeLabel(mode)}</span>
             <ChevronDown size={14} />

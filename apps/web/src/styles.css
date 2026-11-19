@@ -2181,3 +2181,12 @@ a.lcard:hover, .lvideo .ltext:hover { background: var(--hover); }
 .pbrief-body { white-space: pre-wrap; font-size: 12.5px; line-height: 1.55; color: var(--text2); background: var(--panel2, var(--hover)); border-radius: 8px; padding: 8px 10px; max-height: 7.8em; overflow: hidden; cursor: pointer; width: 100%; box-sizing: border-box; -webkit-mask-image: linear-gradient(#000 70%, transparent); mask-image: linear-gradient(#000 70%, transparent); }
 .pbrief-body.open { max-height: none; cursor: auto; -webkit-mask-image: none; mask-image: none; }
 .pbrief-wait { display: flex; align-items: center; gap: 6px; }
+/* a narrow composer (right panel open, small window): the side chips keep
+   just their icon so the model name stays readable */
+.composer { container: comp / inline-size; }
+@container comp (max-width: 520px) {
+  .crow .cbtn:not(.cmodel):not(.round) { width: 28px; padding: 0; justify-content: center; flex: none; }
+  .crow .cbtn:not(.cmodel):not(.round) .lbl,
+  .crow .cbtn:not(.cmodel):not(.round) > svg.lucide:last-child:not(:first-child) { display: none; }
+  .crow .cmodel { flex-shrink: 0; max-width: 180px; }
+}
