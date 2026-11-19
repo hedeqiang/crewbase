@@ -74,7 +74,7 @@ type Spec struct {
 	// or "never" (send every tool every step).
 	ToolSearch string `json:"toolSearch,omitempty"`
 	// AlwaysLoad lists deferred tools (by name) or tool groups (an MCP
-	// server, "browser", "google", …) this agent always has loaded.
+	// server, "browser", "computer", …) this agent always has loaded.
 	AlwaysLoad []string `json:"alwaysLoad,omitempty"`
 	// Ephemeral agents (subagents) are never persisted; their workspace is
 	// removed on delete and leftovers are swept at startup.

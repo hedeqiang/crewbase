@@ -18,5 +18,3 @@ apps/desktop/.mygo/
 /cli.exe
 *.exe
 
-# Google OAuth client secret, written by builds (features/google/secret.go)
-features/google/client_secret.txt

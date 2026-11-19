@@ -42,7 +42,6 @@ var groupSummaries = map[string]string{
 	"computer":  "operate this computer's apps and windows (screenshots, clicks, typing, scripts)",
 	"browser":   "drive a web browser (open pages, click, fill forms, read)",
 	"media":     "generate and edit images and videos",
-	"google":    "Google Workspace: Gmail, Calendar, Drive, Docs, Sheets, Slides",
 	"followups": "follow-ups: remind yourself to check back on something later",
 	"jobs":      "output of background jobs",
 	"history":   "search and read earlier conversation history",

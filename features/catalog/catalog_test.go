@@ -56,12 +56,6 @@ func TestBuiltinCatalogIsValid(t *testing.T) {
 		if !slices.Contains([]string{"none", "oauth", "token", "setup"}, p.Auth) {
 			t.Errorf("%s: auth %q", p.ID, p.Auth)
 		}
-		if p.Builtin != "" { // a compiled-in connector (connector.go)
-			if p.Product == "" || p.Server != "" || len(p.Command) > 0 || p.URL != "" {
-				t.Errorf("%s: builtin entries name a product and nothing to launch", p.ID)
-			}
-			continue
-		}
 		if (p.Auth == "oauth") != p.OAuth {
 			t.Errorf("%s: auth %q but oauth=%v", p.ID, p.Auth, p.OAuth)
 		}
@@ -343,11 +337,11 @@ func TestRemoveViaMCPDropsOwnSecretsOnly(t *testing.T) {
 	}
 }
 
-// Parts of one server (Google Workspace): the first part creates the
+// Parts of one server (e.g. a suite of products): the first part creates the
 // server with the inputs, later parts only extend its command, removing
 // the last part removes the server.
 func TestPartsShareOneServer(t *testing.T) {
-	base := Preset{Category: "google", Auth: "setup", Docs: "https://example.com", Server: "suite", Transport: "stdio",
+	base := Preset{Category: "dev", Auth: "setup", Docs: "https://example.com", Server: "suite", Transport: "stdio",
 		Command: []string{"/nonexistent/suite", "--tools", "{parts}"}, Env: map[string]string{"ID": "{id}"},
 		Inputs: []Input{{ID: "id"}}}
 	mail, cal := base, base

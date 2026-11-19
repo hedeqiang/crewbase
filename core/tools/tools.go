@@ -134,7 +134,7 @@ type Tool struct {
 	// it (the tool_search meta-tool itself).
 	Load string
 	// Group names the family a deferred tool belongs to in the tool index
-	// (an MCP server's name, "google", "computer"); empty = derived from
+	// (an MCP server's name, "browser", "computer"); empty = derived from
 	// the name (GroupOf).
 	Group string
 	// Classify optionally derives the category and a human summary from

@@ -14,9 +14,6 @@
 // Presets that share a Server are parts of one server: installing a part
 // adds it to the "{parts}" argument of that server's command, removing the
 // last part removes the server.
-//
-// Presets with "builtin" are connectors compiled into Crewbase (the Google
-// products → features/google); see connector.go.
 package catalog
 
 import (
@@ -101,26 +98,16 @@ type Preset struct {
 	// the person ("github": GitHub's OAuth device flow, see github.go).
 	// Without a configured client the preset falls back to its inputs.
 	SignIn string `json:"signIn,omitempty"`
-	// Builtin names a connector compiled into Crewbase (see connector.go)
-	// that handles this entry instead of an MCP server; Product is the
-	// connector's word for it.
-	Builtin string `json:"builtin,omitempty"`
-	Product string `json:"product,omitempty"`
 }
 
 // How a preset is installed (Preset.kind). Install, Uninstall and List
-// switch on it; a new way to connect (e.g. a built-in connector) adds a
-// kind here and a case in each.
+// switch on it; a new way to connect adds a kind here and a case in each.
 const (
-	kindServer  = "server"  // one MCP server of its own
-	kindPart    = "part"    // a part of a server several presets share
-	kindBuiltin = "builtin" // a connector compiled into Crewbase (connector.go)
+	kindServer = "server" // one MCP server of its own
+	kindPart   = "part"   // a part of a server several presets share
 )
 
 func (p Preset) kind() string {
-	if p.Builtin != "" {
-		return kindBuiltin
-	}
 	if p.Part != "" {
 		return kindPart
 	}
@@ -197,10 +184,6 @@ type Item struct {
 	Installed bool   `json:"installed"`
 	Server    string `json:"server,omitempty"`
 	Scope     string `json:"scope,omitempty"` // MCP scope / skill agent
-	// Builtin connector entries (Kind "builtin"): see connector.go.
-	Builtin   string          `json:"builtin,omitempty"`
-	Product   string          `json:"product,omitempty"`
-	Connector *ConnectorState `json:"connector,omitempty"`
 }
 
 // Listing is GET /api/catalog.
@@ -265,10 +248,6 @@ func (s *Service) List() Listing {
 	if svc := s.mcp(); svc != nil {
 		servers := svc.List()
 		for _, p := range builtin.Presets {
-			if p.Builtin != "" {
-				out.Items = append(out.Items, s.builtinItem(p))
-				continue
-			}
 			it := Item{ID: p.ID, Kind: "mcp", Category: p.Category, Name: p.Name, Icon: p.Icon, Desc: p.Desc,
 				Auth: p.Auth, Docs: p.Docs, Setup: p.Setup, Inputs: p.Inputs, Transport: p.Transport, Endpoint: p.endpoint()}
 			if p.SignIn != "" && s.signInReady(p.SignIn) {
@@ -367,8 +346,6 @@ type Result struct {
 	Kind   string        `json:"kind"`
 	Server *mcp.View     `json:"server,omitempty"`
 	Skill  *skills.Skill `json:"skill,omitempty"`
-	// AuthURL: a builtin connector's sign-in page to open.
-	AuthURL string `json:"authUrl,omitempty"`
 }
 
 // Install installs a catalog item.
@@ -381,9 +358,6 @@ func (s *Service) Install(id string, req Request) (Result, error) {
 		return Result{}, ErrUnknown
 	}
 	req.Scope = s.ConnectorScope(req)
-	if p.Builtin != "" {
-		return s.installBuiltin(p, req.Scope)
-	}
 	svc := s.mcp()
 	if svc == nil {
 		return Result{}, errors.New("the mcp service is not running")
@@ -574,9 +548,6 @@ func (s *Service) Uninstall(id, agentID string) error {
 	p, ok := preset(id)
 	if !ok {
 		return ErrUnknown
-	}
-	if p.Builtin != "" {
-		return s.uninstallBuiltin(p)
 	}
 	svc := s.mcp()
 	if svc == nil {

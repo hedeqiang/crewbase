@@ -1795,8 +1795,6 @@ button.psec.toggle { width: 100%; background: none; border: 0; font-family: inhe
   .mkirow > .mkrow .btn.sm { padding: 0 8px; }
 }
 
-.mkic.brand.img { padding: 6px; box-sizing: border-box; }
-.mkic.brand.img img { width: 100%; height: 100%; object-fit: contain; display: block; }
 
 /* 即时通讯 › 飞书 / Lark: groups the bot is in */
 .imgroups { display: flex; flex-direction: column; gap: 6px; }

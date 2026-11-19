@@ -11,7 +11,6 @@ import { setState, toast, useStore } from "../../store";
 import { Head } from "../Settings";
 import { MonoMark } from "../ProviderMark";
 import { ApproveDialog, errMsg, MCP_TONE, McpForm, McpTools, PluginCards, stateLabel } from "./ExtParts";
-import { builtinNote, connectBuiltin, GoogleAccount, type BuiltinItem } from "./GoogleConnect";
 
 // Brand icons from LobeHub Icons (@lobehub/icons-static-svg, MIT), as in
 // ProviderMark, where the package has the mark; the others are the
@@ -20,7 +19,6 @@ import { builtinNote, connectBuiltin, GoogleAccount, type BuiltinItem } from "./
 import github from "@lobehub/icons-static-svg/icons/github.svg?raw";
 import notion from "@lobehub/icons-static-svg/icons/notion.svg?raw";
 import cloudflare from "@lobehub/icons-static-svg/icons/cloudflare-color.svg?raw";
-import google from "@lobehub/icons-static-svg/icons/google-color.svg?raw";
 import figma from "@lobehub/icons-static-svg/icons/figma-color.svg?raw";
 import huggingface from "@lobehub/icons-static-svg/icons/huggingface-color.svg?raw";
 import devin from "@lobehub/icons-static-svg/icons/devin-color.svg?raw";
@@ -32,23 +30,12 @@ import linear from "../../assets/brands/linear.svg?raw";
 import stripe from "../../assets/brands/stripe.svg?raw";
 import atlassian from "../../assets/brands/atlassian.svg?raw";
 import canva from "../../assets/brands/canva.svg?raw";
-// Google's own product icons (gstatic.com product logos, 192px)
-import gmailPng from "../../assets/brands/google-gmail.png";
-import calendarPng from "../../assets/brands/google-calendar.png";
-import drivePng from "../../assets/brands/google-drive.png";
-import docsPng from "../../assets/brands/google-docs.png";
-import sheetsPng from "../../assets/brands/google-sheets.png";
-import slidesPng from "../../assets/brands/google-slides.png";
 import { confirmDialog } from "../Confirm";
-const IMG: Record<string, string> = {
-  "google-gmail": gmailPng, "google-calendar": calendarPng, "google-drive": drivePng,
-  "google-docs": docsPng, "google-sheets": sheetsPng, "google-slides": slidesPng,
-};
 
 /** A mark and how it sits in the 40px tile: "tile" = the mark is its own
  *  rounded square and fills the tile; "wide" = a wordmark. */
 const BRAND: Record<string, { svg: string; fit?: "tile" | "wide" }> = {
-  github: { svg: github }, notion: { svg: notion }, cloudflare: { svg: cloudflare }, google: { svg: google },
+  github: { svg: github }, notion: { svg: notion }, cloudflare: { svg: cloudflare },
   figma: { svg: figma }, huggingface: { svg: huggingface }, devin: { svg: devin }, exa: { svg: exa }, mcp: { svg: mcp },
   context7: { svg: context7, fit: "tile" }, stripe: { svg: stripe, fit: "tile" }, sentry: { svg: sentry },
   linear: { svg: linear }, atlassian: { svg: atlassian }, canva: { svg: canva, fit: "wide" },
@@ -65,7 +52,7 @@ type Text = { zh: string; en: string };
 interface CatInput { id: string; label: Text; help?: Text; placeholder?: string; secret?: boolean; optional?: boolean }
 interface CatItem {
   id: string;
-  kind: "mcp" | "skill" | "builtin";
+  kind: "mcp" | "skill";
   category: string;
   name: string;
   icon?: string;
@@ -81,10 +68,6 @@ interface CatItem {
   installed: boolean;
   server?: string;
   scope?: string;
-  // kind "builtin": a connector compiled into Crewbase (GoogleConnect.tsx)
-  builtin?: BuiltinItem["builtin"];
-  product?: string;
-  connector?: BuiltinItem["connector"];
 }
 interface CatCategory { id: string; title: Text; desc: Text }
 interface Catalog { categories: CatCategory[]; items: CatItem[] }
@@ -347,7 +330,6 @@ function matches(q: string, ...xs: (string | undefined)[]) {
 
 /** The 40px tile in front of a row. */
 function ItemIcon({ icon, id, label, kind }: { icon?: string; id: string; label: string; kind?: string }) {
-  if (icon && IMG[icon]) return <span className="mkic brand img" aria-hidden><img src={IMG[icon]} alt="" /></span>;
   const b = icon ? BRAND[icon] : undefined;
   if (b) return <span className={"mkic brand" + (b.fit ? " " + b.fit : "")} aria-hidden dangerouslySetInnerHTML={{ __html: b.svg }} />;
   if (kind === "skill") return <span className="mkic">{(icon && SKILL_ICONS[icon]) || <Sparkles size={19} />}</span>;
@@ -392,7 +374,6 @@ function MarketView({ d, q, reload, reloadMarket, onApprove, onSignIn, onManage,
    *  a dialog only for what must be entered or done first. */
   const connect = async (it: CatItem) => {
     setErrs((x) => ({ ...x, [it.id]: "" }));
-    if (it.kind === "builtin") return connectBuiltin(it, target.scope ?? target.context); // the connector's own official sign-in
     const how = connectHow(it);
     if (how === "dialog") return setDialog(it);
     if (how === "device") return onSignIn(it);
@@ -452,10 +433,6 @@ function MarketView({ d, q, reload, reloadMarket, onApprove, onSignIn, onManage,
     const base = { key: it.id, name: it.name, desc: tx(it.desc), icon: <ItemIcon icon={it.icon} id={it.id} label={it.name} kind={it.kind} /> };
     if (it.kind === "skill")
       return { ...base, verb: "add", state: busy[it.id] ? "busy" : it.installed ? "added" : "idle", error: errs[it.id], onAct: () => void connect(it) };
-    if (it.kind === "builtin") {
-      const state: RowState = it.connector?.needsLogin ? "reauth" : it.installed ? "connected" : "idle";
-      return { ...base, desc: builtinNote(it) || base.desc, verb: "connect", state, onAct: () => void connectBuiltin(it, target.scope ?? target.context) };
-    }
     const s = it.installed ? servers.find((x) => x.name === it.server) : undefined;
     const st = s?.status;
     let state: RowState = "idle";
@@ -1137,7 +1114,6 @@ function InstalledView({ d, q, reload, reloadMarket, onApprove, onSignIn, onScop
 
   return (
     <>
-      <GoogleAccount onChange={reload} />
       <section className="mksec">
         <div className="mksh">
           <h3>{t("mk2.instServices")}</h3>

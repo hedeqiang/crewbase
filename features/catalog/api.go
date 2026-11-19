@@ -15,7 +15,7 @@ func apiErr(err error) error {
 	switch {
 	case err == nil:
 		return nil
-	case errors.Is(err, ErrUnknown), errors.Is(err, ErrMissing), errors.Is(err, ErrNoConnector):
+	case errors.Is(err, ErrUnknown), errors.Is(err, ErrMissing):
 		return gateway.NotFound()
 	case errors.Is(err, ErrInstalled), errors.Is(err, mcp.ErrExists):
 		return gateway.Conflict("%v", err)
