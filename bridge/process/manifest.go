@@ -26,8 +26,9 @@ var KnownServices = []string{"tools", "prompt", "notify", "credentials", "ui"}
 var ExposedEvents = []string{"tools/result", "tools/pre-execute", "tools/post-execute"}
 
 // Permissions is a permission set: what a manifest requests, or what a user
-// approved. Network, files and subprocess are enforced only when the plugin
-// runs in a sandbox (see Status.Enforcement).
+// approved. Network, files and subprocess are enforced by the sandbox every
+// process plugin runs in (see Status.Enforcement); Unsandboxed lets one run
+// without it.
 type Permissions struct {
 	Services    []string `toml:"services" json:"services,omitempty"`
 	Events      []string `toml:"events" json:"events,omitempty"`
@@ -38,6 +39,10 @@ type Permissions struct {
 	// Hooks a wasm plugin implements (from the manifest's hooks list);
 	// approved like any other permission.
 	Hooks []string `toml:"-" json:"hooks,omitempty"`
+	// Unsandboxed: run without the sandbox. A manifest asks for it with
+	// [runtime] sandbox = false; a person may also grant it to a plugin on
+	// a computer with no sandbox backend. Never implied.
+	Unsandboxed bool `toml:"-" json:"unsandboxed,omitempty"`
 }
 
 // Manifest is a parsed crewbase-plugin.toml.
@@ -45,7 +50,7 @@ type Permissions struct {
 //	name = "word-count"
 //	version = "0.1.0"
 //	description = "..."
-//	runtime = "process"            # or: [runtime] kind = "process", sandbox = true
+//	runtime = "process"            # or: [runtime] kind = "process", sandbox = false
 //	entry = ["node", "index.js"]
 //
 //	[inject]
@@ -116,6 +121,9 @@ func ParseManifest(data []byte) (Manifest, error) {
 	}
 	m := Manifest{Name: raw.Name, Version: raw.Version, Description: raw.Description, Author: raw.Author,
 		Repo: raw.Repo, Entry: raw.Entry, Services: raw.Inject.Services, Permissions: raw.Permissions, Hooks: raw.Hooks}
+	// a process plugin runs in the sandbox unless its manifest opts out
+	m.Sandbox = true
+	sandboxSet := false
 	switch rt := raw.Runtime.(type) {
 	case nil:
 		m.Runtime = RuntimeName
@@ -126,7 +134,9 @@ func ParseManifest(data []byte) (Manifest, error) {
 		if m.Runtime == "" {
 			m.Runtime = RuntimeName
 		}
-		m.Sandbox, _ = rt["sandbox"].(bool)
+		if v, ok := rt["sandbox"].(bool); ok {
+			sandboxSet, m.Sandbox = true, v
+		}
 		if e, ok := rt["entry"].([]any); ok && len(m.Entry) == 0 {
 			for _, x := range e {
 				if s, ok := x.(string); ok {
@@ -136,6 +146,12 @@ func ParseManifest(data []byte) (Manifest, error) {
 		}
 	default:
 		return Manifest{}, errors.New("manifest: runtime must be a string or a table")
+	}
+	if m.Runtime == RuntimeWASM {
+		if sandboxSet {
+			return Manifest{}, errors.New("manifest: wasm plugins get no services and run in the host's wasm sandbox")
+		}
+		m.Sandbox = false // not a process: the wasm runtime confines it
 	}
 	return m, m.validate()
 }
@@ -166,7 +182,7 @@ func (m Manifest) validate() error {
 				return fmt.Errorf("manifest: unknown hook %q (known: %s)", h, strings.Join(WASMHooks, ", "))
 			}
 		}
-		if len(m.Services) > 0 || m.Sandbox {
+		if len(m.Services) > 0 {
 			return errors.New("manifest: wasm plugins get no services and run in the host's wasm sandbox")
 		}
 		return nil
@@ -209,6 +225,7 @@ func (m Manifest) Requested() Permissions {
 	p := m.Permissions
 	p.Services = append(append([]string(nil), m.Services...), p.Services...)
 	p.Hooks = append([]string(nil), m.Hooks...)
+	p.Unsandboxed = m.Runtime == RuntimeName && !m.Sandbox
 	return p.Normalize()
 }
 
@@ -227,7 +244,8 @@ func uniq(xs []string) []string {
 // Normalize dedupes and sorts every list.
 func (p Permissions) Normalize() Permissions {
 	return Permissions{Services: uniq(p.Services), Events: uniq(p.Events), Network: uniq(p.Network),
-		Credentials: uniq(p.Credentials), Files: uniq(p.Files), Subprocess: p.Subprocess, Hooks: uniq(p.Hooks)}
+		Credentials: uniq(p.Credentials), Files: uniq(p.Files), Subprocess: p.Subprocess, Hooks: uniq(p.Hooks),
+		Unsandboxed: p.Unsandboxed}
 }
 
 // Strings renders the set as entry permission strings: service:x, event:x,
@@ -249,6 +267,9 @@ func (p Permissions) Strings() []string {
 	if p.Subprocess {
 		out = append(out, "subprocess")
 	}
+	if p.Unsandboxed {
+		out = append(out, "unsandboxed")
+	}
 	return out
 }
 
@@ -258,6 +279,10 @@ func ParsePermissions(ss []string) (Permissions, error) {
 	for _, s := range ss {
 		if s == "subprocess" {
 			p.Subprocess = true
+			continue
+		}
+		if s == "unsandboxed" {
+			p.Unsandboxed = true
 			continue
 		}
 		k, v, ok := strings.Cut(s, ":")

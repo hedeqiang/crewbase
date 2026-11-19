@@ -1297,7 +1297,7 @@ function InstalledView({ d, q, reload, reloadMarket, onApprove, onSignIn, onScop
                     <div className="g">
                       <b>
                         {p.name}
-                        <span className={"pill sm " + (p.state === "running" ? "ok" : p.error ? "red" : !p.approved ? "amber" : "")}>{stateLabel(p)}</span>
+                        <span className={"pill sm " + (p.state === "running" || p.state === "ACTIVE" ? "ok" : p.error ? "red" : !p.approved ? "amber" : "")}>{stateLabel(p)}</span>
                         {p.publisher && (
                           <span className="pubok" title={p.integrity}>
                             <BadgeCheck size={12} />
@@ -1341,7 +1341,27 @@ function InstalledView({ d, q, reload, reloadMarket, onApprove, onSignIn, onScop
                       ]}
                     />
                   </div>
-                  {p.error && <div className="small errt mkerr">{p.error}</div>}
+                  {p.error?.includes("SANDBOX_UNAVAILABLE") && p.approved ? (
+                    // no sandbox works on this computer: a person may let it run without one
+                    <div className="small mkerr mknosb">
+                      <span className="errt" title={p.error}>
+                        {t("ext.noSandbox")}
+                      </span>
+                      <button
+                        className="btn sm dng"
+                        type="button"
+                        disabled={busy === p.name}
+                        onClick={async () => {
+                          if (await confirmDialog({ text: t("ext.allowUnsandboxedConfirm", { name: p.name }), ok: t("ext.allowUnsandboxed"), danger: true }))
+                            void run(p.name, () => API.approvePlugin(p.name, { ...(p.grant?.permissions ?? p.requested), unsandboxed: true }, p.grant?.trustFutureVersions ?? false));
+                        }}
+                      >
+                        {t("ext.allowUnsandboxed")}
+                      </button>
+                    </div>
+                  ) : (
+                    p.error && <div className="small errt mkerr">{p.error}</div>
+                  )}
                 </div>
               );
             })}

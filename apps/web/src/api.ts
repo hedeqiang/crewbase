@@ -716,6 +716,8 @@ export interface Permissions {
   credentials?: string[];
   files?: string[];
   subprocess?: boolean;
+  /** runs without the sandbox (the manifest opted out, or a person allowed it) */
+  unsandboxed?: boolean;
 }
 export interface PluginView {
   name: string;

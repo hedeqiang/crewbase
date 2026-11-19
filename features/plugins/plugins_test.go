@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/hedeqiang/crewbase/capabilities/sandbox"
 	"io/fs"
 	"net/http"
 	"os"
@@ -49,6 +50,7 @@ func start(t *testing.T, dir string, cfg map[string]any) *env {
 		cfg map[string]any
 	}{
 		{tools.Plugin, nil}, {prompt.Plugin, nil}, {notify.Plugin, nil}, {credentials.Plugin, nil},
+		{passSandbox, nil},
 		{gateway.Plugin, map[string]any{"addr": "127.0.0.1:0", "token": tok}},
 		{plugins.Plugin, mcfg}, {plugins.APIPlugin, nil},
 	} {
@@ -512,4 +514,20 @@ func TestWasmPlugin(t *testing.T) {
 	if x := e.run("logs", `{}`); x.Result.Content != "see INC-31415" {
 		t.Fatalf("still applied after disable: %+v", x.Result)
 	}
+}
+
+// passSandbox provides a sandbox that runs commands as they are (plugins
+// fail closed without one).
+var passSandbox = kernel.Spec{Name: "pass-sandbox", Apply: func(c *kernel.Context) error {
+	return c.Provide(sandbox.ServiceKey, sandbox.Sandbox(passBox{}))
+}}
+
+type passBox struct{}
+
+func (passBox) Name() string { return "pass" }
+func (passBox) Check(context.Context, sandbox.Policy) (string, error) {
+	return sandbox.EnforcementPartial, nil
+}
+func (passBox) Confine(_ context.Context, argv []string, _ string, env []string, _ sandbox.Policy) (sandbox.Confined, error) {
+	return sandbox.Confined{Argv: argv, Env: env, Enforcement: sandbox.EnforcementPartial}, nil
 }

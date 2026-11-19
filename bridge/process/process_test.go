@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"syscall"
@@ -89,7 +90,32 @@ func writePlugin(t *testing.T, manifest, mainPy string) string {
 	return dir
 }
 
+// newHost is a host with the core services and a passthrough sandbox
+// (plugins fail closed without one).
 func newHost(t *testing.T) (*kernel.Host, *syncBuf) {
+	t.Helper()
+	h, buf := bareHost(t)
+	if _, err := h.Load(kernel.Spec{Name: "pass-sandbox", Apply: func(c *kernel.Context) error {
+		return c.Provide(sandbox.ServiceKey, sandbox.Sandbox(passSandbox{}))
+	}}, kernel.LoadOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	return h, buf
+}
+
+// passSandbox runs the command as is and says so.
+type passSandbox struct{}
+
+func (passSandbox) Name() string { return "pass" }
+func (passSandbox) Check(context.Context, sandbox.Policy) (string, error) {
+	return sandbox.EnforcementPartial, nil
+}
+func (passSandbox) Confine(_ context.Context, argv []string, _ string, env []string, _ sandbox.Policy) (sandbox.Confined, error) {
+	return sandbox.Confined{Argv: argv, Env: env, Enforcement: sandbox.EnforcementPartial, Limits: []string{"test passthrough"}}, nil
+}
+
+// bareHost is a host with the core services and no sandbox.
+func bareHost(t *testing.T) (*kernel.Host, *syncBuf) {
 	t.Helper()
 	buf := &syncBuf{}
 	h := kernel.NewHost(slog.New(slog.NewTextHandler(buf, &slog.HandlerOptions{Level: slog.LevelDebug})))
@@ -153,7 +179,8 @@ func TestPythonExampleLifecycle(t *testing.T) {
 	entries := []kernel.Entry{
 		{ID: "tools", Name: "@crewbase/tools"},
 		{ID: "prompt", Name: "@crewbase/prompt"},
-		{ID: "hello", Name: "hello-py", Runtime: "process", Permissions: []string{"service:tools"},
+		// no sandbox service here: it runs because a person allowed it unconfined
+		{ID: "hello", Name: "hello-py", Runtime: "process", Permissions: []string{"service:tools", "unsandboxed"},
 			Config: map[string]any{"dir": dir, "backoffMs": 600}},
 	}
 	if err := h.ApplyEntries(entries); err != nil {
@@ -461,7 +488,7 @@ p.run()
 func TestSandboxConfinement(t *testing.T) {
 	needPython(t)
 	t.Setenv("CREWBASE_TEST_SECRET", "x")
-	h, _ := newHost(t)
+	h, _ := bareHost(t)
 	dir := writePlugin(t, sbManifest, sbMain)
 	perms := []string{"service:tools", "network:api.example.com"}
 	// no sandbox service: fail closed
@@ -525,4 +552,55 @@ func TestGoExample(t *testing.T) {
 		t.Fatalf("got %q", got)
 	}
 	waitFor(t, "plugin log", 3*time.Second, func() bool { return strings.Contains(logs.String(), "greeting gopher") })
+}
+
+const optOutManifest = `name = "loose"
+version = "0.1.0"
+entry = ["python3", "main.py"]
+[runtime]
+kind = "process"
+sandbox = false
+[inject]
+services = ["tools"]
+`
+
+// A plugin is sandboxed by default; opting out is a permission a person
+// approves; with no sandbox it runs only if a person allowed that.
+func TestSandboxIsTheDefault(t *testing.T) {
+	needPython(t)
+	m, err := process.ParseManifest([]byte(crashyManifest))
+	if err != nil || !m.Sandbox || m.Requested().Unsandboxed {
+		t.Fatalf("default manifest: sandbox=%v requested=%+v err=%v", m.Sandbox, m.Requested(), err)
+	}
+	m, _ = process.ParseManifest([]byte(optOutManifest))
+	if m.Sandbox || !m.Requested().Unsandboxed || !slices.Contains(m.Requested().Strings(), "unsandboxed") {
+		t.Fatalf("opt-out manifest: %+v", m.Requested())
+	}
+
+	h, _ := bareHost(t)
+	plain := writePlugin(t, strings.Replace(crashyManifest, "crashy", "plain", 1), sbMain)
+	// no sandbox, not allowed: refuses to start
+	load(t, h, "plain", plain, []string{"service:tools"}, nil)
+	if info, _ := h.Plugin("plain"); info.State != kernel.StateFailed || !strings.Contains(info.Error, "can allow this plugin to run without one") {
+		t.Fatalf("want refused, got %+v", info)
+	}
+	h.Unload("plain")
+	// allowed: runs, and says it is not confined
+	load(t, h, "plain2", plain, []string{"service:tools", "unsandboxed"}, nil)
+	if st, _ := process.Lookup(h, "plain2"); st.State != "running" || st.Enforcement != sandbox.EnforcementNone || len(st.Limits) == 0 {
+		t.Fatalf("status %+v", st)
+	}
+	h.Unload("plain2")
+
+	// an opt-out plugin without the approval does not start, even with a sandbox
+	h2, _ := newHost(t)
+	loose := writePlugin(t, optOutManifest, sbMain)
+	if _, err := process.Loader(kernel.Entry{ID: "loose", Runtime: process.RuntimeName, Permissions: []string{"service:tools"},
+		Config: map[string]any{"dir": loose}}); err == nil || !strings.Contains(err.Error(), "unsandboxed") {
+		t.Fatalf("opt-out loaded unapproved: %v", err)
+	}
+	load(t, h2, "loose2", loose, []string{"service:tools", "unsandboxed"}, nil)
+	if st, _ := process.Lookup(h2, "loose2"); st.State != "running" || st.Enforcement != sandbox.EnforcementNone {
+		t.Fatalf("approved opt-out: %+v", st)
+	}
 }

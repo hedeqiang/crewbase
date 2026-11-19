@@ -886,6 +886,7 @@ button.tg:disabled { opacity: .5; cursor: not-allowed; }
 .perms { margin: 0; display: flex; flex-direction: column; gap: 4px; font-size: 12.5px; }
 .perms > div { display: grid; grid-template-columns: 56px minmax(0, 1fr); gap: 8px; }
 .perms > div.need dt { color: var(--amber-text); font-weight: 600; }
+.perms > div.danger dt, .perms > div.danger dd { color: var(--danger-text); font-weight: 600; }
 .perms dt { color: var(--muted); }
 .perms dd { margin: 0; display: flex; flex-wrap: wrap; gap: 4px; min-width: 0; }
 .perms code { background: var(--sunken); border: 1px solid var(--border); border-radius: 5px; padding: 0 5px; overflow-wrap: anywhere; }
@@ -2199,3 +2200,4 @@ a.lcard:hover, .lvideo .ltext:hover { background: var(--hover); }
   .crow .cmodel { flex-shrink: 0; max-width: 180px; }
 }
 .prvscale { font-variant-numeric: tabular-nums; flex: none; }
+.mkirow .mknosb { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }

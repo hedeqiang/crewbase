@@ -158,7 +158,11 @@ func Loader(e kernel.Entry) (kernel.Spec, error) {
 	if missing := granted.Missing(want); len(missing) > 0 {
 		return kernel.Spec{}, fmt.Errorf("%w: %s", ErrNotApproved, strings.Join(missing, ", "))
 	}
-	return Spec(m, cfg, granted.Intersect(want)), nil
+	use := granted.Intersect(want)
+	// running without a sandbox can be a person's call about this computer
+	// (no backend works here), not only something the manifest asked for
+	use.Unsandboxed = granted.Unsandboxed
+	return Spec(m, cfg, use), nil
 }
 
 // Spec builds the proxy plugin spec for an already-checked manifest.
@@ -442,19 +446,34 @@ func (p *proxy) command() (argv, env []string, err error) {
 	return argv, env, nil
 }
 
-// confine wraps argv in the sandbox when the manifest asks for it. It fails
-// closed: no sandbox service or an unavailable backend refuses to start.
+// confine wraps argv in the sandbox. Every process plugin runs in it
+// unless it holds the "unsandboxed" permission: its manifest opted out (and
+// a person approved that), or a person let it run unconfined on a computer
+// where no sandbox backend works. Otherwise it fails closed: no sandbox, no
+// start.
 func (p *proxy) confine(argv, env []string) ([]string, []string, func(), error) {
-	if !p.m.Sandbox {
+	unconfined := func(why string) ([]string, []string, func(), error) {
 		p.setState(func(s *Status) {
 			s.Enforcement = sandbox.EnforcementNone
-			s.Limits = []string{"not sandboxed: network, files and subprocess permissions are declared but not enforced"}
+			s.Limits = []string{why}
 		})
 		return argv, env, nil, nil
 	}
+	if !p.m.Sandbox {
+		if !p.granted.Unsandboxed {
+			return nil, nil, nil, errors.New("the plugin asks to run without the sandbox, which has not been approved")
+		}
+		return unconfined("runs without the sandbox, as its manifest asks (approved): network, files and subprocess permissions are not enforced")
+	}
+	noSandbox := func(reason error) ([]string, []string, func(), error) {
+		if p.granted.Unsandboxed {
+			return unconfined("no sandbox works on this computer, so it runs without one (approved): network, files and subprocess permissions are not enforced")
+		}
+		return nil, nil, nil, sandbox.Unavailable("no sandbox works on this computer (%v); a person can allow this plugin to run without one", reason)
+	}
 	sb, ok := kernel.Lookup[sandbox.Sandbox](p.c, sandbox.ServiceKey)
 	if !ok {
-		return nil, nil, nil, sandbox.Unavailable("manifest requires a sandbox but no sandbox service is running")
+		return noSandbox(errors.New("no sandbox service"))
 	}
 	pol := sandbox.Policy{Mode: sandbox.ModeReadOnly, Network: sandbox.NetworkNone}
 	var roots []string
@@ -475,8 +494,17 @@ func (p *proxy) confine(argv, env []string) ([]string, []string, func(), error) 
 	if err := sandbox.Validate(argv, pol); err != nil {
 		return nil, nil, nil, err
 	}
+	if _, err := sb.Check(p.c.Context(), pol); err != nil {
+		if errors.Is(err, sandbox.ErrUnavailable) {
+			return noSandbox(err)
+		}
+		return nil, nil, nil, err
+	}
 	cf, err := sb.Confine(p.c.Context(), argv, p.cfg.Dir, env, pol)
 	if err != nil {
+		if errors.Is(err, sandbox.ErrUnavailable) {
+			return noSandbox(err)
+		}
 		return nil, nil, nil, err
 	}
 	p.setState(func(s *Status) {

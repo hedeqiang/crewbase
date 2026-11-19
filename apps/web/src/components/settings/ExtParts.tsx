@@ -39,18 +39,19 @@ export function errMsg(e: any) {
 
 // ---------------------------------------------------------------- plugins
 
-const PERM_KEYS: (keyof Permissions)[] = ["files", "network", "subprocess", "credentials", "services", "events"];
+const PERM_KEYS: (keyof Permissions)[] = ["unsandboxed", "files", "network", "subprocess", "credentials", "services", "events"];
+const FLAGS = new Set<keyof Permissions>(["subprocess", "unsandboxed"]);
 
 /** Every requested permission, plainly; nothing is labelled "safe". */
 export function PermList({ p, need }: { p: Permissions; need?: string[] }) {
-  const rows = PERM_KEYS.filter((k) => (k === "subprocess" ? p.subprocess : (p[k] as string[] | undefined)?.length));
+  const rows = PERM_KEYS.filter((k) => (FLAGS.has(k) ? !!p[k] : (p[k] as string[] | undefined)?.length));
   if (rows.length === 0) return <p className="small" style={{ margin: 0 }}>{t("ext.permNone")}</p>;
   return (
     <dl className="perms">
       {rows.map((k) => (
-        <div key={k} className={need?.some((n) => n.startsWith(k)) ? "need" : ""}>
+        <div key={k} className={(need?.some((n) => n.startsWith(k)) ? "need" : "") + (k === "unsandboxed" ? " danger" : "")}>
           <dt>{t(`ext.perm.${k}` as Key)}</dt>
-          <dd>{k === "subprocess" ? t("ext.perm.subprocessYes") : (p[k] as string[]).map((v) => <code key={v}>{v}</code>)}</dd>
+          <dd>{FLAGS.has(k) ? t(`ext.perm.${k}Yes` as Key) : (p[k] as string[]).map((v) => <code key={v}>{v}</code>)}</dd>
         </div>
       ))}
     </dl>
@@ -59,7 +60,8 @@ export function PermList({ p, need }: { p: Permissions; need?: string[] }) {
 
 export function stateLabel(p: PluginView): string {
   if (!p.approved) return t("ext.st.needsApproval");
-  const k = `ext.st.${p.state}` as Key;
+  // the kernel's plugin states (ACTIVE, FAILED…) and the process's (running…)
+  const k = `ext.st.${(p.state || "").toLowerCase()}` as Key;
   return t(k) === k ? p.state || "—" : t(k);
 }
 
@@ -97,7 +99,7 @@ export function ApproveDialog({ p, onClose, onDone }: { p: PluginView; onClose: 
           <PermList p={p.requested ?? {}} need={p.needsApproval} />
           <div className="fl">{t("ext.howRuns")}</div>
           <p className="small" style={{ margin: 0 }}>
-            {p.sandbox ? t("ext.runSandboxDesc") : t("ext.runProcessDesc")}
+            {p.sandbox && !p.grant?.permissions.unsandboxed ? t("ext.runSandboxDesc") : t("ext.runProcessDesc")}
             {p.process?.enforcement ? " " + t("ext.enforcement", { e: p.process.enforcement }) : ""}
           </p>
           {(p.process?.limits?.length ?? 0) > 0 && (
