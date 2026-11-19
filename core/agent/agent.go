@@ -15,6 +15,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 	"unicode"
 
@@ -86,6 +87,9 @@ type Spec struct {
 	// Its own directory still holds its bookkeeping and is what gets
 	// removed on delete; the shared workspace is never deleted.
 	SharedWorkspace string `json:"sharedWorkspace,omitempty"`
+	// Home is the agent's own folder when it is not <root>/workspaces/<id>
+	// (it was created while Settings › 通用 › 默认工作区 pointed elsewhere).
+	Home string `json:"home,omitempty"`
 	// Kind is "" for an agent, KindChat for a blank chat: it works like an
 	// agent (tools, run modes, approvals, workspace) but its prompt carries
 	// no persona, instructions, memory or plugin fragments — only the base
@@ -215,7 +219,12 @@ func (a *Agent) Workspace() string {
 	return a.ownDir()
 }
 
-func (a *Agent) ownDir() string { return filepath.Join(a.reg.root, "workspaces", a.id) }
+func (a *Agent) ownDir() string {
+	if a.spec.Home != "" {
+		return a.spec.Home
+	}
+	return filepath.Join(a.reg.root, "workspaces", a.id)
+}
 
 func (a *Agent) whereLine() string {
 	if p := a.ProjectDir(); p != "" {
@@ -687,6 +696,7 @@ var (
 type Registry struct {
 	c        *kernel.Context
 	root     string
+	wsBase   atomic.Value // string: where new agents' folders go ("" = <root>/workspaces)
 	sessions *session.Store
 	defaults []llm.ModelRef
 
@@ -782,7 +792,18 @@ func (r *Registry) Create(spec Spec) (*Agent, error) {
 			base = "chat"
 		}
 		spec.ID = base
-		for i := 2; r.agents[spec.ID] != nil; i++ {
+		// in a folder of the person's choosing, never adopt one of theirs
+		taken := func(id string) bool {
+			if _, ok := r.agents[id]; ok {
+				return true
+			}
+			if spec.Ephemeral {
+				return false
+			}
+			ents, err := os.ReadDir(filepath.Join(r.base(), id))
+			return err == nil && len(ents) > 0
+		}
+		for i := 2; taken(spec.ID); i++ {
 			spec.ID = fmt.Sprintf("%s-%d", base, i)
 		}
 	}
@@ -801,6 +822,10 @@ func (r *Registry) Create(spec Spec) (*Agent, error) {
 	}
 	spec.Session = ss.ID()
 	ws := filepath.Join(r.root, "workspaces", spec.ID)
+	if b := r.base(); !spec.Ephemeral && b != filepath.Join(r.root, "workspaces") {
+		ws = filepath.Join(b, spec.ID)
+		spec.Home = ws
+	}
 	if err := os.MkdirAll(ws, 0o755); err != nil {
 		r.unreserve(spec.ID)
 		return nil, err
@@ -1056,7 +1081,7 @@ func (r *Registry) Delete(id string) error {
 		_ = os.Remove(r.ephemeralPath(id))
 	} else {
 		// the spec is archived with the workspace (nothing loads it there)
-		archive := filepath.Join(r.root, "workspaces", fmt.Sprintf(".deleted-%s-%d", id, time.Now().Unix()))
+		archive := filepath.Join(filepath.Dir(ws), fmt.Sprintf(".deleted-%s-%d", id, time.Now().Unix()))
 		if os.Rename(ws, archive) == nil {
 			_ = os.Rename(r.specPath(id), filepath.Join(archive, legacySpec))
 		}
@@ -1076,12 +1101,26 @@ func (r *Registry) loadAll() {
 			_ = os.Remove(filepath.Join(r.root, specDir, f.Name()))
 		}
 	}
+	// every saved spec (an agent's folder may be anywhere), and folders in
+	// workspaces/ that still hold a spec from older versions
+	var ids []string
+	seen := map[string]bool{}
+	for _, f := range files {
+		if id, ok := strings.CutSuffix(f.Name(), ".json"); ok && validID(id) && !strings.HasSuffix(f.Name(), ephemeralSuffix) && !seen[id] {
+			seen[id] = true
+			ids = append(ids, id)
+		}
+	}
 	dirs, _ := os.ReadDir(filepath.Join(r.root, "workspaces"))
 	for _, d := range dirs {
-		if !d.IsDir() || strings.HasPrefix(d.Name(), ".") {
-			continue
+		if d.IsDir() && !strings.HasPrefix(d.Name(), ".") && !seen[d.Name()] {
+			seen[d.Name()] = true
+			ids = append(ids, d.Name())
 		}
-		s, ok := r.loadSpec(d.Name())
+	}
+	sort.Strings(ids)
+	for _, id := range ids {
+		s, ok := r.loadSpec(id)
 		if !ok {
 			continue
 		}
@@ -1190,6 +1229,7 @@ var Plugin = kernel.Register(kernel.Spec{
 			return err
 		}
 		r := &Registry{c: c, root: cfg.Root, sessions: kernel.Use[*session.Store](c, session.ServiceKey), agents: map[string]*Agent{}}
+		r.loadWorkspaceBase()
 		for _, s := range cfg.DefaultModels {
 			ref, err := llm.ParseRef(s)
 			if err != nil {
@@ -1489,4 +1529,116 @@ func dropRetired(ms []llm.ModelRef) []llm.ModelRef {
 		return nil
 	}
 	return slices.DeleteFunc(slices.Clone(ms), func(m llm.ModelRef) bool { return strings.HasPrefix(m.Provider, retiredPrefix) })
+}
+
+// ---------------------------------------------------------------- 默认工作区
+
+// workspaceFile keeps Settings › 通用 › 默认工作区 (where new agents' own
+// folders go). Agents already made stay where they are.
+const workspaceFile = "workspace.json"
+
+// base is the folder new agents' own folders go in.
+func (r *Registry) base() string {
+	if b, _ := r.wsBase.Load().(string); b != "" {
+		return b
+	}
+	return filepath.Join(r.root, "workspaces")
+}
+
+// WorkspaceBase reports where new agents' folders go and whether that is
+// the default (<root>/workspaces).
+func (r *Registry) WorkspaceBase() (dir string, isDefault bool) {
+	b, _ := r.wsBase.Load().(string)
+	return r.base(), b == ""
+}
+
+// DefaultWorkspaceBase is <root>/workspaces.
+func (r *Registry) DefaultWorkspaceBase() string { return filepath.Join(r.root, "workspaces") }
+
+// Why a workspace folder was refused (WorkspaceError.Code).
+const (
+	WsNotAbsolute = "not_absolute"
+	WsTooBroad    = "too_broad"
+	WsDataFolder  = "data_folder"
+	WsNotWritable = "not_writable"
+)
+
+// WorkspaceError explains a refused workspace folder.
+type WorkspaceError struct {
+	Code string
+	Dir  string
+	Msg  string
+}
+
+func (e *WorkspaceError) Error() string { return e.Msg }
+
+// SetWorkspaceBase makes dir ("" = the default) where new agents' folders
+// go. dir must be an absolute folder (~ is expanded) outside the data
+// root, which holds the vault and other private state; it is created when
+// missing and must be writable.
+func (r *Registry) SetWorkspaceBase(dir string) (string, error) {
+	dir = strings.TrimSpace(dir)
+	if rest, ok := strings.CutPrefix(dir, "~"); ok && (rest == "" || rest[0] == '/' || rest[0] == filepath.Separator) {
+		if h, err := os.UserHomeDir(); err == nil {
+			dir = filepath.Join(h, rest)
+		}
+	}
+	def := filepath.Join(r.root, "workspaces")
+	if dir != "" {
+		if !filepath.IsAbs(dir) {
+			return "", &WorkspaceError{Code: WsNotAbsolute, Dir: dir, Msg: "the workspace folder must be a full path, e.g. ~/Crewbase"}
+		}
+		dir = filepath.Clean(dir)
+	}
+	if dir == "" || dir == def {
+		dir = ""
+	} else {
+		if dir == "/" || dir == filepath.Clean(os.Getenv("HOME")) {
+			return "", &WorkspaceError{Code: WsTooBroad, Dir: dir, Msg: "pick a folder of its own, not " + dir}
+		}
+		rootAbs, _ := filepath.Abs(r.root)
+		if within(dir, rootAbs) || within(rootAbs, dir) {
+			return "", &WorkspaceError{Code: WsDataFolder, Dir: rootAbs, Msg: "the workspace folder cannot be inside Crewbase's data folder " + rootAbs + ", nor contain it"}
+		}
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			return "", &WorkspaceError{Code: WsNotWritable, Dir: dir, Msg: fmt.Sprintf("cannot create %s: %v", dir, err)}
+		}
+		probe, err := os.CreateTemp(dir, ".crewbase-write-*")
+		if err != nil {
+			return "", &WorkspaceError{Code: WsNotWritable, Dir: dir, Msg: fmt.Sprintf("cannot write in %s: %v", dir, err)}
+		}
+		probe.Close()
+		_ = os.Remove(probe.Name())
+	}
+	b, _ := json.Marshal(map[string]string{"dir": dir})
+	if err := os.WriteFile(filepath.Join(r.root, workspaceFile), b, 0o600); err != nil {
+		return "", err
+	}
+	r.wsBase.Store(dir)
+	return r.base(), nil
+}
+
+func (r *Registry) loadWorkspaceBase() {
+	b, err := os.ReadFile(filepath.Join(r.root, workspaceFile))
+	if err != nil {
+		return
+	}
+	var v struct {
+		Dir string `json:"dir"`
+	}
+	if json.Unmarshal(b, &v) == nil && v.Dir != "" && filepath.IsAbs(v.Dir) {
+		if st, err := os.Stat(v.Dir); err == nil && st.IsDir() {
+			r.wsBase.Store(v.Dir)
+		} else {
+			// e.g. an external disk not mounted: never recreate it on the
+			// startup disk; new agents go to the data folder this run
+			r.c.Log().Warn("default workspace folder unavailable; new agents use the data folder", "dir", v.Dir)
+		}
+	}
+}
+
+// within reports whether p is base or inside it.
+func within(p, base string) bool {
+	rel, err := filepath.Rel(base, p)
+	return err == nil && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))
 }

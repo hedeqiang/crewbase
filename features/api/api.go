@@ -5,6 +5,7 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"slices"
 	"strconv"
@@ -640,6 +641,35 @@ var Plugin = kernel.Register(kernel.Spec{
 					return map[string]any{"connectors": []any{}}, nil
 				}
 				return map[string]any{"connectors": reg.Connectors()}, nil
+			}})
+		// Settings › 通用 › 默认工作区: where new agents' own folders go.
+		type wsView struct {
+			Dir       string `json:"dir"`
+			IsDefault bool   `json:"isDefault"`
+			Default   string `json:"default"`
+		}
+		wsNow := func() wsView {
+			d, def := agents.WorkspaceBase()
+			return wsView{Dir: d, IsDefault: def, Default: agents.DefaultWorkspaceBase()}
+		}
+		g.Handle(c, gateway.Route{Method: "GET", Path: "/api/settings/workspace",
+			Handle: func(context.Context, *gateway.Request) (any, error) { return wsNow(), nil }})
+		g.Handle(c, gateway.Route{Method: "PUT", Path: "/api/settings/workspace",
+			Handle: func(_ context.Context, r *gateway.Request) (any, error) {
+				var b struct {
+					Dir string `json:"dir"`
+				}
+				if err := r.Decode(&b); err != nil {
+					return nil, err
+				}
+				if _, err := agents.SetWorkspaceBase(b.Dir); err != nil {
+					var we *agent.WorkspaceError
+					if errors.As(err, &we) {
+						return nil, &gateway.Error{Status: 400, Code: "workspace_" + we.Code, Message: we.Msg}
+					}
+					return nil, gateway.BadRequest("%v", err)
+				}
+				return wsNow(), nil
 			}})
 		g.Handle(c, gateway.Route{Method: "GET", Path: "/api/agents/{id}/tools",
 			Handle: func(_ context.Context, r *gateway.Request) (any, error) {

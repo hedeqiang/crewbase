@@ -11,6 +11,7 @@ import { Automation } from "./settings/Automation";
 import { Extensions } from "./settings/Extensions";
 import { Profile } from "./settings/Profile";
 import { Vault } from "./settings/Vault";
+import { shortPath } from "./Conversation";
 import { Hosts } from "./settings/Hosts";
 import { Team } from "./settings/Team";
 import { Teams } from "./settings/Teams";
@@ -667,6 +668,80 @@ function Defaults() {
           {t("set.routing")}
         </button>
       </Row>
+      <WorkspaceDir />
+    </div>
+  );
+}
+
+/** 默认工作区: the folder new agents' own folders are made in. */
+function WorkspaceDir() {
+  const [v, setV] = useState<{ dir: string; isDefault: boolean; default: string } | null>(null);
+  const [edit, setEdit] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    API.workspaceDir().then(setV, () => setV(null));
+  }, []);
+  if (!v) return null;
+  const save = async (dir: string) => {
+    setBusy(true);
+    try {
+      const r = await API.setWorkspaceDir(dir);
+      setV(r);
+      setEdit(null);
+      toast(r.isDefault ? t("set.wsReset") : t("set.wsSaved", { dir: shortPath(r.dir) }));
+    } catch (e: any) {
+      const k = `set.ws.${String(e?.code ?? "").replace(/^workspace_/, "")}` as Key;
+      toast(t(k) !== k ? t(k, { dir: shortPath(dir) }) : e?.message ?? String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+  const pick = async () => {
+    const d = desktop();
+    if (!d?.pickFolder) return setEdit(v.isDefault ? "" : v.dir);
+    const dir = await d.pickFolder(v.dir).catch(() => "");
+    if (dir) await save(dir);
+  };
+  return (
+    <div className="srow wsrow">
+      <span className="g">
+        <b>{t("set.wsTitle")}</b>
+        <span>{t("set.wsDesc")}</span>
+        {edit === null ? (
+          <code className="wspath" title={v.dir}>
+            {shortPath(v.dir)}
+            {v.isDefault && <span className="pill sm">{t("set.wsDefault")}</span>}
+          </code>
+        ) : (
+          <form
+            className="wsedit"
+            onSubmit={(e) => {
+              e.preventDefault();
+              void save(edit);
+            }}
+          >
+            <input className="fi sm mono" autoFocus value={edit} placeholder="~/Crewbase" spellCheck={false} onChange={(e) => setEdit(e.target.value)} />
+            <button className="btn sm pri" type="submit" disabled={busy || !edit.trim()}>
+              {t("common.save")}
+            </button>
+            <button className="btn sm ghost" type="button" onClick={() => setEdit(null)}>
+              {t("common.cancel")}
+            </button>
+          </form>
+        )}
+      </span>
+      {edit === null && (
+        <span className="c">
+          {!v.isDefault && (
+            <button className="btn sm ghost" type="button" disabled={busy} onClick={() => void save("")}>
+              {t("set.wsResetBtn")}
+            </button>
+          )}
+          <button className="btn sm" type="button" disabled={busy} onClick={() => void pick()}>
+            {t("set.wsChange")}
+          </button>
+        </span>
+      )}
     </div>
   );
 }

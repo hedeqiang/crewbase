@@ -1272,6 +1272,8 @@ export const API = {
   browserInput: (id: string, b: BrowserInput) => api("POST", `/api/agents/${enc(id)}/browser/input`, b),
 
   usage: () => api<UsageStats>("GET", "/api/usage"),
+  workspaceDir: () => api<{ dir: string; isDefault: boolean; default: string }>("GET", "/api/settings/workspace"),
+  setWorkspaceDir: (dir: string) => api<{ dir: string; isDefault: boolean; default: string }>("PUT", "/api/settings/workspace", { dir }),
   agentToolGroups: (id: string) =>
     api<{ groups: { name: string; count: number; summary: string; deferred: boolean }[] | null; deferredTokens: number }>("GET", `/api/agents/${enc(id)}/tools`),
   vault: () => api<{ items: VaultItem[] }>("GET", "/api/vault"),
