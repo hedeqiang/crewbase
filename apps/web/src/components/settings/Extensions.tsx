@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import {
-  BadgeCheck, Bug, CalendarDays, Check, Copy, ExternalLink, FolderInput, GitCommitHorizontal, Globe, ListChecks, LogIn, Megaphone,
-  MoreHorizontal, Plug, Plus, Search, SearchCode, Server, ShieldAlert, Sparkles, Table, X,
+  BadgeCheck, Bug, CalendarDays, Check, ClipboardPaste, Copy, ExternalLink, GitCommitHorizontal, Globe, ListChecks, LogIn, Megaphone,
+  MoreHorizontal, Plug, Plus, Search, SearchCode, ShieldAlert, Sparkles, Table, X,
 } from "lucide-react";
 import { API, api, openExternal, DEFAULT_TEAM, type AgentView, type MarketEntry, type McpServer, type PluginView } from "../../api";
 import { canUse, connectorsFor, nextConnectors, useConnectors } from "../AgentConnectors";
@@ -10,7 +10,7 @@ import { getLang, t, type Key } from "../../i18n";
 import { setState, toast, useStore } from "../../store";
 import { Head } from "../Settings";
 import { MonoMark } from "../ProviderMark";
-import { PasteButton, PasteInstall } from "./PasteInstall";
+import { PasteInstall } from "./PasteInstall";
 import { ApproveDialog, errMsg, MCP_TONE, McpForm, McpTools, PluginCards, settle, signInWindow, stateLabel } from "./ExtParts";
 
 // Brand icons from LobeHub Icons (@lobehub/icons-static-svg, MIT), as in
@@ -150,7 +150,7 @@ export function Extensions() {
   const [q, setQ] = useState("");
   const [d, setD] = useState<Data>({ catalog: null, servers: null, skills: null, plugins: null, market: null, marketErr: null });
   const [approve, setApprove] = useState<PluginView | null>(null);
-  const [paste, setPaste] = useState(false);
+  const [paste, setPaste] = useState<string | null>(null);
   const [focus, setFocus] = useState<string | null>(null); // server to open in Installed
   const [gh, setGh] = useState<CatItem | null>(null); // GitHub sign-in dialog
   const [scopeOf, setScopeOf] = useState<McpServer | null>(null);
@@ -219,7 +219,21 @@ export function Extensions() {
       setView("installed");
     },
     focus,
+    onPaste: (text) => setPaste(text),
+    search: null,
   };
+  const search = (
+    <label className={"search mksearch" + (view === "market" ? " inline" : "")}>
+      <Search size={15} />
+      <input type="search" value={q} placeholder={t("mk.search")} aria-label={t("mk.search")} onChange={(e) => setQ(e.target.value)} />
+      {q && (
+        <button type="button" className="ix" aria-label={t("common.close")} onClick={() => setQ("")}>
+          <X size={13} />
+        </button>
+      )}
+    </label>
+  );
+  const installedN = (d.servers?.length ?? 0) + (d.skills?.length ?? 0) + (d.plugins?.length ?? 0);
   return (
     <>
       <Head
@@ -227,29 +241,27 @@ export function Extensions() {
         sub={t("mk.sub")}
         right={
           <div className="mkhr">
-          <PasteButton onClick={() => setPaste(true)} />
           <div className="seg" role="group">
             <button type="button" aria-pressed={view === "market"} onClick={() => setView("market")}>
-              {t("mk.tabMarket")}
+              {t("mk3.tabDiscover")}
             </button>
             <button type="button" aria-pressed={view === "installed"} onClick={() => setView("installed")}>
               {t("mk.tabInstalled")}
+              {installedN > 0 && <span className="segn">{installedN}</span>}
             </button>
           </div>
           </div>
         }
       />
       <div className="vb mkwrap">
-        <label className="search mksearch">
-          <Search size={15} />
-          <input type="search" value={q} placeholder={t("mk.search")} aria-label={t("mk.search")} onChange={(e) => setQ(e.target.value)} />
-          {q && (
-            <button type="button" className="ix" aria-label={t("common.close")} onClick={() => setQ("")}>
-              <X size={13} />
-            </button>
-          )}
-        </label>
-        {view === "market" ? <MarketView {...shared} /> : <InstalledView {...shared} />}
+        {view === "market" ? (
+          <MarketView {...shared} search={search} />
+        ) : (
+          <>
+            {search}
+            <InstalledView {...shared} />
+          </>
+        )}
       </div>
       {approve && (
         <ApproveDialog
@@ -261,9 +273,10 @@ export function Extensions() {
           }}
         />
       )}
-      {paste && (
+      {paste !== null && (
         <PasteInstall
-          onClose={() => setPaste(false)}
+          initial={paste}
+          onClose={() => setPaste(null)}
           onDone={() => {
             reload();
             setView("installed");
@@ -279,6 +292,9 @@ export function Extensions() {
 }
 
 interface Shared {
+  onPaste: (text: string) => void;
+  /** the search box, placed by the view */
+  search: ReactNode;
   d: Data;
   q: string;
   reload: () => void;
@@ -307,13 +323,10 @@ function ItemIcon({ icon, id, label, kind }: { icon?: string; id: string; label:
   if (b) return <span className={"mkic brand" + (b.fit ? " " + b.fit : "")} aria-hidden dangerouslySetInnerHTML={{ __html: b.svg }} />;
   if (kind === "skill") return <span className="mkic">{(icon && SKILL_ICONS[icon]) || <Sparkles size={19} />}</span>;
   if (kind === "plugin") return <span className="mkic"><Plug size={19} /></span>;
-  if (kind === "server") return <span className="mkic"><Server size={19} /></span>;
   return <MonoMark id={id} label={label} size={40} />;
 }
 
 // ---------------------------------------------------------------- marketplace
-
-const PREVIEW = 6;
 
 /** What a row's action area shows. */
 type RowState = "idle" | "busy" | "connected" | "added" | "login" | "reauth" | "error" | "connecting";
@@ -329,9 +342,29 @@ interface Row {
   error?: string;
   onAct: () => void;
   menu?: MenuItem[];
+  /** how connecting goes: 免登录 / 官方登录 / 需要令牌 … */
+  badge?: { label: string; tone: "free" | "login" | "token" | "" };
 }
 
-function MarketView({ d, q, reload, reloadMarket, onApprove, onSignIn, onManage, target, toAll, setToAll }: Shared) {
+/** The badge that says what connecting an item takes. */
+function badgeOf(it: CatItem): Row["badge"] {
+  if (it.kind === "skill") return undefined;
+  switch (it.auth) {
+    case "none":
+      return (it.inputs ?? []).some((x) => !x.optional) ? { label: t("mk3.b.token"), tone: "token" } : { label: t("mk3.b.free"), tone: "free" };
+    case "oauth":
+      return { label: t("mk3.b.login"), tone: "login" };
+    case "device":
+      return { label: t("mk3.b.device"), tone: "login" };
+    case "token":
+      return { label: t("mk3.b.token"), tone: "token" };
+    default:
+      return { label: t("mk3.b.setup"), tone: "token" };
+  }
+}
+
+function MarketView({ d, q, reload, reloadMarket, onApprove, onSignIn, onManage, target, toAll, setToAll, onPaste, search }: Shared) {
+  const [kind, setKind] = useState<"all" | "mcp" | "skill" | "plugin">("all");
   const teams = useStore((s) => s.teams);
   const team = useStore((s) => s.team);
   const teamName = teams.find((x) => x.id === team)?.name ?? team;
@@ -403,7 +436,7 @@ function MarketView({ d, q, reload, reloadMarket, onApprove, onSignIn, onManage,
   };
 
   const rowOf = (it: CatItem): Row => {
-    const base = { key: it.id, name: it.name, desc: tx(it.desc), icon: <ItemIcon icon={it.icon} id={it.id} label={it.name} kind={it.kind} /> };
+    const base = { key: it.id, name: it.name, desc: tx(it.desc), badge: badgeOf(it), icon: <ItemIcon icon={it.icon} id={it.id} label={it.name} kind={it.kind} /> };
     if (it.kind === "skill")
       return { ...base, verb: "add", state: busy[it.id] ? "busy" : it.installed ? "added" : "idle", error: errs[it.id], onAct: () => void connect(it) };
     const s = it.installed ? servers.find((x) => x.name === it.server) : undefined;
@@ -441,14 +474,26 @@ function MarketView({ d, q, reload, reloadMarket, onApprove, onSignIn, onManage,
   };
 
   if (!d.catalog) return <p className="small">{t("common.loading")}</p>;
-  const sections: { id: string; title: string; desc: string; rows: Row[] }[] = d.catalog.categories.map((c) => ({
-    id: c.id,
-    title: tx(c.title),
-    desc: tx(c.desc),
-    rows: d.catalog!.items.filter((it) => it.category === c.id && matches(q, it.name, it.desc.zh, it.desc.en, c.title.zh, c.title.en)).map(rowOf),
-  }));
+  type Sec = { id: string; kind: "mcp" | "skill" | "plugin"; title: string; desc: string; rows: Row[] };
+  const cats = d.catalog.categories;
+  const pick = (ids: string[]) =>
+    d
+      .catalog!.items.filter((it) => ids.includes(it.category))
+      .filter((it) => {
+        const c = cats.find((x) => x.id === it.category);
+        return matches(q, it.name, it.desc.zh, it.desc.en, c?.title.zh, c?.title.en);
+      })
+      .map(rowOf);
+  const connectorCats = cats.filter((c) => c.id !== "skills").map((c) => c.id);
+  const skillCat = cats.find((c) => c.id === "skills");
+  // every connector in one grid (categories only order it), skills in another
+  const sections: Sec[] = [
+    { id: "connectors", kind: "mcp", title: t("mk3.k.mcp"), desc: t("mk3.connectorsDesc"), rows: pick(connectorCats) },
+    { id: "skills", kind: "skill", title: skillCat ? tx(skillCat.title) : t("mk3.k.skill"), desc: skillCat ? tx(skillCat.desc) : "", rows: pick(["skills"]) },
+  ];
   sections.push({
     id: "plugins",
+    kind: "plugin",
     title: t("mk.plugins"),
     desc: d.marketErr ? t("ext.marketErr", { error: d.marketErr }) : t("mk.pluginsDesc"),
     rows: (d.market ?? [])
@@ -458,31 +503,98 @@ function MarketView({ d, q, reload, reloadMarket, onApprove, onSignIn, onManage,
         name: m.name,
         desc: m.description,
         icon: <ItemIcon id={m.name} label={m.name} kind="plugin" />,
-        verb: "add",
-        state: busy["plugin:" + m.name] ? "busy" : m.installed ? "added" : "idle",
+        badge: { label: t("mk3.b.perms"), tone: "" as const },
+        verb: "add" as const,
+        state: (busy["plugin:" + m.name] ? "busy" : m.installed ? "added" : "idle") as RowState,
         onAct: () => void addPlugin(m),
       })),
   });
-  const shown = sections.filter((s) => s.rows.length > 0);
+  const count = (k: Sec["kind"]) => sections.filter((x) => x.kind === k).reduce((a, x) => a + x.rows.length, 0);
+  const shown = sections.filter((x) => x.rows.length > 0 && (kind === "all" || x.kind === kind));
+  const kinds = [
+    { id: "all" as const, label: t("mk3.k.all"), n: count("mcp") + count("skill") + count("plugin") },
+    { id: "mcp" as const, label: t("mk3.k.mcp"), n: count("mcp") },
+    { id: "skill" as const, label: t("mk3.k.skill"), n: count("skill") },
+    { id: "plugin" as const, label: t("mk3.k.plugin"), n: count("plugin") },
+  ];
   return (
     <>
-      {teams.length > 1 && (
-        <div className="mkto small">
-          <span>{t("mk2.installTo")}</span>
-          <span className="ssel">
-            <select value={toAll ? "global" : "team"} aria-label={t("mk2.installTo")} onChange={(e) => setToAll(e.target.value === "global")}>
-              <option value="team">{t("ext.scopeTeam", { name: teamName })}</option>
-              <option value="global">{t("ext.scopeGlobal")}</option>
-            </select>
+      {!q && <PasteHero onPaste={onPaste} />}
+      <div className="mkkinds" role="tablist" aria-label={t("mk3.kinds")}>
+        {kinds.map((k) => (
+          <button key={k.id} type="button" role="tab" aria-selected={kind === k.id} className={"mkkind" + (kind === k.id ? " on" : "")} onClick={() => setKind(k.id)}>
+            {k.label}
+            <span>{k.n}</span>
+          </button>
+        ))}
+        <span className="sp" />
+        {search}
+        {teams.length > 1 && (
+          <span className="mkto small">
+            <span>{t("mk2.installTo")}</span>
+            <span className="ssel">
+              <select value={toAll ? "global" : "team"} aria-label={t("mk2.installTo")} onChange={(e) => setToAll(e.target.value === "global")}>
+                <option value="team">{t("ext.scopeTeam", { name: teamName })}</option>
+                <option value="global">{t("ext.scopeGlobal")}</option>
+              </select>
+            </span>
           </span>
-        </div>
-      )}
+        )}
+      </div>
       {shown.length === 0 && <div className="empty">{t("mk.noResults", { q })}</div>}
-      {shown.map((s) => (
-        <Section key={s.id} title={s.title} desc={s.desc} rows={s.rows} all={!!q} />
+      {shown.map((x) => (
+        <Section key={x.id} title={x.title} desc={x.desc} rows={x.rows} />
       ))}
       {dialog && <ConnectDialog item={dialog} target={target} servers={servers} onClose={() => setDialog(null)} onChanged={reload} onSignIn={onSignIn} />}
     </>
+  );
+}
+
+/** The install-anything box at the top of 发现: paste and it is recognised. */
+function PasteHero({ onPaste }: { onPaste: (text: string) => void }) {
+  const [v, setV] = useState("");
+  return (
+    <div className="mkhero">
+      <div className="mkherot">
+        <ClipboardPaste size={18} />
+        <div>
+          <b>{t("mk3.heroTitle")}</b>
+          <span>{t("mk3.heroDesc")}</span>
+        </div>
+      </div>
+      <form
+        className="mkheroin"
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (v.trim()) onPaste(v);
+        }}
+      >
+        <input
+          className="fi mono"
+          value={v}
+          spellCheck={false}
+          autoComplete="off"
+          placeholder={t("mk3.heroPh")}
+          aria-label={t("mk3.heroTitle")}
+          onChange={(e) => setV(e.target.value)}
+          onPaste={(e) => {
+            const text = e.clipboardData.getData("text");
+            if (text.trim() && !v.trim()) {
+              e.preventDefault();
+              onPaste(text);
+            }
+          }}
+        />
+        <button className="btn pri" type="submit" disabled={!v.trim()}>
+          {t("mk3.heroGo")}
+        </button>
+      </form>
+      <div className="mkherofmt">
+        {(["mk3.f.config", "mk3.f.cmd", "mk3.f.url", "mk3.f.github", "mk3.f.npm"] as const).map((k) => (
+          <span key={k}>{t(k)}</span>
+        ))}
+      </div>
+    </div>
   );
 }
 
@@ -529,36 +641,38 @@ function RowAction({ r }: { r: Row }) {
   }
 }
 
-function Section({ title, desc, rows, all }: { title: string; desc: string; rows: Row[]; all: boolean }) {
-  const [open, setOpen] = useState(false);
-  const list = all || open ? rows : rows.slice(0, PREVIEW);
+function Section({ title, desc, rows }: { title: string; desc: string; rows: Row[] }) {
   return (
     <section className="mksec">
-      <h3>{title}</h3>
-      {desc && <p className="small">{desc}</p>}
-      <div className="mkgrid">
-        {list.map((r) => (
-          <div className="mkrow" key={r.key}>
-            {r.icon}
-            <div className="g">
-              <b>{r.name}</b>
-              <span title={r.desc}>{r.desc}</span>
-              {r.error && (
-                <span className="errt mkrerr" title={r.error}>
-                  {r.error}
-                </span>
-              )}
+      <div className="mkst2">
+        <h3>{title}</h3>
+        {desc && <span className="small">{desc}</span>}
+      </div>
+      <div className="mkcards">
+        {rows.map((r) => (
+          <div className={"mkcard" + (r.state === "connected" || r.state === "added" ? " done" : "")} key={r.key}>
+            <div className="mkctop">
+              {r.icon}
+              <div className="g">
+                <b title={r.name}>{r.name}</b>
+                {r.badge && <span className={"mkbadge " + r.badge.tone}>{r.badge.label}</span>}
+              </div>
+              {r.menu && <MoreMenu items={r.menu} />}
             </div>
-            <RowAction r={r} />
-            {r.menu && <MoreMenu items={r.menu} />}
+            <p className="mkcdesc" title={r.desc}>
+              {r.desc}
+            </p>
+            {r.error && (
+              <p className="errt mkcerr" title={r.error}>
+                {r.error}
+              </p>
+            )}
+            <div className="mkcfoot">
+              <RowAction r={r} />
+            </div>
           </div>
         ))}
       </div>
-      {!all && rows.length > PREVIEW && (
-        <button className="mkmore" type="button" onClick={() => setOpen(!open)}>
-          {open ? t("mk.seeLess") : t("mk.seeMore", { n: rows.length - PREVIEW })}
-        </button>
-      )}
     </section>
   );
 }
@@ -1046,7 +1160,6 @@ function InstalledView({ d, q, reload, reloadMarket, onApprove, onSignIn, onScop
   const teams = useStore((s) => s.teams);
   const [adding, setAdding] = useState(false);
   const [open, setOpen] = useState<string | null>(focus);
-  const [path, setPath] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
   const byServer = useMemo(() => {
     const m: Record<string, CatItem> = {};
@@ -1089,7 +1202,9 @@ function InstalledView({ d, q, reload, reloadMarket, onApprove, onSignIn, onScop
     <>
       <section className="mksec">
         <div className="mksh">
-          <h3>{t("mk2.instServices")}</h3>
+          <h3>
+            {t("mk2.instServices")} <span className="mkcount">{servers.length}</span>
+          </h3>
           <span className="sp" />
           {!adding && (
             <button className="btn sm" type="button" onClick={() => setAdding(true)}>
@@ -1126,8 +1241,14 @@ function InstalledView({ d, q, reload, reloadMarket, onApprove, onSignIn, onScop
                         {label}
                         <span className={"pill sm " + (reauth ? "amber" : MCP_TONE[st] ?? "")}>{stLabel(s)}</span>
                       </b>
-                      <span className="mono" title={s.transport === "http" ? s.url : (s.command ?? []).join(" ")}>
-                        {scopeLabel(s.scope)} · {t("ext.toolsN", { n: s.status?.tools ?? 0 })} · {s.transport === "http" ? s.url : (s.command ?? []).join(" ")}
+                      <span className="mkmeta">
+                        {scopeLabel(s.scope)} · {t("ext.toolsN", { n: s.status?.tools ?? 0 })}
+                        {it?.name ? "" : (
+                          <span className="mono" title={s.transport === "http" ? s.url : (s.command ?? []).join(" ")}>
+                            {" · "}
+                            {s.transport === "http" ? s.url : (s.command ?? []).join(" ")}
+                          </span>
+                        )}
                       </span>
                     </div>
                     {st === "login" && s.status.loginUrl && (
@@ -1189,7 +1310,9 @@ function InstalledView({ d, q, reload, reloadMarket, onApprove, onSignIn, onScop
 
       <section className="mksec">
         <div className="mksh">
-          <h3>{t("mk.instSkills")}</h3>
+          <h3>
+            {t("mk.instSkills")} <span className="mkcount">{skills.length}</span>
+          </h3>
         </div>
         {skills.length === 0 ? (
           <p className="small">{t("mk.noneSkills")}</p>
@@ -1231,7 +1354,9 @@ function InstalledView({ d, q, reload, reloadMarket, onApprove, onSignIn, onScop
 
       <section className="mksec">
         <div className="mksh">
-          <h3>{t("mk.instPlugins")}</h3>
+          <h3>
+            {t("mk.instPlugins")} <span className="mkcount">{plugins.length}</span>
+          </h3>
         </div>
         {plugins.length === 0 ? (
           <p className="small">{t("mk.nonePlugins")}</p>
@@ -1316,30 +1441,7 @@ function InstalledView({ d, q, reload, reloadMarket, onApprove, onSignIn, onScop
             })}
           </div>
         )}
-        <form
-          className="runbar mkpath"
-          onSubmit={(e) => {
-            e.preventDefault();
-            const src = path.trim();
-            if (!src) return;
-            void run(
-              "path",
-              async () => {
-                const v = await API.install({ source: src });
-                setPath("");
-                if (!v.approved) onApprove(v);
-              },
-              t("ext.installed", { name: src }),
-            );
-          }}
-        >
-          <input className="fi sm mono" value={path} placeholder={t("ext.pathPh")} aria-label={t("ext.fromPath")} onChange={(e) => setPath(e.target.value)} />
-          <button className="btn" type="submit" disabled={!path.trim() || busy === "path"}>
-            <FolderInput size={13} />
-            {t("ext.install")}
-          </button>
-        </form>
-        <p className="small">{t("ext.pathHint")}</p>
+        <p className="small mkhint">{t("mk3.useHero")}</p>
       </section>
       <PluginCards />
     </>

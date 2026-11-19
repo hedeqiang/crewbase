@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { Plus, RefreshCw, X } from "lucide-react";
 import { API, desktop, openExternal, type McpServer, type McpTool, type McpToolFilter, type Permissions, type PluginView } from "../../api";
 import { t, type Key } from "../../i18n";
-import { toast, useStore } from "../../store";
+import { toast } from "../../store";
 import { catLabel } from "../Settings";
 import { PanelView, SlotIcon, useSlot } from "../UISlots";
 
@@ -238,14 +238,12 @@ export function McpTools({ name, server, onProbed }: { name: string; server?: Mc
 }
 
 export function McpForm({ onCancel, onSaved }: { onCancel: () => void; onSaved: (s: McpServer) => void }) {
-  const agents = useStore((s) => s.agents);
-  const teams = useStore((s) => s.teams);
   const [name, setName] = useState("");
   const [transport, setTransport] = useState<"stdio" | "http">("stdio");
   const [command, setCommand] = useState("");
   const [url, setUrl] = useState("");
   const [env, setEnv] = useState<[string, string][]>([["", ""]]);
-  const [scope, setScope] = useState("global");
+  const scope = "global"; // per agent: the connector switches in each agent's settings
   const [trust, setTrust] = useState("sandboxed");
   const [oauth, setOauth] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -328,23 +326,6 @@ export function McpForm({ onCancel, onSaved }: { onCancel: () => void; onSaved: 
           </button>
           <div className="small">{t("ext.credHint")}</div>
         </div>
-        <label className="fl">{t("ext.scope")}</label>
-        <span className="ssel">
-          <select value={scope} onChange={(e) => setScope(e.target.value)}>
-            <option value="global">{t("ext.scopeGlobal")}</option>
-            {teams.length > 1 &&
-              teams.map((tm) => (
-                <option key={"team:" + tm.id} value={"team:" + tm.id}>
-                  {t("ext.scopeTeam", { name: tm.name })}
-                </option>
-              ))}
-            {Object.values(agents).filter((a) => a.kind !== "chat").map((a) => (
-              <option key={a.id} value={a.id}>
-                {t("ext.scopeAgent", { name: a.name })}
-              </option>
-            ))}
-          </select>
-        </span>
       </div>
       {err && <div className="ferr">{err}</div>}
       <div className="acts">

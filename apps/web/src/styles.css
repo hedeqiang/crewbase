@@ -2221,9 +2221,78 @@ a.lcard:hover, .lvideo .ltext:hover { background: var(--hover); }
 .pstrow { display: flex; align-items: center; gap: 10px; min-width: 0; }
 .pstname { width: 150px; flex: none; }
 .pstwhat { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.pstvar { display: grid; grid-template-columns: minmax(90px, 32%) minmax(0, 1fr) auto; align-items: center; gap: 8px; font-size: 12px; }
 .pstvar > .mono { overflow: hidden; text-overflow: ellipsis; }
 .pstvar.need > .mono { color: var(--amber-text); font-weight: 600; }
 .pstskill { align-items: flex-start; }
 .pstskill .pill { margin-left: 6px; }
 .tlseg { display: flex; width: 100%; } .tlseg button { flex: 1; }
+
+/* ---- 插件与技能 (2026-11 redesign) ---- */
+.segn { margin-left: 6px; font-size: 11px; font-weight: 600; color: var(--muted); font-variant-numeric: tabular-nums; }
+.mkhero { border: 1px solid var(--border); border-radius: 16px; padding: 18px 20px 14px; margin: 0 0 22px;
+  background: linear-gradient(135deg, color-mix(in srgb, var(--accent) 6%, var(--surface)), var(--surface) 60%); }
+.mkherot { display: flex; gap: 12px; align-items: flex-start; }
+.mkherot > svg { flex: none; color: var(--accent-text); margin-top: 1px; }
+.mkherot > div { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.mkherot b { font-size: 14.5px; font-weight: 600; }
+.mkherot span { font-size: 12.5px; color: var(--text2); line-height: 1.55; }
+.mkheroin { display: flex; gap: 8px; margin-top: 14px; }
+.mkheroin .fi { flex: 1; min-width: 0; height: 38px; font-size: 13px; background: var(--surface); }
+.mkheroin .btn { height: 38px; padding: 0 18px; }
+.mkherofmt { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.mkherofmt span { font-size: 11.5px; color: var(--muted); padding: 2px 8px; border-radius: 999px; background: var(--sunken); }
+.mkkinds { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin: 0 0 18px; }
+.mkkind { height: 30px; padding: 0 12px; border-radius: 999px; border: 1px solid var(--border2); font-size: 12.5px; color: var(--text2); display: inline-flex; align-items: center; gap: 6px; background: var(--surface); }
+.mkkind span { font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.mkkind:hover { background: var(--hover); color: var(--text); }
+.mkkind.on { background: var(--text); border-color: var(--text); color: var(--surface); }
+.mkkind.on span { color: color-mix(in srgb, var(--surface) 70%, transparent); }
+.mkkinds .mkto { margin: 0 0 0 auto; }
+.mkst2 { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; margin: 0 0 10px; }
+.mkst2 h3 { font-size: 13.5px; }
+.mkst2 .small { margin: 0; }
+.mkcards { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px; }
+.mkcard { border: 1px solid var(--border); border-radius: 14px; background: var(--surface); padding: 14px 14px 12px; display: flex; flex-direction: column; gap: 8px; min-width: 0;
+  transition: border-color .15s, box-shadow .15s; }
+.mkcard:hover { border-color: var(--border2); box-shadow: 0 2px 12px rgba(20, 20, 20, .06); }
+.mkctop { display: flex; align-items: center; gap: 11px; min-width: 0; }
+.mkctop > .g { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 4px; }
+.mkctop > .g > b { font-size: 13.5px; font-weight: 600; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mkctop .ix { flex: none; align-self: flex-start; }
+.mkctop .mkic, .mkctop .pmark.mono-tile { width: 38px !important; height: 38px !important; }
+.mkbadge { font-size: 10.5px; font-weight: 500; line-height: 18px; padding: 0 7px; border-radius: 999px; background: var(--sunken); color: var(--text2); white-space: nowrap; }
+.mkbadge.free { background: var(--ok-soft); color: var(--ok-text); }
+.mkbadge.login { background: var(--accent-soft); color: var(--accent-text); }
+.mkbadge.token { background: var(--amber-soft); color: var(--amber-text); }
+.mkcdesc { margin: 0; flex: 1; font-size: 12.5px; line-height: 1.55; color: var(--muted); display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; min-height: 2.9em; }
+.mkcerr { margin: 0; font-size: 12px; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
+.mkcfoot { display: flex; justify-content: flex-end; align-items: center; min-height: 30px; }
+.mkcfoot .mkconn { min-width: 72px; }
+.mkcard.done { background: color-mix(in srgb, var(--ok) 3%, var(--surface)); }
+@container (max-width: 560px) {
+  .mkheroin { flex-direction: column; }
+  .mkcards { grid-template-columns: 1fr; }
+}
+.mkkinds .sp { flex: 1; }
+.search.mksearch.inline { margin: 0; height: 32px; width: 240px; max-width: 100%; border-radius: 999px; background: var(--surface); border: 1px solid var(--border2); }
+.search.mksearch.inline input { font-size: 12.5px; }
+.mkctop > .g:only-child, .mkctop > .g:not(:has(.mkbadge)) { justify-content: center; min-height: 38px; }
+@container (max-width: 560px) { .search.mksearch.inline { width: 100%; } }
+.mkcount { font-size: 12px; font-weight: 500; color: var(--muted); margin-left: 4px; font-variant-numeric: tabular-nums; }
+.mkrow > .g > span.mkmeta { font-size: 12px; }
+.mkrow > .g > span.mkmeta .mono { font-size: 11.5px; }
+.mkhint { margin: 10px 0 0; color: var(--muted); }
+.pstsrc { display: flex; align-items: center; gap: 8px; min-width: 0; padding: 8px 10px; border-radius: 10px; background: var(--sunken); }
+.pstsrc code { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11.5px; color: var(--text2); }
+.pstsrc .linkbtn { flex: none; }
+.pstrow .pmark.mono-tile { border-radius: 9px; flex: none; }
+.pstsrv { gap: 10px; padding: 12px; }
+.pstvar { display: flex; flex-direction: column; align-items: stretch; gap: 5px; }
+.pstvk { display: flex; align-items: center; gap: 8px; min-width: 0; font-size: 11.5px; }
+.pstvk > .mono { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text2); }
+.pstvar.need .pstvk > .mono { color: var(--amber-text); font-weight: 600; }
+.pstvault { flex: none; display: inline-flex; align-items: center; gap: 3px; color: var(--muted); margin-left: auto; }
+.pstvar .fi { width: 100%; box-sizing: border-box; }
+.pstneed { margin-right: auto; color: var(--amber-text); }
+.pstscope { margin: 2px 0 0; }
+@container (max-width: 560px) { .mkcdesc { min-height: 0; } .mkcard { gap: 6px; } }
