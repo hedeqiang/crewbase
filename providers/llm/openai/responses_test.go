@@ -146,3 +146,42 @@ func join(xs []string) string {
 	}
 	return out
 }
+
+// Some gateways send the reasoning summary only inside the finished item,
+// never as deltas: it is shown as soon as that item arrives, once.
+func TestResponsesWholeSummary(t *testing.T) {
+	var cap captured
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		cap.set(r)
+		sse(w,
+			`{"type":"response.created","sequence_number":0,"response":{"id":"r","status":"in_progress","output":[]}}`,
+			`{"type":"response.output_item.done","sequence_number":1,"output_index":0,"item":{"type":"reasoning","id":"rs","summary":[{"type":"summary_text","text":"**Plan**"},{"type":"summary_text","text":"Count legs."}],"encrypted_content":"E"}}`,
+			`{"type":"response.output_text.delta","sequence_number":2,"item_id":"m","output_index":1,"content_index":0,"delta":"23 and 12."}`,
+			`{"type":"response.completed","sequence_number":3,"response":{"id":"r","status":"completed","output":[`+
+				`{"type":"reasoning","id":"rs","summary":[{"type":"summary_text","text":"**Plan**"},{"type":"summary_text","text":"Count legs."}],"encrypted_content":"E"},`+
+				`{"type":"message","id":"m","role":"assistant","status":"completed","content":[{"type":"output_text","text":"23 and 12.","annotations":[]}]}`+
+				`],"usage":{"input_tokens":10,"output_tokens":5,"total_tokens":15}}}`)
+	}))
+	defer srv.Close()
+	a := newAdapter(t, srv.URL, func(pc *ProviderConfig) { pc.Responses = ResponsesAlways; pc.EffortStyle = "openai" })
+	var thinking []string
+	resp, err := a.Stream(context.Background(), llm.Request{Model: "gpt-6.2-sol", Effort: "high", Messages: []llm.Message{llm.TextMessage(llm.RoleUser, "q")}},
+		func(c llm.Chunk) error {
+			if c.Type == "thinking" {
+				thinking = append(thinking, c.Text)
+			}
+			return nil
+		})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r := cap.body["reasoning"].(map[string]any); r["summary"] != "detailed" {
+		t.Fatalf("asked for %v", r)
+	}
+	if len(thinking) != 1 || thinking[0] != "**Plan**\n\nCount legs." {
+		t.Fatalf("live thinking %q", thinking)
+	}
+	if resp.Message.Parts[0].Type != "thinking" || resp.Message.Parts[0].Text != "**Plan**\n\nCount legs." {
+		t.Fatalf("saved thinking %+v", resp.Message.Parts[0])
+	}
+}

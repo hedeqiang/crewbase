@@ -100,7 +100,10 @@ func (a *Adapter) responsesBody(req llm.Request) map[string]any {
 			r["effort"] = e
 		}
 		if r["effort"] != "none" {
-			r["summary"] = "auto"
+			// "detailed": with "auto" GPT-6.x (seen through magpie, 2026-11)
+			// returns its reasoning with an empty summary, so nothing of the
+			// model's thinking could be shown
+			r["summary"] = "detailed"
 		}
 		body["reasoning"] = r
 	}
@@ -413,7 +416,22 @@ func (a *Adapter) streamResponses(ctx context.Context, req llm.Request, onChunk 
 			}
 			items = append(items, ev.Item)
 			var it rItem
-			if json.Unmarshal(ev.Item, &it) == nil && it.Type == "function_call" && it.CallID != "" {
+			// a summary that came whole, not streamed (some gateways): show it now
+			if json.Unmarshal(ev.Item, &it) == nil && it.Type == "reasoning" && !thinking {
+				var parts []string
+				for _, x := range it.Summary {
+					if x.Text != "" {
+						parts = append(parts, x.Text)
+					}
+				}
+				if len(parts) > 0 {
+					thinking = true
+					if err := onChunk(llm.Chunk{Type: "thinking", Text: strings.Join(parts, "\n\n")}); err != nil {
+						return llm.Response{}, err
+					}
+				}
+			}
+			if it.Type == "function_call" && it.CallID != "" {
 				if err := emitCall(&llm.ToolCall{ID: it.CallID, Name: it.Name, Args: normalizeArgs(it.args())}); err != nil {
 					return llm.Response{}, err
 				}

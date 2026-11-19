@@ -186,7 +186,7 @@ func TestResponsesToolTurn(t *testing.T) {
 	if b["model"] != "openai/gpt-6.1-sol" || b["store"] != false || b["instructions"] != "You are Iris." || b["max_output_tokens"] != 4096.0 || b["stream"] != true {
 		t.Fatalf("body %v", b)
 	}
-	if r := b["reasoning"].(map[string]any); r["effort"] != "xhigh" || r["summary"] != "auto" {
+	if r := b["reasoning"].(map[string]any); r["effort"] != "xhigh" || r["summary"] != "detailed" {
 		t.Fatalf("reasoning %v", r)
 	}
 	if inc := b["include"].([]any); len(inc) != 1 || inc[0] != "reasoning.encrypted_content" {
