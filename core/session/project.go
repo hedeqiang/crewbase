@@ -243,7 +243,7 @@ func DeriveMessages(events []Event, agent string, names map[string]string) []llm
 						others = append(others, name(id))
 					}
 				}
-				text = "[also sent to " + strings.Join(others, ", ") + ", who will each do their own part: do only the part addressed to you, do not delegate or answer theirs]\n" + text
+				text = "[also sent to " + strings.Join(others, ", ") + ", who will each do their own part: do only the part addressed to you, do not delegate or answer theirs, and just answer without remarking on this split]\n" + text
 			}
 			if stopped[e.Seq] {
 				text += "\n" + StoppedNote
