@@ -65,7 +65,7 @@ var BriefPlugin = kernel.Register(kernel.Spec{
 		// answers as that agent rather than as a blank one
 		agentloop.Request.Use(c, func(ctx context.Context, x agentloop.RequestArgs, next kernel.Next[agentloop.RequestArgs, *llm.Request]) (*llm.Request, error) {
 			if x.Agent != nil && writing.has(x.Agent.ID()) {
-				writing.wait(ctx, x.Agent.ID(), 25*time.Second)
+				writing.wait(ctx, x.Agent.ID(), 40*time.Second)
 				// the prompt was built before the brief landed: rebuild it
 				if x.Request != nil {
 					x.Request.System = agentloop.System(kernel.Use[*coreprompt.Assembler](c, coreprompt.ServiceKey), x.Agent)
@@ -154,7 +154,9 @@ func briefWith(ctx context.Context, ad llm.Adapter, ref llm.ModelRef, a *agent.A
 	if s.Role != "" {
 		ask += "\nRole tag: " + s.Role
 	}
-	tctx, cancel := context.WithTimeout(ctx, 60*time.Second)
+	// short: a stuck model should hand over to the next soon, not hold the
+	// first turn (which waits up to 40 s for the brief)
+	tctx, cancel := context.WithTimeout(ctx, 25*time.Second)
 	defer cancel()
 	resp, err := ad.Stream(tctx, llm.Request{Model: ref.Model, Effort: "minimal", MaxTokens: 600, System: briefPrompt,
 		Messages: []llm.Message{llm.TextMessage(llm.RoleUser, ask)}}, func(llm.Chunk) error { return nil })

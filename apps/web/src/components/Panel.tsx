@@ -615,6 +615,10 @@ function AgentTab({ agent, sessionId }: { agent: AgentView; sessionId: string })
       ) : (
         <div className="psec">{t("panel.role")}</div>
       )}
+      {agent.kind !== "chat" && <Brief agent={agent} />}
+      <div className="psec" hidden={agent.kind === "chat"}>
+        {t("panel.roleTag")} <span style={{ fontWeight: 400 }}>{t("panel.roleTagHint")}</span>
+      </div>
       <input hidden={agent.kind === "chat"} className="fi sm" value={role} placeholder={t("panel.rolePh")} onChange={(e) => setRole(e.target.value)} onBlur={saveRole} onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()} />
 
       <div className="psec">
@@ -788,5 +792,55 @@ function AgentTab({ agent, sessionId }: { agent: AgentView; sessionId: string })
         </button>
       </div>
     </>
+  );
+}
+
+/** The instructions the agent works from: written from its name by a model
+ *  right after creation, so while INSTRUCTIONS.md is still the placeholder
+ *  the panel says so and checks again every few seconds. */
+function Brief({ agent }: { agent: AgentView }) {
+  const [text, setText] = useState<string | null>(null);
+  const [open, setOpen] = useState(false);
+  const placeholder = "# " + agent.name + "\n\n" + (agent.role ?? "") + "\n";
+  useEffect(() => {
+    let live = true;
+    let timer = 0;
+    let tries = 0;
+    const load = () =>
+      API.file(agent.id, "INSTRUCTIONS.md")
+        .then((f) => {
+          if (!live) return;
+          const c = f.content ?? "";
+          setText(c);
+          // still the placeholder: the brief is being written (each model gets 25 s)
+          if (c === placeholder && tries++ < 60) timer = window.setTimeout(load, 3000);
+        })
+        .catch(() => live && setText(""));
+    void load();
+    return () => {
+      live = false;
+      clearTimeout(timer);
+    };
+  }, [agent.id, placeholder]);
+  if (text === null) return null;
+  const pending = text === placeholder;
+  const body = text.replace(/^# .*\n+/, "").trim();
+  return (
+    <div className="pbrief">
+      {pending ? (
+        <div className="small pbrief-wait">
+          <span className="spin sm" /> {t("panel.briefWriting")}
+        </div>
+      ) : body ? (
+        <div className={"pbrief-body" + (open ? " open" : "")} onClick={() => setOpen(!open)} title={open ? undefined : t("panel.briefMore")}>
+          {body}
+        </div>
+      ) : (
+        <div className="small">{t("panel.briefEmpty")}</div>
+      )}
+      <button className="linkbtn" type="button" onClick={() => setState({ panelTab: "files", fileOpen: "INSTRUCTIONS.md" })}>
+        {t("panel.briefEdit")}
+      </button>
+    </div>
   );
 }
