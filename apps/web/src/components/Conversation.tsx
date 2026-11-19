@@ -612,7 +612,7 @@ function Feed({
           </button>
         </div>
       )}
-      {!loading && !channel && agent.kind === "chat" && hidden === 0 && <ChatOpening agent={agent} session={sessionId} fresh={items.length === 0} />}
+      {!loading && !channel && agent.kind === "chat" && hidden === 0 && <ChatOpening agent={agent} />}
       {!loading && items.length === 0 && !channel && agent.kind !== "chat" && (
         <div className="feedintro">
           <Avatar agent={agent} size={56} />
@@ -2368,18 +2368,8 @@ export function Starters({ agent, items, session }: { agent: AgentView; items: s
   );
 }
 
-const CHAT_STARTERS = 10;
-
-/** A new chat's opening: a fixed greeting (no model call) and three
- *  example questions, picked by the conversation id so they stay put. */
-function ChatOpening({ agent, session, fresh }: { agent: AgentView; session: string; fresh: boolean }) {
-  let h = 0;
-  for (const ch of session) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
-  const picks: string[] = [];
-  for (let i = 0; picks.length < 3 && i < CHAT_STARTERS * 2; i++) {
-    const k = t(`chat.starter${((h + i * 7) % CHAT_STARTERS) + 1}` as Key);
-    if (!picks.includes(k)) picks.push(k);
-  }
+/** A new chat's opening: a fixed greeting, no model call. */
+function ChatOpening({ agent }: { agent: AgentView }) {
   return (
     <div className="m-agent turn opening">
       <Avatar agent={agent} size={28} />
@@ -2389,9 +2379,7 @@ function ChatOpening({ agent, session, fresh }: { agent: AgentView; session: str
         </div>
         <div className="mt">
           <p>{t("chat.opening")}</p>
-          {fresh && <p className="small muted">{t("chat.openingNote")}</p>}
         </div>
-        {fresh && <Starters agent={agent} items={picks} session={session} />}
       </div>
     </div>
   );
