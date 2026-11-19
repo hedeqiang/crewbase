@@ -702,7 +702,7 @@ const zh = {
   "chat.working": "{name} 正在工作…",
   "chat.plainEmpty": "和模型直接聊",
   "chat.plainEmptyDesc": "这里没有角色和工具，不会读写文件或运行命令。需要它动手做事，就新建一个 Agent。",
-  "chat.opening": "你好！想聊点什么？问问题、写东西、翻译、理思路、出主意都可以。",
+  "chat.opening": "你好！有什么我可以帮你的吗？",
   "chat.empty": "这是你和 {name} 的对话开始",
   "chat.emptyDesc": "发一条消息开始。",
   "chat.emptyInDir": "在 {dir} 里工作。发一条消息开始。",

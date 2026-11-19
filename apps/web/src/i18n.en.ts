@@ -986,7 +986,7 @@ export const en: Partial<Record<Key, string>> = {
   "chat.compacted": "Context compacted · {before} → {after} tokens",
   "chat.plainEmpty": "Talk to the model directly",
   "chat.plainEmptyDesc": "No role or tools here: it won't read or write files or run commands. Create an agent when you want it to do the work.",
-  "chat.opening": "Hi! What would you like to talk about? Questions, writing, translation, thinking something through, ideas: all fine.",
+  "chat.opening": "Hi! How can I help you?",
   "chat.empty": "This is the start of your chat with {name}",
   "chat.emptyDesc": "Send a message to start.",
   "chat.emptyInDir": "Works in {dir}. Send a message to start.",
