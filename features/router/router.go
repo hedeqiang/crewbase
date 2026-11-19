@@ -33,7 +33,16 @@ type ModelState struct {
 	Model  string    `json:"model"`
 	Until  time.Time `json:"until"`
 	Reason string    `json:"reason"`
+	// Strikes counts back-to-back failures of a kind without its own reset
+	// time (timeouts, 5xx): each one backs the model off longer.
+	Strikes int `json:"strikes,omitempty"`
 }
+
+// strikeSteps: how long a model that keeps failing for no stated reason is
+// skipped, by how many times in a row it failed; a quiet half hour forgives.
+var strikeSteps = []time.Duration{30 * time.Second, 2 * time.Minute, 10 * time.Minute, 30 * time.Minute}
+
+const strikeForget = 30 * time.Minute
 
 // Router implements agentloop.Router.
 type Router struct {
@@ -105,15 +114,35 @@ func backoff(err error, now time.Time) (time.Time, string) {
 	case llm.ErrAuth, llm.ErrModelNotFound:
 		return now.Add(10 * time.Minute), string(kind)
 	default:
-		return now.Add(30 * time.Second), string(kind)
+		return now.Add(strikeSteps[0]), string(kind)
 	}
+}
+
+// strikesFor: the back-off for an unexplained failure, longer when the model
+// failed again soon after its last back-off ended.
+func strikesFor(prev ModelState, had bool, until time.Time, now time.Time) (time.Time, int) {
+	n := 1
+	if had && prev.Strikes > 0 && now.Sub(prev.Until) < strikeForget {
+		n = prev.Strikes + 1
+	}
+	step := strikeSteps[min(n, len(strikeSteps))-1]
+	if t := now.Add(step); t.After(until) {
+		until = t
+	}
+	return until, n
 }
 
 // Failover marks ref exhausted and picks the next model.
 func (r *Router) Failover(ctx context.Context, a *agent.Agent, ref llm.ModelRef, cause error) (llm.ModelRef, bool) {
-	until, reason := backoff(cause, r.now())
+	now := r.now()
+	until, reason := backoff(cause, now)
 	r.mu.Lock()
-	r.exhausted[ref.String()] = ModelState{Model: ref.String(), Until: until, Reason: reason}
+	st := ModelState{Model: ref.String(), Until: until, Reason: reason}
+	if !knownReset(cause) {
+		prev, had := r.exhausted[ref.String()]
+		st.Until, st.Strikes = strikesFor(prev, had, until, now)
+	}
+	r.exhausted[ref.String()] = st
 	r.mu.Unlock()
 	next, ok := QuotaExhausted.Run(kernel.For(r.c, a.ID()), ctx, Exhausted{Agent: a, Failed: ref, Cause: cause})
 	if ok {
@@ -122,6 +151,16 @@ func (r *Router) Failover(ctx context.Context, a *agent.Agent, ref llm.ModelRef,
 		r.mu.Unlock()
 	}
 	return next, ok
+}
+
+// knownReset: failures whose back-off comes from what the provider said
+// (quota reset, Retry-After) or from the kind itself, not from strikes.
+func knownReset(err error) bool {
+	switch llm.KindOf(err) {
+	case llm.ErrQuotaExhausted, llm.ErrRateLimited, llm.ErrModelUnavailable, llm.ErrAuth, llm.ErrModelNotFound:
+		return true
+	}
+	return false
 }
 
 func (r *Router) nextInOrder(a *agent.Agent, failed llm.ModelRef) (llm.ModelRef, bool) {

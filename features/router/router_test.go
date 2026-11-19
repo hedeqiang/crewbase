@@ -233,3 +233,54 @@ func TestModelUnavailableOnAccountKeptAside(t *testing.T) {
 		t.Fatalf("unavailable model back too soon: %v", sel)
 	}
 }
+
+func TestRepeatedTimeoutsBackOffLonger(t *testing.T) {
+	h := kernel.NewHost(nil)
+	t.Cleanup(h.Close)
+	root := t.TempDir()
+	for _, x := range []struct {
+		s   kernel.Spec
+		cfg map[string]any
+	}{
+		{session.Plugin, nil}, {prompt.Plugin, nil}, {tools.Plugin, nil},
+		{llm.Plugin, nil}, {mock.Plugin, map[string]any{"ids": []string{"slow", "ollama"}}},
+		{agent.Plugin, map[string]any{"root": root, "defaultModels": []string{"slow/default", "ollama/default"}}},
+	} {
+		h.Load(x.s, kernel.LoadOptions{Config: x.cfg})
+	}
+	r := h.Root()
+	now := time.Date(2026, 11, 19, 10, 0, 0, 0, time.UTC)
+	rt := router.New(r, kernel.Use[*llm.Registry](r, llm.ServiceKey), func() time.Time { return now })
+	router.QuotaExhausted.Listen(r, func(_ context.Context, e router.Exhausted) (llm.ModelRef, bool) {
+		return llm.ModelRef{Provider: "ollama", Model: "default"}, true
+	})
+	a, _ := kernel.Use[*agent.Registry](r, agent.ServiceKey).Create(agent.Spec{Name: "Iris"})
+	slow := llm.ModelRef{Provider: "slow", Model: "default"}
+	cause := &llm.Error{Kind: llm.ErrUnavailable, Provider: "slow", Message: "context deadline exceeded"}
+	fail := func() time.Duration {
+		rt.Failover(context.Background(), a, slow, cause)
+		for _, s := range rt.States() {
+			if s.Model == slow.String() {
+				return s.Until.Sub(now)
+			}
+		}
+		t.Fatal("no state")
+		return 0
+	}
+	// each failure right after the back-off ended doubles down: 30s, 2m, 10m, 30m, 30m
+	want := []time.Duration{30 * time.Second, 2 * time.Minute, 10 * time.Minute, 30 * time.Minute, 30 * time.Minute}
+	for i, w := range want {
+		if got := fail(); got != w {
+			t.Fatalf("failure %d: backed off %v, want %v", i+1, got, w)
+		}
+		now = now.Add(w + time.Second)
+		if sel, _ := rt.Select(a); sel.Provider != "slow" {
+			t.Fatalf("after its back-off the first model is tried again, got %v", sel)
+		}
+	}
+	// a quiet half hour forgives
+	now = now.Add(31 * time.Minute)
+	if got := fail(); got != 30*time.Second {
+		t.Fatalf("after a quiet spell: %v, want 30s", got)
+	}
+}
