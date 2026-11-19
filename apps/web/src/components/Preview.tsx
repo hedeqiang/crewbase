@@ -322,9 +322,16 @@ export function localLinks(text: string): string[] {
   return out;
 }
 
-/** 在右侧预览 cards for the localhost links of an answer. */
-export function LocalPreviewCards({ text }: { text: string }) {
-  const links = useMemo(() => localLinks(text), [text]);
+// one address however it is written: 127.0.0.1:5173 and localhost:5173/
+const norm = (u: string) => u.replace("//localhost", "//127.0.0.1").replace("//0.0.0.0", "//127.0.0.1").replace(/\/+$/, "");
+
+/** 在右侧预览 cards for the localhost links of an answer (opened: ones the
+ *  turn already showed with preview_open). */
+export function LocalPreviewCards({ text, opened }: { text: string; opened?: string[] }) {
+  const links = useMemo(() => {
+    const seen = new Set((opened ?? []).map(norm));
+    return localLinks(text).filter((u) => !seen.has(norm(u)));
+  }, [text, opened?.join(" ")]);
   if (!links.length) return null;
   return (
     <div className="prvcards">

@@ -864,7 +864,7 @@ const REASONS: Record<string, true> = {
   "chat.reason.model_not_found": true,
 };
 
-function AgentMsg({ it, agent, showModel, bare }: { it: AgentItem; agent?: AgentView; showModel: boolean; bare?: boolean }) {
+function AgentMsg({ it, agent, showModel, bare, opened }: { it: AgentItem; agent?: AgentView; showModel: boolean; bare?: boolean; opened?: string[] }) {
   const models = useStore((s) => s.models);
   const [showThink, setShowThink] = useState(false);
   const [reading, setReading] = useState(false);
@@ -905,7 +905,7 @@ function AgentMsg({ it, agent, showModel, bare }: { it: AgentItem; agent?: Agent
             <Markdown text={it.text} />
           </div>
         )}
-        {it.text && <LocalPreviewCards text={it.text} />}
+        {it.text && <LocalPreviewCards text={it.text} opened={opened} />}
         {it.refusal && (
           <div className="refusal">
             <Info size={14} />
@@ -991,6 +991,8 @@ function TurnMsg({ it, agent }: { it: Extract<FeedItem, { k: "turn" }>; agent?: 
   const working = it.open && agent?.status === "running" && !waiting && !stepRunning && !live?.text;
   const [showThink, setShowThink] = useState(false);
   const msgs = it.parts.filter((p): p is Extract<TurnPart, { k: "msg" }> => p.k === "msg");
+  // previews this turn already opened: no 在右侧预览 card again for them
+  const opened = it.parts.flatMap((p) => (p.k === "preview" ? [p.p.url] : []));
   const last = lastMsg(it);
   const thoughts = msgs.map((p) => p.it.thinking).filter(Boolean);
   const answer = msgs.find((p) => !p.narration && p.it.stats)?.it;
@@ -1048,7 +1050,7 @@ function TurnMsg({ it, agent }: { it: Extract<FeedItem, { k: "turn" }>; agent?: 
               </div>
             ) : null
           ) : (
-            <AgentMsg key={p.it.id} it={p.it} agent={agent} showModel={false} bare />
+            <AgentMsg key={p.it.id} it={p.it} agent={agent} showModel={false} bare opened={opened} />
           ),
         )}
         {working && !live?.thinking && (
