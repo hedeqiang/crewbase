@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent, type ReactNode } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import {
   BadgeCheck, Bug, CalendarDays, Check, ClipboardPaste, Copy, ExternalLink, GitCommitHorizontal, Globe, ListChecks, LogIn, Megaphone,
@@ -20,7 +20,6 @@ import { ApproveDialog, errMsg, MCP_TONE, McpForm, McpTools, PluginCards, settle
 import github from "@lobehub/icons-static-svg/icons/github.svg?raw";
 import notion from "@lobehub/icons-static-svg/icons/notion.svg?raw";
 import cloudflare from "@lobehub/icons-static-svg/icons/cloudflare-color.svg?raw";
-import figma from "@lobehub/icons-static-svg/icons/figma-color.svg?raw";
 import huggingface from "@lobehub/icons-static-svg/icons/huggingface-color.svg?raw";
 import devin from "@lobehub/icons-static-svg/icons/devin-color.svg?raw";
 import exa from "@lobehub/icons-static-svg/icons/exa-color.svg?raw";
@@ -31,15 +30,19 @@ import linear from "../../assets/brands/linear.svg?raw";
 import stripe from "../../assets/brands/stripe.svg?raw";
 import atlassian from "../../assets/brands/atlassian.svg?raw";
 import canva from "../../assets/brands/canva.svg?raw";
+import chrome from "../../assets/brands/chrome.svg?raw";
+import supabase from "../../assets/brands/supabase.svg?raw";
+import firecrawl from "@lobehub/icons-static-svg/icons/firecrawl-color.svg?raw";
 import { confirmDialog } from "../Confirm";
 
 /** A mark and how it sits in the 40px tile: "tile" = the mark is its own
  *  rounded square and fills the tile; "wide" = a wordmark. */
 const BRAND: Record<string, { svg: string; fit?: "tile" | "wide" }> = {
   github: { svg: github }, notion: { svg: notion }, cloudflare: { svg: cloudflare },
-  figma: { svg: figma }, huggingface: { svg: huggingface }, devin: { svg: devin }, exa: { svg: exa }, mcp: { svg: mcp },
+  huggingface: { svg: huggingface }, devin: { svg: devin }, exa: { svg: exa }, mcp: { svg: mcp },
   context7: { svg: context7, fit: "tile" }, stripe: { svg: stripe, fit: "tile" }, sentry: { svg: sentry },
   linear: { svg: linear }, atlassian: { svg: atlassian }, canva: { svg: canva, fit: "wide" },
+  chrome: { svg: chrome }, supabase: { svg: supabase }, firecrawl: { svg: firecrawl },
 };
 const SKILL_ICONS: Record<string, ReactNode> = {
   "search-code": <SearchCode size={19} />, "git-commit": <GitCommitHorizontal size={19} />, bug: <Bug size={19} />,
@@ -71,7 +74,8 @@ interface CatItem {
   scope?: string;
 }
 interface CatCategory { id: string; title: Text; desc: Text }
-interface Catalog { categories: CatCategory[]; items: CatItem[] }
+interface SkillLibrary { id: string; name: string; repo: string; author: string; desc: Text; picks?: string[] }
+interface Catalog { categories: CatCategory[]; items: CatItem[]; libraries?: SkillLibrary[] }
 interface SkillView { name: string; description: string; dir: string; source: string; agent?: string }
 /** A built-in device sign-in (GitHub). */
 interface SignInView {
@@ -150,7 +154,7 @@ export function Extensions() {
   const [q, setQ] = useState("");
   const [d, setD] = useState<Data>({ catalog: null, servers: null, skills: null, plugins: null, market: null, marketErr: null });
   const [approve, setApprove] = useState<PluginView | null>(null);
-  const [paste, setPaste] = useState<string | null>(null);
+  const [paste, setPaste] = useState<{ text: string; picks?: string[] } | null>(null);
   const [focus, setFocus] = useState<string | null>(null); // server to open in Installed
   const [gh, setGh] = useState<CatItem | null>(null); // GitHub sign-in dialog
   const [scopeOf, setScopeOf] = useState<McpServer | null>(null);
@@ -219,7 +223,7 @@ export function Extensions() {
       setView("installed");
     },
     focus,
-    onPaste: (text) => setPaste(text),
+    onPaste: (text, picks) => setPaste({ text, picks }),
     search: null,
   };
   const search = (
@@ -275,7 +279,8 @@ export function Extensions() {
       )}
       {paste !== null && (
         <PasteInstall
-          initial={paste}
+          initial={paste.text}
+          picks={paste.picks}
           onClose={() => setPaste(null)}
           onDone={() => {
             reload();
@@ -292,7 +297,7 @@ export function Extensions() {
 }
 
 interface Shared {
-  onPaste: (text: string) => void;
+  onPaste: (text: string, picks?: string[]) => void;
   /** the search box, placed by the view */
   search: ReactNode;
   d: Data;
@@ -509,6 +514,7 @@ function MarketView({ d, q, reload, reloadMarket, onApprove, onSignIn, onManage,
         onAct: () => void addPlugin(m),
       })),
   });
+  const libs = (d.catalog.libraries ?? []).filter((l) => matches(q, l.name, l.author, l.desc.zh, l.desc.en));
   const count = (k: Sec["kind"]) => sections.filter((x) => x.kind === k).reduce((a, x) => a + x.rows.length, 0);
   const shown = sections.filter((x) => x.rows.length > 0 && (kind === "all" || x.kind === kind));
   const kinds = [
@@ -543,10 +549,51 @@ function MarketView({ d, q, reload, reloadMarket, onApprove, onSignIn, onManage,
       </div>
       {shown.length === 0 && <div className="empty">{t("mk.noResults", { q })}</div>}
       {shown.map((x) => (
-        <Section key={x.id} title={x.title} desc={x.desc} rows={x.rows} />
+        <Fragment key={x.id}>
+          <Section title={x.title} desc={x.desc} rows={x.rows} />
+          {x.kind === "skill" && libs.length > 0 && <Libraries libs={libs} onOpen={(l) => onPaste(l.repo, l.picks)} />}
+        </Fragment>
       ))}
+      {kind === "skill" && !shown.some((x) => x.kind === "skill") && libs.length > 0 && <Libraries libs={libs} onOpen={(l) => onPaste(l.repo, l.picks)} />}
       {dialog && <ConnectDialog item={dialog} target={target} servers={servers} onClose={() => setDialog(null)} onChanged={reload} onSignIn={onSignIn} />}
     </>
+  );
+}
+
+/** 热门技能库: popular GitHub repositories of skills; opening one lists its
+ *  skills in the install dialog, the suggested ones ticked. */
+function Libraries({ libs, onOpen }: { libs: SkillLibrary[]; onOpen: (l: SkillLibrary) => void }) {
+  return (
+    <section className="mksec">
+      <div className="mkst2">
+        <h3>{t("mk3.libs")}</h3>
+        <span className="small">{t("mk3.libsDesc")}</span>
+      </div>
+      <div className="mkcards">
+        {libs.map((l) => (
+          <div className="mkcard" key={l.id}>
+            <div className="mkctop">
+              <img className="mkav" src={`https://github.com/${l.author}.png?size=80`} alt="" loading="lazy" referrerPolicy="no-referrer" />
+              <div className="g">
+                <b title={l.name}>{l.name}</b>
+                <span className="mkbadge">{t("mk3.libBy", { author: l.author })}</span>
+              </div>
+              <a className="ix" href={l.repo} target="_blank" rel="noreferrer noopener" title={l.repo} aria-label={l.repo}>
+                <ExternalLink size={13} />
+              </a>
+            </div>
+            <p className="mkcdesc" title={tx(l.desc)}>
+              {tx(l.desc)}
+            </p>
+            <div className="mkcfoot">
+              <button className="btn sm mkconn" type="button" onClick={() => onOpen(l)}>
+                {t("mk3.libPick")}
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
+    </section>
   );
 }
 

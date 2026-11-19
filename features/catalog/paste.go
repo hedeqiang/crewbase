@@ -35,6 +35,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -120,7 +121,14 @@ var ErrNotRecognized = errors.New("not recognized")
 var (
 	githubWeb   = "https://github.com"
 	npmRegistry = "https://registry.npmjs.org"
-	pasteClient = &http.Client{Timeout: 30 * time.Second}
+	// a skill library is a whole repository download (several MB): the
+	// connection must answer quickly, the body may take a while
+	pasteClient = &http.Client{Timeout: 3 * time.Minute, Transport: &http.Transport{
+		Proxy:                 http.ProxyFromEnvironment,
+		DialContext:           (&net.Dialer{Timeout: 30 * time.Second}).DialContext,
+		TLSHandshakeTimeout:   30 * time.Second,
+		ResponseHeaderTimeout: 30 * time.Second,
+	}}
 )
 
 // Limits on what is downloaded to look at a source.
@@ -485,7 +493,9 @@ const pluginManifest = "crewbase-plugin.toml"
 // fetchArchive downloads a .tar.gz and returns the files under dir of its
 // single top-level folder (paths relative to dir). With headOnly only the
 // files a detector looks at are kept: SKILL.md and plugin manifests.
-func fetchArchive(ctx context.Context, src, dir string, headOnly bool) (map[string][]byte, error) {
+// Otherwise only the files in the folders keep names ("" = all of dir),
+// and each of those folders is held to a skill's size.
+func fetchArchive(ctx context.Context, src, dir string, headOnly bool, keep ...string) (map[string][]byte, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, src, nil)
 	if err != nil {
 		return nil, err
@@ -507,8 +517,21 @@ func fetchArchive(ctx context.Context, src, dir string, headOnly bool) (map[stri
 	}
 	tr := tar.NewReader(zr)
 	files := map[string][]byte{}
-	total := 0
+	size := map[string]int{}  // bytes per kept folder
+	count := map[string]int{} // files per kept folder
 	prefix := strings.Trim(dir, "/")
+	// keptIn: the kept folder name lies in ("", true for "all of dir")
+	keptIn := func(name string) (string, bool) {
+		if len(keep) == 0 {
+			return "", true
+		}
+		for _, k := range keep {
+			if k == "" || name == k || strings.HasPrefix(name, k+"/") {
+				return k, true
+			}
+		}
+		return "", false
+	}
 	for {
 		h, err := tr.Next()
 		if err == io.EOF {
@@ -538,13 +561,20 @@ func fetchArchive(ctx context.Context, src, dir string, headOnly bool) (map[stri
 		if headOnly && base != "SKILL.md" && base != pluginManifest {
 			continue
 		}
-		if !headOnly && !strings.HasPrefix(name, ".git/") && base != ".DS_Store" {
-			total += int(h.Size)
-			if total > maxSkillBytes || len(files) >= maxSkillFiles {
-				return nil, fmt.Errorf("%w: the folder is larger than a skill should be (%d MB, %d files at most)", ErrInput, maxSkillBytes>>20, maxSkillFiles)
+		if !headOnly {
+			if strings.HasPrefix(name, ".git/") || base == ".DS_Store" {
+				continue
 			}
-		} else if !headOnly {
-			continue
+			k, ok := keptIn(name)
+			if !ok {
+				continue
+			}
+			size[k] += int(h.Size)
+			count[k]++
+			if size[k] > maxSkillBytes || count[k] > maxSkillFiles {
+				what := firstNonEmpty(k, "the folder")
+				return nil, fmt.Errorf("%w: %s is larger than a skill should be (%d MB, %d files at most)", ErrInput, what, maxSkillBytes>>20, maxSkillFiles)
+			}
 		}
 		b, err := io.ReadAll(io.LimitReader(tr, maxSkillBytes))
 		if err != nil {
@@ -827,7 +857,7 @@ func (s *Service) applySkills(ctx context.Context, source string, paths []string
 		if !ok {
 			return Applied{}, fmt.Errorf("%w: skills come from GitHub links or local folders", ErrInput)
 		}
-		all, err = fetchArchive(ctx, t.archive(), t.dir, false)
+		all, err = fetchArchive(ctx, t.archive(), t.dir, false, paths...)
 	} else {
 		all, err = readDir(expandHome(source), false)
 	}

@@ -46,7 +46,20 @@ const tx = (x?: Text) => (x ? (getLang() === "en" ? x.en : x.zh) || x.zh || x.en
 
 /** 粘贴安装: paste an MCP config, a command, a server URL, a GitHub link,
  *  a folder or an npm package; see what it installs; install it. */
-export function PasteInstall({ initial = "", onClose, onDone, onApprove }: { initial?: string; onClose: () => void; onDone: () => void; onApprove: (p: PluginView) => void }) {
+export function PasteInstall({
+  initial = "",
+  picks,
+  onClose,
+  onDone,
+  onApprove,
+}: {
+  initial?: string;
+  /** skill folders to tick (a library's suggestions); default: every new one */
+  picks?: string[];
+  onClose: () => void;
+  onDone: () => void;
+  onApprove: (p: PluginView) => void;
+}) {
   const [input, setInput] = useState(initial);
   const [plan, setPlan] = useState<Plan | null>(null);
   const [err, setErr] = useState("");
@@ -61,7 +74,9 @@ export function PasteInstall({ initial = "", onClose, onDone, onApprove }: { ini
     try {
       const p = await detect(text);
       setPlan(p);
-      setPicked(new Set((p.skills ?? []).filter((s) => !s.exists).map((s) => s.path)));
+      const fresh = (p.skills ?? []).filter((s) => !s.exists);
+      const wanted = picks?.length ? fresh.filter((s) => picks.includes(s.path.split("/").pop() ?? s.path) || picks.includes(s.name)) : fresh;
+      setPicked(new Set((wanted.length ? wanted : fresh).map((s) => s.path)));
     } catch (e) {
       setErr(errMsg(e));
     } finally {
@@ -234,6 +249,17 @@ export function PasteInstall({ initial = "", onClose, onDone, onApprove }: { ini
                   </div>
                 ))}
 
+              {plan.kind === "skill" && (
+                <div className="pstall small">
+                  <span className="muted">{t("pst.picked", { n: picked.size, total: plan.skills!.filter((x) => !x.exists).length })}</span>
+                  <button className="linkbtn" type="button" onClick={() => setPicked(new Set(plan.skills!.filter((x) => !x.exists).map((x) => x.path)))}>
+                    {t("pst.pickAll")}
+                  </button>
+                  <button className="linkbtn" type="button" onClick={() => setPicked(new Set())}>
+                    {t("pst.pickNone")}
+                  </button>
+                </div>
+              )}
               {plan.kind === "skill" &&
                 plan.skills!.map((s) => (
                   <label className="ckrow pstskill" key={s.path}>

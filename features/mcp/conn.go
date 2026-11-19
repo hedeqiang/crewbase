@@ -566,13 +566,19 @@ func (s *Service) dialStdio(ctx context.Context, srv Server, ws string, onChange
 	envList := baseEnv()
 	var conf sandbox.Confined
 	if srv.Trust == TrustSandboxed {
-		// Package managers (npx, uvx) need a writable cache: point them at
-		// the server's own directory unless the config says otherwise.
+		// Package managers (npx, uvx) need a writable cache, and many
+		// servers write under the home folder (browsers keep profiles and
+		// downloads in ~/Library, ~/.cache): point both at the server's own
+		// directory, which the sandbox lets it write, unless the config
+		// says otherwise. The person's real home stays read-only to it.
 		cache := filepath.Join(s.serverDir(srv.Name), "cache")
-		if err := os.MkdirAll(cache, 0o700); err != nil {
-			return nil, err
+		home := filepath.Join(s.serverDir(srv.Name), "home")
+		for _, d := range []string{cache, home} {
+			if err := os.MkdirAll(d, 0o700); err != nil {
+				return nil, err
+			}
 		}
-		defaults := map[string]string{"XDG_CACHE_HOME": cache, "npm_config_cache": filepath.Join(cache, "npm"), "UV_CACHE_DIR": filepath.Join(cache, "uv")}
+		defaults := map[string]string{"HOME": home, "XDG_CACHE_HOME": cache, "npm_config_cache": filepath.Join(cache, "npm"), "UV_CACHE_DIR": filepath.Join(cache, "uv")}
 		for k, v := range env {
 			defaults[k] = v
 		}

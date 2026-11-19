@@ -121,8 +121,21 @@ type SkillInfo struct {
 	Desc Text   `json:"desc"`
 }
 
+// SkillLibrary is a popular GitHub repository of skills: listed in 发现,
+// opened in the paste-install picker (its skills are chosen there).
+type SkillLibrary struct {
+	ID     string `json:"id"`
+	Name   string `json:"name"`
+	Repo   string `json:"repo"` // https://github.com/<owner>/<repo>[/tree/<ref>/<dir>]
+	Author string `json:"author"`
+	Desc   Text   `json:"desc"`
+	// Picks: the skill folders ticked by default (the rest are offered unticked).
+	Picks []string `json:"picks,omitempty"`
+}
+
 type file struct {
-	Categories []Category `json:"categories"`
+	Categories []Category     `json:"categories"`
+	Libraries  []SkillLibrary `json:"libraries"`
 	// Groups hold what the parts of one server share (a preset names its
 	// group; its own fields win).
 	Groups  map[string]Preset `json:"groups"`
@@ -188,8 +201,9 @@ type Item struct {
 
 // Listing is GET /api/catalog.
 type Listing struct {
-	Categories []Category `json:"categories"`
-	Items      []Item     `json:"items"`
+	Categories []Category     `json:"categories"`
+	Items      []Item         `json:"items"`
+	Libraries  []SkillLibrary `json:"libraries"`
 }
 
 // Errors.
@@ -244,7 +258,7 @@ func skillInfo(id string) (SkillInfo, bool) {
 
 // List returns the catalog with installed state.
 func (s *Service) List() Listing {
-	out := Listing{Categories: append([]Category(nil), builtin.Categories...)}
+	out := Listing{Categories: append([]Category(nil), builtin.Categories...), Libraries: append([]SkillLibrary(nil), builtin.Libraries...)}
 	if svc := s.mcp(); svc != nil {
 		servers := svc.List()
 		for _, p := range builtin.Presets {

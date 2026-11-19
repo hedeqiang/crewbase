@@ -2296,3 +2296,6 @@ a.lcard:hover, .lvideo .ltext:hover { background: var(--hover); }
 .pstneed { margin-right: auto; color: var(--amber-text); }
 .pstscope { margin: 2px 0 0; }
 @container (max-width: 560px) { .mkcdesc { min-height: 0; } .mkcard { gap: 6px; } }
+.mkav { width: 38px; height: 38px; border-radius: 10px; flex: none; background: var(--sunken); box-shadow: inset 0 0 0 1px var(--border); }
+.pstall { display: flex; align-items: center; gap: 12px; }
+.pstall .muted { margin-right: auto; }

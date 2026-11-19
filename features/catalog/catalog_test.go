@@ -438,3 +438,20 @@ func TestSkillInstallAndRemove(t *testing.T) {
 		t.Fatal(code)
 	}
 }
+
+func TestSkillLibrariesAreValid(t *testing.T) {
+	if len(builtin.Libraries) == 0 {
+		t.Fatal("no libraries")
+	}
+	seen := map[string]bool{}
+	for _, l := range builtin.Libraries {
+		u, err := url.Parse(l.Repo)
+		if seen[l.ID] || l.Name == "" || l.Author == "" || l.Desc.Zh == "" || l.Desc.En == "" || err != nil || u.Host != "github.com" {
+			t.Errorf("%+v", l)
+		}
+		if _, ok := parseGitHub(u); !ok {
+			t.Errorf("%s: %s is not a repository link", l.ID, l.Repo)
+		}
+		seen[l.ID] = true
+	}
+}
