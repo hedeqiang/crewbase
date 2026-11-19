@@ -10,7 +10,8 @@ import { useStore } from "../store";
 // them anyway; localhost belongs to the 预览 panel). A link that cannot be
 // fetched shows nothing.
 
-const MAX = 3;
+const MAX = 3; // cards shown
+const TRY = 8; // links fetched to find them (dead links take no slot)
 const LINK = /\[[^\]\n]+\]\((https?:\/\/[^)\s]+)\)|(https?:\/\/[^\s<>()　-〿＀-￯]+[^\s<>().,;:!?'"　-〿＀-￯])/g;
 
 function localHost(h: string): boolean {
@@ -45,7 +46,7 @@ export function cardLinks(text: string): string[] {
     u.hash = "";
     const k = u.toString();
     if (!out.includes(k)) out.push(k);
-    if (out.length >= MAX) break;
+    if (out.length >= TRY) break;
   }
   return out;
 }
@@ -69,25 +70,40 @@ export function LinkCards({ text, mine, exclude }: { text: string; mine?: boolea
   const seen = exclude ? new Set(cardLinks(exclude)) : null;
   const links = cardLinks(text).filter((u) => !seen?.has(u));
   if (!links.length) return null;
+  return <Cards links={links} mine={mine} />;
+}
+
+/** The first MAX links that unfurl, in text order: a card shows once every
+ *  link before it has answered, so cards never jump. */
+function Cards({ links, mine }: { links: string[]; mine?: boolean }) {
+  const [got, setGot] = useState<Record<string, LinkCard | null>>({});
+  const key = links.join(" ");
+  useEffect(() => {
+    let live = true;
+    for (const u of links) void unfurl(u).then((x) => live && setGot((g) => ({ ...g, [u]: x })));
+    return () => {
+      live = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key]);
+  const show: LinkCard[] = [];
+  for (const u of links) {
+    if (!(u in got)) break;
+    const c = got[u];
+    if (c) show.push(c);
+    if (show.length >= MAX) break;
+  }
+  if (!show.length) return null;
   return (
     <div className={"lcards" + (mine ? " mine" : "")}>
-      {links.map((u) => (
-        <OneCard key={u} url={u} />
+      {show.map((c, i) => (
+        <OneCard key={c.url + i} c={c} />
       ))}
     </div>
   );
 }
 
-function OneCard({ url }: { url: string }) {
-  const [c, setC] = useState<LinkCard | null | undefined>(undefined);
-  useEffect(() => {
-    let live = true;
-    void unfurl(url).then((x) => live && setC(x));
-    return () => {
-      live = false;
-    };
-  }, [url]);
-  if (!c) return null;
+function OneCard({ c }: { c: LinkCard }) {
   if (c.kind === "image" && c.media) return <ImageCard c={c} />;
   if (c.kind === "video" && c.embed) return <EmbedCard c={c} />;
   if (c.kind === "video" && c.media)
