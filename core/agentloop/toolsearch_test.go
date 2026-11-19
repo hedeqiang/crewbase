@@ -400,3 +400,43 @@ func TestSchemaSizeOf180Tools(t *testing.T) {
 		t.Fatalf("before %d/%d after %d/%d", n0, b0, n1, b1)
 	}
 }
+
+// A greeting input is an instruction to the agent: recorded as an inject,
+// not as something the person said, and the answer is a normal message.
+func TestGreetingIsNotAUserMessage(t *testing.T) {
+	e := newEnv(t, t.TempDir())
+	ad, _ := e.llms.Get("claude-code")
+	var s scripted
+	s.install(ad.(*mock.Adapter))
+	a, _ := e.agents.Create(agent.Spec{Name: "Greeter"})
+	ss, _ := a.Session()
+	if _, err := a.Enqueue(agent.Input{Text: agentloop.GreetingPrompt, Tag: agentloop.GreetingTag}); err != nil {
+		t.Fatal(err)
+	}
+	agentloop.WaitIdle(a, 5*time.Second)
+	var users, injects, answers int
+	tagged := false
+	for _, ev := range ss.Events() {
+		switch ev.Type {
+		case session.TypeUserMessage:
+			users++
+		case session.TypeInject:
+			var d session.InjectData
+			if ev.Decode(&d) == nil && d.Source == agentloop.GreetingTag {
+				injects++
+			}
+		case session.TypeAssistantMessage:
+			answers++
+		case session.TypeTurnStart:
+			var d agentloop.TurnStart
+			tagged = tagged || (ev.Decode(&d) == nil && d.Tag == agentloop.GreetingTag)
+		}
+	}
+	if users != 0 || injects != 1 || answers == 0 || !tagged {
+		t.Fatalf("users=%d injects=%d answers=%d tagged=%v", users, injects, answers, tagged)
+	}
+	// the model saw the instruction
+	if r := s.requests(); len(r) == 0 || !strings.Contains(r[0].Messages[len(r[0].Messages)-1].Text(), "introduce yourself") {
+		t.Fatalf("request = %+v", r)
+	}
+}

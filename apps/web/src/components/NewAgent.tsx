@@ -231,6 +231,7 @@ export function NewAgent({ draft: f, setDraft }: { draft: Draft; setDraft: (d: D
         team: currentTeam(),
         modelRefs: refs.length ? refs : undefined,
         template: picked || undefined,
+        greet: true,
       });
       toast(t("na.created", { name }));
       setDraft(emptyDraft());

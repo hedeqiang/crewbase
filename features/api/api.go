@@ -137,6 +137,9 @@ type createBody struct {
 	// Template is the key of the template the form started from; it names
 	// the id when the agent's name is not ASCII.
 	Template string `json:"template,omitempty"`
+	// Greet: the new agent introduces itself in its conversation (a model
+	// turn), before the person says anything.
+	Greet bool `json:"greet,omitempty"`
 }
 
 type decideBody struct {
@@ -268,6 +271,13 @@ var Plugin = kernel.Register(kernel.Spec{
 				if err != nil {
 					return nil, gateway.BadRequest("%v", err)
 				}
+				if b.Greet && spec.Kind != agent.KindChat {
+					// it waits for the brief being written from the name, so it
+					// introduces itself as that agent
+					if _, err := a.Enqueue(agent.Input{Text: agentloop.GreetingPrompt, Tag: agentloop.GreetingTag}); err != nil {
+						c.Log().Warn("new agent greeting not queued", "agent", a.ID(), "err", err)
+					}
+				}
 				return view(a), nil
 			}})
 		g.Handle(c, gateway.Route{Method: "GET", Path: "/api/agents/{id}", Devices: mobile,
@@ -307,17 +317,17 @@ var Plugin = kernel.Register(kernel.Spec{
 					return nil, err
 				}
 				var b struct {
-					Name        *string   `json:"name"`
-					Role        *string   `json:"role"`
-					Mode        *string   `json:"mode"`
-					Color       *string   `json:"color"`
-					Shape       *string   `json:"shape"`
-					Face        *string   `json:"face"`
-					Folder      *string   `json:"folder"`
-					Models      *[]string `json:"modelRefs"`
+					Name   *string   `json:"name"`
+					Role   *string   `json:"role"`
+					Mode   *string   `json:"mode"`
+					Color  *string   `json:"color"`
+					Shape  *string   `json:"shape"`
+					Face   *string   `json:"face"`
+					Folder *string   `json:"folder"`
+					Models *[]string `json:"modelRefs"`
 					// Session is where the person changed it (the timeline
 					// that records a new first model); "" = the agent's own.
-					Session string `json:"session"`
+					Session     string    `json:"session"`
 					NativeTools *[]string `json:"nativeTools"`
 					// Connectors: the connectors (by name) the agent may use;
 					// null = every connector its scope allows.

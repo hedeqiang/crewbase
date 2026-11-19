@@ -612,7 +612,8 @@ function Feed({
           </button>
         </div>
       )}
-      {!loading && items.length === 0 && !channel && (
+      {!loading && !channel && agent.kind === "chat" && hidden === 0 && <ChatOpening agent={agent} session={sessionId} fresh={items.length === 0} />}
+      {!loading && items.length === 0 && !channel && agent.kind !== "chat" && (
         <div className="feedintro">
           <Avatar agent={agent} size={56} />
           <b>{agent.kind === "chat" ? t("chat.plainEmpty") : t("chat.empty", { name: agent.name })}</b>
@@ -864,7 +865,7 @@ const REASONS: Record<string, true> = {
   "chat.reason.model_not_found": true,
 };
 
-function AgentMsg({ it, agent, showModel, bare, opened }: { it: AgentItem; agent?: AgentView; showModel: boolean; bare?: boolean; opened?: string[] }) {
+function AgentMsg({ it, agent, showModel, bare, opened, extra }: { it: AgentItem; agent?: AgentView; showModel: boolean; bare?: boolean; opened?: string[]; extra?: ReactNode }) {
   const models = useStore((s) => s.models);
   const [showThink, setShowThink] = useState(false);
   const [reading, setReading] = useState(false);
@@ -926,6 +927,7 @@ function AgentMsg({ it, agent, showModel, bare, opened }: { it: AgentItem; agent
         )}
         {/* the answer, once the turn is over (never narration or a stream) */}
         {it.stats && it.text && <LinkCards text={it.text} exclude={it.asked} />}
+        {extra}
         {it.stats && <ReplyStats stats={it.stats} />}
         {hasActs && (
           <div className="msgacts">
@@ -1049,6 +1051,16 @@ function TurnMsg({ it, agent }: { it: Extract<FeedItem, { k: "turn" }>; agent?: 
                 )}
               </div>
             ) : null
+          ) : it.greeting ? (
+            <AgentMsg
+              key={p.it.id}
+              it={{ ...p.it, text: splitStarters(p.it.text).text }}
+              agent={agent}
+              showModel={false}
+              bare
+              opened={opened}
+              extra={it.starters && !it.open && agent ? <Starters agent={agent} items={splitStarters(p.it.text).starters} /> : null}
+            />
           ) : (
             <AgentMsg key={p.it.id} it={p.it} agent={agent} showModel={false} bare opened={opened} />
           ),
@@ -2310,3 +2322,77 @@ function DirMenu({ agent, onDone }: { agent: AgentView; onDone: () => void }) {
   );
 }
 
+
+/** A greeting's example requests: its lines starting with "> " (they show
+ *  as buttons, not in the text). */
+export function splitStarters(text: string): { text: string; starters: string[] } {
+  const starters: string[] = [];
+  const kept: string[] = [];
+  for (const line of text.split("\n")) {
+    const m = /^\s*>\s?(.+)$/.exec(line);
+    if (m) starters.push(m[1].trim().replace(/^[「“"']|[」”"']$/g, ""));
+    else kept.push(line);
+  }
+  return { text: kept.join("\n").trim(), starters: starters.filter(Boolean).slice(0, 4) };
+}
+
+/** Example requests the person can send with one click. */
+export function Starters({ agent, items, session }: { agent: AgentView; items: string[]; session?: string }) {
+  const sid = useContext(SessionCtx);
+  const [busy, setBusy] = useState(false);
+  if (!items.length) return null;
+  const s = session ?? sid;
+  return (
+    <div className="starters">
+      {items.map((x) => (
+        <button
+          key={x}
+          type="button"
+          className="starter"
+          disabled={busy}
+          onClick={async () => {
+            setBusy(true);
+            try {
+              await API.send(agent.id, { text: x, session: s && s !== agent.session ? s : undefined });
+            } catch (e: any) {
+              toast(t("chat.sendFailed", { error: e?.message ?? String(e) }));
+            } finally {
+              setBusy(false);
+            }
+          }}
+        >
+          {x}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+const CHAT_STARTERS = 10;
+
+/** A new chat's opening: a fixed greeting (no model call) and three
+ *  example questions, picked by the conversation id so they stay put. */
+function ChatOpening({ agent, session, fresh }: { agent: AgentView; session: string; fresh: boolean }) {
+  let h = 0;
+  for (const ch of session) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+  const picks: string[] = [];
+  for (let i = 0; picks.length < 3 && i < CHAT_STARTERS * 2; i++) {
+    const k = t(`chat.starter${((h + i * 7) % CHAT_STARTERS) + 1}` as Key);
+    if (!picks.includes(k)) picks.push(k);
+  }
+  return (
+    <div className="m-agent turn opening">
+      <Avatar agent={agent} size={28} />
+      <div style={{ minWidth: 0 }}>
+        <div className="mh">
+          <b>{speaker(agent)}</b>
+        </div>
+        <div className="mt">
+          <p>{t("chat.opening")}</p>
+          {fresh && <p className="small muted">{t("chat.openingNote")}</p>}
+        </div>
+        {fresh && <Starters agent={agent} items={picks} session={session} />}
+      </div>
+    </div>
+  );
+}

@@ -1102,7 +1102,7 @@ export const API = {
   relayPairLink: (code: string) => api<{ url: string }>("POST", "/api/relay/pair-link", { code }),
   agents: () => api<{ agents: AgentView[] }>("GET", "/api/agents"),
   agent: (id: string) => api<AgentView>("GET", `/api/agents/${enc(id)}`),
-  createAgent: (b: Partial<AgentView> & { modelRefs?: string[]; template?: string }) => api<AgentView>("POST", "/api/agents", b),
+  createAgent: (b: Partial<AgentView> & { modelRefs?: string[]; template?: string; greet?: boolean }) => api<AgentView>("POST", "/api/agents", b),
   ui: () => api<{ slots: string[]; contributions: UIContribution[] }>("GET", "/api/ui"),
   uiPanel: (slot: string, key: string, session = "") => api<UIPanel>("POST", "/api/ui/panel", { slot, key, session, lang: getLang() }),
   uiRun: (slot: string, key: string, session = "") => api<{ toast?: string; open?: string }>("POST", "/api/ui/run", { slot, key, session, lang: getLang() }),

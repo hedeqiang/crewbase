@@ -114,7 +114,18 @@ export type FeedItem = (
   /** One agent's turn (or the part of it after an interruption): what it
    *  said and did, in order, under one name. Text that came with a tool
    *  call is narration; the text the turn ended with is the answer. */
-  | { k: "turn"; id: string; agent: string; time: string; parts: TurnPart[]; open: boolean }
+  | {
+      k: "turn";
+      id: string;
+      agent: string;
+      time: string;
+      parts: TurnPart[];
+      open: boolean;
+      /** a new agent introducing itself; starters: its example requests,
+       *  offered until the person says something */
+      greeting?: boolean;
+      starters?: boolean;
+    }
   /** A result that came back to the agent on its own (a sub-agent's work,
    *  a background command, a follow-up): shown as a compact card, not as
    *  a message from the person. */
@@ -284,10 +295,16 @@ export function project(events: SessionEvent[], cards?: ReadonlySet<string>): Pr
     }
   };
 
+  const greeting = new Set<string>(); // agents whose open turn is a greeting
+  const greeted: Extract<FeedItem, { k: "turn" }>[] = [];
   const turnFor = (agent: string, id: string, time: string) => {
     let t = cur.get(agent);
     if (!t) {
       t = { k: "turn", id, agent, time, parts: [], open: true };
+      if (greeting.has(agent)) {
+        t.greeting = t.starters = true;
+        greeted.push(t);
+      }
       cur.set(agent, t);
       push(t, time);
     }
@@ -305,6 +322,7 @@ export function project(events: SessionEvent[], cards?: ReadonlySet<string>): Pr
     switch (e.type) {
       case "message/user":
         for (const k of Object.keys(lastTurn)) delete lastTurn[k];
+        for (const g of greeted) g.starters = false;
         // a message joined into a running turn belongs to that turn
         for (const to of [d.to ?? "", ...((d.also as string[] | undefined) ?? [])]) if (!pendingFrom.has(to) && !turns.has(to)) pendingFrom.set(to, e.seq);
         if (INJECTED.test(d.text ?? "")) break;
@@ -450,6 +468,8 @@ export function project(events: SessionEvent[], cards?: ReadonlySet<string>): Pr
         breakTurns(ag);
         openTurns.add(ag);
         delete lastTurn[ag];
+        if (d.tag === "greeting") greeting.add(ag);
+        else greeting.delete(ag);
         turns.set(ag, { from: pendingFrom.get(ag) ?? pendingFrom.get(""), steps: [] });
         pendingFrom.delete(ag);
         pendingFrom.delete("");
@@ -458,6 +478,7 @@ export function project(events: SessionEvent[], cards?: ReadonlySet<string>): Pr
       case "turn/end": {
         const ag = e.agent ?? "";
         openTurns.delete(ag);
+        greeting.delete(ag);
         const answered = askedBy.get(ag);
         const ti = cur.get(ag);
         if (ti) ti.open = false;

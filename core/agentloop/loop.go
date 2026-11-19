@@ -63,7 +63,22 @@ const (
 type TurnStart struct {
 	Input string       `json:"input"`
 	Model llm.ModelRef `json:"model"`
+	// Tag is the input's tag (e.g. GreetingTag), for views.
+	Tag string `json:"tag,omitempty"`
 }
+
+// GreetingTag marks the input that has a new agent introduce itself. Its
+// text is an instruction to the agent, recorded as an agent/inject (the
+// person does not see it as something they said); the answer is a normal
+// message.
+const GreetingTag = "greeting"
+
+// GreetingPrompt asks a new agent to introduce itself.
+const GreetingPrompt = `The person has just created you and opened this conversation. Before they ask anything, introduce yourself to them, in the language of your name and instructions:
+- one or two sentences on who you are and what you can do for them;
+- what they should tell you or give you first to get good results (files, context, constraints);
+- then two or three example requests they could send you, each on its own line starting with "> ", written as they would type it.
+Keep it short (under 120 words), plain and friendly. Do not use any tools and do not start working on anything yet.`
 
 type TurnEnd struct {
 	Status string `json:"status"` // completed | failed | cancelled | interrupted (shutdown)
@@ -275,6 +290,13 @@ func (l *loop) turn(parent context.Context, a *agent.Agent, in agent.Input) {
 		_, _ = ss.Append(session.TypeInject, a.ID(), session.InjectData{Source: "restart", Text: ResumeNote})
 	} else if in.Logged {
 		// recorded when it was posted
+	} else if in.Tag == GreetingTag {
+		// an instruction to the agent, not something the person said
+		if _, err := ss.Append(session.TypeInject, a.ID(), session.InjectData{Source: GreetingTag, Text: in.Text}); err != nil {
+			a.SetStatus(agent.StatusFailed, err.Error())
+			TurnEnded.Emit(d, TurnEndEvent{Agent: a.ID(), Session: ss.ID(), Input: in, TurnEnd: TurnEnd{Status: "failed", Error: "could not record input: " + err.Error()}})
+			return
+		}
 	} else if _, err := ss.Append(session.TypeUserMessage, "", session.UserMessage{Text: in.Text, From: in.From, To: a.ID(), Attachments: in.Attachments}); err != nil {
 		a.SetStatus(agent.StatusFailed, err.Error())
 		TurnEnded.Emit(d, TurnEndEvent{Agent: a.ID(), Session: ss.ID(), Input: in, TurnEnd: TurnEnd{Status: "failed", Error: "could not record input: " + err.Error()}})
@@ -290,7 +312,7 @@ func (l *loop) turn(parent context.Context, a *agent.Agent, in agent.Input) {
 		l.endTurn(a, ss, in, TurnEnd{Status: "failed", Error: "no model configured"})
 		return
 	}
-	_, _ = ss.Append(session.TypeTurnStart, a.ID(), TurnStart{Input: in.ID, Model: ref})
+	_, _ = ss.Append(session.TypeTurnStart, a.ID(), TurnStart{Input: in.ID, Model: ref, Tag: in.Tag})
 	TurnStarted.Emit(d, TurnStartEvent{Agent: a, Session: ss, Input: in})
 
 	steps := 0
