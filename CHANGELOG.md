@@ -3,6 +3,13 @@
 Each `## <version>` section becomes the release notes of that version,
 shown in the desktop app's update window.
 
+## 0.5.20
+
+新建的 Agent 会先开口介绍自己；新对话打开就有开场白和示例问题。
+
+- 新建 Agent（空白或从模板）后，它会根据自己的职责说明主动打招呼：说明能做什么、开始前最好先给它什么信息，并给出 2～3 个示例请求，点一下就能直接发送
+- 新对话打开时显示开场白和 3 个示例问题，点一下直接发送；这一步不调用模型，也不会发给模型
+
 ## 0.5.19
 
 插件默认在沙箱里运行；Agent 加载工具时不再丢掉提示缓存，长任务更省钱。
