@@ -157,11 +157,14 @@ type env struct {
 
 func newEnv(t *testing.T) *env {
 	t.Helper()
+	// the folder first: cleanups run last-in first-out, so the host (and
+	// the MCP connections still retrying into the folder) stops before
+	// the folder is removed
+	dir := t.TempDir()
 	h := kernel.NewHost(nil)
 	t.Cleanup(h.Close)
 	addr := make(chan string, 1)
 	gateway.Listening.Listen(h.Root(), func(a string) { addr <- a })
-	dir := t.TempDir()
 	for _, l := range []struct {
 		s   kernel.Spec
 		cfg map[string]any

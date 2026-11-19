@@ -49,9 +49,9 @@ type load struct {
 
 func newEnv(t *testing.T, cfg map[string]any, extra ...load) *env {
 	t.Helper()
+	dir := t.TempDir() // first: removed after the host has stopped (cleanups run in reverse)
 	h := kernel.NewHost(nil)
 	t.Cleanup(h.Close)
-	dir := t.TempDir()
 	if cfg == nil {
 		cfg = map[string]any{}
 	}
@@ -543,10 +543,10 @@ func TestHTTPTransport(t *testing.T) {
 
 func TestAPI(t *testing.T) {
 	addr := make(chan string, 1)
+	dir := t.TempDir() // first: removed after the host has stopped
 	h := kernel.NewHost(nil)
 	t.Cleanup(h.Close)
 	gateway.Listening.Listen(h.Root(), func(a string) { addr <- a })
-	dir := t.TempDir()
 	for _, l := range []load{{tools.Plugin, nil}, {credentials.Plugin, nil},
 		{gateway.Plugin, map[string]any{"addr": "127.0.0.1:0", "token": "tok"}},
 		{mcp.Plugin, map[string]any{"dir": dir, "backoffMin": "50ms"}}, {mcp.APIPlugin, nil}} {
