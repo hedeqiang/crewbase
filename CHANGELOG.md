@@ -3,6 +3,20 @@
 Each `## <version>` section becomes the release notes of that version,
 shown in the desktop app's update window.
 
+## 0.6.0
+
+密钥改存 Crewbase 自己的保管库；插件与技能页重新设计，粘贴就能安装；新增文件改动对比视图。
+
+**升级前请注意：以前保存在系统钥匙串里的 API Key、MCP 令牌和机器人令牌不会自动带过来，升级后需要重新填写一次。** 内置的 Google 连接器（Gmail、日历、云端硬盘、文档、表格、幻灯片）和 Figma 已移除。
+
+- 保管库：所有密钥加密保存在数据目录的 vault 文件夹里，不再使用系统钥匙串，也不会再弹钥匙串授权。「设置 › 保管库」按用途列出所有密钥，可以添加、替换、删除，存进去的值不能再读出来
+- 粘贴安装：把 README 里的 MCP 配置、`claude mcp add` 命令、npx / uvx 命令、服务器地址、GitHub 链接或 npm 包名粘贴进来，Crewbase 会认出要装什么；需要的令牌会自动存进保管库
+- 插件与技能页重新设计：顶部一个安装框，按连接器 / 技能 / 插件筛选，卡片上写明「免登录 / 官方登录 / 需要令牌」。新增 Chrome DevTools、Playwright、Supabase、Firecrawl 连接器，以及 5 个热门技能库（Anthropic 官方、Superpowers 等），可以挑选要的技能直接添加
+- 文件面板：右侧「文件」改成目录树加代码高亮的文件查看；新增「改动」视图，按 GitHub 的样式显示每个文件的改动（合并或左右对比），可以逐个撤销。在 Git 仓库里和最近一次提交相比，其他文件夹记录 Agent 改过的文件
+- 默认工作区：在「设置 › 通用」里可以改新 Agent 的工作文件夹位置，默认仍是 ~/.crewbase/workspaces
+- 每个 Agent 可以设置工具加载方式（自动 / 全部发送 / 按需搜索）和常驻的工具组
+- 浏览器类 MCP 服务器现在能在沙箱里正常运行；新对话的开场改为「你好！有什么我可以帮你的吗？」
+
 ## 0.5.20
 
 新建的 Agent 会先开口介绍自己；新对话打开就有开场白和示例问题。
