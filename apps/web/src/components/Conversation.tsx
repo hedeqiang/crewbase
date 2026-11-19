@@ -140,7 +140,7 @@ function ConversationView({ sessionId, agent, channel }: { sessionId: string; ag
   return (
     <section className="main">
       <MsgCtx.Provider value={actions}>
-        <Feed sessionId={sessionId} agent={agent} channel={channel} items={proj.items} loading={!events} error={err} />
+        <Feed sessionId={sessionId} agent={agent} channel={channel} items={proj.items} working={proj.openTurns} loading={!events} error={err} />
       </MsgCtx.Provider>
       <Composer sessionId={sessionId} agent={agent} channel={channel} ctx={ctx} lastModel={proj.lastModel[agent.id]} />
     </section>
@@ -513,6 +513,7 @@ function Feed({
   agent,
   channel,
   items,
+  working,
   loading,
   error,
 }: {
@@ -520,6 +521,8 @@ function Feed({
   agent: AgentView;
   channel?: ChannelView;
   items: FeedItem[];
+  /** agents whose turn here is open (turn/start without turn/end) */
+  working?: Set<string>;
   loading: boolean;
   error?: string;
 }) {
@@ -531,8 +534,14 @@ function Feed({
   const live = Object.entries(streams).filter(([k]) => k.startsWith(sessionId + "|"));
   // agents whose turn is open in the feed: their live output grows inside it
   const openTurns = useMemo(() => new Set(items.filter((i): i is Extract<FeedItem, { k: "turn" }> => i.k === "turn" && i.open).map((i) => i.agent)), [items]);
-  const waitingApproval = useStore((s) => s.approvals.some((a) => a.agent === agent.id && a.session === sessionId));
-  const typing = agent.status === "running" && !waitingApproval && !live.some(([k, v]) => k.endsWith("|" + agent.id) && v.text);
+  const approvals = useStore((s) => s.approvals);
+  // who is working with nothing on screen yet: in a chat the agent; in a
+  // channel every member whose turn here is open (each says so on its own line)
+  const typingIds = (channel ? channel.members.filter((m) => working?.has(m) || (m === agent.id && agent.status === "running")) : agent.status === "running" ? [agent.id] : [])
+    .filter((id) => agents[id]?.status === "running" || id === agent.id)
+    .filter((id) => !approvals.some((a) => a.agent === id && a.session === sessionId))
+    .filter((id) => !live.some(([k, v]) => k.endsWith("|" + id) && v.text))
+    .filter((id) => !openTurns.has(id));
   // Agents in this conversation that wait for a person to take over their browser.
   const takeovers = useMemo(() => {
     const ids = channel ? channel.members : [agent.id];
@@ -665,17 +674,21 @@ function Feed({
       {takeovers.map((a) => (
         <TakeoverCard key={a.id} agent={a} reason={takeoverReason(a) ?? ""} />
       ))}
-      {typing && !openTurns.has(agent.id) && (
-        <div className="typing">
-          <Avatar agent={agent} size={24} />
-          <span>{detailLabel(agent.detail) || t("chat.thinking", { name: speaker(agent) })}</span>
-          <span className="dots">
-            <i />
-            <i />
-            <i />
-          </span>
-        </div>
-      )}
+      {typingIds.map((id) => {
+        const a = id === agent.id ? agent : agents[id];
+        if (!a) return null;
+        return (
+          <div className="typing" key={"ty" + id}>
+            <Avatar agent={a} size={24} />
+            <span>{detailLabel(a.detail) || t("chat.thinking", { name: speaker(a) })}</span>
+            <span className="dots">
+              <i />
+              <i />
+              <i />
+            </span>
+          </div>
+        );
+      })}
     </div>
   );
 }
