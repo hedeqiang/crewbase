@@ -103,7 +103,8 @@ export function Welcome({ onTemplate }: { onTemplate: (d: Partial<Draft>) => voi
         )}
       </div>
 
-      <div className={"wstep" + (ready ? "" : " later")}>
+      {/* a heading for the templates below, not a box of its own */}
+      <div className={"wstep head" + (ready ? "" : " later")}>
         <div className="wstep-h">
           <span className="wnum">2</span>
           <b>{t("wel.step2")}</b>
