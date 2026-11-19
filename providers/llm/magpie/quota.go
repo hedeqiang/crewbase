@@ -163,6 +163,14 @@ func (a *Adapter) subscriptions(ctx context.Context) []subQuota {
 		go run(context.Background())
 	}
 	done := q.inflight
+	// a stale read is still worth showing: answer with it at once and let
+	// the refresh land for the next caller (the model list, which the UI
+	// waits on, used to stall here for quotaWait every minute)
+	if q.subs != nil {
+		subs := q.subs
+		a.quotaMu.Unlock()
+		return subs
+	}
 	a.quotaMu.Unlock()
 	t := time.NewTimer(quotaWait)
 	defer t.Stop()
