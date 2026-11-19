@@ -2045,7 +2045,8 @@ function Composer({
         </div>
       </form>
       <div className="cfoot">
-        <span className="sp" />
+        {/* a plain chat has no tools: say so before a link is sent to it */}
+        {plain && /https?:\/\/\S/.test(draft) ? <span className="small muted cnote">{t("chat.plainNoLinks")}</span> : <span className="sp" />}
         {shown && quota !== null && (
           <span className={"quota" + (quota <= 10 ? " warnq" : "")}>
             <ProviderMark provider={shown.provider} model={shown.model} size={11} />
