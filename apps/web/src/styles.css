@@ -2107,6 +2107,13 @@ a.lcard:hover, .lvideo .ltext:hover { background: var(--hover); }
 .lcard .ltitle { font-size: 14px; font-weight: 600; line-height: 1.35; }
 .lcard .ldesc { font-size: 12.5px; line-height: 1.45; color: var(--text2); }
 .lcard .lthumb { flex: none; width: 104px; align-self: stretch; min-height: 78px; max-height: 120px; object-fit: cover; background: var(--sunken); border-left: 1px solid var(--border); }
+.lcard .lthumb.lsmall { object-fit: scale-down; padding: 10px; box-sizing: border-box; }
+.lcard.lbanner { flex-direction: column-reverse; }
+.lcard .lthumb.lwide { width: 132px; object-fit: contain; }
+.lcard.lbanner .lthumb { width: 100%; height: auto; max-height: 220px; min-height: 0; aspect-ratio: auto; object-fit: cover; border-left: 0; border-bottom: 1px solid var(--border); }
+/* dark site icons (GitHub's) vanish on a dark card: give them a light tile */
+:root[data-theme="dark"] .lcard .lico { background: #fff; padding: 1px; box-sizing: border-box; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .lcard .lico { background: #fff; padding: 1px; box-sizing: border-box; } }
 .lvideo { flex-direction: column; }
 .lplayer { position: relative; width: 100%; background: #000; }
 .lplayer iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }

@@ -97,13 +97,13 @@ function Cards({ links, mine }: { links: string[]; mine?: boolean }) {
   return (
     <div className={"lcards" + (mine ? " mine" : "")}>
       {show.map((c, i) => (
-        <OneCard key={c.url + i} c={c} />
+        <OneCard key={c.url + i} c={c} lead={i === 0} />
       ))}
     </div>
   );
 }
 
-function OneCard({ c }: { c: LinkCard }) {
+function OneCard({ c, lead }: { c: LinkCard; lead?: boolean }) {
   if (c.kind === "image" && c.media) return <ImageCard c={c} />;
   if (c.kind === "video" && c.embed) return <EmbedCard c={c} />;
   if (c.kind === "video" && c.media)
@@ -119,10 +119,10 @@ function OneCard({ c }: { c: LinkCard }) {
         <audio controls preload="metadata" src={c.media} />
       </div>
     );
-  return <PageCard c={c} />;
+  return <PageCard c={c} lead={lead} />;
 }
 
-function Img({ src, className, alt = "", onFail }: { src?: string; className?: string; alt?: string; onFail?: () => void }) {
+function Img({ src, className, alt = "", onFail, onSize }: { src?: string; className?: string; alt?: string; onFail?: () => void; onSize?: (w: number, h: number) => void }) {
   const [bad, setBad] = useState(false);
   if (!src || bad) return null;
   return (
@@ -132,6 +132,7 @@ function Img({ src, className, alt = "", onFail }: { src?: string; className?: s
       alt={alt}
       loading="lazy"
       referrerPolicy="no-referrer"
+      onLoad={(e) => onSize?.(e.currentTarget.naturalWidth, e.currentTarget.naturalHeight)}
       onError={() => {
         setBad(true);
         onFail?.();
@@ -149,15 +150,22 @@ function Site({ c }: { c: LinkCard }) {
   );
 }
 
-function PageCard({ c }: { c: LinkCard }) {
+/** The page's image decides the layout once it loads: a wide share image
+ *  (og:image, usually 1200×630) is shown whole, above the text on the first
+ *  card and letterboxed beside it on the others, instead of being cropped
+ *  to a square; a small one (a logo) keeps its size, not stretched. */
+function PageCard({ c, lead }: { c: LinkCard; lead?: boolean }) {
+  const [shape, setShape] = useState<"side" | "wide" | "small">("side");
+  const size = (w: number, h: number) => setShape(w >= 400 && w / h >= 1.4 ? "wide" : w < 96 || h < 72 ? "small" : "side");
+  const banner = shape === "wide" && lead;
   return (
-    <a className="lcard lpage" href={c.url} target="_blank" rel="noreferrer noopener" title={c.url}>
+    <a className={"lcard lpage" + (banner ? " lbanner" : "")} href={c.url} target="_blank" rel="noreferrer noopener" title={c.url}>
       <span className="ltext">
         <Site c={c} />
         {c.title && <span className="ltitle">{c.title}</span>}
         {c.description && <span className="ldesc">{c.description}</span>}
       </span>
-      <Img className="lthumb" src={c.image} />
+      <Img className={"lthumb" + (shape === "small" ? " lsmall" : shape === "wide" && !banner ? " lwide" : "")} src={c.image} onSize={size} />
     </a>
   );
 }
