@@ -301,7 +301,10 @@ export async function previewSnippet(html: string) {
   const a = agentFor(session);
   if (!a) return;
   try {
-    const p = await API.previewHTML(a.id, html, session || undefined, t("preview.snippet"));
+    // the page's own <title> names the tab when it has one
+    // (a parsed document runs no scripts; it also decodes &amp; and the like)
+    const own = new DOMParser().parseFromString(html, "text/html").title.replace(/\s+/g, " ").trim();
+    const p = await API.previewHTML(a.id, html, session || undefined, own ? own.slice(0, 60) : t("preview.snippet"));
     openPreview(session, p);
   } catch (e: any) {
     toast(t("preview.failed", { error: e?.message ?? String(e) }));
