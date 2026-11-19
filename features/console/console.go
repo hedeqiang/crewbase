@@ -25,6 +25,7 @@ import (
 	"github.com/hedeqiang/crewbase/core/agentloop"
 	"github.com/hedeqiang/crewbase/core/llm"
 	"github.com/hedeqiang/crewbase/core/session"
+	"github.com/hedeqiang/crewbase/core/tools"
 	"github.com/hedeqiang/crewbase/features/compaction"
 	"github.com/hedeqiang/crewbase/features/gateway"
 	"github.com/hedeqiang/crewbase/features/router"
@@ -155,6 +156,81 @@ var Plugin = kernel.Register(kernel.Spec{
 			}
 			return a, nil
 		}
+
+		// ---- 改动 (changes.go): what changed in an agent's workspace
+		ch := &changes{root: filepath.Join(cfg.Dir, "changes")}
+		if cfg.Dir == "" {
+			ch.root = filepath.Join(os.TempDir(), "crewbase-changes")
+		}
+		tools.PreExecute.Use(c, ch.hook)
+		changeAPIErr := func(err error) error {
+			if errors.Is(err, os.ErrNotExist) {
+				return gateway.NotFound()
+			}
+			return gateway.BadRequest("%v", err)
+		}
+		g.Handle(c, gateway.Route{Method: "GET", Path: "/api/agents/{id}/changes", Devices: mobile,
+			Handle: func(ctx context.Context, r *gateway.Request) (any, error) {
+				a, err := getAgent(r)
+				if err != nil {
+					return nil, err
+				}
+				v, err := ch.view(ctx, a.ID(), a.Workspace())
+				if err != nil {
+					return nil, changeAPIErr(err)
+				}
+				return v, nil
+			}})
+		g.Handle(c, gateway.Route{Method: "GET", Path: "/api/agents/{id}/changes/diff", Devices: mobile,
+			Handle: func(ctx context.Context, r *gateway.Request) (any, error) {
+				a, err := getAgent(r)
+				if err != nil {
+					return nil, err
+				}
+				rel := r.HTTP.URL.Query().Get("path")
+				if _, err := resolveIn(a.Workspace(), rel); err != nil || rel == "" {
+					return nil, gateway.BadRequest("bad path")
+				}
+				d, err := ch.diff(ctx, a.ID(), a.Workspace(), rel)
+				if err != nil {
+					return nil, changeAPIErr(err)
+				}
+				return d, nil
+			}})
+		g.Handle(c, gateway.Route{Method: "POST", Path: "/api/agents/{id}/changes/revert",
+			Handle: func(ctx context.Context, r *gateway.Request) (any, error) {
+				a, err := getAgent(r)
+				if err != nil {
+					return nil, err
+				}
+				var b struct {
+					Path string `json:"path"`
+				}
+				if err := r.Decode(&b); err != nil {
+					return nil, err
+				}
+				if _, err := resolveIn(a.Workspace(), b.Path); err != nil || b.Path == "" {
+					return nil, gateway.BadRequest("bad path")
+				}
+				if err := ch.undo(ctx, a.ID(), a.Workspace(), b.Path); err != nil {
+					return nil, changeAPIErr(err)
+				}
+				return ch.view(ctx, a.ID(), a.Workspace())
+			}})
+		g.Handle(c, gateway.Route{Method: "POST", Path: "/api/agents/{id}/changes/accept",
+			Handle: func(ctx context.Context, r *gateway.Request) (any, error) {
+				a, err := getAgent(r)
+				if err != nil {
+					return nil, err
+				}
+				if inGit(a.Workspace()) {
+					return nil, gateway.BadRequest("a git workspace is compared with its last commit: commit to keep the changes")
+				}
+				if err := ch.accept(a.ID(), a.Workspace()); err != nil {
+					return nil, err
+				}
+				return ch.view(ctx, a.ID(), a.Workspace())
+			}})
 
 		// ---- settings (defaults for new agents)
 		settingsPath := ""
@@ -471,7 +547,7 @@ var Plugin = kernel.Register(kernel.Spec{
 				}
 				out := []entry{}
 				for _, d := range des {
-					if d.Name() == "agent.json" || d.Name() == "browser" || d.Name() == ".remote" {
+					if d.Name() == "agent.json" || d.Name() == "browser" || d.Name() == ".remote" || d.Name() == ".git" || d.Name() == ".DS_Store" {
 						continue // internal (agent.json: spec of older versions, migrated out at start)
 					}
 					info, err := d.Info()

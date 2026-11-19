@@ -322,6 +322,41 @@ export interface FileEntry {
   /** a folder with a package.json: an app run by its dev server */
   project?: boolean;
 }
+/** 文件 › 改动 (features/console/changes.go) */
+export interface FileChange {
+  path: string;
+  from?: string;
+  status: "added" | "modified" | "deleted" | "renamed";
+  added: number;
+  removed: number;
+  binary?: boolean;
+  large?: boolean;
+  updated?: string;
+}
+export interface ChangesView {
+  source: "git" | "tracked";
+  branch?: string;
+  files: FileChange[];
+  added: number;
+  removed: number;
+  more?: boolean;
+}
+export interface DiffLine {
+  t: " " | "-" | "+";
+  o?: number;
+  n?: number;
+  s: string;
+}
+export interface Hunk {
+  oldStart: number;
+  oldLines: number;
+  newStart: number;
+  newLines: number;
+  lines: DiffLine[];
+}
+export interface FileDiff extends FileChange {
+  hunks: Hunk[];
+}
 export interface FileContent {
   path: string;
   size: number;
@@ -1152,6 +1187,10 @@ export const API = {
   newConversation: (id: string) => api<SessionMeta>("POST", `/api/agents/${enc(id)}/sessions`, {}),
   files: (id: string, path: string) => api<{ entries: FileEntry[] }>("GET", `/api/agents/${enc(id)}/files?path=${enc(path)}`),
   file: (id: string, path: string) => api<FileContent>("GET", `/api/agents/${enc(id)}/file?path=${enc(path)}`),
+  changes: (id: string) => api<ChangesView>("GET", `/api/agents/${enc(id)}/changes`),
+  fileDiff: (id: string, path: string) => api<FileDiff>("GET", `/api/agents/${enc(id)}/changes/diff?path=${enc(path)}`),
+  revertChange: (id: string, path: string) => api<ChangesView>("POST", `/api/agents/${enc(id)}/changes/revert`, { path }),
+  acceptChanges: (id: string) => api<ChangesView>("POST", `/api/agents/${enc(id)}/changes/accept`),
   saveFile: (id: string, path: string, content: string) => api("PUT", `/api/agents/${enc(id)}/file`, { path, content }),
   // 预览 (features/preview)
   openPreview: (id: string, path: string, session?: string, title?: string) => api<PreviewInfo>("POST", `/api/agents/${enc(id)}/preview`, { path, session, title }),

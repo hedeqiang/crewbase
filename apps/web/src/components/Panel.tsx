@@ -40,7 +40,7 @@ export function Panel() {
   ];
   const pluginTab = view.startsWith("ui:") ? pluginTabs.find((c) => "ui:" + c.key === view) : undefined;
   return (
-    <aside className={"panel" + (view === "preview" ? " wide" : "")}>
+    <aside className={"panel" + (view === "preview" ? " wide" : view === "files" ? " files-wide" : "")}>
       <div className="ptabs" role="tablist">
         {tabs.map(([k, l]) => (
           <button key={k} className="ptab" type="button" role="tab" aria-selected={view === k} onClick={() => setState({ panelTab: k })}>
