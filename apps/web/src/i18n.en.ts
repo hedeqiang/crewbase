@@ -606,7 +606,7 @@ export const en: Partial<Record<Key, string>> = {
   "preview.phone": "Phone",
   "preview.close": "Close preview",
   "preview.loading": "Opening…",
-  "preview.down": "Nothing answers at {addr}; the dev server may have stopped.",
+  "preview.down": "Nothing answers at {addr}; the dev server may have stopped. This reloads when it is back.",
   "preview.downStatic": "The preview server at {addr} does not answer.",
   "preview.failed": "Could not open this preview: {error}",
   "preview.opened": "Opened a preview: {title}",

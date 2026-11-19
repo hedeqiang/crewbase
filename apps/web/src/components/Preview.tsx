@@ -170,6 +170,30 @@ function Viewer({ item, onClose }: { item: PreviewInfo; onClose: () => void }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [item.kind, item.url, item.agent, item.path, item.time, tick]);
 
+  // keep checking while it is on screen: a dev server that stopped turns the
+  // tab into "not answering" (instead of a stale page), and one that comes
+  // back reloads by itself; our static server, if it went idle, is reopened
+  useEffect(() => {
+    if (!url || (state !== "ok" && !(state === "down" && item.kind === "url"))) return;
+    let live = true;
+    let busy = false;
+    const iv = window.setInterval(async () => {
+      if (busy || document.hidden) return;
+      busy = true;
+      const ok = await answers(url);
+      busy = false;
+      if (!live) return;
+      if (state === "ok" && !ok) {
+        if (item.kind === "url") setSt("down");
+        else setTick((x) => x + 1);
+      } else if (state === "down" && ok) setTick((x) => x + 1);
+    }, 5000);
+    return () => {
+      live = false;
+      clearInterval(iv);
+    };
+  }, [url, state, item.kind]);
+
   useLayoutEffect(() => {
     const el = box.current;
     if (!el) return;

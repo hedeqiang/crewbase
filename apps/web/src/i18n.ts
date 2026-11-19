@@ -938,7 +938,7 @@ const zh = {
   "preview.phone": "手机",
   "preview.close": "关闭预览",
   "preview.loading": "正在打开…",
-  "preview.down": "{addr} 没有响应，开发服务器可能已经停止。",
+  "preview.down": "{addr} 没有响应，开发服务器可能已经停止；它恢复后这里会自动刷新。",
   "preview.downStatic": "预览服务器 {addr} 没有响应。",
   "preview.failed": "打不开这个预览：{error}",
   "preview.opened": "打开了预览：{title}",
