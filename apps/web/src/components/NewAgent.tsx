@@ -179,7 +179,7 @@ export function NewAgent({ draft: f, setDraft }: { draft: Draft; setDraft: (d: D
       const hit = all.find((m) => refString(m.ref) === settingsDefault || refString({ ...m.ref, effort: undefined }) === settingsDefault.split("@")[0]);
       if (hit) return hit.ref;
     }
-    for (const want of ["claude-opus-5-5", "claude-sonnet-5-5", "gpt-6.1", "gpt-6", "deepseek-v4-pro", "deepseek-flash"]) {
+    for (const want of ["claude-opus-5-5", "claude-sonnet-5-5", "gpt-6.2", "gpt-6.1", "gpt-6", "deepseek-v4-pro", "deepseek-flash"]) {
       const hit = all.find((m) => m.ref.model.includes(want));
       if (hit) return hit.ref;
     }

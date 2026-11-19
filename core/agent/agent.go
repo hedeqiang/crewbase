@@ -1461,7 +1461,7 @@ func sameRefs(a, b []llm.ModelRef) bool {
 
 // preferredModels ranks well-known strong models when a provider (such as
 // a gateway) offers many; the first enabled match wins.
-var preferredModels = []string{"claude-opus-5-5", "gpt-6.1", "claude-sonnet-5-5", "gpt-6", "deepseek-v4-pro", "gemini", "deepseek-flash"}
+var preferredModels = []string{"claude-opus-5-5", "gpt-6.2", "gpt-6.1", "claude-sonnet-5-5", "gpt-6", "deepseek-v4-pro", "gemini", "deepseek-flash"}
 
 func pickModel(ms []llm.ModelInfo) string {
 	// a CLI's "default" entry only stands in when it lists nothing else
