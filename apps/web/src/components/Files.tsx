@@ -65,13 +65,14 @@ function Dir({ agentId, path, depth, sel, onPick }: { agentId: string; path: str
         if (e.dir)
           return (
             <div key={p}>
-              <div className={"tnrow" + (e.index ? " pv" : "")}>
+              <div className={"tnrow" + (e.index || e.project ? " pv" : "")}>
                 <button className="tn" type="button" style={{ paddingLeft: 6 + depth * 14 }} aria-expanded={!!open[p]} onClick={() => setOpen((o) => ({ ...o, [p]: !o[p] }))}>
                   <ChevronRight size={12} className="tch" />
                   {open[p] ? <FolderOpen size={14} /> : <Folder size={14} />}
                   <span className="g">{e.name}</span>
                 </button>
-                {e.index && <PreviewBtn agentId={agentId} path={p + "/"} />}
+                {/* a project's source runs through its dev server, not as files */}
+                {e.project ? <RunPreviewBtn agentId={agentId} path={p} /> : e.index && <PreviewBtn agentId={agentId} path={p + "/"} />}
               </div>
               {open[p] && <Dir agentId={agentId} path={p} depth={depth + 1} sel={sel} onPick={onPick} />}
             </div>
@@ -100,6 +101,27 @@ function PreviewBtn({ agentId, path }: { agentId: string; path: string }) {
     <button className="tnpv" type="button" title={t("preview.inPanel")} onClick={() => void previewPath(agentId, path)}>
       <AppWindow size={12} />
       {t("preview.btn")}
+    </button>
+  );
+}
+
+/** 运行并预览: asks the agent to start the project's dev server in the
+ *  background and open it in the 预览 tab (its turn shows every step). */
+function RunPreviewBtn({ agentId, path }: { agentId: string; path: string }) {
+  const agent = useStore((s) => s.agents[agentId]);
+  const run = async () => {
+    if (!agent) return;
+    try {
+      await API.send(agentId, { text: t("preview.runAsk", { dir: path }), session: agent.session });
+      toast(t("preview.runSent", { name: agent.name }));
+    } catch (e: any) {
+      toast(e?.message ?? String(e));
+    }
+  };
+  return (
+    <button className="tnpv" type="button" title={t("preview.runTitle")} disabled={!agent || agent.kind === "chat"} onClick={() => void run()}>
+      <AppWindow size={12} />
+      {t("preview.run")}
     </button>
   );
 }

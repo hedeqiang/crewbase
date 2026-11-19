@@ -451,6 +451,9 @@ var Plugin = kernel.Register(kernel.Spec{
 			Modified time.Time `json:"modified"`
 			// Index: a folder with an index.html (the files panel offers 预览)
 			Index bool `json:"index,omitempty"`
+			// Project: a folder with a package.json (a Vite / React / Vue app
+			// that runs through its dev server, not as plain files)
+			Project bool `json:"project,omitempty"`
 		}
 		g.Handle(c, gateway.Route{Method: "GET", Path: "/api/agents/{id}/files",
 			Handle: func(_ context.Context, r *gateway.Request) (any, error) {
@@ -479,6 +482,9 @@ var Plugin = kernel.Register(kernel.Spec{
 					if e.Dir {
 						if fi, err := os.Stat(filepath.Join(p, d.Name(), "index.html")); err == nil && fi.Mode().IsRegular() {
 							e.Index = true
+						}
+						if fi, err := os.Stat(filepath.Join(p, d.Name(), "package.json")); err == nil && fi.Mode().IsRegular() {
+							e.Project = true
 						}
 					}
 					out = append(out, e)

@@ -315,6 +315,8 @@ export interface FileEntry {
   modified: string;
   /** a folder with an index.html (it can be previewed) */
   index?: boolean;
+  /** a folder with a package.json: an app run by its dev server */
+  project?: boolean;
 }
 export interface FileContent {
   path: string;
