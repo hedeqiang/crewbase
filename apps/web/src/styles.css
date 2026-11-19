@@ -2211,3 +2211,18 @@ a.lcard:hover, .lvideo .ltext:hover { background: var(--hover); }
 .vltform .fi { flex: 1 1 180px; min-width: 0; }
 .vltadd { margin-bottom: 18px; }
 .vltnote { margin-top: 20px; line-height: 1.6; }
+/* 粘贴安装 */
+.mkhr { display: flex; align-items: center; gap: 10px; }
+.pstmodal { width: min(620px, calc(100vw - 32px)); }
+.pstin { width: 100%; box-sizing: border-box; resize: vertical; font-size: 12.5px; line-height: 1.5; min-height: 96px; }
+.pstErr { margin: 10px 0 0; white-space: pre-wrap; }
+.pstplan { margin-top: 12px; display: flex; flex-direction: column; gap: 8px; }
+.pstsrv { border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; display: flex; flex-direction: column; gap: 6px; }
+.pstrow { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.pstname { width: 150px; flex: none; }
+.pstwhat { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pstvar { display: grid; grid-template-columns: minmax(90px, 32%) minmax(0, 1fr) auto; align-items: center; gap: 8px; font-size: 12px; }
+.pstvar > .mono { overflow: hidden; text-overflow: ellipsis; }
+.pstvar.need > .mono { color: var(--amber-text); font-weight: 600; }
+.pstskill { align-items: flex-start; }
+.pstskill .pill { margin-left: 6px; }

@@ -4,13 +4,14 @@ import {
   BadgeCheck, Bug, CalendarDays, Check, Copy, ExternalLink, FolderInput, GitCommitHorizontal, Globe, ListChecks, LogIn, Megaphone,
   MoreHorizontal, Plug, Plus, Search, SearchCode, Server, ShieldAlert, Sparkles, Table, X,
 } from "lucide-react";
-import { API, api, desktop, openExternal, DEFAULT_TEAM, type AgentView, type MarketEntry, type McpServer, type PluginView } from "../../api";
+import { API, api, openExternal, DEFAULT_TEAM, type AgentView, type MarketEntry, type McpServer, type PluginView } from "../../api";
 import { canUse, connectorsFor, nextConnectors, useConnectors } from "../AgentConnectors";
 import { getLang, t, type Key } from "../../i18n";
 import { setState, toast, useStore } from "../../store";
 import { Head } from "../Settings";
 import { MonoMark } from "../ProviderMark";
-import { ApproveDialog, errMsg, MCP_TONE, McpForm, McpTools, PluginCards, stateLabel } from "./ExtParts";
+import { PasteButton, PasteInstall } from "./PasteInstall";
+import { ApproveDialog, errMsg, MCP_TONE, McpForm, McpTools, PluginCards, settle, signInWindow, stateLabel } from "./ExtParts";
 
 // Brand icons from LobeHub Icons (@lobehub/icons-static-svg, MIT), as in
 // ProviderMark, where the package has the mark; the others are the
@@ -127,48 +128,6 @@ function connectHow(it: CatItem): ConnectHow {
 /** The server answers 401/403: its token expired or was revoked. */
 const needsReauth = (s?: McpServer) => s?.status?.state === "error" && /\b(401|403)\b|unauthori[sz]ed|forbidden|bad credentials/i.test(s.status.error ?? "");
 
-/** Polls the server list until name settles (ready, login, error). */
-async function settle(name: string, ms = 25000): Promise<McpServer | undefined> {
-  const end = Date.now() + ms;
-  let last: McpServer | undefined;
-  while (Date.now() < end) {
-    try {
-      last = (await API.mcp()).servers?.find((s) => s.name === name);
-    } catch {
-      /* try again */
-    }
-    const st = last?.status?.state;
-    if (st === "ready" || st === "error" || st === "disabled" || (st === "login" && last?.status.loginUrl)) return last;
-    await sleep(500);
-  }
-  return last;
-}
-
-/** Opens a sign-in page outside the app. In a browser the window must be
- *  opened during the click (popup blockers), so it is opened at once and
- *  pointed at the URL when the server publishes it. The result returns
- *  false when nothing could be opened (blocked). */
-function signInWindow(): (url: string | null) => boolean {
-  if (desktop()?.openExternal) return (u) => (u ? (openExternal(u), true) : true);
-  const w = window.open("", "_blank");
-  if (w) {
-    try {
-      w.opener = null;
-      w.document.title = t("mk2.opening");
-      w.document.body.style.cssText = "font: 14px system-ui, sans-serif; color: #666; display: grid; place-items: center; height: 100vh; margin: 0";
-      w.document.body.textContent = t("mk2.opening");
-    } catch {
-      /* cross-origin already */
-    }
-  }
-  return (u) => {
-    if (!w || w.closed) return false;
-    if (u) w.location.href = u;
-    else w.close();
-    return true;
-  };
-}
-
 // ---------------------------------------------------------------- page
 
 type View = "market" | "installed";
@@ -191,6 +150,7 @@ export function Extensions() {
   const [q, setQ] = useState("");
   const [d, setD] = useState<Data>({ catalog: null, servers: null, skills: null, plugins: null, market: null, marketErr: null });
   const [approve, setApprove] = useState<PluginView | null>(null);
+  const [paste, setPaste] = useState(false);
   const [focus, setFocus] = useState<string | null>(null); // server to open in Installed
   const [gh, setGh] = useState<CatItem | null>(null); // GitHub sign-in dialog
   const [scopeOf, setScopeOf] = useState<McpServer | null>(null);
@@ -266,6 +226,8 @@ export function Extensions() {
         title={t("set.market")}
         sub={t("mk.sub")}
         right={
+          <div className="mkhr">
+          <PasteButton onClick={() => setPaste(true)} />
           <div className="seg" role="group">
             <button type="button" aria-pressed={view === "market"} onClick={() => setView("market")}>
               {t("mk.tabMarket")}
@@ -273,6 +235,7 @@ export function Extensions() {
             <button type="button" aria-pressed={view === "installed"} onClick={() => setView("installed")}>
               {t("mk.tabInstalled")}
             </button>
+          </div>
           </div>
         }
       />
@@ -296,6 +259,16 @@ export function Extensions() {
             setApprove(null);
             reload();
           }}
+        />
+      )}
+      {paste && (
+        <PasteInstall
+          onClose={() => setPaste(false)}
+          onDone={() => {
+            reload();
+            setView("installed");
+          }}
+          onApprove={setApprove}
         />
       )}
       {gh && <GitHubDialog item={gh} target={target} servers={d.servers ?? []} onClose={() => setGh(null)} onChanged={reload} />}

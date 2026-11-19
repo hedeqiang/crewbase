@@ -17,6 +17,7 @@ import (
 
 	"github.com/hedeqiang/crewbase/capabilities/credentials"
 	"github.com/hedeqiang/crewbase/features/gateway"
+	"github.com/hedeqiang/crewbase/features/mcp"
 	"github.com/hedeqiang/crewbase/kernel"
 )
 
@@ -40,8 +41,9 @@ type Item struct {
 // ("vault:crewbase/<provider id>").
 var modelIDs = map[string]bool{"anthropic": true, "openai": true, "gemini": true, "deepseek": true}
 
-// Describe works out what a vault id is for.
-func Describe(id string) Item {
+// Describe works out what a vault id is for. servers are the installed
+// MCP server names (a server name and a variable name both may hold "-").
+func Describe(id string, servers ...string) Item {
 	it := Item{ID: id, Ref: "vault:" + id, Kind: "secret"}
 	svc, name, ok := strings.Cut(id, "/")
 	if !ok || svc != "crewbase" {
@@ -54,11 +56,20 @@ func Describe(id string) Item {
 		it.Kind, it.Target = "mcp-login", strings.TrimPrefix(name, "mcp-oauth-")
 	case strings.HasPrefix(name, "mcp-"):
 		rest := strings.TrimPrefix(name, "mcp-")
-		// mcp-<server>-<key>; the server name may itself contain "-"
-		if i := strings.LastIndex(rest, "-"); i > 0 {
-			it.Kind, it.Target, it.Key = "mcp", rest[:i], rest[i+1:]
-		} else {
-			it.Kind, it.Target = "mcp", rest
+		it.Kind, it.Target = "mcp", rest
+		// mcp-<server>-<key>: the longest installed server name that fits
+		best := ""
+		for _, sv := range servers {
+			if (rest == sv || strings.HasPrefix(rest, sv+"-")) && len(sv) > len(best) {
+				best = sv
+			}
+		}
+		switch {
+		case best != "":
+			it.Target, it.Key = best, strings.TrimPrefix(strings.TrimPrefix(rest, best), "-")
+		case strings.Contains(rest, "-"):
+			i := strings.Index(rest, "-")
+			it.Target, it.Key = rest[:i], rest[i+1:]
 		}
 	case strings.HasPrefix(name, "im-"):
 		rest := strings.TrimPrefix(name, "im-")
@@ -101,9 +112,15 @@ var Plugin = kernel.Register(kernel.Spec{
 				if err != nil {
 					return nil, err
 				}
+				var servers []string
+				if ms, ok := kernel.Lookup[*mcp.Service](c, mcp.ServiceKey); ok {
+					for _, v := range ms.List() {
+						servers = append(servers, v.Name)
+					}
+				}
 				items := make([]Item, 0, len(list))
 				for _, x := range list {
-					it := Describe(x.ID)
+					it := Describe(x.ID, servers...)
 					it.Masked, it.Created, it.Updated = x.Masked, x.Created, x.Updated
 					items = append(items, it)
 				}

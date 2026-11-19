@@ -3,7 +3,7 @@
 // an MCP server's tool list.
 import { useEffect, useState } from "react";
 import { Plus, RefreshCw, X } from "lucide-react";
-import { API, type McpServer, type McpTool, type McpToolFilter, type Permissions, type PluginView } from "../../api";
+import { API, desktop, openExternal, type McpServer, type McpTool, type McpToolFilter, type Permissions, type PluginView } from "../../api";
 import { t, type Key } from "../../i18n";
 import { toast, useStore } from "../../store";
 import { catLabel } from "../Settings";
@@ -367,3 +367,47 @@ function splitCommand(s: string): string[] {
   while ((m = re.exec(s))) out.push(m[1] ?? m[2] ?? m[3]);
   return out;
 }
+
+/** Polls the server list until name settles (ready, login, error). */
+export async function settle(name: string, ms = 25000): Promise<McpServer | undefined> {
+  const end = Date.now() + ms;
+  let last: McpServer | undefined;
+  while (Date.now() < end) {
+    try {
+      last = (await API.mcp()).servers?.find((s) => s.name === name);
+    } catch {
+      /* try again */
+    }
+    const st = last?.status?.state;
+    if (st === "ready" || st === "error" || st === "disabled" || (st === "login" && last?.status.loginUrl)) return last;
+    await sleep(500);
+  }
+  return last;
+}
+
+/** Opens a sign-in page outside the app. In a browser the window must be
+ *  opened during the click (popup blockers), so it is opened at once and
+ *  pointed at the URL when the server publishes it. The result returns
+ *  false when nothing could be opened (blocked). */
+export function signInWindow(): (url: string | null) => boolean {
+  if (desktop()?.openExternal) return (u) => (u ? (openExternal(u), true) : true);
+  const w = window.open("", "_blank");
+  if (w) {
+    try {
+      w.opener = null;
+      w.document.title = t("mk2.opening");
+      w.document.body.style.cssText = "font: 14px system-ui, sans-serif; color: #666; display: grid; place-items: center; height: 100vh; margin: 0";
+      w.document.body.textContent = t("mk2.opening");
+    } catch {
+      /* cross-origin already */
+    }
+  }
+  return (u) => {
+    if (!w || w.closed) return false;
+    if (u) w.location.href = u;
+    else w.close();
+    return true;
+  };
+}
+
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));

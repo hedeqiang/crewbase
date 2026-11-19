@@ -145,6 +145,36 @@ var APIPlugin = kernel.Register(kernel.Spec{
 				}
 				return nil, nil
 			}})
+		// Paste to install (paste.go): detect what pasted text installs,
+		// then install the confirmed plan.
+		g.Handle(c, gateway.Route{Method: "POST", Path: "/api/install/detect",
+			Handle: func(ctx context.Context, r *gateway.Request) (any, error) {
+				var b struct {
+					Input string `json:"input"`
+				}
+				if err := r.Decode(&b); err != nil {
+					return nil, err
+				}
+				p, err := s.Detect(ctx, b.Input)
+				if errors.Is(err, ErrNotRecognized) {
+					return nil, &gateway.Error{Status: 400, Code: "not_recognized", Message: strings.TrimPrefix(err.Error(), ErrNotRecognized.Error()+": ")}
+				}
+				return p, apiErr(err)
+			}})
+		g.Handle(c, gateway.Route{Method: "POST", Path: "/api/install/apply",
+			Validate: func(r *gateway.Request) error {
+				var b ApplyRequest
+				if err := r.Decode(&b); err != nil {
+					return err
+				}
+				return checkScope(b.Scope, b.Kind == "skill")
+			},
+			Handle: func(ctx context.Context, r *gateway.Request) (any, error) {
+				var b ApplyRequest
+				_ = r.Decode(&b)
+				v, err := s.Apply(ctx, b)
+				return v, apiErr(err)
+			}})
 		return nil
 	},
 })

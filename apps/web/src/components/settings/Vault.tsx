@@ -81,7 +81,7 @@ function label(it: VaultItem): { name: string; what: string; sub?: string } {
     case "model":
       return { name: providerName(it.target ?? "") || it.target || it.id, what: t("vlt.k.apiKey") };
     case "mcp":
-      return { name: it.target ?? it.id, what: it.key ? t("vlt.k.var", { key: it.key.toUpperCase() }) : t("vlt.k.token") };
+      return { name: it.target ?? it.id, what: it.key ? t("vlt.k.var", { key: it.key.replace(/-/g, "_").toUpperCase() }) : t("vlt.k.token") };
     case "mcp-login":
       return { name: it.target ?? it.id, what: t("vlt.k.login") };
     case "im":
