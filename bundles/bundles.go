@@ -61,6 +61,7 @@ import (
 	_ "github.com/hedeqiang/crewbase/features/toolsbasic"
 	_ "github.com/hedeqiang/crewbase/features/topics"
 	_ "github.com/hedeqiang/crewbase/features/usage"
+	_ "github.com/hedeqiang/crewbase/features/vaultapi"
 	_ "github.com/hedeqiang/crewbase/features/workflows"
 	_ "github.com/hedeqiang/crewbase/providers/browser/chrome"
 	_ "github.com/hedeqiang/crewbase/providers/computer/macos"
@@ -101,7 +102,7 @@ var Base = kernel.Bundle{Name: "base", Entries: []kernel.Entry{
 	// Model metadata (context window, prices) from OpenRouter + LiteLLM:
 	// embedded snapshot, cached and refreshed daily under ${root}.
 	{ID: "model-catalog", Name: "@crewbase/model-catalog", Config: map[string]any{"dir": "${root}"}},
-	// API providers added from the UI (keys in the keychain), hot-applied.
+	// API providers added from the UI (keys in the vault), hot-applied.
 	{ID: "providers", Name: "@crewbase/providers", Config: map[string]any{"dir": "${root}"}},
 	// Deterministic mock for demos and tests; enable with a patch:
 	//   - id: llm-mock
@@ -139,11 +140,11 @@ var Base = kernel.Bundle{Name: "base", Entries: []kernel.Entry{
 	{ID: "otel", Name: "@crewbase/otel", Config: map[string]any{"endpoint": "http://127.0.0.1:4318"}, Disabled: true},
 	// IM gateways: outbound connections only (no public webhook). Enable
 	// with a patch once channel and allowUsers are set; tokens live in the
-	// keychain under these refs.
-	{ID: "im-slack", Name: "@crewbase/im-slack", Config: map[string]any{"stateDir": "${root}", "botTokenRef": "keychain:crewbase/slack-bot", "appTokenRef": "keychain:crewbase/slack-app"}, Disabled: true},
-	{ID: "im-telegram", Name: "@crewbase/im-telegram", Config: map[string]any{"stateDir": "${root}", "botTokenRef": "keychain:crewbase/telegram-bot"}, Disabled: true},
-	{ID: "im-discord", Name: "@crewbase/im-discord", Config: map[string]any{"stateDir": "${root}", "botTokenRef": "keychain:crewbase/discord-bot"}, Disabled: true},
-	{ID: "im-feishu", Name: "@crewbase/im-feishu", Config: map[string]any{"stateDir": "${root}", "botTokenRef": "keychain:crewbase/feishu-app"}, Disabled: true},
+	// vault under these refs.
+	{ID: "im-slack", Name: "@crewbase/im-slack", Config: map[string]any{"stateDir": "${root}", "botTokenRef": "vault:crewbase/slack-bot", "appTokenRef": "vault:crewbase/slack-app"}, Disabled: true},
+	{ID: "im-telegram", Name: "@crewbase/im-telegram", Config: map[string]any{"stateDir": "${root}", "botTokenRef": "vault:crewbase/telegram-bot"}, Disabled: true},
+	{ID: "im-discord", Name: "@crewbase/im-discord", Config: map[string]any{"stateDir": "${root}", "botTokenRef": "vault:crewbase/discord-bot"}, Disabled: true},
+	{ID: "im-feishu", Name: "@crewbase/im-feishu", Config: map[string]any{"stateDir": "${root}", "botTokenRef": "vault:crewbase/feishu-app"}, Disabled: true},
 	{ID: "subagent", Name: "@crewbase/subagent", Config: map[string]any{"maxDepth": 2, "maxConcurrent": 3}},
 	{ID: "subagent-runner", Name: "@crewbase/subagent-runner"},
 	{ID: "subagent-local", Name: "@crewbase/subagent-local"},
@@ -177,6 +178,7 @@ var Desktop = kernel.Bundle{Name: "desktop", Entries: []kernel.Entry{
 	{ID: "mcp-api", Name: "@crewbase/mcp-api"},
 	{ID: "catalog-api", Name: "@crewbase/catalog-api"},
 	{ID: "skills-api", Name: "@crewbase/skills-api"},
+	{ID: "vault-api", Name: "@crewbase/vault-api"},
 	{ID: "browser-api", Name: "@crewbase/browser-api"},
 	// Operating native apps (docs/computer-use.md): the permissions are
 	// given to Crewbase.app, so only the desktop process has it. Provides

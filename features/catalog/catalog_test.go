@@ -184,7 +184,9 @@ func newEnv(t *testing.T) *env {
 	}
 	r := h.Root()
 	cs := kernel.Use[*credentials.Service](r, credentials.ServiceKey)
-	cs.SetBackend("keychain", credentials.NewMemory()) // never the real keychain in tests
+	mb := credentials.NewMemory() // the vault and its old name, in memory
+	cs.SetBackend("vault", mb)
+	cs.SetBackend("keychain", mb)
 	return &env{h: h, base: "http://" + <-addr, creds: cs, mcp: kernel.Use[*mcp.Service](r, mcp.ServiceKey),
 		reg: kernel.Use[*agent.Registry](r, agent.ServiceKey), dir: dir}
 }

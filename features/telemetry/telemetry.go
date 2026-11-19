@@ -10,8 +10,8 @@
 // never exported unless the config sets includeContent: true.
 //
 // Data goes to an OTLP/HTTP endpoint (protobuf). Header values may be
-// credential references ("env:OTEL_TOKEN", "keychain:crewbase/otel") or
-// contain inline references ("Bearer ${keychain:crewbase/otel}"); they are
+// credential references ("env:OTEL_TOKEN", "vault:crewbase/otel") or
+// contain inline references ("Bearer ${vault:crewbase/otel}"); they are
 // resolved through the credentials service on every export.
 package telemetry
 
@@ -64,10 +64,10 @@ type Config struct {
 // maxContent bounds exported content attributes.
 const maxContent = 4096
 
-var inlineRef = regexp.MustCompile(`\$\{((?:keychain|env|mem):[^}]+)\}`)
+var inlineRef = regexp.MustCompile(`\$\{((?:vault|keychain|env|mem):[^}]+)\}`)
 
 func isRef(v string) bool {
-	for _, p := range []string{"keychain:", "env:", "mem:"} {
+	for _, p := range []string{"vault:", "keychain:", "env:", "mem:"} {
 		if strings.HasPrefix(v, p) {
 			return true
 		}

@@ -7,7 +7,7 @@
 //	{"providers": [{
 //	    "id": "anthropic",                          // default "anthropic"
 //	    "baseURL": "https://api.anthropic.com",     // optional (Anthropic-compatible endpoints work too)
-//	    "apiKey": "", "apiKeyRef": "keychain:crewbase/anthropic", "apiKeyEnv": "ANTHROPIC_API_KEY",
+//	    "apiKey": "", "apiKeyRef": "vault:crewbase/anthropic", "apiKeyEnv": "ANTHROPIC_API_KEY",
 //	    "models": ["claude-opus-5-5", {"id": "claude-sonnet-5-5", "contextWindow": 200000}],
 //	    "defaultModel": "claude-opus-5-5",
 //	    "headers": {"anthropic-beta": "..."},
@@ -122,7 +122,7 @@ func New(c *kernel.Context, pc ProviderConfig) *Adapter {
 	}
 	a.keys = keySource{C: c, Literal: pc.APIKey, Ref: pc.APIKeyRef, Env: env}
 	if pc.APIKey == "" && pc.APIKeyRef == "" {
-		a.keys.DefRef = "keychain:crewbase/" + pc.ID
+		a.keys.DefRef = "vault:crewbase/" + pc.ID
 	}
 	return a
 }

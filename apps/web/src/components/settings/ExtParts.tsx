@@ -316,7 +316,7 @@ export function McpForm({ onCancel, onSaved }: { onCancel: () => void; onSaved: 
           {env.map(([k, v], i) => (
             <div className="envrow" key={i}>
               <input className="fi sm mono" value={k} placeholder={transport === "stdio" ? "GITHUB_TOKEN" : "Authorization"} onChange={(e) => setEnv(env.map((x, j) => (j === i ? [e.target.value, x[1]] : x)))} />
-              <input className="fi sm mono" value={v} placeholder="keychain:crewbase/github" onChange={(e) => setEnv(env.map((x, j) => (j === i ? [x[0], e.target.value] : x)))} />
+              <input className="fi sm mono" value={v} placeholder="vault:crewbase/github" onChange={(e) => setEnv(env.map((x, j) => (j === i ? [x[0], e.target.value] : x)))} />
               <button className="ix" type="button" aria-label={t("panel.remove")} onClick={() => setEnv(env.length > 1 ? env.filter((_, j) => j !== i) : [["", ""]])}>
                 <X size={13} />
               </button>

@@ -1096,7 +1096,7 @@ func (g *generation) hostRequest(ctx context.Context, method string, params json
 		}
 		ref := in.Ref
 		if !strings.Contains(ref, ":") {
-			ref = "keychain:crewbase/" + ref // bare names live in the Crewbase keychain service
+			ref = "vault:crewbase/" + ref // bare names live in the Crewbase vault
 		}
 		v, err := svc.Resolve(ctx, ref)
 		if err != nil {

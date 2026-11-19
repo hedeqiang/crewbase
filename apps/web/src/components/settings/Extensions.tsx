@@ -722,7 +722,7 @@ function ConnectDialog({ item, target, servers, onClose, onChanged, onSignIn }: 
 
 /** GitHub's device sign-in: shows the code to enter at github.com/login/device
  *  and waits for the person to approve; Crewbase then keeps the token in the
- *  keychain and connects GitHub's MCP server. A personal access token is
+ *  vault and connects GitHub's MCP server. A personal access token is
  *  the fallback. */
 function GitHubDialog({ item, target, servers, onClose, onChanged }: { item: CatItem; target: Target; servers: McpServer[]; onClose: () => void; onChanged: () => void }) {
   const [v, setV] = useState<SignInView | null>(null);

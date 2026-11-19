@@ -100,7 +100,9 @@ func imHost(t *testing.T, dir string, provider map[string]any, seed func(cs *cre
 		}
 	}
 	cs := kernel.Use[*credentials.Service](h.Root(), credentials.ServiceKey)
-	cs.SetBackend("keychain", credentials.NewMemory())
+	mb := credentials.NewMemory() // the vault and its old name, in memory
+	cs.SetBackend("vault", mb)
+	cs.SetBackend("keychain", mb)
 	if seed != nil {
 		seed(cs)
 	}

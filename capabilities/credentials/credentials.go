@@ -4,9 +4,11 @@
 //
 // Reference schemes:
 //
-//	keychain:<service>/<id>   system keychain (macOS Keychain via `security`,
-//	                          Linux libsecret via `secret-tool`), e.g.
-//	                          keychain:crewbase/openai
+//	vault:<service>/<id>      Crewbase's encrypted vault in the data root
+//	                          (vault.go), e.g. vault:crewbase/openai
+//	keychain:<service>/<id>   the same vault item (the name configs used
+//	                          before the vault; the system keychain is not
+//	                          used any more)
 //	env:NAME                  environment variable (read-only)
 //	mem:<id>                  in-memory (tests, ephemeral tokens)
 //
@@ -20,6 +22,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -63,14 +67,16 @@ type Service struct {
 	timeout time.Duration
 	host    *kernel.Host // for RefChanged; nil outside a host
 
+	vault *Vault // nil without a data root
+
 	mu       sync.Mutex
 	backends map[string]Backend
 	locks    map[string]*sync.Mutex
 	tracked  map[string]struct{}
 }
 
-// New creates a service with the default backends: mem, env and, when
-// available on this platform, keychain.
+// New creates a service with the mem and env backends; UseVault adds the
+// vault (the plugin does, for its data root).
 func New() *Service {
 	s := &Service{
 		timeout:  15 * time.Second,
@@ -80,10 +86,18 @@ func New() *Service {
 	}
 	s.backends["mem"] = NewMemory()
 	s.backends["env"] = Env{}
-	if kc := systemKeychain(); kc != nil {
-		s.backends["keychain"] = kc
-	}
 	return s
+}
+
+// Vault is the service's vault (nil without a data root).
+func (s *Service) Vault() *Vault { return s.vault }
+
+// UseVault makes v the store of the "vault" and "keychain" schemes.
+func (s *Service) UseVault(v *Vault) {
+	s.mu.Lock()
+	s.backends["vault"], s.backends["keychain"] = v, v
+	s.vault = v
+	s.mu.Unlock()
 }
 
 // SetBackend installs (or replaces) the backend for a scheme.
@@ -350,7 +364,7 @@ type Env struct{}
 func (Env) Name() string { return "env" }
 
 func (Env) Get(_ context.Context, name string) (string, error) {
-	v := lookupEnv(name)
+	v := os.Getenv(name)
 	if v == "" {
 		return "", ErrNotFound
 	}
@@ -362,15 +376,14 @@ func (Env) Delete(context.Context, string) error      { return ErrReadOnly }
 
 // Config of the plugin.
 type Config struct {
-	// Root is the data root. Keychain entries of any root but ~/.crewbase
-	// are stored under a root-specific name (see Scope).
+	// Root is the data root; the vault lives in <root>/vault.
 	Root string `json:"root"`
 }
 
 // Plugin provides the `credentials` service.
 var Plugin = kernel.Register(kernel.Spec{
 	Name:        "@crewbase/credentials",
-	Description: "Credential references: keychain, env, memory (credentials service).",
+	Description: "Credential references: the encrypted vault, env, memory (credentials service).",
 	Apply: func(c *kernel.Context) error {
 		cfg, err := kernel.Decode[Config](c)
 		if err != nil {
@@ -378,8 +391,12 @@ var Plugin = kernel.Register(kernel.Spec{
 		}
 		s := New()
 		s.host = c.Host()
-		if kc, ok := s.backends["keychain"]; ok && cfg.Root != "" {
-			s.backends["keychain"] = Scope(kc, cfg.Root)
+		if cfg.Root != "" {
+			v, err := OpenVault(filepath.Join(cfg.Root, VaultDir))
+			if err != nil {
+				return err
+			}
+			s.UseVault(v)
 		}
 		return c.Provide(ServiceKey, s)
 	},

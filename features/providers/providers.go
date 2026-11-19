@@ -4,7 +4,7 @@
 // removing a provider only rebuilds that adapter.
 //
 // API keys never touch the config: they are written to the credentials
-// service (system keychain) as keychain:crewbase/provider-<id>, and only
+// service (the vault) as vault:crewbase/provider-<id>, and only
 // that reference is persisted in ${dir}/providers.json.
 package providers
 
@@ -138,7 +138,7 @@ func (s *Service) creds() (*credentials.Service, error) {
 	return cs, nil
 }
 
-func keyRef(id string) string { return "keychain:crewbase/provider-" + id }
+func keyRef(id string) string { return "vault:crewbase/provider-" + id }
 
 // adapter builds the llm adapter for p (not registered).
 func (s *Service) adapter(ctx *kernel.Context, p Provider) (llm.Adapter, error) {
@@ -362,7 +362,7 @@ func scrub(msg, secret string) string {
 	return msg
 }
 
-// Add stores the key in the keychain, persists the provider and registers
+// Add stores the key in the vault, persists the provider and registers
 // it. Adding an existing id updates it.
 func (s *Service) Add(in Input) (Provider, error) {
 	if err := in.normalize(); err != nil {
@@ -461,7 +461,7 @@ type Patch struct {
 	Name    *string `json:"name"`
 	Icon    *string `json:"icon"`
 	BaseURL *string `json:"baseURL"`
-	// APIKey replaces the stored key; "" keeps the one in the keychain.
+	// APIKey replaces the stored key; "" keeps the one in the vault.
 	APIKey string    `json:"apiKey"`
 	Models *[]string `json:"models"`
 	// Kinds replaces the per-model kind marks (with Models or alone).
@@ -554,7 +554,7 @@ func (s *Service) Remove(id string) error {
 	delete(s.items, id)
 	delete(s.errs, id)
 	s.mu.Unlock()
-	if cs, err := s.creds(); err == nil && strings.HasPrefix(p.KeyRef, "keychain:crewbase/provider-") {
+	if cs, err := s.creds(); err == nil && (strings.HasPrefix(p.KeyRef, "vault:crewbase/provider-") || strings.HasPrefix(p.KeyRef, "vault:crewbase/provider-")) {
 		_ = cs.Delete(p.KeyRef)
 	}
 	return s.save()

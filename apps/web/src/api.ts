@@ -719,6 +719,17 @@ export interface Permissions {
   /** runs without the sandbox (the manifest opted out, or a person allowed it) */
   unsandboxed?: boolean;
 }
+/** A vault entry (Settings › 保管库): never its value. */
+export interface VaultItem {
+  id: string;
+  ref: string;
+  masked: string;
+  kind: "provider" | "model" | "mcp" | "mcp-login" | "im" | "secret";
+  target?: string;
+  key?: string;
+  created: string;
+  updated: string;
+}
 export interface PluginView {
   name: string;
   version: string;
@@ -1257,6 +1268,10 @@ export const API = {
   browserInput: (id: string, b: BrowserInput) => api("POST", `/api/agents/${enc(id)}/browser/input`, b),
 
   usage: () => api<UsageStats>("GET", "/api/usage"),
+  vault: () => api<{ items: VaultItem[] }>("GET", "/api/vault"),
+  addSecret: (name: string, value: string) => api<VaultItem>("POST", "/api/vault", { name, value }),
+  replaceSecret: (id: string, value: string) => api<VaultItem>("PUT", "/api/vault", { id, value }),
+  deleteSecret: (id: string) => api("DELETE", `/api/vault?id=${encodeURIComponent(id)}`),
   system: () => api<SystemInfo>("GET", "/api/system"),
 };
 

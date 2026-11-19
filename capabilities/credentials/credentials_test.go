@@ -2,15 +2,15 @@ package credentials_test
 
 import (
 	"context"
-	"crypto/rand"
-	"encoding/hex"
+	"encoding/json"
 	"errors"
-	"os/exec"
-	"runtime"
+	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/hedeqiang/crewbase/capabilities/credentials"
 	"github.com/hedeqiang/crewbase/kernel"
@@ -143,48 +143,92 @@ func TestPlugin(t *testing.T) {
 	}
 }
 
-func TestKeychainRoundTrip(t *testing.T) {
-	if runtime.GOOS != "darwin" {
-		t.Skip("darwin only")
-	}
-	if _, err := exec.LookPath("security"); err != nil {
-		t.Skip("security CLI missing")
-	}
-	b := make([]byte, 8)
-	rand.Read(b)
-	id := "test-" + hex.EncodeToString(b)
-	ref := "keychain:crewbase/" + id
-	s := credentials.New()
-	t.Cleanup(func() { _ = s.Delete(ref) })
-
-	if _, err := s.Resolve(context.Background(), ref); !errors.Is(err, credentials.ErrNotFound) {
+func TestVaultRoundTrip(t *testing.T) {
+	root := t.TempDir()
+	h := kernel.NewHost(nil)
+	t.Cleanup(h.Close)
+	if _, err := h.Load(credentials.Plugin, kernel.LoadOptions{Config: map[string]any{"root": root}}); err != nil {
 		t.Fatal(err)
 	}
-	secret := `sk-kc "quoted" \back $(x) ` + hex.EncodeToString(b)
-	if err := s.Set(ref, secret); err != nil {
+	s := kernel.Use[*credentials.Service](h.Root(), credentials.ServiceKey)
+	ctx := context.Background()
+	secret := `sk-vault "quoted" \back $(x) 密钥`
+	if _, err := s.Resolve(ctx, "vault:crewbase/openai"); !errors.Is(err, credentials.ErrNotFound) {
 		t.Fatal(err)
 	}
-	if v, err := s.Resolve(context.Background(), ref); err != nil || v != secret {
-		t.Fatalf("round trip mismatch (err=%v)", err)
-	}
-	// update in place (-U)
-	if err := s.Set(ref, secret+"-2"); err != nil {
+	if err := s.Set("vault:crewbase/openai", secret); err != nil {
 		t.Fatal(err)
 	}
-	if v, _ := s.Resolve(context.Background(), ref); v != secret+"-2" {
-		t.Fatal("update failed")
+	// the name configs used before the vault reads the same item
+	if v, err := s.Resolve(ctx, "keychain:crewbase/openai"); err != nil || v != secret {
+		t.Fatalf("keychain alias: %v", err)
 	}
-	if info := s.Describe(ref); !info.Configured || info.Source != "macos-keychain" {
+	if err := s.Set("keychain:crewbase/openai", secret+"-2"); err != nil {
+		t.Fatal(err)
+	}
+	if v, _ := s.Resolve(ctx, "vault:crewbase/openai"); v != secret+"-2" {
+		t.Fatal("replace failed")
+	}
+	if info := s.Describe("vault:crewbase/openai"); !info.Configured || info.Source != "vault" || strings.Contains(info.Masked, "quoted") {
 		t.Fatalf("%+v", info)
 	}
-	if err := s.Delete(ref); err != nil {
+
+	// on disk: owner-only files, no plaintext
+	dir := filepath.Join(root, credentials.VaultDir)
+	for _, f := range []string{"vault.json", "master.key"} {
+		st, err := os.Stat(filepath.Join(dir, f))
+		if err != nil || st.Mode().Perm() != 0o600 {
+			t.Fatalf("%s: %v %v", f, err, st)
+		}
+	}
+	raw, _ := os.ReadFile(filepath.Join(dir, "vault.json"))
+	if strings.Contains(string(raw), "quoted") || strings.Contains(string(raw), "sk-vault") {
+		t.Fatal("plaintext in vault.json")
+	}
+
+	// a sealed value moved to another id does not open
+	var d map[string]any
+	_ = json.Unmarshal(raw, &d)
+	items := d["items"].(map[string]any)
+	items["crewbase/other"] = items["crewbase/openai"]
+	b, _ := json.Marshal(d)
+	if err := os.WriteFile(filepath.Join(dir, "vault.json"), b, 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := s.Resolve(context.Background(), ref); !errors.Is(err, credentials.ErrNotFound) {
+	time.Sleep(10 * time.Millisecond)
+	_ = os.Chtimes(filepath.Join(dir, "vault.json"), time.Now(), time.Now()) // seen as changed
+	if _, err := s.Resolve(ctx, "vault:crewbase/other"); err == nil {
+		t.Fatal("a value moved to another id opened")
+	}
+
+	// another process (a second open) sees the same items
+	v2, err := credentials.OpenVault(dir)
+	if err != nil {
 		t.Fatal(err)
 	}
-	// invalid ids never reach the CLI
-	if err := s.Set("keychain:crewbase/bad id", "x"); !errors.Is(err, credentials.ErrUnsupported) {
+	if got, _ := v2.Get(ctx, "crewbase/openai"); got != secret+"-2" {
+		t.Fatal("second open differs")
+	}
+	if list, _ := v2.List(); len(list) != 2 || list[0].ID != "crewbase/openai" || list[0].Masked == "" || list[1].Masked != "" {
+		t.Fatalf("list %+v", list)
+	}
+
+	if err := s.Delete("vault:crewbase/openai"); err != nil {
 		t.Fatal(err)
+	}
+	if _, err := s.Resolve(ctx, "vault:crewbase/openai"); !errors.Is(err, credentials.ErrNotFound) {
+		t.Fatal(err)
+	}
+	// ids are checked before they are stored
+	if err := s.Set("vault:crewbase/bad id", "x"); !errors.Is(err, credentials.ErrUnsupported) {
+		t.Fatal(err)
+	}
+
+	// a vault whose key is gone is not silently replaced
+	if err := os.Remove(filepath.Join(dir, "master.key")); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := credentials.OpenVault(dir); !errors.Is(err, credentials.ErrVaultLocked) {
+		t.Fatalf("want locked, got %v", err)
 	}
 }

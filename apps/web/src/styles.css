@@ -2203,3 +2203,11 @@ a.lcard:hover, .lvideo .ltext:hover { background: var(--hover); }
 .starters { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; margin-top: 10px; }
 .starter { text-align: left; font-size: 13px; line-height: 1.4; padding: 7px 12px; border: 1px solid var(--border2); border-radius: 12px; background: var(--surface); color: var(--text); max-width: 100%; }
 .starter:hover:not(:disabled) { background: var(--hover); border-color: var(--accent); }
+/* Settings › 保管库 */
+.vltempty { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 40px 0; color: var(--muted); }
+.vltrow .c { flex-wrap: wrap; justify-content: flex-end; }
+.vltedit .fi { width: 220px; }
+.vltform { flex-wrap: wrap; gap: 8px; }
+.vltform .fi { flex: 1 1 180px; min-width: 0; }
+.vltadd { margin-bottom: 18px; }
+.vltnote { margin-top: 20px; line-height: 1.6; }

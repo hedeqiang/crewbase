@@ -833,12 +833,12 @@ func (s *Service) Remove(name string) error {
 	return nil
 }
 
-// SecretRef is the keychain reference of a secret that belongs to one
+// SecretRef is the vault reference of a secret that belongs to one
 // server (e.g. a token pasted when installing a catalog preset). Secrets
 // stored under it are deleted with the server; refs the person typed
-// themselves (keychain:crewbase/github) are shared and left alone.
+// themselves (vault:crewbase/github) are shared and left alone.
 func SecretRef(server, key string) string {
-	return "keychain:crewbase/mcp-" + server + "-" + key
+	return "vault:crewbase/mcp-" + server + "-" + key
 }
 
 // dropOwnSecrets deletes the SecretRef values srv's env and headers name.

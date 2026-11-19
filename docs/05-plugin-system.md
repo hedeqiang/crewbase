@@ -152,7 +152,7 @@ tools.PreExecute.Use(ctx, func(c context.Context, d *tools.Decision, next tools.
 | `fs` | 读写编辑、先读后改检查 | 本地、容器挂载、SSH | 文件工具、右侧面板「文件」 |
 | `sandbox` | 把命令包装进受限环境 | `sandbox-none`、`sandbox-docker`、`sandbox-namespace`、`sandbox-seatbelt`（macOS） | `shell`、`subprocess` 的提供方 |
 | `approval` | 一次性审批请求与结果 | 桌面弹卡、移动端推送、IM 网关 | 工具执行流水线 |
-| `credentials` | 凭证引用解析，值不出服务 | macOS Keychain、Windows 凭据管理器、libsecret、Vault | 适配器、MCP、插件 |
+| `credentials` | 凭证引用解析，值不出服务 | Crewbase 保管库（加密文件）、环境变量 | 适配器、MCP、插件 |
 | `browser` | 浏览器操作与接管 | Playwright/CDP 本地池、远程浏览器 | `tool-browser`、浏览器接管卡 |
 | `subagent` | 启动子 Agent 并等待结果 | `subagent-local`（新建 Agent）、`subagent-acp`（把一个轮次交给外部 CLI） | 负责人 Agent、工作流 |
 | `channel` | 频道、成员、负责人、交接 | `channel-local`、`channel-team`（多人同步） | 交接工具、对话界面 |

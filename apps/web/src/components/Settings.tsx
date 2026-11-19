@@ -10,6 +10,7 @@ import { openSession, refreshModels, setBubbles, setLang, setLinkCards, setState
 import { Automation } from "./settings/Automation";
 import { Extensions } from "./settings/Extensions";
 import { Profile } from "./settings/Profile";
+import { Vault } from "./settings/Vault";
 import { Hosts } from "./settings/Hosts";
 import { Team } from "./settings/Team";
 import { Teams } from "./settings/Teams";
@@ -94,6 +95,7 @@ export function Settings() {
         {manage && sec === "auto" && <Automation />}
         {manage && sec === "market" && <Extensions />}
         {manage && sec === "profile" && <Profile />}
+        {manage && sec === "vault" && <Vault />}
         {sec === "keys" && <Keys />}
         {manage && sec === "notify" && <Notify />}
         {manage && sec === "hosts" && <Hosts />}
@@ -101,7 +103,7 @@ export function Settings() {
         {manage && sec === "teams" && <Teams />}
         {manage && sec === "im" && <Im />}
         {manage && sec === "computer" && <Computer />}
-        {manage && !["general", "models", "approvals", "auto", "market", "profile", "keys", "notify", "hosts", "team", "teams", "im", "computer"].includes(sec) && <Soon sec={sec} />}
+        {manage && !["general", "models", "approvals", "auto", "market", "profile", "vault", "keys", "notify", "hosts", "team", "teams", "im", "computer"].includes(sec) && <Soon sec={sec} />}
       </div>
     </div>
   );

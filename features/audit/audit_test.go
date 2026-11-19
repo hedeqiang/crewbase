@@ -237,7 +237,9 @@ func TestCredentialRefAudited(t *testing.T) {
 	root := t.TempDir()
 	load(t, h, credentials.Plugin, nil)
 	cs := kernel.Use[*credentials.Service](h.Root(), credentials.ServiceKey)
-	cs.SetBackend("keychain", credentials.NewMemory())
+	mb := credentials.NewMemory() // the vault and its old name, in memory
+	cs.SetBackend("vault", mb)
+	cs.SetBackend("keychain", mb)
 	load(t, h, audit.Plugin, map[string]any{"dir": root})
 	a := kernel.Use[*audit.Service](h.Root(), audit.ServiceKey)
 	if err := cs.Set("keychain:crewbase/provider-x", "sk-very-secret-value"); err != nil {

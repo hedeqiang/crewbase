@@ -75,7 +75,7 @@ crewbase/
 │   ├── scope/              作用域注册原语
 │   └── llm/                消息与流式词汇表、适配器约定
 ├── capabilities/           每项能力的定义（shell、fs、sandbox、approval、credentials …）
-├── providers/              能力提供方（llm-anthropic、sandbox-docker、credentials-keychain …）
+├── providers/              能力提供方（llm-anthropic、sandbox-docker、credentials（保管库）…）
 ├── features/               产品插件（channel、router、rules、routines、workflows、memory …）
 ├── bridge/                 进程外插件与 WASM 桥接、插件 SDK（Go / TS / Python）
 ├── bundles/                组合包：base、desktop、server、acp、team
@@ -173,7 +173,7 @@ crewbase/
 - **缓存与更新**：二进制内嵌一份压缩快照（`go generate ./features/modelcatalog`，由 `gen/` 拉取两个来源，约 8 KB gzip），首次运行、离线时也能用；运行时刷新后的数据存在 `<root>/model-catalog.json`（带每个来源的获取时间），下次启动优先读它，坏了退回内嵌快照。联网时后台每小时检查一次，数据超过一天才拉取（失败后一小时内不重试）；某个来源失败时保留它之前的数据并显示错误。设置 › 模型与订阅 › 模型资料：状态（更新时间、模型数、每个来源）、「立即更新」、每天自动更新开关、来源地址（每行一个，排序即优先级；清空 = 不联网，只用内置数据），存在 `<root>/model-catalog.settings.json`，改动立即生效。API：`GET /api/model-catalog`、`POST /api/model-catalog/refresh`、`PUT /api/model-catalog/settings`。
 - **隐私**：拉取是普通 GET，User-Agent `crewbase/<版本>`，不带任何 Key 或用户信息。
 
-**编辑已添加的提供方**：`PATCH /api/providers/{id}` 改名称、图标、Base URL、API Key（留空保留钥匙串里的 Key，填写则替换）、模型列表与类型标注，立即重新挂载（无需重启）；id、协议、预设不变。界面上每个自加提供方有「编辑」，打开同一对话框直接到模型这一步：用已保存的 Key 重新获取列表，可搜索、勾选 / 取消、手动添加模型 ID、逐个标注类型。
+**编辑已添加的提供方**：`PATCH /api/providers/{id}` 改名称、图标、Base URL、API Key（留空保留保管库里的 Key，填写则替换）、模型列表与类型标注，立即重新挂载（无需重启）；id、协议、预设不变。界面上每个自加提供方有「编辑」，打开同一对话框直接到模型这一步：用已保存的 Key 重新获取列表，可搜索、勾选 / 取消、手动添加模型 ID、逐个标注类型。
 
 **magpie 选择模型**：`GET /api/providers/magpie/models` 返回 magpie 列出的全部模型与已启用的 ID（`null` = 全部，默认，老用户不受影响），`PUT` 同一路径保存，存在 `<root>/magpie.json`。适配器的 `Models()` 只返回启用的，所以选择器、模型顺序与路由只出现它们；已经在用的模型照常请求。全部勾选时保存为 `null`，magpie 以后新增的模型也会自动出现。
 
@@ -184,7 +184,7 @@ crewbase/
 `features/deepseek`（`@crewbase/deepseek-tools`、`@crewbase/voice-api`）调用 DeepSeek 的独立工具接口，不论 Agent 用哪个模型：
 
 - **工具**：`web_search`（/v1/tools/search）、`web_fetch`（/v1/tools/fetch，读页面为 Markdown）、`ocr_file`（/v1/tools/ocr）。三者都是 read 类别；`web_fetch` 在只读 / 沙箱模式下按 `allowHosts` 限制。只在配置了 Key 时注册，Key 增删后自动出现 / 消失。
-- **Key**：已添加的 DeepSeek 提供方的 Key，其次 `keychain:crewbase/deepseek`、`env:DEEPSEEK_API_KEY`；`config.keyRef` 可覆盖。
+- **Key**：已添加的 DeepSeek 提供方的 Key，其次 `vault:crewbase/deepseek`、`env:DEEPSEEK_API_KEY`；`config.keyRef` 可覆盖。
 - **附件 OCR**：提供 `ocr` 服务；附件装载时，不能看图的模型收到图片的识别文字，扫描版 PDF 与旧版 .doc / .ppt 也走 OCR，结果缓存在 `uploads/.ocr/<sha256>.txt`。
 - **语音**：`/api/voice/transcribe`（16-bit WAV / Ogg Opus ≤ 8 MiB → ASR）与 `/api/voice/speak`（TTS → WAV），网页在有 Key 时优先使用，否则用浏览器语音。音频只透传，不保存。
 

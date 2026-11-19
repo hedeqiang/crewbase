@@ -48,7 +48,7 @@ func TestUpdate(t *testing.T) {
 		t.Fatal(err)
 	}
 	// the removed model's kind mark goes with it
-	if p.Name != "DS 直连" || p.Icon != "deepseek" || p.Kinds != nil || p.KeyRef != "keychain:crewbase/provider-ds" {
+	if p.Name != "DS 直连" || p.Icon != "deepseek" || p.Kinds != nil || p.KeyRef != "vault:crewbase/provider-ds" {
 		t.Fatalf("%+v", p)
 	}
 	after, ok := reg.Get("ds")

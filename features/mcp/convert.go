@@ -215,9 +215,9 @@ func inputSchema(v any) map[string]any {
 // refSchemes are the credential reference schemes recognised in env and
 // header values. "literal:" escapes a value that would otherwise look like
 // a reference.
-var refSchemes = []string{"keychain:", "env:", "mem:"}
+var refSchemes = []string{"vault:", "keychain:", "env:", "mem:"}
 
-var inlineRef = regexp.MustCompile(`\$\{((?:keychain|env|mem):[^}]+)\}`)
+var inlineRef = regexp.MustCompile(`\$\{((?:vault|keychain|env|mem):[^}]+)\}`)
 
 // IsRef reports whether the whole value is a credential reference.
 func IsRef(v string) bool {
@@ -237,7 +237,7 @@ type Resolver interface {
 var errNoCredentials = errors.New("credentials service not loaded")
 
 // resolveValue expands a configured value: a whole-value reference
-// ("keychain:crewbase/github"), inline references ("Bearer ${mem:tok}"), or
+// ("vault:crewbase/github"), inline references ("Bearer ${mem:tok}"), or
 // a "literal:" escape. Errors name the reference, never a value.
 func resolveValue(ctx context.Context, cr Resolver, v string) (string, error) {
 	if s, ok := strings.CutPrefix(v, "literal:"); ok {
@@ -296,7 +296,7 @@ func maskValue(v string) string {
 		return v
 	}
 	if inlineRef.MatchString(v) && safeRemainder.MatchString(strings.TrimSpace(inlineRef.ReplaceAllString(v, ""))) {
-		return v // e.g. "Bearer ${keychain:crewbase/linear}"
+		return v // e.g. "Bearer ${vault:crewbase/linear}"
 	}
 	return Masked
 }

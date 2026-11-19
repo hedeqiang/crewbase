@@ -4,7 +4,7 @@
 //
 // Config (see im.Config):
 //
-//	botTokenRef: keychain:crewbase/telegram-bot
+//	botTokenRef: vault:crewbase/telegram-bot
 //	channel:     "123456789"         # chat id for notifications and approvals
 //	allowUsers:  ["123456789"]       # numeric Telegram user ids
 //	relayReplies: true

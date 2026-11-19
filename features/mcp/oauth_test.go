@@ -84,7 +84,9 @@ func newFakeOAuth(t *testing.T) *fakeOAuth {
 func TestOAuthSignIn(t *testing.T) {
 	f := newFakeOAuth(t)
 	e := newEnv(t, nil)
-	e.creds.SetBackend("keychain", credentials.NewMemory())
+	mb := credentials.NewMemory() // the vault and its old name, in memory
+	e.creds.SetBackend("vault", mb)
+	e.creds.SetBackend("keychain", mb)
 	// the gateway's callback, as the API plugin would serve it
 	cb := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		q := r.URL.Query()

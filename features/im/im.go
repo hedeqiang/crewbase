@@ -212,7 +212,7 @@ type Config struct {
 	// "telegram"); it is the notify channel name and the API path segment.
 	Name string `json:"name,omitempty"`
 	// BotTokenRef / AppTokenRef are credential references
-	// (keychain:crewbase/telegram-bot); never plaintext.
+	// (vault:crewbase/telegram-bot); never plaintext.
 	BotTokenRef string `json:"botTokenRef"`
 	AppTokenRef string `json:"appTokenRef,omitempty"`
 	// Channel is the chat/channel id notifications and approval cards go to.

@@ -46,7 +46,9 @@ func setup(t *testing.T) (*kernel.Host, *providers.Service, *llm.Registry, strin
 	h.Load(llm.Plugin, kernel.LoadOptions{})
 	h.Load(credentials.Plugin, kernel.LoadOptions{})
 	cs := kernel.Use[*credentials.Service](h.Root(), credentials.ServiceKey)
-	cs.SetBackend("keychain", credentials.NewMemory()) // never touch the real keychain in tests
+	mb := credentials.NewMemory() // the vault and its old name, in memory
+	cs.SetBackend("vault", mb)
+	cs.SetBackend("keychain", mb)
 	if _, err := h.Load(providers.Plugin, kernel.LoadOptions{Config: map[string]any{"dir": dir}}); err != nil {
 		t.Fatal(err)
 	}
@@ -85,7 +87,7 @@ func TestTestAddUseRemove(t *testing.T) {
 	}
 	// the key is in the credential store, never in providers.json
 	b, _ := os.ReadFile(filepath.Join(dir, "providers.json"))
-	if bytes.Contains(b, []byte(secret)) || !bytes.Contains(b, []byte("keychain:crewbase/provider-ds")) {
+	if bytes.Contains(b, []byte(secret)) || !bytes.Contains(b, []byte("vault:crewbase/provider-ds")) {
 		t.Fatalf("providers.json: %s", b)
 	}
 	if v := s.List()[0]; !v.Active || v.Masked == "" || strings.Contains(v.Masked, secret) {

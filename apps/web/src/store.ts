@@ -38,6 +38,7 @@ export type Theme = "system" | "light" | "dark";
 export type SettingsSection =
   | "general"
   | "profile"
+  | "vault"
   | "notify"
   | "keys"
   | "models"

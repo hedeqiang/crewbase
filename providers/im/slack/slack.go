@@ -4,8 +4,8 @@
 //
 // Config (see im.Config):
 //
-//	botTokenRef: keychain:crewbase/slack-bot   # xoxb-… (chat:write, users:read, app_mentions:read, im:history, channels:history)
-//	appTokenRef: keychain:crewbase/slack-app   # xapp-… (connections:write)
+//	botTokenRef: vault:crewbase/slack-bot   # xoxb-… (chat:write, users:read, app_mentions:read, im:history, channels:history)
+//	appTokenRef: vault:crewbase/slack-app   # xapp-… (connections:write)
 //	channel:     C0123456789
 //	allowUsers:  [U0123456789]
 //	relayReplies: true

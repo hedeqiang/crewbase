@@ -12,7 +12,7 @@
 //	    "preset": "deepseek",                    // optional, defaults to id
 //	    "baseURL": "https://api.deepseek.com/v1", // optional when a preset exists
 //	    "apiKey": "",                            // literal key (discouraged)
-//	    "apiKeyRef": "keychain:crewbase/deepseek", // via the credentials service ("env:NAME" also works)
+//	    "apiKeyRef": "vault:crewbase/deepseek", // via the credentials service ("env:NAME" also works)
 //	    "apiKeyEnv": "DEEPSEEK_API_KEY",         // optional, preset default
 //	    "models": ["deepseek-chat", {"id": "deepseek-reasoner", "contextWindow": 128000, "capabilities": ["reasoning"]}],
 //	    "headers": {"HTTP-Referer": "..."},
@@ -216,7 +216,7 @@ func New(c *kernel.Context, pc ProviderConfig) (*Adapter, error) {
 	a.routes = &routeState{}
 	a.keys = keySource{C: c, Literal: pc.APIKey, Ref: pc.APIKeyRef, Env: env}
 	if pc.APIKey == "" && pc.APIKeyRef == "" && a.kind != "local" {
-		a.keys.DefRef = "keychain:crewbase/" + pc.ID
+		a.keys.DefRef = "vault:crewbase/" + pc.ID
 	}
 	return a, nil
 }

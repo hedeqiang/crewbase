@@ -4,7 +4,7 @@
 //
 // Config (see im.Config):
 //
-//	botTokenRef: keychain:crewbase/discord-bot
+//	botTokenRef: vault:crewbase/discord-bot
 //	channel:     "123456789012345678"   # channel id for notifications/approvals
 //	allowUsers:  ["234567890123456789"] # Discord user ids
 //	relayReplies: true

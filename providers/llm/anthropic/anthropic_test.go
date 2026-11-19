@@ -335,13 +335,13 @@ func TestModels(t *testing.T) {
 type fakeCreds struct{}
 
 func (fakeCreds) Resolve(_ context.Context, ref string) (string, error) {
-	if ref == "keychain:crewbase/anthropic" {
-		return "from-keychain", nil
+	if ref == "vault:crewbase/anthropic" {
+		return "from-vault", nil
 	}
 	return "", errors.New("nope")
 }
 
-func TestPluginDefaultInstanceUsesKeychainRef(t *testing.T) {
+func TestPluginDefaultInstanceUsesVaultRef(t *testing.T) {
 	t.Setenv("ANTHROPIC_API_KEY", "")
 	var cap captured
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -363,7 +363,7 @@ func TestPluginDefaultInstanceUsesKeychainRef(t *testing.T) {
 	if _, err := a.Stream(context.Background(), llm.Request{Model: "m"}, func(llm.Chunk) error { return nil }); err != nil {
 		t.Fatal(err)
 	}
-	if apiKeyOf(cap.hdr) != "from-keychain" {
+	if apiKeyOf(cap.hdr) != "from-vault" {
 		t.Fatalf("key = %q", apiKeyOf(cap.hdr))
 	}
 }

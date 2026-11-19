@@ -80,7 +80,9 @@ func TestSetupFromUI(t *testing.T) {
 		}
 	}
 	cs := kernel.Use[*credentials.Service](h.Root(), credentials.ServiceKey)
-	cs.SetBackend("keychain", credentials.NewMemory())
+	mb := credentials.NewMemory() // the vault and its old name, in memory
+	cs.SetBackend("vault", mb)
+	cs.SetBackend("keychain", mb)
 	if _, err := h.Load(imconfig.Plugin, kernel.LoadOptions{Config: map[string]any{"dir": dir, "provider": map[string]any{"apiBase": tg.URL, "pollTimeout": 1}}}); err != nil {
 		t.Fatal(err)
 	}

@@ -9,7 +9,7 @@
 // (Streamable HTTP url or a stdio command), what it needs from the person
 // (nothing, an OAuth sign-in handled by the mcp service, or values they
 // paste) and where those values go: secrets are written to the system
-// keychain under mcp.SecretRef and only the reference lands in mcp.json.
+// vault under mcp.SecretRef and only the reference lands in mcp.json.
 //
 // Presets that share a Server are parts of one server: installing a part
 // adds it to the "{parts}" argument of that server's command, removing the
@@ -62,7 +62,7 @@ type Input struct {
 	Label       Text   `json:"label"`
 	Help        Text   `json:"help,omitzero"`
 	Placeholder string `json:"placeholder,omitempty"`
-	// Secret values go to the keychain; config keeps the reference.
+	// Secret values go to the vault; config keeps the reference.
 	Secret bool `json:"secret,omitempty"`
 	// Optional inputs left empty drop the header, env entry or argument
 	// they appear in.
@@ -309,7 +309,7 @@ func (p Preset) endpoint() string {
 
 // Request is the POST /api/catalog/{id}/install body.
 type Request struct {
-	// Inputs by Input.ID. Secret values are written to the keychain and
+	// Inputs by Input.ID. Secret values are written to the vault and
 	// never stored or echoed.
 	Inputs map[string]string `json:"inputs,omitempty"`
 	// Scope: "global" (default), an agent id or team:<id> for MCP
@@ -383,7 +383,7 @@ func (s *Service) Install(id string, req Request) (Result, error) {
 }
 
 // addServer creates p's server from the person's inputs, storing secret
-// inputs in the keychain first.
+// inputs in the vault first.
 func (s *Service) addServer(svc *mcp.Service, p Preset, req Request) (Result, error) {
 	srv, secrets, err := p.build(req.Inputs, svc.ServerDir(p.Server))
 	if err != nil {
@@ -419,7 +419,7 @@ func (s *Service) dropSecrets(m map[string]string) {
 }
 
 // build turns p and the person's inputs into a server config. secrets maps
-// each keychain ref to its value (to be stored before the server is added).
+// each vault ref to its value (to be stored before the server is added).
 // "{serverDir}" is the server's own folder (mcp.Service.ServerDir).
 func (p Preset) build(in map[string]string, serverDir string) (mcp.Server, map[string]string, error) {
 	vals := map[string]string{} // input id → value as written into config
@@ -455,7 +455,7 @@ func (p Preset) build(in map[string]string, serverDir string) (mcp.Server, map[s
 			}
 			t = strings.ReplaceAll(t, ph, v)
 		}
-		// a whole-value reference is stored bare ("keychain:…")
+		// a whole-value reference is stored bare ("vault:…")
 		if strings.HasPrefix(t, "${") && strings.HasSuffix(t, "}") && strings.Count(t, "${") == 1 {
 			t = t[2 : len(t)-1]
 		}

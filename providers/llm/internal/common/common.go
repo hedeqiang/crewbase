@@ -30,7 +30,7 @@ import (
 const CredentialsKey = "credentials"
 
 // Resolver is the credentials service contract: it turns a reference such
-// as "keychain:crewbase/deepseek" into a secret. The secret never leaves the
+// as "vault:crewbase/deepseek" into a secret. The secret never leaves the
 // adapter (it is not logged nor put into errors).
 type Resolver interface {
 	Resolve(ctx context.Context, ref string) (string, error)

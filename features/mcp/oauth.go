@@ -10,7 +10,7 @@ package mcp
 // (GET /api/mcp/oauth/callback), which hands the code back here.
 //
 // The token (with what is needed to refresh it) is stored in the system
-// keychain under keychain:crewbase/mcp-oauth-<server>, never in mcp.json,
+// vault under vault:crewbase/mcp-oauth-<server>, never in mcp.json,
 // and refreshed tokens are written back. Removing the server or signing
 // out deletes it.
 
@@ -46,14 +46,14 @@ type OAuth struct {
 	ClientSecret string `json:"clientSecret,omitempty"`
 }
 
-func oauthRef(server string) string { return "keychain:crewbase/mcp-oauth-" + server }
+func oauthRef(server string) string { return "vault:crewbase/mcp-oauth-" + server }
 
-// SignInRef is the keychain reference of a server's sign-in state (the
+// SignInRef is the vault reference of a server's sign-in state (the
 // OAuth token, or what a catalog sign-in keeps to refresh its token). It
 // is deleted when the person signs out or removes the server.
 func SignInRef(server string) string { return oauthRef(server) }
 
-// storedToken is what the keychain holds for a server.
+// storedToken is what the vault holds for a server.
 type storedToken struct {
 	Token        *oauth2.Token `json:"token"`
 	TokenURL     string        `json:"tokenUrl"`

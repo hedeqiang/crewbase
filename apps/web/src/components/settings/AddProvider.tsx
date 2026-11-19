@@ -10,7 +10,7 @@ import { ModelChecklist } from "./ModelChecklist";
 type Step = "pick" | "key";
 
 /** Settings › 模型 › 添加提供方: pick a provider, paste the key, test,
- *  choose models, add. The key goes to the system keychain; the provider is
+ *  choose models, add. The key goes to the vault; the provider is
  *  live immediately, no restart.
  *
  *  With `edit`, the same dialog edits an added provider, opened at the

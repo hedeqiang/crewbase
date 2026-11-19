@@ -8,7 +8,7 @@
 //	    "id": "gemini",                              // default "gemini"
 //	    "baseURL": "",                               // default https://generativelanguage.googleapis.com/
 //	    "apiVersion": "",                            // default v1beta (SDK default)
-//	    "apiKey": "", "apiKeyRef": "keychain:crewbase/gemini", "apiKeyEnv": "GEMINI_API_KEY",
+//	    "apiKey": "", "apiKeyRef": "vault:crewbase/gemini", "apiKeyEnv": "GEMINI_API_KEY",
 //	    "models": ["gemini-2.5-pro", {"id": "gemini-2.5-flash", "contextWindow": 1048576}],
 //	    "defaultModel": "gemini-2.5-flash",
 //	    "headers": {},
@@ -103,7 +103,7 @@ func New(c *kernel.Context, pc ProviderConfig) *Adapter {
 	}
 	a.keys = keySource{C: c, Literal: pc.APIKey, Ref: pc.APIKeyRef, Env: env}
 	if pc.APIKey == "" && pc.APIKeyRef == "" {
-		a.keys.DefRef = "keychain:crewbase/" + pc.ID
+		a.keys.DefRef = "vault:crewbase/" + pc.ID
 	}
 	return a
 }

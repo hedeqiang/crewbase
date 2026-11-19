@@ -25,7 +25,7 @@ import (
 const ServiceKey = "deepseek-tools"
 
 // DefaultKeyRefs are tried after the DeepSeek provider's own key.
-var DefaultKeyRefs = []string{"keychain:crewbase/deepseek", "env:DEEPSEEK_API_KEY"}
+var DefaultKeyRefs = []string{"vault:crewbase/deepseek", "env:DEEPSEEK_API_KEY"}
 
 // Config is the plugin config.
 type Config struct {

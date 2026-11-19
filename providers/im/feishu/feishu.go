@@ -5,7 +5,7 @@
 // Config (see im.Config):
 //
 //	appId:       cli_xxx                         # not secret
-//	botTokenRef: keychain:crewbase/feishu-app    # the app secret
+//	botTokenRef: vault:crewbase/feishu-app    # the app secret
 //	channel:     oc_xxx                          # chat id for notifications
 //	allowUsers:  [ou_xxx]                        # open_ids
 //	relayReplies: true

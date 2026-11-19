@@ -61,7 +61,7 @@ export function imGatewayName(g: ImGateway, platforms: ImPlatform[]): string {
   return r ? rbrand(r) : pname(p);
 }
 
-/** A gateway error in words; a token missing from the keychain is the common one. */
+/** A gateway error in words; a token missing from the vault is the common one. */
 const errText = (e = "") => (/credentials: not found/.test(e) ? t("imx.errNoToken") : e);
 
 type Load = { platforms: ImPlatform[]; gateways: ImGateway[] };

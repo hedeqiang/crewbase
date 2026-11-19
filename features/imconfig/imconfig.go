@@ -1,7 +1,7 @@
 // Package imconfig sets up IM gateways from the UI (设置 › 即时通讯):
 // pick a platform, paste the bot token(s), choose the channel and who may
-// talk to Crewbase, test, enable. The tokens go to the system keychain
-// (keychain:crewbase/im-<id>-bot / -app); im.json keeps references only.
+// talk to Crewbase, test, enable. The tokens go to the vault
+// (vault:crewbase/im-<id>-bot / -app); im.json keeps references only.
 // Each enabled gateway runs as its provider plugin, loaded in a context
 // that is disposed when it is disabled or changed — no restart needed.
 package imconfig
@@ -106,7 +106,7 @@ func legacy(id, region string) (string, string) {
 
 // normalize upgrades a saved gateway: a "lark" gateway is the merged
 // platform in the international region, a region-less 飞书 one is in
-// mainland China. Its id — and so its keychain items, thread file and
+// mainland China. Its id — and so its vault items, thread file and
 // notification column — stays the same.
 func normalize(g Gateway) Gateway {
 	g.Platform, g.Region = legacy(g.Platform, g.Region)
@@ -179,8 +179,8 @@ type View struct {
 
 var idRe = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{0,31}$`)
 
-func botRef(id string) string { return "keychain:crewbase/im-" + id + "-bot" }
-func appRef(id string) string { return "keychain:crewbase/im-" + id + "-app" }
+func botRef(id string) string { return "vault:crewbase/im-" + id + "-bot" }
+func appRef(id string) string { return "vault:crewbase/im-" + id + "-app" }
 
 // Service is the `im-config` service.
 type Service struct {
@@ -493,7 +493,7 @@ type Config struct {
 var Plugin = kernel.Register(kernel.Spec{
 	Name:        "@crewbase/im-config",
 	Inject:      []string{gateway.ServiceKey, credentials.ServiceKey},
-	Description: "Set up IM gateways (Slack, Telegram, Discord, 飞书 / Lark) from the UI; tokens in the keychain.",
+	Description: "Set up IM gateways (Slack, Telegram, Discord, 飞书 / Lark) from the UI; tokens in the vault.",
 	Apply: func(c *kernel.Context) error {
 		cfg, err := kernel.Decode[Config](c)
 		if err != nil {
