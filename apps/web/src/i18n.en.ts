@@ -2284,4 +2284,11 @@ export const en: Partial<Record<Key, string>> = {
   "mmd.source": "Source",
   "mmd.full": "View larger",
   "mmd.error": "This Mermaid could not be drawn: {error}",
+  "mmd.download": "Download",
+  "mmd.png": "PNG image",
+  "mmd.pngDesc": "Sharp, for documents and chats",
+  "mmd.svg": "SVG vector",
+  "mmd.svgDesc": "Scales without blur, editable",
+  "mmd.saved": "Saved {name}",
+  "mmd.saveFailed": "Could not save the diagram: {error}",
 };

@@ -2327,6 +2327,13 @@ const zh = {
   "mmd.source": "源码",
   "mmd.full": "放大查看",
   "mmd.error": "这段 Mermaid 画不出来：{error}",
+  "mmd.download": "下载",
+  "mmd.png": "PNG 图片",
+  "mmd.pngDesc": "高清，适合贴到文档、聊天里",
+  "mmd.svg": "SVG 矢量图",
+  "mmd.svgDesc": "无限放大不模糊，可再编辑",
+  "mmd.saved": "已保存 {name}",
+  "mmd.saveFailed": "没能保存这张图：{error}",
 } as const;
 
 export type Key = keyof typeof zh;

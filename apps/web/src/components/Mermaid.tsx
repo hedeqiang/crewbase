@@ -7,8 +7,10 @@
 
 import { useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Code2, Maximize2, Network, X } from "lucide-react";
+import { Code2, Download, Maximize2, Network, X } from "lucide-react";
 import { t } from "../i18n";
+import { toast } from "../store";
+import { Popover, useMenu } from "./Popover";
 
 type MermaidAPI = typeof import("mermaid").default;
 let loading: Promise<MermaidAPI> | null = null;
@@ -29,7 +31,10 @@ async function mermaid(): Promise<MermaidAPI> {
       securityLevel: "strict",
       theme,
       fontFamily: getComputedStyle(document.body).fontFamily,
-      flowchart: { htmlLabels: true, useMaxWidth: true },
+      // SVG text labels, not HTML in foreignObject: a canvas that drew
+      // foreignObject cannot be exported (PNG download) in WebKit
+      htmlLabels: false,
+      flowchart: { htmlLabels: false, useMaxWidth: true },
       sequence: { useMaxWidth: true },
     });
     themeOf = theme;
@@ -107,9 +112,12 @@ export function MermaidBlock({ code }: { code: string }) {
               <span>{source ? t("mmd.diagram") : t("mmd.source")}</span>
             </button>
             {!source && (
-              <button type="button" className="codecopy" title={t("mmd.full")} aria-label={t("mmd.full")} onClick={() => setFull(true)}>
-                <Maximize2 size={13} />
-              </button>
+              <>
+                <DownloadMenu svg={svg} code={code} />
+                <button type="button" className="codecopy" title={t("mmd.full")} aria-label={t("mmd.full")} onClick={() => setFull(true)}>
+                  <Maximize2 size={13} />
+                </button>
+              </>
             )}
           </>
         )}
@@ -129,12 +137,12 @@ export function MermaidBlock({ code }: { code: string }) {
           <div className="mmderr small">{t("mmd.error", { error: err })}</div>
         </>
       )}
-      {full && svg && <MermaidFull svg={svg} onClose={() => setFull(false)} />}
+      {full && svg && <MermaidFull svg={svg} code={code} onClose={() => setFull(false)} />}
     </div>
   );
 }
 
-function MermaidFull({ svg, onClose }: { svg: string; onClose: () => void }) {
+function MermaidFull({ svg, code, onClose }: { svg: string; code: string; onClose: () => void }) {
   useEffect(() => {
     const k = (e: KeyboardEvent) => e.key === "Escape" && onClose();
     window.addEventListener("keydown", k);
@@ -144,12 +152,129 @@ function MermaidFull({ svg, onClose }: { svg: string; onClose: () => void }) {
     <>
       <div className="scrim" onClick={onClose} />
       <div className="mmdfull" role="dialog" aria-modal="true" aria-label={t("mmd.full")}>
-        <button className="ix mmdclose" type="button" aria-label={t("common.close")} onClick={onClose}>
-          <X size={15} />
-        </button>
+        <div className="mmdfullbar">
+          <DownloadMenu svg={svg} code={code} big />
+          <button className="ix" type="button" aria-label={t("common.close")} onClick={onClose}>
+            <X size={15} />
+          </button>
+        </div>
         <div className="mmdsvg big" dangerouslySetInnerHTML={{ __html: svg }} />
       </div>
     </>,
     document.body,
   );
+}
+
+// ---------------------------------------------------------------- download
+
+/** 下载: the diagram as PNG (2× for sharp text, on the theme's background)
+ *  or SVG. Made in the page; the desktop shell saves it to Downloads. */
+function DownloadMenu({ svg, code, big = false }: { svg: string; code: string; big?: boolean }) {
+  const m = useMenu();
+  const save = async (kind: "png" | "svg") => {
+    m.close();
+    try {
+      const doc = standalone(svg);
+      const name = fileName(code) + "." + kind;
+      if (kind === "svg") {
+        saveBlob(new Blob([doc.text], { type: "image/svg+xml" }), name);
+      } else {
+        saveBlob(await toPNG(doc), name);
+      }
+      toast(t("mmd.saved", { name }));
+    } catch (e: any) {
+      toast(t("mmd.saveFailed", { error: e?.message ?? String(e) }));
+    }
+  };
+  return (
+    <>
+      <button type="button" className={big ? "btn sm" : "codecopy"} ref={m.ref} onClick={m.toggle} aria-haspopup="menu" aria-expanded={m.open} title={t("mmd.download")} aria-label={t("mmd.download")}>
+        <Download size={13} />
+        {big && <span>{t("mmd.download")}</span>}
+      </button>
+      <Popover anchor={m.anchor} open={m.open} onClose={m.close} align="end" width={200}>
+        <button className="mi" type="button" onClick={() => void save("png")}>
+          <span className="g">
+            {t("mmd.png")}
+            <span>{t("mmd.pngDesc")}</span>
+          </span>
+        </button>
+        <button className="mi" type="button" onClick={() => void save("svg")}>
+          <span className="g">
+            {t("mmd.svg")}
+            <span>{t("mmd.svgDesc")}</span>
+          </span>
+        </button>
+      </Popover>
+    </>
+  );
+}
+
+/** The diagram as a file on its own: explicit size, the theme's background
+ *  and the page's font (an SVG opened elsewhere knows neither). */
+function standalone(svg: string): { text: string; width: number; height: number } {
+  const doc = new DOMParser().parseFromString(svg, "image/svg+xml");
+  const el = doc.documentElement;
+  if (el.nodeName.toLowerCase() !== "svg") throw new Error("not an SVG");
+  const vb = (el.getAttribute("viewBox") ?? "").split(/[\s,]+/).map(Number);
+  let [x, y, width, height] = vb.length === 4 && vb.every((n) => Number.isFinite(n)) ? vb : [0, 0, 0, 0];
+  if (!width || !height) {
+    width = parseFloat(el.getAttribute("width") ?? "") || 800;
+    height = parseFloat(el.getAttribute("height") ?? "") || 600;
+  }
+  el.setAttribute("xmlns", "http://www.w3.org/2000/svg");
+  el.setAttribute("width", String(Math.ceil(width)));
+  el.setAttribute("height", String(Math.ceil(height)));
+  el.removeAttribute("style"); // max-width: the page's, not the file's
+  const bg = doc.createElementNS("http://www.w3.org/2000/svg", "rect");
+  bg.setAttribute("x", String(x));
+  bg.setAttribute("y", String(y));
+  bg.setAttribute("width", String(width));
+  bg.setAttribute("height", String(height));
+  bg.setAttribute("fill", isDark() ? "#1c1c1c" : "#ffffff");
+  el.insertBefore(bg, el.firstChild);
+  const font = getComputedStyle(document.body).fontFamily;
+  const st = doc.createElementNS("http://www.w3.org/2000/svg", "style");
+  st.textContent = `svg { font-family: ${font}; }`;
+  el.insertBefore(st, el.firstChild);
+  return { text: new XMLSerializer().serializeToString(el), width, height };
+}
+
+async function toPNG(d: { text: string; width: number; height: number }): Promise<Blob> {
+  const scale = 2;
+  const img = new Image();
+  img.decoding = "sync";
+  const url = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(d.text);
+  await new Promise<void>((ok, fail) => {
+    img.onload = () => ok();
+    img.onerror = () => fail(new Error("the diagram could not be drawn"));
+    img.src = url;
+  });
+  const c = document.createElement("canvas");
+  c.width = Math.ceil(d.width * scale);
+  c.height = Math.ceil(d.height * scale);
+  const g = c.getContext("2d");
+  if (!g) throw new Error("no canvas");
+  g.drawImage(img, 0, 0, c.width, c.height);
+  return await new Promise<Blob>((ok, fail) => c.toBlob((b) => (b ? ok(b) : fail(new Error("PNG export failed"))), "image/png"));
+}
+
+function saveBlob(b: Blob, name: string) {
+  const url = URL.createObjectURL(b);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = name;
+  a.rel = "noopener";
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 30_000);
+}
+
+/** mermaid-<kind>-<yyyymmdd-hhmm>: the diagram's type from its first line. */
+function fileName(code: string): string {
+  const kind = (code.trim().split(/\s+/)[0] || "diagram").replace(/[^a-zA-Z0-9-]/g, "").toLowerCase() || "diagram";
+  const d = new Date();
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `mermaid-${kind}-${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}`;
 }
