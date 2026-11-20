@@ -23,6 +23,7 @@ import (
 	"github.com/hedeqiang/crewbase/core/agent"
 	"github.com/hedeqiang/crewbase/core/agentloop"
 	"github.com/hedeqiang/crewbase/core/session"
+	"github.com/hedeqiang/crewbase/core/tools"
 	"github.com/hedeqiang/crewbase/features/schedule"
 	"github.com/hedeqiang/crewbase/kernel"
 )
@@ -56,6 +57,10 @@ type Routine struct {
 	Secret   string    `json:"secret,omitempty"` // webhook secret (shown once)
 	NextRun  time.Time `json:"nextRun,omitzero"`
 	LastRun  time.Time `json:"lastRun,omitzero"`
+	// By: who set it up — "agent" (in a conversation, routine_create) or
+	// "" (the person, in Settings). Origin: that conversation.
+	By     string `json:"by,omitempty"`
+	Origin string `json:"origin,omitempty"`
 }
 
 // Run is one execution.
@@ -395,6 +400,7 @@ type Config struct {
 var Plugin = kernel.Register(kernel.Spec{
 	Name:        "@crewbase/routines",
 	Inject:      []string{schedule.ServiceKey, agent.ServiceKey},
+	Optional:    []string{tools.ServiceKey},
 	Description: "Routines (quiet unless something needs attention) and the morning brief.",
 	Apply: func(c *kernel.Context) error {
 		cfg, err := kernel.Decode[Config](c)
@@ -409,6 +415,7 @@ var Plugin = kernel.Register(kernel.Spec{
 		s.sched.Handle(c, "routine", s.fire)
 		s.sched.Handle(c, "brief", s.deliverBrief)
 		agentloop.TurnEnded.Listen(c, s.onTurnEnd)
+		s.registerTools(c)
 		if cfg.Brief != "off" {
 			found := false
 			for _, j := range s.sched.List("brief") {

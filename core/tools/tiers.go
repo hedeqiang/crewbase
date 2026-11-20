@@ -48,6 +48,7 @@ var groupSummaries = map[string]string{
 	"notes":     "read working notes",
 	"team":      "shared team memory",
 	"library":   "read and save documents of the team's library (文档库)",
+	"routines":  "list, change, pause or delete your routines (scheduled recurring tasks)",
 }
 
 // GroupSummary is a one-line description of a group of deferred tools
