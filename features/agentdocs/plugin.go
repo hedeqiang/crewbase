@@ -65,6 +65,7 @@ var Plugin = kernel.Register(kernel.Spec{
 //	PATCH  /api/agentdocs            {agents?, wake?}
 //	POST   /api/agentdocs/sync       set agents up again
 //	POST   /api/agentdocs/local      {email, password} 一键启动: install, run and connect a local server
+//	POST   /api/agentdocs/local/update   move it to the latest release
 //	DELETE /api/agentdocs            disconnect (identities revoked; a local server stops, its data stays)
 var APIPlugin = kernel.Register(kernel.Spec{
 	Name:        "@crewbase/agentdocs-api",
@@ -111,6 +112,16 @@ var APIPlugin = kernel.Register(kernel.Spec{
 				ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 6*time.Minute)
 				defer cancel()
 				st, err := s.StartLocal(ctx, b)
+				if err != nil {
+					return nil, gateway.BadRequest("%v", err)
+				}
+				return st, nil
+			}})
+		g.Handle(c, gateway.Route{Method: "POST", Path: "/api/agentdocs/local/update",
+			Handle: func(ctx context.Context, _ *gateway.Request) (any, error) {
+				ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 6*time.Minute)
+				defer cancel()
+				st, err := s.UpdateLocal(ctx)
 				if err != nil {
 					return nil, gateway.BadRequest("%v", err)
 				}

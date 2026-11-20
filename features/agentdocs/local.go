@@ -1,8 +1,9 @@
 package agentdocs
 
-// 一键启动: Crewbase downloads a pinned Open Agent Docs release, checks it
-// against the hash below, and runs it on 127.0.0.1 with its data in
-// <root>/apps/open-agent-docs. The person picks the email and password
+// 一键启动: Crewbase downloads the latest Open Agent Docs release, checks
+// it against the SHA256SUMS published with it, and runs it on 127.0.0.1
+// with its data in <root>/apps/open-agent-docs. It follows upstream: a
+// newer release is offered as an update (UpdateLocal). The person picks the email and password
 // they sign in to its web app with; Crewbase signs in once with them to
 // create its admin agent, then connects as usual. The password is not kept.
 
@@ -31,18 +32,6 @@ import (
 	"time"
 )
 
-// Release is the Open Agent Docs version 一键启动 installs.
-const Release = "v0.2.0"
-
-// releaseHashes are the SHA-256 of Release's archives (its SHA256SUMS,
-// checked when the version was pinned): a download that differs is refused.
-var releaseHashes = map[string]string{
-	"darwin/arm64": "471444c477151288ddd3436c4c4a6852212f7f799b8d629fd2a79562661f7990",
-	"darwin/amd64": "ec2934dbdd19cead5a9288db8f87d8a41b57f36db6ccda36ee2ef66d60f035ed",
-	"linux/arm64":  "daf8dca6eeb0e8e55ffe82c66a84cf64461f1f9974f69bcdc0c795b3de58da61",
-	"linux/amd64":  "a9dc8ce5ac1468cf522f67dd1fd7614df6d26e167dbbaca4751747db6f5d6872",
-}
-
 var releaseTriples = map[string]string{
 	"darwin/arm64": "aarch64-apple-darwin",
 	"darwin/amd64": "x86_64-apple-darwin",
@@ -50,9 +39,102 @@ var releaseTriples = map[string]string{
 	"linux/amd64":  "x86_64-unknown-linux-gnu",
 }
 
-// releaseBase is where the archives are downloaded from (tests point it
-// at a local server).
-var releaseBase = "https://github.com/kadaliao/open-agent-docs/releases/download"
+// releaseAPI is the latest release (tests point it at a local server).
+var releaseAPI = "https://api.github.com/repos/kadaliao/open-agent-docs/releases/latest"
+
+// Release is an upstream release with a build for this computer.
+type Release struct {
+	Tag       string    `json:"tag"`
+	Notes     string    `json:"notes,omitempty"`
+	Published time.Time `json:"published"`
+	archive   string    // download URL of this platform's archive
+	asset     string    // its file name
+	sums      string    // download URL of SHA256SUMS
+}
+
+// latest asks GitHub for the newest release (cached for an hour).
+func (s *Service) latest(ctx context.Context, fresh bool) (Release, error) {
+	s.lc.mu.Lock()
+	if !fresh && s.lc.rel.Tag != "" && time.Since(s.lc.relAt) < time.Hour {
+		r := s.lc.rel
+		s.lc.mu.Unlock()
+		return r, nil
+	}
+	s.lc.mu.Unlock()
+	req, err := http.NewRequestWithContext(ctx, "GET", releaseAPI, nil)
+	if err != nil {
+		return Release{}, err
+	}
+	req.Header.Set("Accept", "application/vnd.github+json")
+	resp, err := (&http.Client{Timeout: 20 * time.Second}).Do(req)
+	if err != nil {
+		return Release{}, fmt.Errorf("could not check for Open Agent Docs releases: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 200 {
+		return Release{}, fmt.Errorf("could not check for Open Agent Docs releases: HTTP %d", resp.StatusCode)
+	}
+	var out struct {
+		Tag       string    `json:"tag_name"`
+		Body      string    `json:"body"`
+		Draft     bool      `json:"draft"`
+		Pre       bool      `json:"prerelease"`
+		Published time.Time `json:"published_at"`
+		Assets    []struct {
+			Name string `json:"name"`
+			URL  string `json:"browser_download_url"`
+		} `json:"assets"`
+	}
+	if err := json.NewDecoder(io.LimitReader(resp.Body, 4<<20)).Decode(&out); err != nil {
+		return Release{}, err
+	}
+	if out.Tag == "" || out.Draft {
+		return Release{}, errors.New("Open Agent Docs has no published release")
+	}
+	r := Release{Tag: out.Tag, Notes: clip(strings.TrimSpace(out.Body), 4000), Published: out.Published}
+	suffix := "-" + releaseTriples[platform()] + ".tar.gz"
+	for _, a := range out.Assets {
+		switch {
+		case a.Name == "SHA256SUMS":
+			r.sums = a.URL
+		case strings.HasPrefix(a.Name, "open-agent-docs-") && strings.HasSuffix(a.Name, suffix):
+			r.archive, r.asset = a.URL, a.Name
+		}
+	}
+	if r.archive == "" {
+		return Release{}, fmt.Errorf("Open Agent Docs %s has no build for %s", r.Tag, platform())
+	}
+	if r.sums == "" {
+		return Release{}, fmt.Errorf("Open Agent Docs %s publishes no checksums; not installing it", r.Tag)
+	}
+	s.lc.mu.Lock()
+	s.lc.rel, s.lc.relAt = r, time.Now()
+	s.lc.mu.Unlock()
+	return r, nil
+}
+
+func download(ctx context.Context, u string, limit int64) ([]byte, error) {
+	req, err := http.NewRequestWithContext(ctx, "GET", u, nil)
+	if err != nil {
+		return nil, err
+	}
+	resp, err := (&http.Client{Timeout: 5 * time.Minute}).Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 200 {
+		return nil, fmt.Errorf("HTTP %d", resp.StatusCode)
+	}
+	b, err := io.ReadAll(io.LimitReader(resp.Body, limit+1))
+	if err != nil {
+		return nil, err
+	}
+	if int64(len(b)) > limit {
+		return nil, errors.New("larger than expected")
+	}
+	return b, nil
+}
 
 const maxArchive = 64 << 20
 
@@ -66,12 +148,13 @@ type Managed struct {
 
 // LocalStatus is the API view of the managed server.
 type LocalStatus struct {
-	Supported bool   `json:"supported"`
-	Release   string `json:"release"`
-	Running   bool   `json:"running"`
-	URL       string `json:"url,omitempty"`
-	Email     string `json:"email,omitempty"`
-	Version   string `json:"version,omitempty"`
+	Supported bool `json:"supported"`
+	Running   bool `json:"running"`
+	// Update: a newer release than the one running (checked hourly at most).
+	Update  *Release `json:"update,omitempty"`
+	URL     string   `json:"url,omitempty"`
+	Email   string   `json:"email,omitempty"`
+	Version string   `json:"version,omitempty"`
 	// Step while starting: download | start | account | connect.
 	Step  string `json:"step,omitempty"`
 	Error string `json:"error,omitempty"`
@@ -79,6 +162,8 @@ type LocalStatus struct {
 
 type local struct {
 	mu      sync.Mutex
+	rel     Release // the latest release seen
+	relAt   time.Time
 	cmd     *exec.Cmd
 	stop    chan struct{}
 	step    string
@@ -89,7 +174,7 @@ type local struct {
 func platform() string { return runtime.GOOS + "/" + runtime.GOARCH }
 
 // LocalSupported reports whether 一键启动 has a build for this computer.
-func LocalSupported() bool { _, ok := releaseHashes[platform()]; return ok }
+func LocalSupported() bool { _, ok := releaseTriples[platform()]; return ok }
 
 func (s *Service) appDir() string { return filepath.Join(s.dir, "apps", "open-agent-docs") }
 
@@ -104,9 +189,12 @@ func (s *Service) Local() LocalStatus {
 	s.mu.Unlock()
 	s.lc.mu.Lock()
 	defer s.lc.mu.Unlock()
-	st := LocalStatus{Supported: LocalSupported(), Release: Release, Running: s.lc.running, Step: s.lc.step, Error: s.lc.err}
+	st := LocalStatus{Supported: LocalSupported(), Running: s.lc.running, Step: s.lc.step, Error: s.lc.err}
 	if m != nil {
 		st.URL, st.Email, st.Version = localURL(m.Port), m.Email, m.Version
+		if r := s.lc.rel; r.Tag != "" && r.Tag != m.Version && newer(r.Tag, m.Version) {
+			st.Update = &r
+		}
 	}
 	return st
 }
@@ -150,7 +238,11 @@ func (s *Service) StartLocal(ctx context.Context, r StartLocalRequest) (Status, 
 	}
 
 	s.setStep("download", "")
-	bin, err := s.install(ctx)
+	rel, err := s.latest(ctx, true)
+	if err != nil {
+		return fail("download", err)
+	}
+	bin, err := s.install(ctx, rel)
 	if err != nil {
 		return fail("download", err)
 	}
@@ -158,7 +250,7 @@ func (s *Service) StartLocal(ctx context.Context, r StartLocalRequest) (Status, 
 	if err != nil {
 		return fail("start", err)
 	}
-	m := &Managed{Version: Release, Port: port, Email: email}
+	m := &Managed{Version: rel.Tag, Port: port, Email: email}
 	s.setStep("start", "")
 	// the first start creates the account (ignored once any user exists)
 	if err := s.run(bin, m, map[string]string{"OAD_ADMIN_EMAIL": email, "OAD_ADMIN_PASSWORD": r.Password}); err != nil {
@@ -198,45 +290,43 @@ func (s *Service) StartLocal(ctx context.Context, r StartLocalRequest) (Status, 
 	return s.Status(), nil
 }
 
-// install downloads, checks and unpacks the pinned release (once).
-func (s *Service) install(ctx context.Context) (string, error) {
-	bin := s.binPath(Release)
+// install downloads rel, checks it against its SHA256SUMS and unpacks the
+// server binary (once per release).
+func (s *Service) install(ctx context.Context, rel Release) (string, error) {
+	bin := s.binPath(rel.Tag)
 	if fi, err := os.Stat(bin); err == nil && fi.Mode().IsRegular() {
 		return bin, nil
 	}
-	plat := platform()
-	name := fmt.Sprintf("open-agent-docs-%s-%s", Release, releaseTriples[plat])
-	req, err := http.NewRequestWithContext(ctx, "GET", releaseBase+"/"+Release+"/"+name+".tar.gz", nil)
+	sums, err := download(ctx, rel.sums, 64<<10)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("could not download the Open Agent Docs checksums: %w", err)
 	}
-	c := &http.Client{Timeout: 5 * time.Minute}
-	resp, err := c.Do(req)
+	want := ""
+	for _, l := range strings.Split(string(sums), "\n") {
+		f := strings.Fields(l)
+		if len(f) == 2 && strings.TrimPrefix(f[1], "*") == rel.asset {
+			want = strings.ToLower(f[0])
+		}
+	}
+	if len(want) != 64 {
+		return "", fmt.Errorf("the Open Agent Docs checksums do not list %s; not installing it", rel.asset)
+	}
+	data, err := download(ctx, rel.archive, maxArchive)
 	if err != nil {
 		return "", fmt.Errorf("could not download Open Agent Docs: %w", err)
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != 200 {
-		return "", fmt.Errorf("could not download Open Agent Docs: HTTP %d", resp.StatusCode)
-	}
-	data, err := io.ReadAll(io.LimitReader(resp.Body, maxArchive+1))
-	if err != nil {
-		return "", fmt.Errorf("could not download Open Agent Docs: %w", err)
-	}
-	if len(data) > maxArchive {
-		return "", errors.New("the Open Agent Docs download is larger than expected")
 	}
 	sum := sha256.Sum256(data)
-	if hex.EncodeToString(sum[:]) != releaseHashes[plat] {
+	if hex.EncodeToString(sum[:]) != want {
 		return "", errors.New("the Open Agent Docs download does not match its published checksum; nothing was installed")
 	}
+	name := strings.TrimSuffix(rel.asset, ".tar.gz")
 	// only the binary is taken from the archive
 	zr, err := gzip.NewReader(strings.NewReader(string(data)))
 	if err != nil {
 		return "", err
 	}
 	tr := tar.NewReader(zr)
-	want := name + "/open-agent-docs"
+	binName := name + "/open-agent-docs"
 	if err := os.MkdirAll(filepath.Dir(bin), 0o755); err != nil {
 		return "", err
 	}
@@ -248,7 +338,7 @@ func (s *Service) install(ctx context.Context) (string, error) {
 		if err != nil {
 			return "", err
 		}
-		if path.Clean(h.Name) != want || h.Typeflag != tar.TypeReg {
+		if path.Clean(h.Name) != binName || h.Typeflag != tar.TypeReg {
 			continue
 		}
 		tmp := bin + ".tmp"
@@ -365,13 +455,18 @@ func (s *Service) stopLocal() {
 		close(stop)
 	}
 	if cmd != nil && cmd.Process != nil {
+		// the run loop owns Wait; here: signal, then watch the pid until it is gone
+		pid := cmd.Process.Pid
 		_ = cmd.Process.Signal(syscall.SIGTERM)
-		done := make(chan struct{})
-		go func() { _, _ = cmd.Process.Wait(); close(done) }()
-		select {
-		case <-done:
-		case <-time.After(5 * time.Second):
-			_ = cmd.Process.Kill()
+		deadline := time.Now().Add(5 * time.Second)
+		for alive(pid) && time.Now().Before(deadline) {
+			time.Sleep(50 * time.Millisecond)
+		}
+		if alive(pid) {
+			_ = cmd.Process.Kill() // it waits for open requests (long polls) otherwise
+			for i := 0; i < 40 && alive(pid); i++ {
+				time.Sleep(50 * time.Millisecond)
+			}
 		}
 	}
 }
@@ -396,6 +491,98 @@ func (s *Service) resumeLocal(ctx context.Context) {
 	if err := waitUp(ctx, localURL(m.Port), 30*time.Second); err != nil {
 		s.setStep("", err.Error())
 	}
+	if _, err := s.latest(ctx, false); err != nil { // so an update shows
+		s.c.Log().Warn("agentdocs: could not check for a newer Open Agent Docs", "err", err)
+	}
+}
+
+// CheckLocal looks for a newer release of the managed server.
+func (s *Service) CheckLocal(ctx context.Context) (LocalStatus, error) {
+	s.mu.Lock()
+	managed := s.st.Managed != nil
+	s.mu.Unlock()
+	if !managed || !LocalSupported() {
+		return s.Local(), nil
+	}
+	_, err := s.latest(ctx, true)
+	return s.Local(), err
+}
+
+// UpdateLocal moves the managed server to the latest release: installs it,
+// restarts on it (the data stays) and removes the old binary.
+func (s *Service) UpdateLocal(ctx context.Context) (Status, error) {
+	s.mu.Lock()
+	m := s.st.Managed
+	s.mu.Unlock()
+	if m == nil {
+		return Status{}, errors.New("Crewbase does not run an Open Agent Docs server")
+	}
+	rel, err := s.latest(ctx, true)
+	if err != nil {
+		return Status{}, err
+	}
+	if rel.Tag == m.Version || !newer(rel.Tag, m.Version) {
+		return s.Status(), nil
+	}
+	s.setStep("download", "")
+	bin, err := s.install(ctx, rel)
+	if err != nil {
+		s.setStep("", err.Error())
+		return Status{}, err
+	}
+	old := m.Version
+	s.setStep("start", "")
+	s.stopListeners() // their long polls would hold the old server open
+	defer s.restartListeners()
+	s.stopLocal()
+	s.mu.Lock()
+	m.Version = rel.Tag
+	_ = s.saveLocked()
+	s.mu.Unlock()
+	if err := s.run(bin, m, nil); err == nil {
+		err = waitUp(ctx, localURL(m.Port), 30*time.Second)
+		if err == nil {
+			_ = os.RemoveAll(filepath.Dir(s.binPath(old)))
+			s.setStep("", "")
+			return s.Status(), nil
+		}
+	}
+	// the new release did not come up: back to the old one
+	s.stopLocal()
+	s.mu.Lock()
+	m.Version = old
+	_ = s.saveLocked()
+	s.mu.Unlock()
+	if err := s.run(s.binPath(old), m, nil); err != nil {
+		s.setStep("", err.Error())
+		return Status{}, err
+	}
+	err = fmt.Errorf("Open Agent Docs %s did not start; still on the earlier version", rel.Tag)
+	s.setStep("", err.Error())
+	return Status{}, err
+}
+
+// newer reports whether tag a is a later version than b (v1.2.3).
+func newer(a, b string) bool {
+	pa, pb := verParts(a), verParts(b)
+	for i := range 3 {
+		if pa[i] != pb[i] {
+			return pa[i] > pb[i]
+		}
+	}
+	return false
+}
+
+func verParts(v string) [3]int {
+	var out [3]int
+	v = strings.TrimPrefix(strings.TrimSpace(v), "v")
+	if i := strings.IndexAny(v, "-+"); i >= 0 {
+		v = v[:i]
+	}
+	for i, p := range strings.SplitN(v, ".", 3) {
+		out[i], _ = strconv.Atoi(p)
+	}
+	return out
 }
 
 // removeLocal stops the managed server; its data stays unless wipe.

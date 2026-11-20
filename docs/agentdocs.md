@@ -9,17 +9,21 @@ it as an app (`features/agentdocs`), and can run it for you.
 On macOS and Linux (the platforms upstream publishes builds for) the dialog's 一键启动 asks for the email and password the
 person will sign in to the docs with, then:
 
-1. downloads the pinned release (`agentdocs.Release`, v0.2.0) from GitHub and checks it against the SHA-256 written in
-   `local.go` (taken from the release's SHA256SUMS when it was pinned); a different file is refused and nothing is installed;
-2. unpacks only the server binary to `<root>/apps/open-agent-docs/<version>/` and runs it on `127.0.0.1` (port 8848, or a
+1. asks GitHub for the latest release, downloads this platform's archive and its `SHA256SUMS`, and checks the archive
+   against it; a release without checksums, or a file that does not match, is refused and nothing is installed;
+2. unpacks only the server binary to `<root>/apps/open-agent-docs/<tag>/` and runs it on `127.0.0.1` (port 8848, or a
    free one) with its data in `<root>/apps/open-agent-docs/data` and its log in `server.log` there; the first start creates
    the person's account;
 3. signs in once with that account to create Crewbase's admin agent (`Crewbase`, or `Crewbase-2` … when an earlier one
    exists), then connects as below. The password is not kept; the admin token is in the vault.
 
 Crewbase restarts the server if it exits, starts it again when Crewbase starts, and stops it on quit. Disconnecting stops it
-too; its data stays, so starting again asks for the account used before. Upgrading means pinning a new release (version
-and hashes) in a Crewbase release.
+too; its data stays, so starting again asks for the account used before.
+
+**Updates** follow upstream: Crewbase looks for a newer release when it starts and with the other update checks, and offers
+it (with the release notes). Updating installs it the same checked way, stops the old server (pausing the comment
+listeners, whose long polls would keep it open), starts the new one on the same data and removes the old binary; if the new
+one does not come up, it goes back to the old one.
 
 ## Connecting an existing server
 
