@@ -8,6 +8,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -230,6 +231,95 @@ var Plugin = kernel.Register(kernel.Spec{
 					return nil, err
 				}
 				return ch.view(ctx, a.ID(), a.Workspace())
+			}})
+
+		// ---- turn snapshots (snapshots.go): what each turn changed, and undo
+		snaps := &snapshots{root: filepath.Join(filepath.Dir(ch.root), "snapshots")}
+		agentloop.TurnStarted.Listen(c, func(e agentloop.TurnStartEvent) {
+			if e.Agent == nil || e.Session == nil {
+				return
+			}
+			if err := snaps.take(e.Agent.ID(), e.Session.ID(), e.Input.ID, e.Agent.Workspace()); err != nil {
+				c.Log().Warn("turn snapshot", "agent", e.Agent.ID(), "err", err)
+			}
+		})
+		agentloop.TurnEnded.Listen(c, func(e agentloop.TurnEndEvent) {
+			if err := snaps.finish(e.Agent, e.Input.ID); err != nil && !errors.Is(err, os.ErrNotExist) {
+				c.Log().Warn("turn snapshot end", "agent", e.Agent, "err", err)
+			}
+		})
+		g.Handle(c, gateway.Route{Method: "GET", Path: "/api/agents/{id}/turns", Devices: mobile,
+			Handle: func(ctx context.Context, r *gateway.Request) (any, error) {
+				a, err := getAgent(r)
+				if err != nil {
+					return nil, err
+				}
+				return snaps.summaries(a.ID(), r.HTTP.URL.Query().Get("session")), nil
+			}})
+		g.Handle(c, gateway.Route{Method: "GET", Path: "/api/agents/{id}/turns/{turn}", Devices: mobile,
+			Handle: func(ctx context.Context, r *gateway.Request) (any, error) {
+				a, err := getAgent(r)
+				if err != nil {
+					return nil, err
+				}
+				tc, err := snaps.turnChanges(a.ID(), r.Params["turn"])
+				if err != nil {
+					return nil, changeAPIErr(err)
+				}
+				return tc, nil
+			}})
+		g.Handle(c, gateway.Route{Method: "GET", Path: "/api/agents/{id}/turns/{turn}/diff", Devices: mobile,
+			Handle: func(ctx context.Context, r *gateway.Request) (any, error) {
+				a, err := getAgent(r)
+				if err != nil {
+					return nil, err
+				}
+				d, err := snaps.turnDiff(a.ID(), r.Params["turn"], r.HTTP.URL.Query().Get("path"))
+				if err != nil {
+					return nil, changeAPIErr(err)
+				}
+				return d, nil
+			}})
+		g.Handle(c, gateway.Route{Method: "POST", Path: "/api/agents/{id}/turns/{turn}/restore",
+			Handle: func(ctx context.Context, r *gateway.Request) (any, error) {
+				a, err := getAgent(r)
+				if err != nil {
+					return nil, err
+				}
+				if st, _ := a.Status(); st == agent.StatusRunning || st == agent.StatusWaiting {
+					return nil, gateway.BadRequest("the agent is working: stop it first")
+				}
+				sn, err := snaps.get(a.ID(), r.Params["turn"])
+				if err != nil {
+					return nil, changeAPIErr(err)
+				}
+				if sn.Workspace != a.Workspace() {
+					return nil, gateway.BadRequest("the agent works in another folder now")
+				}
+				// the workspace as it is now is kept too (not listed), in case
+				_ = snaps.take(a.ID(), sn.Session, "before-restore-"+time.Now().UTC().Format("20060102T150405"), sn.Workspace)
+				tc, _ := snaps.turnChanges(a.ID(), sn.Turn)
+				n, err := snaps.restore(a.ID(), sn)
+				if err != nil {
+					return nil, gateway.BadRequest("%v", err)
+				}
+				// the agent learns it at its next request (its memory of those
+				// edits is out of date now)
+				if ss, err := sessions.Get(sn.Session); err == nil && n > 0 {
+					var paths []string
+					for i, f := range tc.Files {
+						if i == 20 {
+							paths = append(paths, fmt.Sprintf("… %d more", len(tc.Files)-20))
+							break
+						}
+						paths = append(paths, f.Path)
+					}
+					note := "[undone] The person undid the file changes of one of your earlier turns" +
+						" (and of any later turn, for those files): " + strings.Join(paths, ", ") +
+						" are back as they were before it; files it created are gone. Read a file again before relying on it."
+					_ = a.Inject(ss, note, "undo")
+				}
+				return map[string]int{"restored": n}, nil
 			}})
 
 		// ---- settings (defaults for new agents)

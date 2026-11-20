@@ -104,6 +104,10 @@ export type FeedItem = (
       stats?: TurnStats;
       /** seq of the first user message of this reply's turn */
       turnFrom?: number;
+      /** the turn's input id (its workspace snapshot: files it changed) */
+      turnInput?: string;
+      /** when the turn ended */
+      turnEnded?: string;
       /** text of the messages this turn answers (their links have cards) */
       asked?: string;
     }
@@ -269,7 +273,7 @@ export function project(events: SessionEvent[], cards?: ReadonlySet<string>): Pr
   const compactedUpto: Record<string, number> = {};
   const lastTurn: Projection["lastTurn"] = {};
   // the open turn per agent: its first user message, model calls, last reply
-  type Open = { from?: number; steps: TurnStep[]; last?: Extract<FeedItem, { k: "agent" }>; stepAt?: number };
+  type Open = { from?: number; input?: string; steps: TurnStep[]; last?: Extract<FeedItem, { k: "agent" }>; stepAt?: number };
   const turns = new Map<string, Open>();
   const askedBy = new Map<string, string>(); // agent → text of messages since its last turn ended
   const pendingFrom = new Map<string, number>(); // agent → first user message since its last turn
@@ -470,7 +474,7 @@ export function project(events: SessionEvent[], cards?: ReadonlySet<string>): Pr
         delete lastTurn[ag];
         if (d.tag === "greeting") greeting.add(ag);
         else greeting.delete(ag);
-        turns.set(ag, { from: pendingFrom.get(ag) ?? pendingFrom.get(""), steps: [] });
+        turns.set(ag, { from: pendingFrom.get(ag) ?? pendingFrom.get(""), input: d.input, steps: [] });
         pendingFrom.delete(ag);
         pendingFrom.delete("");
         break;
@@ -491,6 +495,8 @@ export function project(events: SessionEvent[], cards?: ReadonlySet<string>): Pr
           askedBy.delete("");
           turn.last.stats = { steps: turn.steps, status: d.status ?? "" };
           turn.last.turnFrom = turn.from;
+          turn.last.turnInput = turn.input;
+          turn.last.turnEnded = e.time;
           if (turn.from !== undefined) lastTurn[ag] = { item: turn.last.id, from: turn.from };
         }
         if (d.status === "failed") {

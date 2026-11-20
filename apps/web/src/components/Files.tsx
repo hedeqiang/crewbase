@@ -589,7 +589,7 @@ function HunkHead({ h, cols }: { h: Hunk; cols: number }) {
   );
 }
 
-function UnifiedDiff({ hunks, path }: { hunks: Hunk[]; path: string }) {
+export function UnifiedDiff({ hunks, path }: { hunks: Hunk[]; path: string }) {
   const hl = useHighlighted(hunks, path);
   let oi = 0;
   let ni = 0;

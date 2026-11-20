@@ -1,3 +1,4 @@
+import { TurnFiles } from "./TurnFiles";
 import { Welcome } from "./Welcome";
 import { runShortcut } from "../actions";
 import { keyLabel } from "../shortcuts";
@@ -946,6 +947,7 @@ function AgentMsg({ it, agent, showModel, bare, opened, extra }: { it: AgentItem
         {/* the answer, once the turn is over (never narration or a stream) */}
         {it.stats && it.text && <LinkCards text={it.text} exclude={it.asked} />}
         {extra}
+        {it.stats && it.turnInput && it.turnEnded && <TurnFiles agent={it.agent} turn={it.turnInput} ended={it.turnEnded} />}
         {it.stats && <ReplyStats stats={it.stats} />}
         {hasActs && (
           <div className="msgacts">

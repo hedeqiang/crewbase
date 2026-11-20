@@ -354,6 +354,25 @@ export interface Hunk {
   newLines: number;
   lines: DiffLine[];
 }
+/** 这一轮改了哪些文件 (features/console/snapshots.go) */
+export interface TurnSummary {
+  turn: string;
+  files: number;
+  added: number;
+  removed: number;
+  undone?: boolean;
+}
+export interface TurnChanges {
+  turn: string;
+  at: string;
+  files: FileChange[];
+  added: number;
+  removed: number;
+  partial?: boolean;
+  restorable: boolean;
+  undone?: string;
+  later?: string[];
+}
 export interface FileDiff extends FileChange {
   hunks: Hunk[];
 }
@@ -1385,6 +1404,10 @@ export const API = {
   changes: (id: string) => api<ChangesView>("GET", `/api/agents/${enc(id)}/changes`),
   fileDiff: (id: string, path: string) => api<FileDiff>("GET", `/api/agents/${enc(id)}/changes/diff?path=${enc(path)}`),
   revertChange: (id: string, path: string) => api<ChangesView>("POST", `/api/agents/${enc(id)}/changes/revert`, { path }),
+  turnSummaries: (id: string) => api<TurnSummary[]>("GET", `/api/agents/${enc(id)}/turns`),
+  turnChanges: (id: string, turn: string) => api<TurnChanges>("GET", `/api/agents/${enc(id)}/turns/${enc(turn)}`),
+  turnDiff: (id: string, turn: string, path: string) => api<FileDiff>("GET", `/api/agents/${enc(id)}/turns/${enc(turn)}/diff?path=${enc(path)}`),
+  restoreTurn: (id: string, turn: string) => api<{ restored: number }>("POST", `/api/agents/${enc(id)}/turns/${enc(turn)}/restore`),
   acceptChanges: (id: string) => api<ChangesView>("POST", `/api/agents/${enc(id)}/changes/accept`),
   saveFile: (id: string, path: string, content: string) => api("PUT", `/api/agents/${enc(id)}/file`, { path, content }),
   // 预览 (features/preview)
