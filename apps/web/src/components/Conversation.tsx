@@ -106,6 +106,10 @@ export function Conversation({ onTemplate }: { onTemplate?: (d: Partial<Draft>) 
   return <ConversationView key={current} sessionId={current} agent={agent} channel={channel} />;
 }
 
+/** How far from the bottom each conversation was left (only when not at
+ *  the bottom), so going back to it returns to the same place. */
+const scrollMemo = new Map<string, number>();
+
 function ConversationView({ sessionId, agent, channel }: { sessionId: string; agent: AgentView; channel?: ChannelView }) {
   const events = useStore((s) => s.events[sessionId]);
   const err = useStore((s) => s.loadErr[sessionId]);
@@ -528,7 +532,9 @@ function Feed({
   error?: string;
 }) {
   const ref = useRef<HTMLDivElement>(null);
-  const stick = useRef(true);
+  // coming back to a conversation read further up: where it was left
+  const restore = useRef<number | null>(scrollMemo.get(sessionId) ?? null);
+  const stick = useRef(restore.current === null);
   const streams = useStore((s) => s.streams);
   const agents = useStore((s) => s.agents);
   const bubbles = useStore((s) => s.bubbles);
@@ -581,11 +587,19 @@ function Feed({
   };
   const onScroll = () => {
     const el = ref.current;
-    if (el) stick.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+    if (!el) return;
+    stick.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+    if (stick.current) scrollMemo.delete(sessionId);
+    else scrollMemo.set(sessionId, el.scrollHeight - el.scrollTop);
   };
   useLayoutEffect(() => {
     const el = ref.current;
     if (!el) return;
+    if (restore.current !== null && items.length > 0) {
+      el.scrollTop = el.scrollHeight - restore.current;
+      restore.current = null;
+      return;
+    }
     if (anchor.current !== null) {
       el.scrollTop = el.scrollHeight - anchor.current;
       anchor.current = null;

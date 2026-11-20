@@ -1,5 +1,6 @@
 // What each shortcut does (shortcuts.ts holds the bindings).
 
+import { leaveTo } from "./router";
 import { API } from "./api";
 import type { ActionId } from "./shortcuts";
 import { getState, goHistory, newChat, openNewAgent, openNewChannel, openSession, openSettings, sessionAgent, setState, setTheme, toast } from "./store";
@@ -55,7 +56,7 @@ export function runShortcut(id: ActionId) {
       setState({ panelOpen: !s.panelOpen });
       break;
     case "search":
-      if (s.view === "settings") setState({ view: "chat" });
+      if (s.view === "settings") leaveTo("chat");
       setState({ listOpen: true });
       setTimeout(() => focusSel(".list .search input"), 0);
       break;

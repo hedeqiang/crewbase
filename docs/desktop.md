@@ -106,5 +106,5 @@ mygo-automation menu Crewbase "退出 Crewbase"
 
 ## 待补齐（Web UI）
 
-- **打开指定会话**：托盘「需要你」与通知点击时，壳会显示窗口并把页面 hash 设为 `#/session/<id>`；Web UI 目前不处理 hash 路由，所以只会显示窗口。需要 Web UI 监听 `hashchange`（及首次加载时的 hash）并调用 `openSession(id)`。
-- **打开设置**：⌘, 会把 hash 设为 `#/settings`，同样需要 Web UI 映射到 `openSettings()`（可扩展为 `#/settings/<section>`）。
+- **打开指定位置**：托盘「需要你」与通知点击时，壳会显示窗口并把页面 hash 设为 `#/session/<id>`，⌘, 设为 `#/settings`。Web UI 的路由（`apps/web/src/router.ts`）把它们当作一次跳转：打开那个会话或设置页，并记一条历史，返回能回到原来的位置。
+- **地址就是位置**：每个位置都有地址——`#/c/<会话>`（右侧面板 `?panel=<标签>&file=<路径>&doc=<文档>&sub=<子任务>`）、`#/settings/<分区>`（文档库条目 `?item=<id>`）、`#/new-agent`。切换位置记一条历史，只开关右侧面板时只替换当前这条（手机宽度下面板是盖在上面的一层，打开记一条，返回即关闭）。返回 / 前进、⌘[ ⌘]、鼠标侧键、触控板左右滑（窗口开了 `SwipeNavigation`）、手机返回手势、刷新和重启都按地址走；有对话框、⌘K 或侧边浮层开着时，返回先关掉它们。旧链接 `#/session/<id>`、`#/settings/<分区>/<标签>`、`#/library` 仍可用。

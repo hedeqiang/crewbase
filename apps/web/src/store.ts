@@ -229,6 +229,29 @@ function cachedModels(): ModelsResponse | null {
   }
 }
 
+// Unsent text stays when the app reloads (kept a moment after typing).
+const DRAFTS_KEY = "crewbase.drafts";
+function loadDrafts(): Record<string, string> {
+  try {
+    const v = JSON.parse(localStorage.getItem(DRAFTS_KEY) ?? "{}");
+    return v && typeof v === "object" ? v : {};
+  } catch {
+    return {};
+  }
+}
+let draftTimer: ReturnType<typeof setTimeout> | undefined;
+function saveDrafts() {
+  clearTimeout(draftTimer);
+  draftTimer = setTimeout(() => {
+    try {
+      const keep = Object.fromEntries(Object.entries(state.drafts).filter(([, v]) => v && v.trim()).slice(-50));
+      localStorage.setItem(DRAFTS_KEY, JSON.stringify(keep));
+    } catch {
+      /* private mode */
+    }
+  }, 400);
+}
+
 let state: State = {
   authed: null,
   tier: "desktop",
@@ -287,7 +310,7 @@ let state: State = {
   lang: getLang(),
   palette: false,
   overrides: loadOverrides(),
-  drafts: {},
+  drafts: loadDrafts(),
   attach: {},
   hostConfirm: null,
   toasts: [],
@@ -299,11 +322,17 @@ export function getState(): State {
   return state;
 }
 
+/** Calls f after every change (the router follows the store with it). */
+export function subscribe(f: () => void): () => void {
+  subs.add(f);
+  return () => subs.delete(f);
+}
+
 export function setState(patch: Partial<State> | ((s: State) => Partial<State>)) {
   const p = typeof patch === "function" ? patch(state) : patch;
   state = { ...state, ...p };
   if ("current" in p) LS.set("current", state.current);
-  if ("view" in p || "settings" in p) syncSettingsHash();
+  if ("drafts" in p) saveDrafts();
   if ("panelOpen" in p && !midWidth()) LS.set("panel", state.panelOpen ? "1" : "0");
   subs.forEach((f) => f());
 }
@@ -367,19 +396,15 @@ export function openSession(id: string) {
       hist = [...hist.slice(0, histPos + 1).filter((x) => x !== id), id].slice(-HIST_MAX);
       histPos = hist.length - 1;
     }
-    return { view: "chat", current: id, hist, histPos, listOpen: narrow() ? false : s.listOpen, palette: false, subView: id === s.current ? s.subView : null };
+    return { view: "chat", current: id, hist, histPos, listOpen: narrow() ? false : s.listOpen, palette: false, subView: id === s.current ? s.subView : null, fileOpen: id === s.current ? s.fileOpen : null };
   });
   void loadSession(id);
 }
 
 /** ⌘[ / ⌘]: step through recently opened conversations. */
+/** ⌘[ / ⌘]: back and forward through the places shown (router.ts). */
 export function goHistory(dir: -1 | 1) {
-  const s = state;
-  let i = s.histPos + dir;
-  while (i >= 0 && i < s.hist.length && !s.sessions[s.hist[i]]) i += dir;
-  if (i < 0 || i >= s.hist.length) return;
-  setState({ view: "chat", current: s.hist[i], histPos: i, palette: false });
-  void loadSession(s.hist[i]);
+  history.go(dir);
 }
 
 export function openAgent(agentId: string) {
@@ -389,40 +414,6 @@ export function openAgent(agentId: string) {
 
 export function openSettings(sec: SettingsSection = "general") {
   setState({ view: "settings", settings: sec, palette: false, listOpen: narrow() ? false : state.listOpen });
-}
-
-/** Deep links the desktop shell (tray, notifications, ⌘,) sets as the
- *  location hash: #/session/<id>, #/settings, #/settings/<section>. */
-export function applyHashRoute(hash = location.hash): boolean {
-  const m = /^#\/(session|settings|library)(?:\/([^/?#]+))?(?:\/([^/?#]+))?/.exec(hash);
-  if (!m) return false;
-  if (m[1] === "session" && m[2]) openSession(decodeURIComponent(m[2]));
-  else if (m[1] === "library") openLibrary();
-  else if (m[1] === "settings") {
-    openSettings(((m[2] && decodeURIComponent(m[2])) || "general") as SettingsSection);
-    if (m[3]) setState({ settingsTab: decodeURIComponent(m[3]) });
-  }
-  else return false;
-  // a session link is consumed so the same link can be followed again;
-  // a settings page stays in the address bar (see setState) so a refresh
-  // comes back to it
-  if (m[1] === "session") history.replaceState(null, "", location.pathname + location.search);
-  return true;
-}
-
-/** Keeps the address bar on the settings page being shown (and clears it
- *  when leaving settings), so reloading the page stays there. */
-function syncSettingsHash() {
-  if (typeof location === "undefined") return;
-  const onSettings = location.hash.startsWith("#/settings");
-  if (state.view === "settings") {
-    const want = "#/settings/" + encodeURIComponent(state.settings);
-    // a deeper link (#/settings/<section>/<tab>) for the same page is kept
-    if (location.hash === want || location.hash.startsWith(want + "/")) return;
-    history.replaceState(null, "", location.pathname + location.search + want);
-  } else if (onSettings) {
-    history.replaceState(null, "", location.pathname + location.search);
-  }
 }
 
 export const isChat = (a?: AgentView) => a?.kind === "chat";

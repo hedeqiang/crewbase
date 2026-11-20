@@ -1,7 +1,8 @@
 import { lazy, Suspense, useEffect, useState } from "react";
 import { API, desktop, initToken, openExternal, setUnauthorizedHandler, setToken } from "./api";
 import { t } from "./i18n";
-import { applyTheme, connectEvents, disconnectEvents, docsEmbeddable, getState, isDocsLink, openDocs, resync, sessionAgent, setState, useStore, applyHashRoute } from "./store";
+import { applyTheme, connectEvents, disconnectEvents, docsEmbeddable, getState, isDocsLink, openDocs, resync, sessionAgent, setState, useStore } from "./store";
+import { leaveTo, setOverlayCloser, startRouter } from "./router";
 import { actionOf } from "./shortcuts";
 import { runShortcut } from "./actions";
 import { ConvHeader, useNeedsYou } from "./components/Header";
@@ -69,8 +70,9 @@ export function App() {
 
 function start() {
   setState({ authed: true });
-  // Follow a deep link the desktop shell put in the URL, once data is in.
-  void resync().then(() => applyHashRoute());
+  // The address says where to be (a reload, a deep link): followed once
+  // the first data is in, then kept in step (router.ts).
+  void resync().then(() => startRouter());
   connectEvents();
 }
 
@@ -89,11 +91,10 @@ function Shell() {
   const showList = listOpen && view !== "settings";
   const { n: needs } = useNeedsYou();
 
-  // Desktop shell deep links (tray items, notifications, ⌘,).
+  // Back first closes what is open on top (a dialog, ⌘K, an overlay), like
+  // a native app: the same as Esc.
   useEffect(() => {
-    const on = () => applyHashRoute();
-    window.addEventListener("hashchange", on);
-    return () => window.removeEventListener("hashchange", on);
+    setOverlayCloser(closeTopOverlay);
   }, []);
 
   // Desktop shell: dock / taskbar badge = things waiting for the person.
@@ -154,28 +155,9 @@ function Shell() {
         return;
       }
       if (e.key === "Escape") {
-        // an open dialog closes first: Esc does what clicking its backdrop
-        // does (the topmost one; dialogs with their own Esc handling have
-        // already handled it, see defaultPrevented above)
-        const scrims = Array.from(document.querySelectorAll<HTMLElement>(".scrim, .ovscrim.show")).filter((x) => !x.classList.contains("list-scrim") && !x.classList.contains("panel-scrim"));
-        const top = scrims[scrims.length - 1];
-        if (top) {
-          // after the dialog's own handlers (later listeners on window): one
-          // that handled Esc marks it, and a dialog that closed is gone
-          setTimeout(() => {
-            if (e.defaultPrevented || !top.isConnected) return;
-            top.dispatchEvent(new MouseEvent(top.classList.contains("ovscrim") ? "mousedown" : "click", { bubbles: true }));
-          }, 0);
-          return;
-        }
         const s = getState();
-        if (s.palette) setState({ palette: false });
-        else if (s.newChannel) setState({ newChannel: false });
         // the new-agent page is a step aside: Esc goes back (the draft stays)
-        else if (s.view === "newAgent" && !typing) setState({ view: "chat" });
-        else if (s.hostConfirm) setState({ hostConfirm: null });
-        else if (window.matchMedia("(max-width: 820px)").matches && s.listOpen) setState({ listOpen: false });
-        else if (window.matchMedia("(max-width: 1100px)").matches && s.panelOpen) setState({ panelOpen: false });
+        if (!closeTopOverlay(e) && s.view === "newAgent" && !typing) leaveTo("chat");
         return;
       }
       const id = actionOf(e, typing);
@@ -254,4 +236,34 @@ function ConnectModel() {
       <AddProviderDialog existing={(providers ?? []).map((p) => p.id)} onClose={() => setState({ connecting: false })} />
     </Suspense>
   );
+}
+
+/** Closes the topmost dialog or overlay, as Esc and back do; false when
+ *  nothing is open on top. With e (an Esc), dialogs that handle Esc
+ *  themselves have their say first. */
+function closeTopOverlay(e?: KeyboardEvent): boolean {
+  // a dialog: what clicking its backdrop does (the topmost one)
+  const scrims = Array.from(document.querySelectorAll<HTMLElement>(".scrim, .ovscrim.show")).filter((x) => !x.classList.contains("list-scrim") && !x.classList.contains("panel-scrim"));
+  const top = scrims[scrims.length - 1];
+  if (top) {
+    const close = () => top.dispatchEvent(new MouseEvent(top.classList.contains("ovscrim") ? "mousedown" : "click", { bubbles: true }));
+    if (e) {
+      // after the dialog's own handlers (later listeners on window): one
+      // that handled Esc marks it, and a dialog that closed is gone
+      setTimeout(() => {
+        if (e.defaultPrevented || !top.isConnected) return;
+        close();
+      }, 0);
+    } else close();
+    return true;
+  }
+  const s = getState();
+  if (s.palette) return setState({ palette: false }), true;
+  if (s.newChannel) return setState({ newChannel: false }), true;
+  if (s.hostConfirm) return setState({ hostConfirm: null }), true;
+  // the list and the panel as overlays on a narrow window
+  if (window.matchMedia("(max-width: 820px)").matches && s.listOpen) return setState({ listOpen: false }), true;
+  // (the panel as a sheet on a phone is a step of its own: router.ts)
+  if (window.matchMedia("(max-width: 1100px)").matches && !window.matchMedia("(max-width: 820px)").matches && s.panelOpen && s.view === "chat") return setState({ panelOpen: false }), true;
+  return false;
 }

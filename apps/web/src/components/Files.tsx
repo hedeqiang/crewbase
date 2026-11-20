@@ -54,21 +54,19 @@ const write = (k: string, v: string) => {
 /** 文件 tab: 文件 (the workspace tree and a file) and 改动 (what changed,
  *  as a diff). */
 export function FilesTab({ agent }: { agent: AgentView }) {
-  const want = useStore((s) => s.fileOpen);
-  const [view, setView] = useState<View>(() => (read(VIEW_KEY, "files") === "changes" ? "changes" : "files"));
-  const [sel, setSel] = useState<string | null>(want ?? null);
+  // the open file is the store's (and so the address's: router.ts)
+  const sel = useStore((s) => s.fileOpen);
+  const setSel = (p: string | null) => setState({ fileOpen: p });
+  const [view, setView] = useState<View>(() => (sel ? "files" : read(VIEW_KEY, "files") === "changes" ? "changes" : "files"));
   const [tick, setTick] = useState(0);
   const [changes, setChanges] = useState<ChangesView | null>(null);
   // the conversation's events: changes are looked at again as the agent works
   const evs = useStore((s) => (s.events[agent.session] ?? []).length);
 
+  // a file opened from elsewhere (an attachment, 打开文件) shows it
   useEffect(() => {
-    if (want) {
-      setSel(want);
-      setView("files");
-      setState({ fileOpen: null });
-    }
-  }, [want]);
+    if (sel) setView("files");
+  }, [sel]);
   useEffect(() => write(VIEW_KEY, view), [view]);
   useEffect(() => {
     let live = true;

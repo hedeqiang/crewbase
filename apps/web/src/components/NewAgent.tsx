@@ -1,4 +1,5 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
+import { leaveTo } from "../router";
 import { Check, ChevronDown, Dices, FileUp, Folder, Plus, RefreshCw, Search, Shield } from "lucide-react";
 import { API, refString, type ModelRef } from "../api";
 import { ImportRoleDialog } from "./ImportRole";
@@ -404,7 +405,7 @@ export function NewAgent({ draft: f, setDraft }: { draft: Draft; setDraft: (d: D
             </div>
 
             <div className="na-acts">
-              <button className="btn" type="button" onClick={() => setState({ view: "chat" })}>
+              <button className="btn" type="button" onClick={() => leaveTo("chat")}>
                 {t("common.cancel")}
               </button>
               <button className="btn pri" type="button" disabled={busy} onClick={create}>

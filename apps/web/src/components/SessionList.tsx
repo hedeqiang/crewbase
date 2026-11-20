@@ -6,6 +6,7 @@ import { t } from "../i18n";
 import { hhmm, kfmt, listTime, nextMorning, plainPreview, sinceLabel } from "../format";
 import { takeoverReason } from "./Browser";
 import { lastSnippet } from "../projection";
+import { leaveTo } from "../router";
 import {
   disconnectEvents,
   dndActive,
@@ -330,7 +331,7 @@ export function SessionList() {
           aria-label={addonUpdates > 0 ? t("list.settings") + " · " + t("aup.dot", { n: addonUpdates }) : t("list.settings")}
           title={(addonUpdates > 0 ? t("aup.dot", { n: addonUpdates }) + " · " : "") + t("list.settings") + " (" + keyLabel("settings") + ")"}
           aria-pressed={view === "settings"}
-          onClick={() => (view === "settings" ? setState({ view: "chat" }) : openSettings(addonUpdates > 0 ? "market" : "general"))}
+          onClick={() => (view === "settings" ? leaveTo("chat") : openSettings(addonUpdates > 0 ? "market" : "general"))}
         >
           <Settings size={16} />
           {addonUpdates > 0 && <span className="updot" title={t("aup.dot", { n: addonUpdates })} />}

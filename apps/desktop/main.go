@@ -226,6 +226,9 @@ func (s *shell) newWindow() {
 			PreloadScript:  preloadScript(origin, mygo.App.Version()),
 			// SSE and timers keep running while the window is hidden.
 			BackgroundThrottling: mygo.ThrottlingOff,
+			// a trackpad (or Magic Mouse) swipe goes back and forward through
+			// the places the web UI recorded (apps/web/src/router.ts)
+			SwipeNavigation: true,
 		},
 	})
 	s.mu.Lock()
@@ -284,9 +287,9 @@ func (s *shell) showWindow() {
 	mygo.App.Focus()
 }
 
-// navigate shows the window and points the single-page app at a view by
-// its hash, without reloading it. The web UI does not route hashes yet
-// (see docs/desktop.md): until it does, this only shows the window.
+// navigate shows the window and points the single-page app at a place by
+// its hash, without reloading it; the web UI's router (apps/web/src/router.ts)
+// opens it and records it, so back returns where the person was.
 func (s *shell) navigate(hash string) {
 	s.showWindow()
 	win := s.window()

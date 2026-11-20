@@ -47,6 +47,7 @@ import { ThemeSeg } from "./SessionList";
 import { confirmDialog } from "./Confirm";
 import { LibraryPage } from "./Library";
 import { DocsPage } from "./settings/AgentDocs";
+import { leaveTo } from "../router";
 
 
 
@@ -65,7 +66,7 @@ export function Settings() {
   return (
     <div className="setwrap">
       <nav className="snav" aria-label={t("tb.settings")}>
-        <button className="back" type="button" onClick={() => setState({ view: "chat" })}>
+        <button className="back" type="button" onClick={() => leaveTo("chat")}>
           <ChevronLeft size={16} />
           {t("set.back")}
         </button>
