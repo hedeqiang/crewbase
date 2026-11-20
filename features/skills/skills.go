@@ -85,7 +85,7 @@ func (s *Service) scan(dir, source string) []Skill {
 	var out []Skill
 	entries, _ := os.ReadDir(dir)
 	for _, e := range entries {
-		if !e.IsDir() {
+		if !e.IsDir() || strings.HasPrefix(e.Name(), ".") { // .install-*, .old-* while being swapped
 			continue
 		}
 		sd := filepath.Join(dir, e.Name())
@@ -197,7 +197,7 @@ func (s *Service) Load(agentID, name string) (Skill, string, []string, error) {
 			if err != nil || d.IsDir() || len(files) >= 100 {
 				return nil
 			}
-			if rel, _ := filepath.Rel(sk.Dir, p); rel != "SKILL.md" {
+			if rel, _ := filepath.Rel(sk.Dir, p); rel != "SKILL.md" && rel != OriginFile {
 				files = append(files, rel)
 			}
 			return nil
@@ -298,6 +298,62 @@ func (s *Service) Install(agentID, name string, files map[string][]byte) (Skill,
 	if err := os.Rename(tmp, dir); err != nil {
 		return Skill{}, err
 	}
+	Changed.Emit(s.c, struct{}{})
+	meta, _, err := parse(filepath.Join(dir, "SKILL.md"))
+	if err != nil {
+		return Skill{}, err
+	}
+	if meta.Name == "" {
+		meta.Name = name
+	}
+	return Skill{Name: meta.Name, Description: meta.Description, Dir: dir, Source: source, Agent: agentID}, nil
+}
+
+// OriginFile records where a skill was installed from (written by the
+// catalog, which checks it for updates); it is not shown to agents.
+const OriginFile = ".crewbase-origin.json"
+
+// Replace swaps the files of an installed skill (an update): the new
+// files are written aside and renamed in, so the skill is never half there.
+func (s *Service) Replace(agentID, name string, files map[string][]byte) (Skill, error) {
+	if _, ok := files["SKILL.md"]; !ok {
+		return Skill{}, errors.New("a skill needs a SKILL.md")
+	}
+	root, source, err := s.installDir(agentID)
+	if err != nil {
+		return Skill{}, err
+	}
+	dir := filepath.Join(root, name)
+	if fi, err := os.Stat(dir); err != nil || !fi.IsDir() || filepath.Dir(dir) != filepath.Clean(root) {
+		return Skill{}, ErrNotFound
+	}
+	tmp, err := os.MkdirTemp(root, ".install-")
+	if err != nil {
+		return Skill{}, err
+	}
+	defer os.RemoveAll(tmp)
+	for rel, b := range files {
+		p := filepath.Join(tmp, filepath.FromSlash(rel))
+		if !strings.HasPrefix(p, tmp+string(filepath.Separator)) {
+			return Skill{}, fmt.Errorf("bad file path %q", rel)
+		}
+		if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+			return Skill{}, err
+		}
+		if err := os.WriteFile(p, b, 0o644); err != nil {
+			return Skill{}, err
+		}
+	}
+	old := filepath.Join(root, ".old-"+name)
+	_ = os.RemoveAll(old)
+	if err := os.Rename(dir, old); err != nil {
+		return Skill{}, err
+	}
+	if err := os.Rename(tmp, dir); err != nil {
+		_ = os.Rename(old, dir)
+		return Skill{}, err
+	}
+	_ = os.RemoveAll(old)
 	Changed.Emit(s.c, struct{}{})
 	meta, _, err := parse(filepath.Join(dir, "SKILL.md"))
 	if err != nil {

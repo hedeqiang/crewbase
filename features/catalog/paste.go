@@ -882,6 +882,10 @@ func (s *Service) applySkills(ctx context.Context, source string, paths []string
 			return out, fmt.Errorf("%w: %s has no SKILL.md", ErrInput, firstNonEmpty(dir, "the folder"))
 		}
 		name := skillFolder(frontmatter(files["SKILL.md"])["name"], dir, source)
+		if isGitHub(source) {
+			// remembered so the skill can be checked for updates
+			files[skills.OriginFile] = originJSON(source, dir, files)
+		}
 		v, err := ss.Install(agentID, name, files)
 		if errors.Is(err, skills.ErrExists) {
 			return out, fmt.Errorf("%w: a skill named %s is already installed", ErrInstalled, name)

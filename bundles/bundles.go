@@ -36,6 +36,7 @@ import (
 	_ "github.com/hedeqiang/crewbase/features/goals"
 	_ "github.com/hedeqiang/crewbase/features/im"
 	_ "github.com/hedeqiang/crewbase/features/imconfig"
+	_ "github.com/hedeqiang/crewbase/features/addonupdates"
 	_ "github.com/hedeqiang/crewbase/features/agentdocs"
 	_ "github.com/hedeqiang/crewbase/features/library"
 	_ "github.com/hedeqiang/crewbase/features/linkpreview"
@@ -178,6 +179,8 @@ var Desktop = kernel.Bundle{Name: "desktop", Entries: []kernel.Entry{
 	{ID: "webhook", Name: "@crewbase/webhook"},
 	{ID: "routines-api", Name: "@crewbase/routines-api"},
 	{ID: "agentdocs-api", Name: "@crewbase/agentdocs-api"},
+	// 插件与技能 › 更新: plugins, skills from GitHub, apps Crewbase runs.
+	{ID: "addon-updates", Name: "@crewbase/addon-updates"},
 	{ID: "followups-api", Name: "@crewbase/followups-api"},
 	{ID: "memory-working-api", Name: "@crewbase/memory-working-api"},
 	{ID: "usage", Name: "@crewbase/usage"},
