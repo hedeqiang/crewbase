@@ -32,6 +32,7 @@ export function Panel() {
   const subView = useStore((s) => s.subView);
   const sched = useSchedule(agent);
   const docsOn = useStore((s) => !!s.agentDocs) && docsEmbeddable();
+  const desktopTier = useStore((s) => s.tier === "desktop");
   const nSched = scheduleCount(sched);
   const tabsRef = useRef<HTMLDivElement>(null);
   // the open tab stays in sight
@@ -41,12 +42,12 @@ export function Panel() {
   }, [tab, agent?.id]);
   if (!agent) return null;
   const chat = agent.kind === "chat";
-  const view: typeof tab = (chat && (tab === "files" || tab === "library" || tab === "schedule" || tab === "docs")) || (tab === "docs" && !docsOn) ? "task" : tab;
+  const view: typeof tab = (!desktopTier && tab === "files") || (chat && (tab === "files" || tab === "library" || tab === "schedule" || tab === "docs")) || (tab === "docs" && !docsOn) ? "task" : tab;
   // a plain chat has no workspace to browse (an HTML answer can still be previewed)
   const tabs: [typeof tab, string][] = [
     ["task", t("panel.task")],
     ...(chat ? [] : ([["schedule", t("sched.tab")]] as [typeof tab, string][])),
-    ...(chat ? [] : ([["files", t("panel.files")]] as [typeof tab, string][])),
+    ...(chat || !desktopTier ? [] : ([["files", t("panel.files")]] as [typeof tab, string][])),
     ["preview", t("panel.preview")],
     ...(chat ? [] : ([["library", t("lib.title")]] as [typeof tab, string][])),
     ...(!chat && docsOn ? ([["docs", t("adx.tab")]] as [typeof tab, string][]) : []),

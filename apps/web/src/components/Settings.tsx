@@ -11,7 +11,7 @@ import { Automation } from "./settings/Automation";
 import { Extensions } from "./settings/Extensions";
 import { Profile } from "./settings/Profile";
 import { Vault } from "./settings/Vault";
-import { shortPath } from "./Conversation";
+import { shortPath, toolLabel } from "./Conversation";
 import { Hosts } from "./settings/Hosts";
 import { Team } from "./settings/Team";
 import { Teams } from "./settings/Teams";
@@ -1128,12 +1128,13 @@ function Approvals() {
               <div style={{ minWidth: 0 }}>
                 <div className="small" style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
                   <span className="pill amber">{t("appr.waiting")}</span>
-                  {a?.name ?? (r.agent || t("appr.workflow"))} · 「{r.reason || r.category}」 · {ago(r.asked)}
+                  <span title={r.reason}>
+                    {a?.name ?? (r.agent || t("appr.workflow"))} · {whyLabel(r)} · {ago(r.asked)}
+                  </span>
                 </div>
                 <h4>{r.summary || r.tool}</h4>
-                <div className="small mono">
-                  {r.tool}
-                  {r.category ? ` · ${r.category}` : ""}
+                <div className="small" title={[r.tool, r.category].filter(Boolean).join(" · ")}>
+                  {toolLabel(r.tool) || r.tool}
                 </div>
               </div>
               <ApprovalActions
@@ -1219,6 +1220,14 @@ function Remembered() {
   );
 }
 
+/** Why a request asks, in people's words (the engine's reason, in English,
+ *  only as a tooltip). */
+function whyLabel(r: { tool: string; category?: string; reason?: string }): string {
+  if (r.tool === "routine_create" || r.tool === "routine_update") return t("aprx.routine");
+  if (r.category && r.category !== "none") return t("aprx.cat", { cat: catLabel(r.category) });
+  return t("aprx.other");
+}
+
 export function catLabel(c: string): string {
   // computer:<bundle id> is operating that app (features/computertools)
   if (c.startsWith("computer:")) return t("cat.computer", { app: c.slice("computer:".length) });
@@ -1256,7 +1265,8 @@ function History() {
                   <b>{h.summary || h.tool}</b>
                   <span>
                     {a?.name ?? h.agent} · {catLabel(h.category || h.tool)}
-                    {h.decision?.message ? ` · 「${h.decision.message}」` : ""}
+                    {/* a person's words on rejecting (a cancel's message is the system's) */}
+                    {o === "rejected" && h.decision?.message ? ` · 「${h.decision.message}」` : ""}
                   </span>
                 </span>
                 <span className={"pill " + tone}>

@@ -469,7 +469,6 @@ export function currentTeam(): string | undefined {
 }
 
 export async function refreshAgentDocs() {
-  if (state.tier !== "desktop") return;
   try {
     const d = await API.agentDocs();
     setState({ agentDocs: d.connected ? { url: d.settings.url, workspace: d.settings.workspaceName, local: !!d.local?.running } : null });

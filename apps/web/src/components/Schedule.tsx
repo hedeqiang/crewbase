@@ -7,7 +7,7 @@ import { AlarmClock, ChevronRight, MessageSquare, Pencil, Play, Trash, X } from 
 import { API, type AgentView, type Followup, type Routine } from "../api";
 import { t } from "../i18n";
 import { ago, modeLabel, until } from "../format";
-import { openSession, openSettings, toast } from "../store";
+import { openSession, openSettings, toast, useStore } from "../store";
 import { confirmDialog } from "./Confirm";
 import { RoutineForm, RoutineRuns, scheduleLabel } from "./settings/Automation";
 
@@ -57,6 +57,8 @@ export function scheduleCount(d: ScheduleData): number {
 
 export function ScheduleTab({ agent, data }: { agent: AgentView; data: ScheduleData }) {
   const { routines, followups, reload } = data;
+  // a phone sees and runs routines; changing them is the computer's
+  const manage = useStore((s) => s.tier === "desktop");
   const [edit, setEdit] = useState<Partial<Routine> | null>(null);
   const [open, setOpen] = useState<string | null>(null);
   const [secret, setSecret] = useState<{ name: string; secret: string } | null>(null);
@@ -146,7 +148,11 @@ export function ScheduleTab({ agent, data }: { agent: AgentView; data: ScheduleD
                     {scheduleLabel(r.schedule)} · {modeLabel(r.mode)}
                   </span>
                 </div>
-                <button className="tg" type="button" role="switch" aria-checked={r.enabled} aria-label={t("auto.enabled")} onClick={() => void toggle(r)} />
+                {manage ? (
+                  <button className="tg" type="button" role="switch" aria-checked={r.enabled} aria-label={t("auto.enabled")} onClick={() => void toggle(r)} />
+                ) : (
+                  !r.enabled && <span className="pill sm">{t("aprx.off")}</span>
+                )}
               </div>
               <p className="rprompt">{r.prompt}</p>
               <div className="rorigin small">
@@ -176,12 +182,16 @@ export function ScheduleTab({ agent, data }: { agent: AgentView; data: ScheduleD
                   {t("auto.runs")}
                 </button>
                 <span className="sp" />
-                <button className="ix" type="button" aria-label={t("auto.edit")} title={t("auto.edit")} onClick={() => setEdit(r)}>
-                  <Pencil size={13} />
-                </button>
-                <button className="ix" type="button" aria-label={t("common.delete")} title={t("common.delete")} onClick={() => void del(r)}>
-                  <Trash size={13} />
-                </button>
+                {manage && (
+                  <>
+                    <button className="ix" type="button" aria-label={t("auto.edit")} title={t("auto.edit")} onClick={() => setEdit(r)}>
+                      <Pencil size={13} />
+                    </button>
+                    <button className="ix" type="button" aria-label={t("common.delete")} title={t("common.delete")} onClick={() => void del(r)}>
+                      <Trash size={13} />
+                    </button>
+                  </>
+                )}
               </div>
               {open === r.id && <RoutineRuns r={r} />}
             </div>
@@ -214,9 +224,13 @@ export function ScheduleTab({ agent, data }: { agent: AgentView; data: ScheduleD
       )}
 
       {routines !== null && routines.length > 0 && !edit && <SetupHint name={agent.name} more />}
-      <button className="linkbtn schedall" type="button" onClick={() => openSettings("auto")}>
-        {t("sched.all")}
-      </button>
+      {manage ? (
+        <button className="linkbtn schedall" type="button" onClick={() => openSettings("auto")}>
+          {t("sched.all")}
+        </button>
+      ) : (
+        <p className="small muted schedall">{t("aprx.schedOnDesktop")}</p>
+      )}
     </div>
   );
 }

@@ -2745,3 +2745,14 @@ b > .mkver, .g b .mkver { margin: 0 0 0 6px; }
 .dcbody:hover { background: var(--hover); }
 .dcbody .fxmd { pointer-events: none; }
 .dcfoot { display: flex; align-items: center; gap: 10px; padding: 8px 12px 10px; flex-wrap: wrap; }
+
+/* touch screens: buttons a finger can hit (36px), message actions always shown */
+@media (pointer: coarse) {
+  .ix { width: 36px; height: 36px; border-radius: 9px; }
+  .ptabs > .ix { width: 36px; height: 36px; }
+  .msgacts { opacity: 1; gap: 4px; }
+  .msgacts button, .msgacts .ix, .mact { width: 36px; height: 36px; }
+  .tg { width: 42px; height: 24px; border-radius: 13px; }
+  .tg::after { width: 20px; height: 20px; }
+  .tg[aria-checked="true"]::after { transform: translateX(18px); }
+}

@@ -77,7 +77,7 @@ var APIPlugin = kernel.Register(kernel.Spec{
 	Apply: func(c *kernel.Context) error {
 		g := kernel.Use[*gateway.Gateway](c, gateway.ServiceKey)
 		s := kernel.Use[*Service](c, ServiceKey)
-		g.Handle(c, gateway.Route{Method: "GET", Path: "/api/agentdocs",
+		g.Handle(c, gateway.Route{Method: "GET", Path: "/api/agentdocs", Devices: []string{"mobile"},
 			Handle: func(context.Context, *gateway.Request) (any, error) { return s.Status(), nil }})
 		g.Handle(c, gateway.Route{Method: "POST", Path: "/api/agentdocs",
 			Handle: func(ctx context.Context, r *gateway.Request) (any, error) {

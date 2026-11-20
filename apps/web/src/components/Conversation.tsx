@@ -1500,7 +1500,7 @@ const TOOL_LABELS: Record<string, Key> = {
   computer_shortcut: "tool.cuShortcut",
   computer_shortcuts: "tool.cuShortcuts",
 };
-const toolLabel = (name: string) => (TOOL_LABELS[name] ? t(TOOL_LABELS[name]) : "");
+export const toolLabel = (name: string) => (TOOL_LABELS[name] ? t(TOOL_LABELS[name]) : "");
 /** tools whose main argument is prose (a task, a prompt), not code */
 const PROSE_ARGS = new Set(["delegate", "image_generate", "video_generate", "memory_add", "followup_set", "web_search"]);
 

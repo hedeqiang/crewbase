@@ -77,7 +77,9 @@ function DocCard({ url }: { url: string }) {
     };
   }, [url, tick]);
 
-  const open = () => (docsEmbeddable() ? openDocs(url) : openExternal(url));
+  // the docs on the desktop's loopback cannot be opened from a phone: the card only
+  const reachable = docsEmbeddable() || !/^https?:\/\/(127\.0\.0\.1|localhost|\[::1\])[:/]/.test(url);
+  const open = () => (docsEmbeddable() ? openDocs(url) : reachable ? openExternal(url) : undefined);
   const card = state?.card;
   if (state && !card)
     return (
@@ -104,9 +106,11 @@ function DocCard({ url }: { url: string }) {
         <button className="ix" type="button" title={t("dcard.refresh")} aria-label={t("dcard.refresh")} onClick={() => setTick((n) => n + 1)}>
           <RefreshCw size={13} />
         </button>
-        <button className="ix" type="button" title={t("ad.open")} aria-label={t("ad.open")} onClick={() => openExternal(url)}>
-          <ExternalLink size={13} />
-        </button>
+        {reachable && (
+          <button className="ix" type="button" title={t("ad.open")} aria-label={t("ad.open")} onClick={() => openExternal(url)}>
+            <ExternalLink size={13} />
+          </button>
+        )}
       </div>
       {card && (
         <button type="button" className="dcbody" onClick={open} title={t("dcard.openRight")}>
@@ -121,10 +125,14 @@ function DocCard({ url }: { url: string }) {
       )}
       {card && (
         <div className="dcfoot">
-          <button className="btn sm" type="button" onClick={open}>
-            <PanelRight size={12} />
-            {docsEmbeddable() ? t("dcard.openRight") : t("ad.open")}
-          </button>
+          {reachable ? (
+            <button className="btn sm" type="button" onClick={open}>
+              <PanelRight size={12} />
+              {docsEmbeddable() ? t("dcard.openRight") : t("ad.open")}
+            </button>
+          ) : (
+            <span className="small muted">{t("dcard.onDesktop")}</span>
+          )}
           {card.total > card.shown && <span className="small muted">{t("dcard.more", { n: card.total - card.shown })}</span>}
         </div>
       )}

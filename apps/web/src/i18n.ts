@@ -2336,11 +2336,17 @@ const zh = {
   "mmd.saveFailed": "没能保存这张图：{error}",
   "dcard.updated": "更新于 {when}",
   "dcard.untitled": "无标题",
+  "dcard.onDesktop": "在电脑上打开完整文档",
   "dcard.refresh": "刷新",
   "dcard.openRight": "在右侧打开",
   "dcard.more": "还有 {n} 块，打开查看全文",
   "dcard.empty": "这一页还是空的。",
   "dcard.gone": "这个页面已经不在了（可能被删除或移到回收站）",
+  "aprx.routine": "新建或修改定时任务每次都要你确认",
+  "aprx.cat": "{cat}要先问你",
+  "aprx.other": "这一步要你确认",
+  "aprx.off": "已关闭",
+  "aprx.schedOnDesktop": "在手机上可以查看和立即运行；开关、修改和删除请在电脑上操作。",
 } as const;
 
 export type Key = keyof typeof zh;
