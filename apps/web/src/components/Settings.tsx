@@ -45,6 +45,7 @@ import {
 } from "../shortcuts";
 import { ThemeSeg } from "./SessionList";
 import { confirmDialog } from "./Confirm";
+import { LibraryPage } from "./Library";
 
 
 
@@ -95,6 +96,7 @@ export function Settings() {
         {sec === "approvals" && <Approvals />}
         {manage && sec === "auto" && <Automation />}
         {manage && sec === "market" && <Extensions />}
+        {manage && sec === "library" && <LibraryPage embedded />}
         {manage && sec === "profile" && <Profile />}
         {manage && sec === "vault" && <Vault />}
         {sec === "keys" && <Keys />}
@@ -104,7 +106,7 @@ export function Settings() {
         {manage && sec === "teams" && <Teams />}
         {manage && sec === "im" && <Im />}
         {manage && sec === "computer" && <Computer />}
-        {manage && !["general", "models", "approvals", "auto", "market", "profile", "vault", "keys", "notify", "hosts", "team", "teams", "im", "computer"].includes(sec) && <Soon sec={sec} />}
+        {manage && !["general", "models", "approvals", "auto", "market", "library", "profile", "vault", "keys", "notify", "hosts", "team", "teams", "im", "computer"].includes(sec) && <Soon sec={sec} />}
       </div>
     </div>
   );

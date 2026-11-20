@@ -2220,4 +2220,8 @@ export const en: Partial<Record<Key, string>> = {
   "ad.woken": "{n} comments handled",
   "ad.disconnectConfirm": "Disconnect Open Agent Docs?\nEach agent's identity on the docs server is revoked; what they wrote stays.",
   "ad.disconnected": "Open Agent Docs disconnected",
+  "set.library": "Library",
+  "set.kw.library": "documents,files,uploads,knowledge,pdf,images,docs",
+  "lib.sub": "Files uploaded in conversations and documents agents made or saved; every agent of the team can search them.",
+  "lib.subTeam": "The {team} team's files: uploaded in conversations, made or saved by agents; every agent of the team can search them.",
 };

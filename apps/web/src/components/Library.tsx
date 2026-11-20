@@ -33,10 +33,11 @@ import {
 import { API, libRawText, libRawURL, uploadLibrary, useLibRawURL, type LibFolder, type LibItem, type LibSource, type LibStats, type LibVersion } from "../api";
 import { t } from "../i18n";
 import { ago } from "../format";
-import { openSession, sessionAgent, setState, toast, useStore } from "../store";
+import { openLibrary, openSession, sessionAgent, setState, toast, useStore } from "../store";
 import { addLibraryFile, fmtSize, LIB_DRAG, type LibDrag } from "./Attachments";
 import { confirmDialog } from "./Confirm";
 import { ListToggle } from "./Header";
+import { Head } from "./Settings";
 import { Markdown } from "./Markdown";
 import { Code } from "./Files";
 
@@ -178,7 +179,8 @@ async function addFilesTo(team: string, files: File[], folder?: string): Promise
 
 // ---------------------------------------------------------------- page
 
-export function LibraryPage() {
+/** The 文档库 page (设置 › 文档库; embedded: in the settings column, filters as a row). */
+export function LibraryPage({ embedded = false }: { embedded?: boolean }) {
   const team = useStore((s) => s.team);
   const teams = useStore((s) => s.teams);
   const listOpen = useStore((s) => s.listOpen);
@@ -216,7 +218,7 @@ export function LibraryPage() {
 
   return (
     <div
-      className={"center lib" + (dropping ? " dropping" : "")}
+      className={(embedded ? "lib embedded" : "center lib") + (dropping ? " dropping" : "")}
       onDragOver={(e) => {
         if (!Array.from(e.dataTransfer.types).includes("Files")) return;
         e.preventDefault();
@@ -232,6 +234,30 @@ export function LibraryPage() {
         void add(Array.from(e.dataTransfer.files));
       }}
     >
+      {embedded ? (
+        <Head
+          title={t("lib.title")}
+          sub={teamName ? t("lib.subTeam", { team: teamName }) : t("lib.sub")}
+          right={
+            <>
+              <button className="btn sm" type="button" onClick={() => fileInput.current?.click()}>
+            <Upload size={12} />
+            {t("lib.add")}
+          </button>
+          <input
+            ref={fileInput}
+            type="file"
+            multiple
+            hidden
+            onChange={(e) => {
+              void add(Array.from(e.target.files ?? []));
+              e.target.value = "";
+            }}
+          />
+            </>
+          }
+        />
+      ) : (
       <div className="chead libhead">
         {!listOpen && <ListToggle />}
         <span className="who">
@@ -256,6 +282,7 @@ export function LibraryPage() {
           />
         </span>
       </div>
+      )}
       <div className={"libbody" + (sel ? " withdetail" : "")}>
         <nav className="libnav" aria-label={t("lib.filters")}>
           <button type="button" className="lnv" aria-current={!f.folder && !f.source && !f.tag} onClick={() => setF({ ...f, folder: "", source: "", tag: "" })}>
@@ -788,7 +815,7 @@ export function LibraryTab() {
               <span className={"libic f-" + it.folder}>
                 <ItemIcon it={it} size={14} />
               </span>
-              <button type="button" className="g" onClick={() => setState({ view: "library", libOpen: it.id })}>
+              <button type="button" className="g" onClick={() => openLibrary(it.id)}>
                 <b>{it.title || it.name}</b>
                 {it.snippet ? <Snippet text={it.snippet} /> : <span>{sourceLine(it, agentName) + " · " + ago(it.updated)}</span>}
               </button>
@@ -806,7 +833,7 @@ export function LibraryTab() {
           ))
         )}
       </div>
-      <button className="linkbtn libtabmore" type="button" onClick={() => setState({ view: "library", libOpen: null })}>
+      <button className="linkbtn libtabmore" type="button" onClick={() => openLibrary()}>
         {t("lib.openPage")}
       </button>
     </div>

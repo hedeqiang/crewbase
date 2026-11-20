@@ -31,7 +31,7 @@ import { notifyApprovals } from "./companion";
 import { getLang, loadLang, setLang as setLangRaw, t, type Lang } from "./i18n";
 import { modelKind, setUserProviders } from "./format";
 
-export type View = "chat" | "newAgent" | "settings" | "library";
+export type View = "chat" | "newAgent" | "settings";
 /** Built-in tabs, or `ui:<key>` for a plugin's sidebar-right.tab. */
 export type PanelTab = "task" | "schedule" | "files" | "preview" | "library" | "agent" | `ui:${string}`;
 export type Theme = "system" | "light" | "dark";
@@ -43,6 +43,7 @@ export type SettingsSection =
   | "keys"
   | "models"
   | "market"
+  | "library"
   | "computer"
   | "auto"
   | "approvals"
@@ -450,7 +451,7 @@ export function switchTeam(id: string) {
     const meta = s.current ? s.sessions[s.current] : undefined;
     const owner = meta?.kind === "channel" ? meta : Object.values(s.agents).find((a) => a.session === s.current);
     const keep = !!owner && teamOf(owner) === id;
-    return { team: id, current: keep ? s.current : null, view: s.view === "settings" || s.view === "library" ? s.view : "chat" };
+    return { team: id, current: keep ? s.current : null, view: s.view === "settings" ? s.view : "chat" };
   });
 }
 
@@ -531,7 +532,8 @@ async function newChatOnce(folder?: string) {
 
 /** The team's 文档库 page. */
 export function openLibrary(item?: number) {
-  setState({ view: "library", palette: false, listOpen: narrow() ? false : state.listOpen, ...(item !== undefined ? { libOpen: item } : {}) });
+  openSettings("library");
+  setState({ libOpen: item ?? null });
 }
 
 export function openNewAgent(folder = "") {

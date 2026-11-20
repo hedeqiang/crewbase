@@ -2627,3 +2627,17 @@ a.lcard:hover, .lvideo .ltext:hover { background: var(--hover); }
 .adwake > span { display: flex; flex-direction: column; gap: 2px; font-size: 13px; }
 .adwake b { font-weight: 500; }
 .mkmanage { display: inline-flex; align-items: center; gap: 10px; }
+/* 文档库 inside settings: the settings column already has a menu, so the
+   filters are a row above the list */
+.lib.embedded { position: relative; display: flex; flex-direction: column; flex: 1; min-height: 0; min-width: 0; }
+.lib.embedded .libbody, .lib.embedded .libbody.withdetail { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); }
+.lib.embedded .libbody.withdetail { grid-template-columns: minmax(0, 1fr) minmax(320px, 400px); }
+.lib.embedded .libnav { grid-column: 1 / -1; flex-direction: row; flex-wrap: wrap; align-items: center; border-right: 0; border-bottom: 1px solid var(--border); padding: 8px 20px; gap: 4px; background: transparent; }
+.lib.embedded .libnav .lnsec { padding: 0 4px 0 12px; }
+.lib.embedded .libnav .lnsec svg { display: none; }
+.lib.embedded .lnv { flex: none; height: 28px; padding: 0 9px; }
+.lib.embedded .lnv .cnt { margin-left: 4px; }
+.lib.embedded .libtags { padding: 0; }
+.lib.embedded .libdetail { grid-row: 2; }
+.lib.embedded .libmain { grid-row: 2; }
+@media (max-width: 1100px) { .lib.embedded .libdetail { top: 0; } }

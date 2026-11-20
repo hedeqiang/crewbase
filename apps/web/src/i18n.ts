@@ -2263,6 +2263,10 @@ const zh = {
   "ad.woken": "已处理 {n} 条评论",
   "ad.disconnectConfirm": "断开 Open Agent Docs？\n每个助理在文档服务器上的身份会被撤销，它们写过的内容保留。",
   "ad.disconnected": "已断开 Open Agent Docs",
+  "set.library": "文档库",
+  "set.kw.library": "文档,文件,资料,上传,知识库,pdf,图片,library,docs",
+  "lib.sub": "对话里上传的文件、助理生成和保存的文档，团队里的每个助理都能搜到。",
+  "lib.subTeam": "「{team}」团队的文件：对话里上传的、助理生成和保存的，团队里的每个助理都能搜到。",
 } as const;
 
 export type Key = keyof typeof zh;
