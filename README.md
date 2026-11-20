@@ -27,8 +27,10 @@ Crewbase runs a team of agents on your own machine or server. Each agent has its
 
 - **Any model.** Native Anthropic, OpenAI, Gemini, DeepSeek, xAI, Kimi, Zhipu, MiniMax, Qwen and Volcengine providers, any OpenAI-compatible endpoint, the [magpie](https://github.com/yetone/magpie) gateway, and local models (Ollama, LM Studio). Routes by task type and fails over to the next model.
 - **A crew, not a chatbot.** Channels with a single owner and explicit handover, sub-agent delegation, workflows on a visual canvas, and a shared task board (dependency graph) per delegation tree. A blank **New chat** (⌘N) still has every tool.
-- **Safe by default.** Three run modes — read-only, sandbox (Seatbelt on macOS, bubblewrap on Linux, Docker elsewhere) and host. A rules engine and approvals gate pushes, deletes, publishing and payments; secrets live in the system keychain and are redacted from logs; a hash-chained audit log records who approved what.
+- **Safe by default.** Three run modes — read-only, sandbox (Seatbelt on macOS, bubblewrap on Linux, Docker elsewhere) and host. A rules engine and approvals gate pushes, deletes, publishing and payments; secrets live in an encrypted vault in the data folder and are redacted from logs; a hash-chained audit log records who approved what.
 - **Tools that do real work.** Shell and files in the workspace, a per-agent Chrome you can take over at any time, MCP servers (including OAuth and resources/prompts), skills, long-term memory, and attachments (images, PDF, Office) loaded natively for models that can read them.
+- **A shared library and schedules.** Files uploaded in conversations, images and videos agents generate, and documents they save land in a per-team library with full-text search (Chinese too), versions and private items; every agent can search it. Ask an agent for something recurring ("every morning at 8, check …") and it sets up a routine after you confirm.
+- **Docs written with your agents.** Connect a self-hosted [Open Agent Docs](https://github.com/kadaliao/open-agent-docs) server: each agent gets its own identity there, and @mentioning one in a comment gives it the task ([details](docs/agentdocs.md)).
 - **DeepSeek tool APIs for any model.** With a DeepSeek key, every agent gets `web_search`, `web_fetch` and `ocr_file`; scanned PDFs and images are OCR'd for text-only models; dictation and read-aloud use DeepSeek ASR / TTS.
 - **Plugins all the way down.** The kernel is a plugin host: built-in Go plugins, out-of-process plugins in Go, TypeScript or Python, sandboxed **WebAssembly** hooks, and declarative UI slots. Marketplace packages are checksum-pinned and publisher-signed.
 - **Reach it from anywhere — with zero inbound ports.** Pair a phone through an end-to-end encrypted relay (installable PWA for approvals and chat), or talk to your crew from Slack, Telegram, Discord, Feishu and Lark.
@@ -70,7 +72,7 @@ Standalone `crewd`, `crew` and `crew-relay` binaries for macOS, Linux and Window
 
 ## Getting started
 
-1. Open Crewbase. A running magpie, Ollama or LM Studio is picked up automatically; otherwise add a provider in **Settings › Models** (keys go to the system keychain).
+1. Open Crewbase. A running magpie, Ollama or LM Studio is picked up automatically; otherwise add a provider in **Settings › Models** (keys go to the vault).
 2. Press **⌘N** for a blank chat, or **⇧⌘N** to create an agent from a template with its own instructions, workspace and run mode.
 3. Give it work. Risky steps show up as approval cards; the right panel shows its task board and files.
 
@@ -120,6 +122,7 @@ The design documents are written in Chinese; English versions will follow.
 - [Product requirements](docs/01-product-requirements.md) · [UX design](docs/03-ux-design.md) · [Roadmap](docs/07-roadmap.md)
 - [Architecture](docs/04-architecture.md) · [Plugin system](docs/05-plugin-system.md) · [Security model](docs/06-security-model.md)
 - [Desktop app](docs/desktop.md) · [Deployment](docs/deploy.md) · [Releasing](docs/release.md)
+- Features: [Previews](docs/previews.md) · [Computer use](docs/computer-use.md) · [Open Agent Docs](docs/agentdocs.md)
 
 ## Security
 

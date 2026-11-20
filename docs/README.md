@@ -19,6 +19,9 @@ Crewbase（暂定名）是一个 Local-First、模型无关、插件优先的开
 | [ADR-0001 插件优先的内核](decisions/0001-plugin-first-kernel.md) | 为什么采用插件内核、为什么用 Go 移植而不是 fork | 工程 |
 | [ADR-0002 插件分四档运行](decisions/0002-plugin-runtime-tiers.md) | 内置 / 进程外 / WASM / 内容型 | 工程 |
 | [ADR-0003 团队](decisions/0003-teams.md) | 主机 → 团队 → 频道；团队是人 + Agent 的编组与共享资源边界（提议） | 产品、工程 |
+| [预览](previews.md) | 链接卡片与右侧预览：Agent 做的网页、开发服务器 | 工程 |
+| [电脑操作](computer-use.md) | macOS 上操作应用：权限、确认、动作 | 工程 |
+| [Open Agent Docs](agentdocs.md) | 连接自托管文档服务器：每个 Agent 一个身份，评论 @ 它就成为它的任务 | 工程 |
 
 交互原型：仓库根目录 [`crewbase-prototype.html`](../crewbase-prototype.html)，浏览器直接打开。
 

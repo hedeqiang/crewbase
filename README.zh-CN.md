@@ -27,8 +27,10 @@ Crewbase 在你自己的电脑或服务器上运行一支 Agent 团队。每个 
 
 - **任意模型。** 原生接入 Anthropic、OpenAI、Gemini、DeepSeek、xAI、Kimi、智谱、MiniMax、通义千问、火山引擎，以及任何 OpenAI 兼容接口、[magpie](https://github.com/yetone/magpie) 网关、本地模型（Ollama、LM Studio）。按任务类型路由，失败自动切换到下一个模型。
 - **是团队，不只是聊天。** 频道单一负责人与显式交接、子 Agent 委派、可视化画布编排工作流，每棵委派树共享一块任务板（依赖图）。空白的**新对话**（⌘N）同样能使用全部工具。
-- **默认安全。** 三档运行模式：只读、沙箱（macOS 用 Seatbelt，Linux 用 bubblewrap，其他平台用 Docker）、本机。规则引擎与审批拦住推送、删除、对外发布和支付；密钥存在系统钥匙串并在日志中脱敏；哈希链审计日志记录谁批准了什么。
+- **默认安全。** 三档运行模式：只读、沙箱（macOS 用 Seatbelt，Linux 用 bubblewrap，其他平台用 Docker）、本机。规则引擎与审批拦住推送、删除、对外发布和支付；密钥加密保存在数据目录的保管库里，并在日志中脱敏；哈希链审计日志记录谁批准了什么。
 - **真能干活的工具。** 工作区里的命令与文件、每个 Agent 一个可随时接管的 Chrome、MCP 服务器（支持 OAuth 与 resources / prompts）、技能、长期记忆，以及附件（图片、PDF、Office）——能直接读的模型收到原文件。
+- **文档库与定时。** 对话里上传的文件、Agent 生成的图片和视频、Agent 保存的文档，按团队归档进文档库：全文搜索（中文也能搜）、历史版本、可设为私有，每个 Agent 都能搜到。在对话里让 Agent 做周期性的事（「每天早上 8 点检查……」），你确认后它会建一个例行巡检。
+- **和 Agent 一起写文档。** 连接自己部署的 [Open Agent Docs](https://github.com/kadaliao/open-agent-docs)：每个 Agent 在里面有自己的身份，在评论里 @ 它就会收到任务（[说明](docs/agentdocs.md)）。
 - **DeepSeek 工具 API，任何模型可用。** 配好 DeepSeek Key 后，所有 Agent 都能用 `web_search`、`web_fetch`、`ocr_file`；扫描版 PDF 与图片会为不能看图的模型做 OCR；语音听写与朗读走 DeepSeek ASR / TTS。
 - **一切皆插件。** 内核是插件宿主：内置 Go 插件、Go / TypeScript / Python 进程外插件、沙箱化的 **WebAssembly** 钩子，以及声明式界面插槽。插件市场的包固定校验和并带发布者签名。
 - **随处可达，零入站端口。** 通过端到端加密的中继配对手机（可安装的 PWA，用于审批和对话），或在 Slack、Telegram、Discord、飞书、Lark 里和团队对话。
@@ -70,7 +72,7 @@ docker pull ghcr.io/hedeqiang/crewbase          # distroless；:chromium 标签�
 
 ## 快速开始
 
-1. 打开 Crewbase。正在运行的 magpie、Ollama 或 LM Studio 会被自动识别；否则在 **设置 › 模型** 添加提供方（Key 存入系统钥匙串）。
+1. 打开 Crewbase。正在运行的 magpie、Ollama 或 LM Studio 会被自动识别；否则在 **设置 › 模型** 添加提供方（Key 存入保管库）。
 2. 按 **⌘N** 开一个空白对话，或按 **⇧⌘N** 从模板新建 Agent，设定它的指令、工作区和运行模式。
 3. 给它派活。有风险的步骤会弹出审批卡片；右侧面板显示任务板和文件。
 
@@ -118,6 +120,7 @@ make check          # go vet + race 测试
 - [产品需求](docs/01-product-requirements.md) · [交互设计](docs/03-ux-design.md) · [路线图](docs/07-roadmap.md)
 - [技术架构](docs/04-architecture.md) · [插件系统](docs/05-plugin-system.md) · [安全模型](docs/06-security-model.md)
 - [桌面应用](docs/desktop.md) · [部署](docs/deploy.md) · [发版](docs/release.md)
+- 功能说明：[预览](docs/previews.md) · [电脑操作](docs/computer-use.md) · [Open Agent Docs](docs/agentdocs.md)
 
 完整目录见 [docs/README.md](docs/README.md)。
 
