@@ -29,6 +29,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -143,6 +144,7 @@ func (s *Service) Status() Status {
 	for _, id := range s.st.Identities {
 		st.Identities = append(st.Identities, id)
 	}
+	sort.Slice(st.Identities, func(i, j int) bool { return st.Identities[i].Name < st.Identities[j].Name })
 	return st
 }
 
