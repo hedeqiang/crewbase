@@ -8,6 +8,7 @@ import { activeModel, allModels, detailLabel, effortLabel, exhaustedHint, exhaus
 import { project, type SubRun } from "../projection";
 import { openSubRun, refreshChannel, setState, toast, useStore, sessionAgent } from "../store";
 import { FilesTab } from "./Files";
+import { LibraryTab } from "./Library";
 import { PreviewTab } from "./Preview";
 import { Avatar, LookPicker } from "./Avatar";
 import { Popover, useMenu } from "./Popover";
@@ -29,12 +30,13 @@ export function Panel() {
   const subView = useStore((s) => s.subView);
   if (!agent) return null;
   const chat = agent.kind === "chat";
-  const view: typeof tab = chat && tab === "files" ? "task" : tab;
+  const view: typeof tab = chat && (tab === "files" || tab === "library") ? "task" : tab;
   // a plain chat has no workspace to browse (an HTML answer can still be previewed)
   const tabs: [typeof tab, string][] = [
     ["task", t("panel.task")],
     ...(chat ? [] : ([["files", t("panel.files")]] as [typeof tab, string][])),
     ["preview", t("panel.preview")],
+    ...(chat ? [] : ([["library", t("lib.title")]] as [typeof tab, string][])),
     ["agent", agent.kind === "chat" ? t("chat.settingsTab") : agent.name || t("panel.agent")],
     ...pluginTabs.map((c): [typeof tab, string] => [`ui:${c.key}`, c.title || c.key]),
   ];
@@ -63,6 +65,7 @@ export function Panel() {
           </>
         )}
         {view === "files" && <FilesTab agent={agent} />}
+        {view === "library" && <LibraryTab />}
         {view === "preview" && <PreviewTab key={current ?? agent.session} session={current ?? agent.session} />}
         {view === "agent" && <AgentTab key={agent.id} agent={agent} sessionId={current ?? agent.session} />}
         {pluginTab && (

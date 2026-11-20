@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
-import { Bot, Check, ChevronDown, ChevronRight, FolderInput, Lock, Users, Workflow, FolderPlus, Hash, LifeBuoy, LogOut, Moon, Plus, Power, Search, Settings, Keyboard, MessageSquare } from "lucide-react";
+import { Bot, Check, ChevronDown, ChevronRight, FolderInput, Lock, Users, Workflow, FolderPlus, Hash, LifeBuoy, LogOut, Moon, Plus, Power, Search, Settings, Keyboard, MessageSquare, Library as LibraryIcon } from "lucide-react";
 import type { AgentView, SessionMeta, UsageStats } from "../api";
 import { API, desktop, openExternal, setToken, teamOf, type TeamView } from "../api";
 import { t } from "../i18n";
@@ -16,6 +16,7 @@ import {
   newChat,
   openNewChannel,
   openSession,
+  openLibrary,
   openSettings,
   patchProfile,
   refreshProfile,
@@ -322,6 +323,16 @@ export function SessionList() {
               {dnd ? t("me.dndUntil", { time: hhmm(profile.dndUntil) }) : host ? t("me.subHost", { host }) : t("me.subLocal")}
             </span>
           </span>
+        </button>
+        <button
+          className="ib"
+          type="button"
+          aria-label={t("lib.title")}
+          title={t("lib.title")}
+          aria-pressed={view === "library"}
+          onClick={() => (view === "library" ? setState({ view: "chat" }) : openLibrary())}
+        >
+          <LibraryIcon size={16} />
         </button>
         <button
           className="ib"

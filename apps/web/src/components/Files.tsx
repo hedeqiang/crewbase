@@ -369,7 +369,7 @@ function Preview({ agentId, path, onClose, change, onDiff }: { agentId: string; 
 }
 
 /** A file's text, highlighted, with line numbers. */
-function Code({ text, path }: { text: string; path: string }) {
+export function Code({ text, path }: { text: string; path: string }) {
   const lines = useMemo(() => highlightLines(text.replace(/\n$/, ""), langOf(path)), [text, path]);
   return (
     <div className="fxbody fxcode hljs">

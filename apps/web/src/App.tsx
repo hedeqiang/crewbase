@@ -8,6 +8,7 @@ import { ConvHeader, useNeedsYou } from "./components/Header";
 import { SessionList } from "./components/SessionList";
 import { Conversation } from "./components/Conversation";
 import { Panel } from "./components/Panel";
+import { LibraryPage } from "./components/Library";
 import { NewAgent, emptyDraft, type Draft } from "./components/NewAgent";
 import { Palette } from "./components/Palette";
 import { TokenScreen } from "./components/TokenScreen";
@@ -194,14 +195,18 @@ function Shell() {
           <>
             {showList && <SessionList />}
             {showList && <div className="ovscrim list-scrim" onClick={() => setState({ listOpen: false })} />}
-            <div className="center">
-              <ConvHeader draftColor={draft.color} draftShape={draft.shape} draftFace={draft.face} />
-              {view === "newAgent" ? (
-                <NewAgent draft={draft} setDraft={setDraft} />
-              ) : (
-                <Conversation onTemplate={(d) => setDraft({ ...emptyDraft(), ...d })} />
-              )}
-            </div>
+            {view === "library" ? (
+              <LibraryPage />
+            ) : (
+              <div className="center">
+                <ConvHeader draftColor={draft.color} draftShape={draft.shape} draftFace={draft.face} />
+                {view === "newAgent" ? (
+                  <NewAgent draft={draft} setDraft={setDraft} />
+                ) : (
+                  <Conversation onTemplate={(d) => setDraft({ ...emptyDraft(), ...d })} />
+                )}
+              </div>
+            )}
             {showPanel && <Panel />}
             {showPanel && <div className="ovscrim panel-scrim" onClick={() => setState({ panelOpen: false })} />}
           </>

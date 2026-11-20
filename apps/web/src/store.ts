@@ -31,9 +31,9 @@ import { notifyApprovals } from "./companion";
 import { getLang, loadLang, setLang as setLangRaw, t, type Lang } from "./i18n";
 import { modelKind, setUserProviders } from "./format";
 
-export type View = "chat" | "newAgent" | "settings";
+export type View = "chat" | "newAgent" | "settings" | "library";
 /** Built-in tabs, or `ui:<key>` for a plugin's sidebar-right.tab. */
-export type PanelTab = "task" | "files" | "preview" | "agent" | `ui:${string}`;
+export type PanelTab = "task" | "files" | "preview" | "library" | "agent" | `ui:${string}`;
 export type Theme = "system" | "light" | "dark";
 export type SettingsSection =
   | "general"
@@ -127,6 +127,8 @@ export interface State {
   modelsTab: "providers" | "routing" | "catalog";
   /** File to open in the right panel's 文件 tab. */
   fileOpen: string | null;
+  /** the 文档库 document shown on the library page */
+  libOpen: number | null;
   /** A page to show in the right panel's 预览 tab (n bumps per request). */
   previewOpen: { session: string; item: PreviewInfo; n: number } | null;
   /** Bumped on SSE "mcp" pushes so settings pages can refetch. */
@@ -242,6 +244,7 @@ let state: State = {
   createIn: "",
   modelsTab: "providers",
   fileOpen: null,
+  libOpen: null,
   previewOpen: null,
   mcpTick: 0,
   events: {},
@@ -380,9 +383,10 @@ export function openSettings(sec: SettingsSection = "general") {
 /** Deep links the desktop shell (tray, notifications, ⌘,) sets as the
  *  location hash: #/session/<id>, #/settings, #/settings/<section>. */
 export function applyHashRoute(hash = location.hash): boolean {
-  const m = /^#\/(session|settings)(?:\/([^/?#]+))?(?:\/([^/?#]+))?/.exec(hash);
+  const m = /^#\/(session|settings|library)(?:\/([^/?#]+))?(?:\/([^/?#]+))?/.exec(hash);
   if (!m) return false;
   if (m[1] === "session" && m[2]) openSession(decodeURIComponent(m[2]));
+  else if (m[1] === "library") openLibrary();
   else if (m[1] === "settings") {
     openSettings(((m[2] && decodeURIComponent(m[2])) || "general") as SettingsSection);
     if (m[3]) setState({ settingsTab: decodeURIComponent(m[3]) });
@@ -446,7 +450,7 @@ export function switchTeam(id: string) {
     const meta = s.current ? s.sessions[s.current] : undefined;
     const owner = meta?.kind === "channel" ? meta : Object.values(s.agents).find((a) => a.session === s.current);
     const keep = !!owner && teamOf(owner) === id;
-    return { team: id, current: keep ? s.current : null, view: s.view === "settings" ? s.view : "chat" };
+    return { team: id, current: keep ? s.current : null, view: s.view === "settings" || s.view === "library" ? s.view : "chat" };
   });
 }
 
@@ -523,6 +527,11 @@ async function newChatOnce(folder?: string) {
   } catch (e: any) {
     toast(t("chat.newFailed", { error: e?.message ?? String(e) }));
   }
+}
+
+/** The team's 文档库 page. */
+export function openLibrary(item?: number) {
+  setState({ view: "library", palette: false, listOpen: narrow() ? false : state.listOpen, ...(item !== undefined ? { libOpen: item } : {}) });
 }
 
 export function openNewAgent(folder = "") {

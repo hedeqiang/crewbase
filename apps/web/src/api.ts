@@ -989,6 +989,122 @@ export function useRawURL(agent: string | undefined, path: string): string | und
   return url;
 }
 
+// ---------------------------------------------------------------- 文档库
+
+export type LibFolder = "inbox" | "media" | "docs" | "pages";
+export type LibSource = "upload" | "generated" | "agent" | "person";
+
+/** A document of the team library (features/library). */
+export interface LibItem {
+  id: number;
+  team: string;
+  folder: LibFolder;
+  name: string;
+  title?: string;
+  mime: string;
+  size: number;
+  sha256: string;
+  source: LibSource;
+  agent?: string;
+  session?: string;
+  tags?: string[];
+  private?: boolean;
+  note?: string;
+  created: string;
+  updated: string;
+  text: boolean;
+  versions?: number;
+  /** search hit: the matching passage, the match in «» */
+  snippet?: string;
+}
+
+export interface LibStats {
+  total: number;
+  folders: Partial<Record<LibFolder, number>>;
+  sources: Partial<Record<LibSource, number>>;
+  tags: { tag: string; n: number }[];
+}
+
+export interface LibVersion {
+  id: number;
+  size: number;
+  agent?: string;
+  source: string;
+  at: string;
+}
+
+export interface LibQuery {
+  q?: string;
+  folder?: string;
+  source?: string;
+  tag?: string;
+  limit?: number;
+  offset?: number;
+}
+
+function libQS(team: string, extra: Record<string, string | number | undefined> = {}): string {
+  const p = new URLSearchParams({ team });
+  for (const [k, v] of Object.entries(extra)) if (v !== undefined && v !== "") p.set(k, String(v));
+  return p.toString();
+}
+
+/** URL of a library file (or an earlier version); see useLibRawURL for relays. */
+export function libRawURL(team: string, id: number, version?: number): string {
+  return `/api/library/${id}/raw?${libQS(team, { version, token: getToken() ?? "" })}`;
+}
+
+/** libRawURL that also works over a relay. */
+export function useLibRawURL(team: string, id: number, version?: number): string | undefined {
+  const direct = libRawURL(team, id, version);
+  const [url, setUrl] = useState<string | undefined>(viaRelay() ? undefined : direct);
+  useEffect(() => {
+    if (!viaRelay()) {
+      setUrl(direct);
+      return;
+    }
+    let live = true;
+    let made: string | undefined;
+    tunnelBlobURL(`/api/library/${id}/raw?${libQS(team, { version })}`, getToken() ?? "").then(
+      (u) => {
+        made = u;
+        if (live) setUrl(u);
+        else URL.revokeObjectURL(u);
+      },
+      () => live && setUrl(undefined),
+    );
+    return () => {
+      live = false;
+      if (made) URL.revokeObjectURL(made);
+    };
+  }, [team, id, version]);
+  return url;
+}
+
+/** The text of a library file as stored (Markdown, code, …). */
+export async function libRawText(team: string, id: number, version?: number): Promise<string> {
+  const headers: Record<string, string> = {};
+  const tok = getToken();
+  if (tok) headers.Authorization = `Bearer ${tok}`;
+  const res = await apiFetch(`/api/library/${id}/raw?${libQS(team, { version })}`, { headers });
+  if (!res.ok) throw new ApiError(res.status, "http_" + res.status, res.statusText);
+  return res.text();
+}
+
+/** Adds a file to the library (the person's own). */
+export async function uploadLibrary(team: string, file: Blob, name: string, folder?: string): Promise<LibItem> {
+  const headers: Record<string, string> = { "Content-Type": file.type || "application/octet-stream" };
+  const tok = getToken();
+  if (tok) headers.Authorization = `Bearer ${tok}`;
+  const res = await apiFetch(`/api/library?${libQS(team, { name, folder })}`, { method: "POST", headers, body: file });
+  const data = await res.json().catch(() => null);
+  if (!res.ok) {
+    if (res.status === 401) onUnauthorized();
+    const e = data?.error ?? {};
+    throw new ApiError(res.status, e.code ?? "http_" + res.status, e.message ?? res.statusText);
+  }
+  return data as LibItem;
+}
+
 export interface DeviceView {
   id: string;
   name: string;
@@ -1102,6 +1218,13 @@ export type ToldEntry = { time: string; session: string; via: string; text: stri
 export type Working = { tasks: WorkTask[]; notes: WorkNote[]; told: ToldEntry[] };
 
 export const API = {
+  library: (team: string, q: LibQuery = {}) => api<{ items: LibItem[]; stats?: LibStats }>("GET", `/api/library?${libQS(team, q as Record<string, string | number | undefined>)}`),
+  libraryItem: (team: string, id: number) => api<{ item: LibItem; versions: LibVersion[] }>("GET", `/api/library/${id}?${libQS(team)}`),
+  libraryText: (team: string, id: number) => api<{ text: string }>("GET", `/api/library/${id}/text?${libQS(team)}`),
+  patchLibrary: (team: string, id: number, b: { title?: string; tags?: string[]; private?: boolean }) => api<LibItem>("PATCH", `/api/library/${id}?${libQS(team)}`, b),
+  deleteLibrary: (team: string, id: number) => api("DELETE", `/api/library/${id}?${libQS(team)}`),
+  restoreLibrary: (team: string, id: number, version: number) => api<LibItem>("POST", `/api/library/${id}/restore?${libQS(team)}`, { version }),
+  attachLibrary: (team: string, id: number, agent: string) => api<Attachment>("POST", `/api/library/${id}/attach?${libQS(team)}`, { agent }),
   unfurl: (url: string) => api<LinkCard>("GET", `/api/unfurl?url=${enc(url)}`),
   updates: () => api<UpdateInfo>("GET", "/api/updates"),
   checkUpdates: () => api<UpdateInfo>("POST", "/api/updates/check"),

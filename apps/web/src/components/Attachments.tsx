@@ -3,7 +3,7 @@
 // shown in a sent message.
 
 import { AlertCircle, File, FileImage, FileSpreadsheet, FileText, Presentation, X } from "lucide-react";
-import { uploadFile, useRawURL, type Attachment } from "../api";
+import { API, uploadFile, useRawURL, type Attachment } from "../api";
 import { t } from "../i18n";
 import { getState, setState, toast, type PendingFile } from "../store";
 
@@ -54,6 +54,45 @@ export function addFiles(session: string, agent: string, files: File[]) {
       (att) => update(session, id, { state: "ok", att, mime: att.mime }),
       (e) => update(session, id, { state: "err", error: e?.message ?? String(e) }),
     );
+  }
+}
+
+/** Drag type of a 文档库 document ({team, id, name, mime, size}). */
+export const LIB_DRAG = "application/x-crewbase-library";
+
+export interface LibDrag {
+  team: string;
+  id: number;
+  name: string;
+  mime: string;
+  size: number;
+}
+
+/** Adds a 文档库 document to a session's next message (a copy goes into
+ *  the agent's workspace). */
+export function addLibraryFile(session: string, agent: string, d: LibDrag) {
+  const have = getState().attach[session] ?? [];
+  if (have.length >= MAX_FILES) {
+    toast(t("att.tooMany", { n: MAX_FILES }));
+    return;
+  }
+  const id = ++seq;
+  const p: PendingFile = { id, name: d.name, size: d.size, mime: d.mime, state: "up" };
+  setState((s) => ({ attach: { ...s.attach, [session]: [...(s.attach[session] ?? []), p] } }));
+  API.attachLibrary(d.team, d.id, agent).then(
+    (att) => update(session, id, { state: "ok", att, mime: att.mime }),
+    (e) => update(session, id, { state: "err", error: e?.message ?? String(e) }),
+  );
+}
+
+/** The library document being dragged, if any. */
+export function libraryFrom(dt: DataTransfer | null): LibDrag | null {
+  const raw = dt?.getData(LIB_DRAG);
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw) as LibDrag;
+  } catch {
+    return null;
   }
 }
 

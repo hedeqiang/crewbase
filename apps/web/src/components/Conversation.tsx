@@ -53,7 +53,7 @@ import { argsFull, argsPreview, project, type AgentItem, type Decision, type Fee
 import { hasModels, loadSession, setModelOverride, openConnect, openSubRun, setState, toast, useStore, sessionAgent } from "../store";
 import { TakeoverCard, takeoverReason } from "./Browser";
 import { cloudVoice, dictate, dictationSupported, primeVoice, speak, speaking, speakSupported } from "../voice";
-import { addFiles, clearFiles, filesFrom, MsgAttachments, PendingChips } from "./Attachments";
+import { addFiles, addLibraryFile, clearFiles, filesFrom, LIB_DRAG, libraryFrom, MsgAttachments, PendingChips } from "./Attachments";
 import { MediaCard } from "./Media";
 import { LocalPreviewCards, PreviewLine } from "./Preview";
 import {
@@ -1864,7 +1864,8 @@ function Composer({
           void send();
         }}
         onDragOver={(e) => {
-          if (archived || !Array.from(e.dataTransfer.types).includes("Files")) return;
+          const types = Array.from(e.dataTransfer.types);
+          if (archived || (!types.includes("Files") && !types.includes(LIB_DRAG))) return;
           e.preventDefault();
           setDragging(true);
         }}
@@ -1872,6 +1873,14 @@ function Composer({
           if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragging(false);
         }}
         onDrop={(e) => {
+          const lib = libraryFrom(e.dataTransfer);
+          if (lib) {
+            e.preventDefault();
+            setDragging(false);
+            if (channel) toast(t("att.channel"));
+            else addLibraryFile(sessionId, agent.id, lib);
+            return;
+          }
           if (!Array.from(e.dataTransfer.types).includes("Files")) return;
           e.preventDefault();
           setDragging(false);
