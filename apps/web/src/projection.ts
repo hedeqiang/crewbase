@@ -306,8 +306,7 @@ export function project(events: SessionEvent[], cards?: ReadonlySet<string>): Pr
     // (a pending approval card is the exception: it leaves once answered)
     if (it.k !== "turn" && it.k !== "approval") {
       const ag = (it as { agent?: string }).agent;
-      if (ag) cur.delete(ag);
-      else cur.clear();
+      breakTurns(ag);
     }
   };
 
@@ -328,10 +327,13 @@ export function project(events: SessionEvent[], cards?: ReadonlySet<string>): Pr
   };
   // something else came into the conversation: an agent's later output
   // starts a new item below it rather than growing one above it
-  const breakTurns = (agent?: string) => {
+  // an item left behind is closed: the agent's live output (its stream)
+  // shows in the newest one only
+  function breakTurns(agent?: string) {
+    for (const [ag, t] of cur) if (agent === undefined || ag === agent) t.open = false;
     if (agent === undefined) cur.clear();
     else cur.delete(agent);
-  };
+  }
   for (const e of events) {
     const d = e.data ?? {};
     const id = String(e.seq);

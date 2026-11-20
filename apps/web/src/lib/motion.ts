@@ -20,8 +20,8 @@ export const reducedMotion = () => !!reduce?.matches;
 
 // ---------------------------------------------------------------- exit ghosts
 
-const GHOST = ".menu, .modal, .scrim, .toast, .ui-pop, .palette, .waitfor, .replychip";
-const EXIT_MS: Record<string, number> = { menu: DUR.fast + 20, modal: DUR.normal, scrim: DUR.normal, toast: DUR.normal, "ui-pop": DUR.fast + 20, palette: DUR.normal, waitfor: DUR.normal, replychip: DUR.fast };
+const GHOST = ".menu, .modal, .scrim, .ovscrim.show, .toast, .ui-pop, .palette, .waitfor, .replychip, .pinbar";
+const EXIT_MS: Record<string, number> = { menu: DUR.fast + 20, modal: DUR.normal, scrim: DUR.normal, toast: DUR.normal, "ui-pop": DUR.fast + 20, palette: DUR.normal, waitfor: DUR.normal, replychip: DUR.fast, ovscrim: DUR.normal, pinbar: DUR.fast };
 
 function exitMs(el: Element): number {
   for (const k of Object.keys(EXIT_MS)) if (el.classList.contains(k)) return EXIT_MS[k];
@@ -39,6 +39,9 @@ function ghost(el: HTMLElement, parent: Node, next: Node | null) {
   c.querySelectorAll("[id]").forEach((x) => x.removeAttribute("id"));
   c.dataset.exit = "";
   c.style.pointerEvents = "none";
+  // a submenu inside (fixed, placed by the page) would be placed by the
+  // leaving copy's scale instead and fly off: it simply goes
+  c.querySelectorAll(".menu").forEach((x) => x.remove());
   try {
     parent.insertBefore(c, next && next.parentNode === parent ? next : null);
   } catch {
@@ -88,6 +91,9 @@ export function markEntering(root: HTMLElement, session: string): () => void {
   };
   const mo = new MutationObserver((records) => {
     if (reducedMotion() || root.dataset.sess !== session) return;
+    // a finished answer replacing its live stream is the same text: it
+    // does not come in again
+    const replacesStream = records.some((r) => Array.from(r.removedNodes).some((n) => n instanceof HTMLElement && n.classList.contains("live")));
     for (const r of records) {
       const p = r.target as HTMLElement;
       const inFeed = p === root;
@@ -97,6 +103,7 @@ export function markEntering(root: HTMLElement, session: string): () => void {
       r.addedNodes.forEach((node) => {
         if (!(node instanceof HTMLElement) || node.dataset.exit !== undefined) return;
         if (inTurn && (node.classList.contains("tans") || node.classList.contains("narr"))) return;
+        if (inFeed && replacesStream && node.classList.contains("m-agent")) return;
         if (!inStream && !nearEnd(node)) return;
         node.dataset.enter = inStream ? "text" : node.classList.contains("m-user") ? "sent" : "";
       });

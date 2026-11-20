@@ -2832,8 +2832,9 @@ b > .mkver, .g b .mkver { margin: 0 0 0 6px; }
 @keyframes m-out { to { opacity: 0; scale: .97; translate: 0 var(--m-dy, -2px); } }
 
 /* dialogs and their scrim */
-.scrim { animation: fade-in var(--dur-normal) var(--ease-out) backwards; }
-.scrim[data-exit] { animation: fade-out var(--dur-normal) var(--ease-out) both; }
+.scrim, .ovscrim.show { animation: fade-in var(--dur-normal) var(--ease-out) backwards; }
+.ovscrim.show[data-exit] { animation: fade-out var(--dur-normal) var(--ease-in) both; }
+.scrim[data-exit] { animation: fade-out var(--dur-normal) var(--ease-in) both; }
 .modal { animation: dlg-in var(--dur-dialog) var(--ease-spring) backwards; }
 .modal[data-exit] { animation: dlg-out var(--dur-normal) var(--ease-in) both; }
 @keyframes dlg-in { from { opacity: 0; scale: .95; } }
@@ -2875,7 +2876,7 @@ b > .mkver, .g b .mkver { margin: 0 0 0 6px; }
 @supports (animation-timeline: scroll()) {
   .lscroll, .feed, .pbody, .vb, .pvlist, .snav, .plist {
     mask-image: linear-gradient(to bottom, transparent 0, #000 var(--fade-top), #000 calc(100% - var(--fade-end)), transparent 100%);
-    animation: edge-top linear backwards, edge-end linear both;
+    animation: edge-top linear both, edge-end linear both;
     animation-timeline: scroll(self), scroll(self);
     animation-range: 0 24px, calc(100% - 24px) 100%;
   }
