@@ -1,7 +1,7 @@
 import { TaskBoard } from "./TaskBoard";
 import { WorkNotes, WorkTasks } from "./Working";
 import { useEffect, useMemo, useState, useRef } from "react";
-import { Archive, ArrowDown, ArrowUp, Check, ChevronLeft, ChevronRight, CircleMinus, CircleX, Globe, GripVertical, Link2, Minimize2, Pause, Play, Plus, Shuffle, Square, Trash, UserPlus, X } from "lucide-react";
+import { Archive, ArrowDown, ArrowUp, Check, ChevronLeft, ChevronRight, CircleMinus, CircleX, Globe, GripVertical, Link2, Minimize2, Pause, Play, Plus, Shuffle, Square, Trash, UserPlus, X, CornerDownRight } from "lucide-react";
 import { API, refString, type AgentView, type ChannelView, type ContextBreakdown, type ModelRef } from "../api";
 import { t, type Key } from "../i18n";
 import { activeModel, allModels, detailLabel, effortLabel, exhaustedHint, exhaustedLabel, hhmm, isExhausted, kfmt, modeLabel, modelLabel, modelMeta, modelOff, pillTone, sameRef, statusLabel, until } from "../format";
@@ -442,6 +442,22 @@ function TaskTab({ agent }: { agent: AgentView }) {
                 {q.model ? `${i === 0 ? " · " : ""}${modelLabel(models, q.model)}` : ""}
               </span>
             </span>
+            {(agent.status === "running" || agent.status === "waiting") && (
+              <button
+                className="ix"
+                type="button"
+                aria-label={t("steer.now")}
+                title={t("steer.nowTitle")}
+                onClick={() =>
+                  void API.steer(agent.id, q.id).then(
+                    () => toast(t("steer.sent", { name: agent.name })),
+                    (e) => toast(e?.message ?? String(e)),
+                  )
+                }
+              >
+                <CornerDownRight size={13} />
+              </button>
+            )}
             <button className="ix" type="button" aria-label={t("panel.queueCancel")} title={t("panel.queueCancel")} onClick={() => cancel(q.id)}>
               <X size={13} />
             </button>

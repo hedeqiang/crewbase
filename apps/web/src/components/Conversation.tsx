@@ -45,6 +45,7 @@ import {
   Pencil,
   RefreshCw,
   History,
+  ListPlus,
 } from "lucide-react";
 import { display, enterSends, MAC } from "../shortcuts";
 import { API, desktop, parseRef, refString, useRawURL, type AgentView, type ApprovalRequest, type ChannelView, type ModelRef } from "../api";
@@ -1800,7 +1801,8 @@ function Composer({
     addFiles(sessionId, agent.id, files);
   };
 
-  const send = async () => {
+  /** queue: wait for the running turn to end (排队) instead of joining it (插话) */
+  const send = async (queue = false) => {
     const text = draft.trim();
     const ready = pending.filter((f) => f.state === "ok" && f.att);
     if ((!text && !ready.length) || sending || archived) return;
@@ -1828,13 +1830,14 @@ function Composer({
       const wasBusy = agent.status === "running" || agent.queue.length > 0;
       await API.send(agent.id, {
         text,
+        queue: queue && busy ? true : undefined,
         model: override ?? undefined,
         session: sessionId === agent.session ? undefined : sessionId,
         attachments: ready.length ? ready.map((f) => ({ path: f.att!.path, name: f.att!.name })) : undefined,
       });
       setDraft("");
       clearFiles(sessionId);
-      if (wasBusy) toast(t("chat.queued", { n: agent.queue.length + 1 }));
+      if (wasBusy) toast(queue && busy ? t("chat.queued", { n: agent.queue.length + 1 }) : busy ? t("steer.sent", { name: agent.name }) : t("chat.queued", { n: agent.queue.length + 1 }));
     } catch (e: any) {
       toast(t("chat.sendFailed", { error: e?.message ?? String(e) }));
     } finally {
@@ -2019,6 +2022,12 @@ function Composer({
             }
             // ⌘Enter sends; with 「Enter 发送」 on, plain Enter sends and
             // Shift+Enter starts a new line
+            // while the agent works, ⌥Enter queues the message for after this turn
+            if (e.key === "Enter" && !e.nativeEvent.isComposing && busy && e.altKey && !e.shiftKey) {
+              e.preventDefault();
+              void send(true);
+              return;
+            }
             if (e.key === "Enter" && !e.nativeEvent.isComposing && ((e.metaKey || e.ctrlKey) || (enterSends() && !e.shiftKey && !e.altKey))) {
               e.preventDefault();
               void send();
@@ -2119,9 +2128,23 @@ function Composer({
               <Square size={12} fill="currentColor" />
             </button>
           ) : (
-            <button className={"send" + (canSend ? " on" : "")} type="submit" disabled={!canSend || sending} aria-label={t("chat.send", { key: sendKey })} title={t("chat.send", { key: sendKey })}>
-              <ArrowUp size={16} />
-            </button>
+            <>
+              {busy && canSend && (
+                <button className="cbtn qbtn" type="button" disabled={sending} onClick={() => void send(true)} title={t("steer.queueTitle", { key: display("alt+enter").join("") })}>
+                  <ListPlus size={14} />
+                  <span className="lbl">{t("steer.queue")}</span>
+                </button>
+              )}
+              <button
+                className={"send" + (canSend ? " on" : "")}
+                type="submit"
+                disabled={!canSend || sending}
+                aria-label={busy ? t("steer.send") : t("chat.send", { key: sendKey })}
+                title={busy ? t("steer.sendTitle", { key: sendKey }) : t("chat.send", { key: sendKey })}
+              >
+                <ArrowUp size={16} />
+              </button>
+            </>
           )}
         </div>
       </form>

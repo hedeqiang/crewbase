@@ -2356,6 +2356,13 @@ const zh = {
   "lsum.btnOff": "自动摘要",
   "lsum.onToast": "已打开自动摘要，已有的文档会在后台陆续补写",
   "lsum.offToast": "已关闭自动摘要",
+  "steer.send": "插话：加入正在进行的这一轮",
+  "steer.sendTitle": "插话（{key}）：助理在下一步就会看到，直接调整正在做的事",
+  "steer.queue": "排队",
+  "steer.queueTitle": "排队（{key}）：等这一轮做完再处理",
+  "steer.sent": "已插话，{name} 下一步就会看到",
+  "steer.now": "插话",
+  "steer.nowTitle": "让这条现在就加入正在进行的这一轮",
 } as const;
 
 export type Key = keyof typeof zh;

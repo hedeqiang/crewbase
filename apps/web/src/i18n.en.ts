@@ -2313,4 +2313,11 @@ export const en: Partial<Record<Key, string>> = {
   "lsum.btnOff": "Summaries",
   "lsum.onToast": "Summaries on; documents already here are done in the background",
   "lsum.offToast": "Summaries off",
+  "steer.send": "Steer: join the turn in progress",
+  "steer.sendTitle": "Steer ({key}): the agent sees it at its next step and adjusts what it is doing",
+  "steer.queue": "Queue",
+  "steer.queueTitle": "Queue ({key}): handled after this turn ends",
+  "steer.sent": "Sent; {name} sees it at its next step",
+  "steer.now": "Steer",
+  "steer.nowTitle": "Have this join the turn in progress now",
 };

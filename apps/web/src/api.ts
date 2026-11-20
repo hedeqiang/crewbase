@@ -1275,6 +1275,7 @@ export type ToldEntry = { time: string; session: string; via: string; text: stri
 export type Working = { tasks: WorkTask[]; notes: WorkNote[]; told: ToldEntry[] };
 
 export const API = {
+  steer: (agent: string, input: string) => api<AgentView>("POST", `/api/agents/${enc(agent)}/queue/${enc(input)}/steer`),
   addonUpdates: () => api<AddonUpdates>("GET", "/api/addons/updates"),
   checkAddonUpdates: () => api<AddonUpdates>("POST", "/api/addons/updates/check"),
   applyAddonUpdate: (b: { kind: string; id: string; agent?: string }) => api<{ result: any; state: AddonUpdates }>("POST", "/api/addons/update", b),
@@ -1355,7 +1356,7 @@ export const API = {
     api<{ agent: string; session: string; name: string; skills: number }>("POST", "/api/agents/import", { ...src, options }),
   patchAgent: (id: string, b: Record<string, unknown>) => api<AgentView>("PATCH", `/api/agents/${enc(id)}`, b),
   deleteAgent: (id: string) => api("DELETE", `/api/agents/${enc(id)}`),
-  send: (id: string, b: { text: string; model?: string; session?: string; front?: boolean; attachments?: { path: string; name: string }[] }) =>
+  send: (id: string, b: { text: string; model?: string; session?: string; front?: boolean; queue?: boolean; attachments?: { path: string; name: string }[] }) =>
     api<Input>("POST", `/api/agents/${enc(id)}/messages`, b),
   /** Regenerate (no text: resend seq and the messages after it as they
    *  were) or edit and resend (text: only seq, edited). History from seq on

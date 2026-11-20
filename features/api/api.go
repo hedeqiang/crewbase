@@ -115,6 +115,8 @@ type sendBody struct {
 	Session string `json:"session,omitempty"`
 	From    string `json:"from,omitempty"`
 	Front   bool   `json:"front,omitempty"`
+	// Queue: wait for the running turn to end instead of joining it.
+	Queue bool `json:"queue,omitempty"`
 	// Attachments returned by POST /api/agents/{id}/uploads.
 	Attachments []struct {
 		Path string `json:"path"`
@@ -469,7 +471,7 @@ var Plugin = kernel.Register(kernel.Spec{
 				}
 				var b sendBody
 				_ = r.Decode(&b)
-				in := agent.Input{Text: b.Text, From: b.From, Session: b.Session, Front: b.Front}
+				in := agent.Input{Text: b.Text, From: b.From, Session: b.Session, Front: b.Front, Queue: b.Queue}
 				// a team member's messages carry their name, whatever the client says
 				if who, ok := kernel.Lookup[Approver](c, "members"); ok && r.DeviceID != "" {
 					in.From = who.SenderName(r.DeviceID)
@@ -629,6 +631,18 @@ var Plugin = kernel.Register(kernel.Spec{
 					return nil, err
 				}
 				if !a.Cancel(r.Params["input"]) {
+					return nil, gateway.NotFound()
+				}
+				return view(a), nil
+			}})
+		// 插话: a queued message joins the running turn now
+		g.Handle(c, gateway.Route{Method: "POST", Path: "/api/agents/{id}/queue/{input}/steer", Devices: mobile,
+			Handle: func(_ context.Context, r *gateway.Request) (any, error) {
+				a, err := getAgent(r)
+				if err != nil {
+					return nil, err
+				}
+				if !a.Steer(r.Params["input"]) {
 					return nil, gateway.NotFound()
 				}
 				return view(a), nil

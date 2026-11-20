@@ -128,6 +128,9 @@ type Input struct {
 	// Attachments are files already saved in the agent workspace.
 	Attachments []llm.Attachment `json:"attachments,omitempty"`
 	Front       bool             `json:"front,omitempty"`
+	// Queue: wait for the turn running now to end (the person chose 排队),
+	// instead of joining it at its next step (插话, the default).
+	Queue bool `json:"queue,omitempty"`
 	// Mode tightens the run mode for this input only (e.g. routines run
 	// read-only). It can never widen the agent's mode.
 	Mode string `json:"mode,omitempty"`
@@ -561,7 +564,7 @@ func (a *Agent) Claim() (Input, bool) {
 // the same conversation, run mode and model. Several results arriving
 // together become one turn, and one update.
 func Joinable(cur, next Input) bool {
-	if !plain(cur) || !plain(next) || cur.Session != next.Session || cur.Mode != next.Mode {
+	if next.Queue || !plain(cur) || !plain(next) || cur.Session != next.Session || cur.Mode != next.Mode {
 		return false
 	}
 	if next.Model != nil && (cur.Model == nil || *cur.Model != *next.Model) {
@@ -599,6 +602,31 @@ func (a *Agent) Absorb(cur Input) []Input {
 	}
 	QueueChanged.Emit(a.ctx, a.id)
 	return got
+}
+
+// Steer makes queued input id join the turn running now (at its next
+// step) instead of waiting for it to end; false when it is not queued.
+func (a *Agent) Steer(id string) bool {
+	a.mu.Lock()
+	idx := -1
+	for i, in := range a.queue {
+		if in.ID == id {
+			idx = i
+		}
+	}
+	if idx < 0 {
+		a.mu.Unlock()
+		return false
+	}
+	in := a.queue[idx]
+	in.Queue = false
+	// to the head of the queue, where the running turn takes it from
+	a.queue = append(a.queue[:idx], a.queue[idx+1:]...)
+	a.queue = append([]Input{in}, a.queue...)
+	a.mu.Unlock()
+	QueueChanged.Emit(a.ctx, a.id)
+	a.signal()
+	return true
 }
 
 // Wake returns a channel signalled when inputs arrive or the queue resumes.
