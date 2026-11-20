@@ -14,6 +14,7 @@ export function Routing() {
   return (
     <div className="vb">
       <DefaultOrder />
+      <Background />
       <Exhausted />
       <Routes />
       {models?.switches !== undefined && (
@@ -57,6 +58,64 @@ function ModelSelect({ value, onChange, placeholder, kind = "chat" }: { value: s
         ))}
       </select>
     </span>
+  );
+}
+
+/** The jobs Crewbase runs in the background with a model, and what each
+ *  does without one. */
+const BACKGROUND: { task: string; what: Key; without: Key }[] = [
+  { task: "title", what: "bg.title", without: "bg.titleOff" },
+  { task: "summarize", what: "bg.summarize", without: "bg.summarizeOff" },
+  { task: "brief", what: "bg.brief", without: "bg.briefOff" },
+];
+
+const isBackground = (task: string) => BACKGROUND.some((b) => b.task === task);
+
+/** 后台任务用的模型: titles, summaries, briefs — one model each, said plainly
+ *  (the same rules as 按任务分流 below, the first one of each task). */
+function Background() {
+  const [data, setData] = useState<{ routes: TaskRoute[]; inUse: Record<string, string> } | null>(null);
+  const load = () => API.routes().then((r) => setData({ routes: r.routes ?? [], inUse: r.inUse ?? {} }), () => setData({ routes: [], inUse: {} }));
+  useEffect(() => {
+    void load();
+  }, []);
+  if (!data) return null;
+  const set = async (task: string, model: string) => {
+    // the chosen model becomes the task's first rule; "" removes its rules
+    const rest = data.routes.filter((r) => r.task !== task);
+    const mine = data.routes.filter((r) => r.task === task && r.model !== model);
+    const next = model ? [{ task, model }, ...mine, ...rest] : rest;
+    try {
+      await API.setRoutes(next);
+      await load();
+      toast(t("panel.saved"));
+      window.dispatchEvent(new Event("crewbase:routes"));
+    } catch (e: any) {
+      toast(e?.message ?? String(e));
+    }
+  };
+  return (
+    <>
+      <div className="vsec">{t("bg.title_")}</div>
+      <p className="small" style={{ margin: "0 0 8px" }}>
+        {t("bg.desc")}
+      </p>
+      <div className="sbox">
+        {BACKGROUND.map((b) => {
+          const using = data.inUse[b.task] ?? "";
+          return (
+            <div className="srow bgrow" key={b.task}>
+              <div className="bgw">
+                <b>{t(`rt.task.${b.task}` as Key)}</b>
+                <span className="small muted">{t(b.what)}</span>
+                {!using && <span className="small amber-t">{t(b.without)}</span>}
+              </div>
+              <ModelSelect value={using} onChange={(v) => void set(b.task, v)} placeholder={t("bg.none")} />
+            </div>
+          );
+        })}
+      </div>
+    </>
   );
 }
 
@@ -208,13 +267,18 @@ function Routes() {
   const [err, setErr] = useState<string | null>(null);
   const [dirty, setDirty] = useState(false);
   useEffect(() => {
-    API.routes().then(
-      (r) => {
-        setRoutes(r.routes ?? []);
-        setTasks(r.tasks ?? []);
-      },
-      (e) => setErr(e?.message ?? String(e)),
-    );
+    const load = () =>
+      API.routes().then(
+        (r) => {
+          setRoutes(r.routes ?? []);
+          setTasks(r.tasks ?? []);
+          setDirty(false);
+        },
+        (e) => setErr(e?.message ?? String(e)),
+      );
+    load();
+    window.addEventListener("crewbase:routes", load);
+    return () => window.removeEventListener("crewbase:routes", load);
   }, []);
   const edit = (next: TaskRoute[]) => {
     setRoutes(next);
@@ -252,12 +316,12 @@ function Routes() {
       {err && <p className="small errt">{err}</p>}
       {routes && (
         <div className="sbox">
-          {routes.length === 0 && (
+          {routes.every((r) => isBackground(r.task)) && (
             <div className="srow">
               <span className="small">{t("rt.routesNone")}</span>
             </div>
           )}
-          {routes.map((r, i) => (hidden(i) ? null : (
+          {routes.map((r, i) => (hidden(i) || isBackground(r.task) ? null : (
             <div className="srow routerow" key={i}>
               <span className="ssel">
                 <select
@@ -268,7 +332,7 @@ function Routes() {
                     edit(routes.map((x, j) => (j === i ? { task, model: taskKind(task) === taskKind(x.task) ? x.model : "" } : x)));
                   }}
                 >
-                  {[...new Set([...tasks, r.task])].filter(Boolean).map((k) => (
+                  {[...new Set([...tasks.filter((k) => !isBackground(k)), r.task])].filter(Boolean).map((k) => (
                     <option key={k} value={k}>
                       {taskLabel(k)}
                     </option>
@@ -304,7 +368,10 @@ function Routes() {
             className="btn"
             type="button"
             disabled={tasks.length === 0}
-            onClick={() => edit([...routes, { task: tasks.find((k) => !routes.some((r) => r.task === k)) ?? tasks[0], model: "" }])}
+            onClick={() => {
+              const free = tasks.filter((k) => !isBackground(k));
+              edit([...routes, { task: free.find((k) => !routes.some((r) => r.task === k)) ?? free[0], model: "" }]);
+            }}
           >
             <Plus size={13} />
             {t("rt.addRoute")}

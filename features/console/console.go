@@ -839,7 +839,15 @@ var Plugin = kernel.Register(kernel.Spec{
 				if routes == nil {
 					routes = []router.Route{}
 				}
-				return map[string]any{"routes": routes, "tasks": router.Tasks}, nil
+				// the model each task goes to now (the first usable rule):
+				// background jobs (titles, briefs, summaries) say what they use
+				inUse := map[string]string{}
+				for _, k := range router.Tasks {
+					if ref, ok := rt.RouteFor(k); ok {
+						inUse[k] = ref.String()
+					}
+				}
+				return map[string]any{"routes": routes, "tasks": router.Tasks, "inUse": inUse}, nil
 			}})
 		g.Handle(c, gateway.Route{Method: "PUT", Path: "/api/router/routes",
 			Validate: func(r *gateway.Request) error {

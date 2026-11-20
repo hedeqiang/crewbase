@@ -34,7 +34,8 @@ import {
 } from "lucide-react";
 import { API, libRawText, libRawURL, uploadLibrary, useLibRawURL, type LibFolder, type LibItem, type LibSource, type LibStats, type LibVersion } from "../api";
 import { t } from "../i18n";
-import { ago } from "../format";
+import { ago, modelLabel } from "../format";
+import { parseRef } from "../api";
 import { openLibrary, openSession, sessionAgent, setState, toast, useStore } from "../store";
 import { addLibraryFile, fmtSize, LIB_DRAG, type LibDrag } from "./Attachments";
 import { confirmDialog } from "./Confirm";
@@ -871,6 +872,12 @@ function SummariesSwitch() {
   const m = useMenu();
   const [on, setOn] = useState<boolean | null>(null);
   const [busy, setBusy] = useState(false);
+  const models = useStore((s) => s.models);
+  // the model summaries go to (设置 › 模型 › 后台任务用的模型 › 摘要)
+  const [using, setUsing] = useState<string | null>(null);
+  useEffect(() => {
+    if (m.open) API.routes().then((r) => setUsing(r.inUse?.summarize ?? ""), () => setUsing(null));
+  }, [m.open]);
   useEffect(() => {
     API.librarySettings().then(
       (x) => setOn(x.summaries),
@@ -905,6 +912,14 @@ function SummariesSwitch() {
             </span>
             <button className="tg" type="button" role="switch" aria-checked={on} disabled={busy} aria-label={t("lsum.title2")} onClick={() => void set(!on)} />
           </label>
+          {using !== null && (
+            <p className={"small lsumuse" + (using ? "" : " amber-t")}>
+              {using ? t("lsum.using", { model: (() => { const r = parseRef(using); return r ? modelLabel(models, r) : using; })() }) : t("lsum.noModel")}{" "}
+              <button type="button" className="linkbtn" onClick={() => { m.close(); setState({ settings: "models", modelsTab: "routing" }); }}>
+                {t("lsum.change")}
+              </button>
+            </p>
+          )}
           <p className="small lsumnote">{t("lsum.privacy")}</p>
         </div>
       </Popover>

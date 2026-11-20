@@ -1432,7 +1432,7 @@ export const API = {
   approvalHistory: (limit = 100) => api<{ history: ApprovalHistoryItem[] }>("GET", `/api/approvals/history?limit=${limit}`),
 
   resetModel: (model: string) => api("POST", "/api/models/reset", { model }),
-  routes: () => api<{ routes: TaskRoute[]; tasks: string[] }>("GET", "/api/router/routes"),
+  routes: () => api<{ routes: TaskRoute[]; tasks: string[]; inUse?: Record<string, string> }>("GET", "/api/router/routes"),
   setRoutes: (routes: TaskRoute[]) => api<{ routes: TaskRoute[] }>("PUT", "/api/router/routes", { routes }),
   settings: () => api<Settings>("GET", "/api/settings"),
   patchSettings: (b: Partial<Settings>) => api<Settings>("PATCH", "/api/settings", b),
