@@ -1110,6 +1110,18 @@ export async function uploadLibrary(team: string, file: Blob, name: string, fold
   return data as LibItem;
 }
 
+/** The start of a docs page, for a card in a conversation. */
+export interface DocPageCard {
+  id: string;
+  url: string;
+  title: string;
+  icon?: string;
+  updated?: number;
+  markdown: string;
+  total: number;
+  shown: number;
+}
+
 /** Open Agent Docs connection (features/agentdocs). */
 export interface AgentDocsStatus {
   connected: boolean;
@@ -1260,6 +1272,7 @@ export const API = {
   checkAddonUpdates: () => api<AddonUpdates>("POST", "/api/addons/updates/check"),
   applyAddonUpdate: (b: { kind: string; id: string; agent?: string }) => api<{ result: any; state: AddonUpdates }>("POST", "/api/addons/update", b),
   agentDocs: () => api<AgentDocsStatus>("GET", "/api/agentdocs"),
+  agentDocsPage: (url: string) => api<DocPageCard>("GET", `/api/agentdocs/page?url=${encodeURIComponent(url)}&blocks=12`),
   /** signs this browser in to the docs when Crewbase holds the session */
   embedAgentDocs: () => api<{ url: string; signedIn: boolean }>("POST", "/api/agentdocs/embed"),
   connectAgentDocs: (b: { url: string; token: string; workspace?: string; agents?: string[]; wake?: boolean }) => api<AgentDocsStatus>("POST", "/api/agentdocs", b),

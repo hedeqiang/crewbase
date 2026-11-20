@@ -2291,4 +2291,11 @@ export const en: Partial<Record<Key, string>> = {
   "mmd.svgDesc": "Scales without blur, editable",
   "mmd.saved": "Saved {name}",
   "mmd.saveFailed": "Could not save the diagram: {error}",
+  "dcard.updated": "updated {when}",
+  "dcard.untitled": "Untitled",
+  "dcard.refresh": "Refresh",
+  "dcard.openRight": "Open on the right",
+  "dcard.more": "{n} more blocks, open to read all",
+  "dcard.empty": "This page is empty.",
+  "dcard.gone": "This page is gone (deleted or in the trash)",
 };

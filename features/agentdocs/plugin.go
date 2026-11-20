@@ -2,7 +2,9 @@ package agentdocs
 
 import (
 	"context"
+	"errors"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/hedeqiang/crewbase/capabilities/credentials"
@@ -137,6 +139,24 @@ var APIPlugin = kernel.Register(kernel.Spec{
 					rp.Cookies = []*http.Cookie{ck}
 				}
 				return rp, nil
+			}})
+		// a card for a link to a docs page (a conversation)
+		g.Handle(c, gateway.Route{Method: "GET", Path: "/api/agentdocs/page", Devices: []string{"mobile"},
+			Handle: func(ctx context.Context, r *gateway.Request) (any, error) {
+				q := r.HTTP.URL.Query()
+				n, _ := strconv.Atoi(q.Get("blocks"))
+				if n == 0 {
+					n = 12
+				}
+				p, err := s.Page(ctx, q.Get("url"), n)
+				if err != nil {
+					var ae *APIError
+					if errors.As(err, &ae) && ae.Status == 404 {
+						return nil, gateway.NotFound()
+					}
+					return nil, gateway.BadRequest("%v", err)
+				}
+				return p, nil
 			}})
 		g.Handle(c, gateway.Route{Method: "POST", Path: "/api/agentdocs/sync",
 			Handle: func(ctx context.Context, _ *gateway.Request) (any, error) {

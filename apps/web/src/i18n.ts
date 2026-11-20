@@ -2334,6 +2334,13 @@ const zh = {
   "mmd.svgDesc": "无限放大不模糊，可再编辑",
   "mmd.saved": "已保存 {name}",
   "mmd.saveFailed": "没能保存这张图：{error}",
+  "dcard.updated": "更新于 {when}",
+  "dcard.untitled": "无标题",
+  "dcard.refresh": "刷新",
+  "dcard.openRight": "在右侧打开",
+  "dcard.more": "还有 {n} 块，打开查看全文",
+  "dcard.empty": "这一页还是空的。",
+  "dcard.gone": "这个页面已经不在了（可能被删除或移到回收站）",
 } as const;
 
 export type Key = keyof typeof zh;

@@ -726,3 +726,76 @@ func clip(s string, n int) string {
 	}
 	return string(r[:n]) + "…"
 }
+
+// ---------------------------------------------------------------- page cards
+
+// PageCard is what a conversation shows for a link to a docs page.
+type PageCard struct {
+	ID       string `json:"id"`
+	URL      string `json:"url"`
+	Title    string `json:"title"`
+	Icon     string `json:"icon,omitempty"`
+	Updated  int64  `json:"updated,omitempty"` // ms
+	Markdown string `json:"markdown"`          // the first blocks
+	Total    int    `json:"total"`             // blocks in the page
+	Shown    int    `json:"shown"`
+}
+
+var pageIDRe = regexp.MustCompile(`^/p/([A-Za-z0-9_-]{4,64})/?$`)
+
+// Page reads the start of a docs page for a card (the admin token reads
+// it; only pages of the connected server).
+func (s *Service) Page(ctx context.Context, link string, blocks int) (PageCard, error) {
+	s.mu.Lock()
+	base := s.st.Settings.URL
+	s.mu.Unlock()
+	if base == "" {
+		return PageCard{}, errors.New("no docs server is connected")
+	}
+	u, err := url.Parse(link)
+	if err != nil {
+		return PageCard{}, errors.New("not a docs link")
+	}
+	b, _ := url.Parse(base)
+	if b == nil || u.Scheme != b.Scheme || u.Host != b.Host {
+		return PageCard{}, errors.New("not a page of the connected docs server")
+	}
+	m := pageIDRe.FindStringSubmatch(u.Path)
+	if m == nil {
+		return PageCard{}, errors.New("not a page link")
+	}
+	cs := s.creds()
+	if cs == nil {
+		return PageCard{}, errors.New("the vault is not available")
+	}
+	tok, err := cs.Resolve(ctx, adminRef)
+	if err != nil || tok == "" {
+		return PageCard{}, errors.New("the docs admin token is missing; connect again")
+	}
+	var pg struct {
+		ID        string  `json:"id"`
+		Title     string  `json:"title"`
+		Icon      *string `json:"icon"`
+		UpdatedAt int64   `json:"updated_at"`
+		DeletedAt *int64  `json:"deleted_at"`
+	}
+	if err := s.call(ctx, base, tok, "GET", "/pages/"+url.PathEscape(m[1]), nil, &pg); err != nil {
+		return PageCard{}, err
+	}
+	if pg.DeletedAt != nil {
+		return PageCard{}, &APIError{Status: 404, Message: "the page is in the trash"}
+	}
+	blocks = min(max(blocks, 1), 40)
+	var c struct {
+		Markdown string `json:"markdown"`
+		Total    int    `json:"total"`
+	}
+	if err := s.call(ctx, base, tok, "GET", fmt.Sprintf("/pages/%s/content?limit=%d", url.PathEscape(m[1]), blocks), nil, &c); err != nil {
+		return PageCard{}, err
+	}
+	card := PageCard{ID: pg.ID, URL: base + "/p/" + pg.ID, Title: pg.Title, Updated: pg.UpdatedAt, Markdown: clip(c.Markdown, 6000), Total: c.Total, Shown: min(blocks, c.Total)}
+	if pg.Icon != nil {
+		card.Icon = *pg.Icon
+	}
+	return card, nil
+}

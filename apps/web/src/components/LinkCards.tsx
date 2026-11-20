@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { isDocsLink } from "../store";
 import { Play } from "lucide-react";
 import { API, type LinkCard } from "../api";
 import { t } from "../i18n";
@@ -42,7 +43,7 @@ export function cardLinks(text: string): string[] {
     } catch {
       continue;
     }
-    if (localHost(u.hostname)) continue;
+    if (localHost(u.hostname) || isDocsLink(u.href)) continue; // docs pages get a doc card
     u.hash = "";
     const k = u.toString();
     if (!out.includes(k)) out.push(k);

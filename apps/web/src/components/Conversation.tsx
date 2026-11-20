@@ -80,6 +80,7 @@ import { Avatar, channelColor, colorFor, ink } from "./Avatar";
 import { ApprovalActions } from "./Approval";
 import { Markdown } from "./Markdown";
 import { LinkCards } from "./LinkCards";
+import { DocCards } from "./DocCards";
 import { Popover, useMenu } from "./Popover";
 import { ProviderMark } from "./ProviderMark";
 import { ContextMap } from "./ContextMap";
@@ -922,6 +923,7 @@ function AgentMsg({ it, agent, showModel, bare, opened, extra }: { it: AgentItem
           </div>
         )}
         {it.text && <LocalPreviewCards text={it.text} opened={opened} />}
+        {it.text && <DocCards text={it.text} />}
         {it.refusal && (
           <div className="refusal">
             <Info size={14} />
