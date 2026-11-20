@@ -42,8 +42,8 @@ func TestAddSearchRead(t *testing.T) {
 
 	team := Viewer{Team: "default", Agent: "mia"}
 	for q, want := range map[string]int64{
-		"海外市场": up.ID,  // CJK, trigram
-		"营收":   up.ID,  // short CJK, substring fallback
+		"海外市场":   up.ID,  // CJK, trigram
+		"营收":     up.ID,  // short CJK, substring fallback
 		"Tokyo":  doc.ID, // English words
 		"launch": doc.ID, // tag and title
 		"sofa":   img.ID, // an image by its prompt
