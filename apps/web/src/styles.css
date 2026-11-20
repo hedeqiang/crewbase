@@ -2914,3 +2914,32 @@ b > .mkver, .g b .mkver { margin: 0 0 0 6px; }
 .skm.me .skb { height: 30px; border-radius: 15px; }
 @keyframes skel-wave { from { background-position: 100% 0; } to { background-position: -150% 0; } }
 @media (prefers-reduced-motion: reduce) { .skb, .skel { animation: none !important; } }
+
+/* reactions and replies (MsgExtras.tsx) */
+.rxs { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+.m-user .rxs { justify-content: flex-end; }
+.rx { display: inline-flex; align-items: center; gap: 4px; height: 24px; padding: 0 8px; border-radius: 12px; border: 1px solid var(--border2); background: var(--surface); font-size: 13px; line-height: 1; transition: background-color var(--dur-hover) ease, border-color var(--dur-hover) ease, scale var(--dur-fast) var(--ease-out); }
+.rx:hover { background: var(--hover); }
+.rx:active { scale: .92; }
+.rx.mine { border-color: color-mix(in srgb, var(--accent) 45%, transparent); background: var(--accent-soft); }
+.rx .n { font-size: 11.5px; font-weight: 600; color: var(--text2); font-variant-numeric: tabular-nums; }
+.rx.pop { animation: rx-pop var(--dur-slow) var(--ease-spring) both; }
+@keyframes rx-pop { from { opacity: 0; scale: .4; } 60% { scale: 1.12; } }
+.menu.rxpick { min-width: 0; display: flex; gap: 2px; padding: 5px; border-radius: 22px; }
+.rxq { width: 34px; height: 34px; border-radius: 17px; font-size: 19px; line-height: 1; display: grid; place-items: center; transition: background-color var(--dur-hover) ease, scale var(--dur-fast) var(--ease-spring); }
+.rxq:hover { background: var(--hover); scale: 1.18; }
+.rxq.on { background: var(--accent-soft); }
+.qline { display: flex; align-items: center; gap: 6px; max-width: min(520px, 100%); margin-bottom: 4px; padding: 3px 10px; border-left: 2px solid var(--border2); border-radius: 0 8px 8px 0; font-size: 12px; color: var(--muted); text-align: left; transition: background-color var(--dur-hover) ease, color var(--dur-hover) ease; }
+.qline.mine { align-self: flex-end; }
+.qline:hover { background: var(--hover); color: var(--text2); }
+.qline b { font-weight: 600; flex: none; }
+.qline span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.replychip { display: flex; align-items: center; gap: 8px; margin: 2px 4px 6px; padding: 6px 6px 6px 10px; border-radius: 10px; background: var(--raised); border: 1px solid var(--border); font-size: 12.5px; color: var(--text2); animation: chip-in var(--dur-dialog) var(--ease-spring) both; }
+.replychip[data-exit] { animation: fade-out var(--dur-fast) var(--ease-in) both; }
+.replychip .rcq { flex: 1; min-width: 0; display: flex; gap: 6px; text-align: left; }
+.replychip .rct { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); }
+@keyframes chip-in { from { opacity: 0; translate: 0 6px; } }
+/* a message jumped to */
+.feed .flash { animation: msg-flash 1.5s var(--ease-out); border-radius: 12px; }
+@keyframes msg-flash { 0%, 30% { background: var(--accent-soft); box-shadow: 0 0 0 6px var(--accent-soft); } 100% { background: transparent; box-shadow: 0 0 0 6px transparent; } }
+@media (prefers-reduced-motion: reduce) { .rx.pop, .replychip, .feed .flash { animation: none !important; } }

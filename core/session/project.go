@@ -18,6 +18,15 @@ type UserMessage struct {
 	Also []string `json:"also,omitempty"`
 	// Attachments are files in the receiving agent's workspace.
 	Attachments []llm.Attachment `json:"attachments,omitempty"`
+	// Reply: the message this one answers (回复), quoted.
+	Reply *Quote `json:"reply,omitempty"`
+}
+
+// Quote is a message replied to: its seq, who wrote it, an excerpt.
+type Quote struct {
+	Seq  int64  `json:"seq"`
+	Who  string `json:"who"`
+	Text string `json:"text"`
 }
 
 type InjectData struct {
@@ -221,6 +230,9 @@ func DeriveMessages(events []Event, agent string, names map[string]string) []llm
 				continue
 			}
 			text := m.Text
+			if q := m.Reply; q != nil && q.Text != "" {
+				text = "[replying to " + q.Who + ": \"" + q.Text + "\"]\n" + text
+			}
 			if m.From != "" {
 				text = "[" + m.From + "]: " + text
 			}

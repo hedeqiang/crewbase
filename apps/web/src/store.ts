@@ -26,6 +26,7 @@ import {
   type UIContribution,
   type PreviewInfo,
   getToken,
+  type Quote,
 } from "./api";
 import { tunnelEvents, viaRelay } from "./tunnel";
 import { notifyApprovals } from "./companion";
@@ -168,6 +169,7 @@ export interface State {
   overrides: Record<string, string | null>; // agentId → model ref for next messages
   drafts: Record<string, string>; // session → unsent text
   attach: Record<string, PendingFile[]>; // session → files picked for the next message
+  replyTo: Record<string, Quote | undefined>; // session → the message the next one answers (回复)
   hostConfirm: string | null; // agent id awaiting host-mode confirm
   toasts: Toast[];
 }
@@ -313,6 +315,7 @@ let state: State = {
   overrides: loadOverrides(),
   drafts: loadDrafts(),
   attach: {},
+  replyTo: {},
   hostConfirm: null,
   toasts: [],
 };
@@ -361,6 +364,11 @@ export function useStore<T>(sel: (s: State) => T): T {
 // ---------------------------------------------------------------- UI actions
 
 let toastId = 0;
+/** 回复: the next message in session answers q (null: not any more). */
+export function setReply(session: string, q: Quote | null) {
+  setState((s) => ({ replyTo: { ...s.replyTo, [session]: q ?? undefined } }));
+}
+
 export function toast(text: string) {
   const id = ++toastId;
   setState((s) => ({ toasts: [...s.toasts, { id, text }] }));

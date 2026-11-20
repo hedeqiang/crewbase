@@ -109,6 +109,22 @@ type Approver interface {
 	SenderName(deviceID string) string
 }
 
+// quote keeps a reply's quote short (an excerpt, one line).
+func quote(q *session.Quote) *session.Quote {
+	if q == nil || q.Seq <= 0 {
+		return nil
+	}
+	t := strings.Join(strings.Fields(q.Text), " ")
+	if r := []rune(t); len(r) > 200 {
+		t = string(r[:200]) + "…"
+	}
+	who := strings.TrimSpace(q.Who)
+	if r := []rune(who); len(r) > 40 {
+		who = string(r[:40])
+	}
+	return &session.Quote{Seq: q.Seq, Who: who, Text: t}
+}
+
 type sendBody struct {
 	Text    string `json:"text"`
 	Model   string `json:"model,omitempty"` // provider/model[@effort]
@@ -117,6 +133,8 @@ type sendBody struct {
 	Front   bool   `json:"front,omitempty"`
 	// Queue: wait for the running turn to end instead of joining it.
 	Queue bool `json:"queue,omitempty"`
+	// Reply: the message this one answers (回复), quoted.
+	Reply *session.Quote `json:"reply,omitempty"`
 	// Attachments returned by POST /api/agents/{id}/uploads.
 	Attachments []struct {
 		Path string `json:"path"`
@@ -471,7 +489,7 @@ var Plugin = kernel.Register(kernel.Spec{
 				}
 				var b sendBody
 				_ = r.Decode(&b)
-				in := agent.Input{Text: b.Text, From: b.From, Session: b.Session, Front: b.Front, Queue: b.Queue}
+				in := agent.Input{Text: b.Text, From: b.From, Session: b.Session, Front: b.Front, Queue: b.Queue, Reply: quote(b.Reply)}
 				// a team member's messages carry their name, whatever the client says
 				if who, ok := kernel.Lookup[Approver](c, "members"); ok && r.DeviceID != "" {
 					in.From = who.SenderName(r.DeviceID)

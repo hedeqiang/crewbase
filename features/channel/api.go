@@ -4,6 +4,7 @@ import (
 	"context"
 	"strings"
 
+	"github.com/hedeqiang/crewbase/core/session"
 	"github.com/hedeqiang/crewbase/features/gateway"
 	"github.com/hedeqiang/crewbase/kernel"
 )
@@ -85,15 +86,23 @@ var APIPlugin = kernel.Register(kernel.Spec{
 					return nil, err
 				}
 				var b struct {
-					Text string `json:"text"`
-					From string `json:"from"`
+					Text  string         `json:"text"`
+					From  string         `json:"from"`
+					Reply *session.Quote `json:"reply"`
 				}
 				_ = r.Decode(&b)
+				if q := b.Reply; q != nil {
+					if q.Seq <= 0 {
+						b.Reply = nil
+					} else if r := []rune(strings.Join(strings.Fields(q.Text), " ")); len(r) > 200 {
+						q.Text = string(r[:200]) + "…"
+					}
+				}
 				// a team member's messages carry their name
 				if who, ok := kernel.Lookup[interface{ SenderName(string) string }](c, "members"); ok && r.DeviceID != "" {
 					b.From = who.SenderName(r.DeviceID)
 				}
-				res, err := s.Post(r.Params["id"], b.Text, b.From)
+				res, err := s.PostReply(r.Params["id"], b.Text, b.From, b.Reply)
 				if err != nil {
 					return nil, gateway.Conflict("%v", err)
 				}

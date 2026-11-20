@@ -313,6 +313,13 @@ export interface PreviewInfo {
 }
 
 /** A visual reply in the conversation (show_page, features/preview/page.go). */
+/** A message replied to (回复): its seq, who wrote it, an excerpt. */
+export interface Quote {
+  seq: number;
+  who: string;
+  text: string;
+}
+
 export interface PageShown {
   title: string;
   path: string;
@@ -1387,7 +1394,7 @@ export const API = {
     api<{ agent: string; session: string; name: string; skills: number }>("POST", "/api/agents/import", { ...src, options }),
   patchAgent: (id: string, b: Record<string, unknown>) => api<AgentView>("PATCH", `/api/agents/${enc(id)}`, b),
   deleteAgent: (id: string) => api("DELETE", `/api/agents/${enc(id)}`),
-  send: (id: string, b: { text: string; model?: string; session?: string; front?: boolean; queue?: boolean; attachments?: { path: string; name: string }[] }) =>
+  send: (id: string, b: { text: string; model?: string; session?: string; front?: boolean; queue?: boolean; attachments?: { path: string; name: string }[]; reply?: Quote }) =>
     api<Input>("POST", `/api/agents/${enc(id)}/messages`, b),
   /** Regenerate (no text: resend seq and the messages after it as they
    *  were) or edit and resend (text: only seq, edited). History from seq on
@@ -1452,8 +1459,11 @@ export const API = {
   channel: (id: string) => api<ChannelView>("GET", `/api/channels/${enc(id)}`),
   createChannel: (b: { name: string; members: string[]; folder?: string }) => api<ChannelView>("POST", "/api/channels", b),
   patchChannel: (id: string, b: { handoverConfirm: boolean }) => api<ChannelView>("PATCH", `/api/channels/${enc(id)}`, b),
-  postChannel: (id: string, text: string) =>
-    api<{ agent: string; input: string; position: number }>("POST", `/api/channels/${enc(id)}/messages`, { text }),
+  postChannel: (id: string, text: string, reply?: Quote) =>
+    api<{ agent: string; input: string; position: number }>("POST", `/api/channels/${enc(id)}/messages`, { text, reply }),
+  /** an emoji on a message (features/reactions); remove takes yours back */
+  react: (session: string, target: number, emoji: string, remove?: boolean) =>
+    api<null>("POST", `/api/sessions/${enc(session)}/reactions`, { target, emoji, remove: remove || undefined }),
   providers: () => api<{ providers: UserProvider[]; presets: ProviderPreset[] }>("GET", "/api/providers"),
   testProvider: (b: ProviderInput) => api<ProviderTestResult>("POST", "/api/providers/test", b),
   addProvider: (b: ProviderInput & { models: string[]; kinds?: Record<string, ModelKind> }) => api<UserProvider>("POST", "/api/providers", b),

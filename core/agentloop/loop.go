@@ -297,7 +297,7 @@ func (l *loop) turn(parent context.Context, a *agent.Agent, in agent.Input) {
 			TurnEnded.Emit(d, TurnEndEvent{Agent: a.ID(), Session: ss.ID(), Input: in, TurnEnd: TurnEnd{Status: "failed", Error: "could not record input: " + err.Error()}})
 			return
 		}
-	} else if _, err := ss.Append(session.TypeUserMessage, "", session.UserMessage{Text: in.Text, From: in.From, To: a.ID(), Attachments: in.Attachments}); err != nil {
+	} else if _, err := ss.Append(session.TypeUserMessage, "", session.UserMessage{Text: in.Text, From: in.From, To: a.ID(), Attachments: in.Attachments, Reply: in.Reply}); err != nil {
 		a.SetStatus(agent.StatusFailed, err.Error())
 		TurnEnded.Emit(d, TurnEndEvent{Agent: a.ID(), Session: ss.ID(), Input: in, TurnEnd: TurnEnd{Status: "failed", Error: "could not record input: " + err.Error()}})
 		return
@@ -406,7 +406,7 @@ func (l *loop) join(ctx context.Context, a *agent.Agent, ss *session.Session, in
 		}
 		if xp.Logged {
 			n++
-		} else if _, err := ss.Append(session.TypeUserMessage, "", session.UserMessage{Text: xp.Text, From: xp.From, To: a.ID(), Attachments: xp.Attachments}); err == nil {
+		} else if _, err := ss.Append(session.TypeUserMessage, "", session.UserMessage{Text: xp.Text, From: xp.From, To: a.ID(), Attachments: xp.Attachments, Reply: xp.Reply}); err == nil {
 			n++
 		}
 	}

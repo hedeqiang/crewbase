@@ -1,6 +1,6 @@
 // Projects a session's event log into conversation feed items.
 
-import type { ApprovalRequest, Attachment, ModelRef, Part, PageShown, PreviewInfo, SessionEvent, ToolCall, ToolResult } from "./api";
+import type { ApprovalRequest, Attachment, ModelRef, Part, PageShown, PreviewInfo, Quote, SessionEvent, ToolCall, ToolResult } from "./api";
 
 export interface Step {
   call: ToolCall;
@@ -90,7 +90,7 @@ export interface TurnStats {
 
 export type FeedItem = (
   | { k: "time"; id: string; time: string }
-  | { k: "user"; id: string; seq: number; text: string; from?: string; time: string; to?: string; attachments?: Attachment[] }
+  | { k: "user"; id: string; seq: number; text: string; from?: string; time: string; to?: string; attachments?: Attachment[]; reply?: Quote }
   | {
       k: "agent";
       id: string;
@@ -190,8 +190,14 @@ export interface Citation {
 // notes Crewbase writes to an agent as if from the user (handover, approvals decided while parked, …)
 const INJECTED = /^\[(handover|reassigned|resumed|Approved|Not approved|Approval not given|Crewbase restarted)\]/;
 
+/** Emoji on one message: each with who put it there ("" = you, else an
+ *  agent id or a team member's name), oldest first. */
+export type Reactions = Record<string, { emoji: string; who: string[] }[]>;
+
 export interface Projection {
   items: FeedItem[];
+  /** message seq → its reactions (message/reaction) */
+  reactions: Reactions;
   /** Last step/start numbers per agent. */
   context: Record<string, { tokens: number; window: number; model?: ModelRef }>;
   /** Last model used per agent (step/start or message/assistant). */
@@ -274,6 +280,7 @@ export function project(events: SessionEvent[], cards?: ReadonlySet<string>): Pr
       rewinds.push({ from: e.data.from, at: e.seq, agent: e.agent ?? "", reason: e.data.reason ?? "" });
   const compactedUpto: Record<string, number> = {};
   const lastTurn: Projection["lastTurn"] = {};
+  const reactions: Reactions = {};
   // the open turn per agent: its first user message, model calls, last reply
   type Open = { from?: number; input?: string; steps: TurnStep[]; last?: Extract<FeedItem, { k: "agent" }>; stepAt?: number };
   const turns = new Map<string, Open>();
@@ -326,6 +333,21 @@ export function project(events: SessionEvent[], cards?: ReadonlySet<string>): Pr
     const d = e.data ?? {};
     const id = String(e.seq);
     switch (e.type) {
+      case "message/reaction": {
+        const key = String(d.target ?? "");
+        const who = e.agent || d.from || "";
+        if (!key || !d.emoji) break;
+        const list = (reactions[key] ??= []);
+        let r = list.find((x) => x.emoji === d.emoji);
+        if (d.remove) {
+          if (r) r.who = r.who.filter((w) => w !== who);
+          reactions[key] = list.filter((x) => x.who.length > 0);
+        } else {
+          if (!r) list.push((r = { emoji: d.emoji, who: [] }));
+          if (!r.who.includes(who)) r.who.push(who);
+        }
+        break;
+      }
       case "message/user":
         for (const k of Object.keys(lastTurn)) delete lastTurn[k];
         for (const g of greeted) g.starters = false;
@@ -338,7 +360,7 @@ export function project(events: SessionEvent[], cards?: ReadonlySet<string>): Pr
           push({ k: "bg", id, time: e.time, ...bg, sub: bg.kind === "delegation" ? runForTask(bg.task)?.session : undefined }, e.time);
           break;
         }
-        push({ k: "user", id, seq: e.seq, text: d.text ?? "", from: d.from, time: e.time, to: d.to, attachments: d.attachments }, e.time);
+        push({ k: "user", id, seq: e.seq, text: d.text ?? "", from: d.from, time: e.time, to: d.to, attachments: d.attachments, reply: d.reply?.seq ? d.reply : undefined }, e.time);
         for (const to of [d.to ?? "", ...((d.also as string[] | undefined) ?? [])]) askedBy.set(to, (askedBy.get(to) ?? "") + "\n" + (d.text ?? ""));
         break;
       case "message/assistant": {
@@ -613,7 +635,7 @@ export function project(events: SessionEvent[], cards?: ReadonlySet<string>): Pr
         break;
     }
   }
-  return { items, context, lastModel, openTurns, subruns, compactedUpto, lastTurn };
+  return { items, context, lastModel, openTurns, subruns, compactedUpto, lastTurn, reactions };
 }
 
 /** Last text message in the log (for list snippets). */

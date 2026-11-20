@@ -1,4 +1,5 @@
 import { TurnFiles } from "./TurnFiles";
+import { FeedCtx, QuoteLine, ReactBtn, Reactions, ReplyBtn, ReplyChip } from "./MsgExtras";
 import { Skeleton } from "./Skeleton";
 import { markEntering } from "../lib/motion";
 import { PageCard } from "./PageCard";
@@ -56,7 +57,7 @@ import { API, desktop, parseRef, refString, useRawURL, type AgentView, type Appr
 import { scheduleLabel } from "./settings/Automation";
 import { t, type Key } from "../i18n";
 import { argsFull, argsPreview, project, type AgentItem, type Decision, type FeedItem, type Rewind, type Step, type TurnPart, type TurnStats } from "../projection";
-import { hasModels, loadSession, setModelOverride, openConnect, openSubRun, setState, toast, useStore, sessionAgent } from "../store";
+import { hasModels, loadSession, setModelOverride, openConnect, openSubRun, setState, toast, useStore, sessionAgent, getState, setReply } from "../store";
 import { TakeoverCard, takeoverReason } from "./Browser";
 import { cloudVoice, dictate, dictationSupported, primeVoice, speak, speaking, speakSupported } from "../voice";
 import { addFiles, addLibraryFile, clearFiles, filesFrom, LIB_DRAG, libraryFrom, MsgAttachments, PendingChips } from "./Attachments";
@@ -148,10 +149,13 @@ function ConversationView({ sessionId, agent, channel }: { sessionId: string; ag
         : null,
     [oneToOne, agent, idle, proj, sessionId, override],
   );
+  const feedCtx = useMemo(() => ({ session: sessionId, reactions: proj.reactions }), [sessionId, proj.reactions]);
   return (
     <section className="main">
       <MsgCtx.Provider value={actions}>
-        <Feed sessionId={sessionId} agent={agent} channel={channel} items={proj.items} working={proj.openTurns} loading={!events} error={err} />
+        <FeedCtx.Provider value={feedCtx}>
+          <Feed sessionId={sessionId} agent={agent} channel={channel} items={proj.items} working={proj.openTurns} loading={!events} error={err} />
+        </FeedCtx.Provider>
       </MsgCtx.Provider>
       <Composer sessionId={sessionId} agent={agent} channel={channel} ctx={ctx} lastModel={proj.lastModel[agent.id]} />
     </section>
@@ -344,7 +348,8 @@ function UserMsg({ it }: { it: Extract<FeedItem, { k: "user" }> }) {
       </div>
     );
   return (
-    <div className="m-user">
+    <div className="m-user" data-seq={it.seq}>
+      {it.reply && <QuoteLine q={it.reply} mine />}
       {it.attachments?.length ? <MsgAttachments agent={it.to} items={it.attachments} /> : null}
       {(it.text || !it.attachments?.length) && (
         <div className={"bubble" + (long && !expanded ? " clipped" : "")}>
@@ -358,8 +363,11 @@ function UserMsg({ it }: { it: Extract<FeedItem, { k: "user" }> }) {
         </div>
       )}
       {it.text && <LinkCards text={it.text} mine />}
+      <Reactions target={String(it.seq)} />
       {it.text && (
         <div className="msgacts">
+          <ReactBtn target={String(it.seq)} />
+          <ReplyBtn q={{ seq: it.seq, who: it.from || t("rx.you"), text: it.text }} />
           {editable && (
             <button
               type="button"
@@ -934,7 +942,7 @@ function AgentMsg({ it, agent, showModel, bare, opened, extra }: { it: AgentItem
   const canRegen = !!acts && !it.superseded && acts.lastTurn?.item === it.id && acts.lastTurn.from > acts.compactedUpto;
   const hasActs = !!it.text || canRegen;
   return (
-    <Wrap bare={bare} final={!!it.stats} agent={agent}>
+    <Wrap bare={bare} final={!!it.stats} agent={agent} seq={it.id}>
         {!bare && <div className="mh">
           <b>{agent ? speaker(agent) : it.agent}</b>
           <span className="t">{hhmm(it.time)}</span>
@@ -989,9 +997,12 @@ function AgentMsg({ it, agent, showModel, bare, opened, extra }: { it: AgentItem
         {extra}
         {it.stats && it.turnInput && it.turnEnded && <TurnFiles agent={it.agent} turn={it.turnInput} ended={it.turnEnded} />}
         {it.stats && <ReplyStats stats={it.stats} />}
+        <Reactions target={it.id} />
         {hasActs && (
           <div className="msgacts">
             {it.text && <CopyBtn text={it.text} />}
+            {it.text && <ReactBtn target={it.id} />}
+            {it.text && <ReplyBtn q={{ seq: Number(it.id), who: agent?.name ?? it.agent, text: it.text }} />}
             {canRegen && (
               <button
                 type="button"
@@ -1029,10 +1040,10 @@ function AgentMsg({ it, agent, showModel, bare, opened, extra }: { it: AgentItem
 }
 
 /** A message's frame: avatar and column, or nothing inside a turn. */
-function Wrap({ bare, final, agent, children }: { bare?: boolean; final?: boolean; agent?: AgentView; children: ReactNode }) {
-  if (bare) return <div className="tans">{children}</div>;
+function Wrap({ bare, final, agent, seq, children }: { bare?: boolean; final?: boolean; agent?: AgentView; seq?: string; children: ReactNode }) {
+  if (bare) return <div className="tans" data-seq={seq}>{children}</div>;
   return (
-    <div className={"m-agent" + (final ? " final" : "")}>
+    <div className={"m-agent" + (final ? " final" : "")} data-seq={seq}>
       <Avatar agent={agent} size={28} />
       <div style={{ minWidth: 0 }}>{children}</div>
     </div>
@@ -1858,8 +1869,9 @@ function Composer({
     setSending(true);
     if (channel) {
       try {
-        const r = await API.postChannel(sessionId, text);
+        const r = await API.postChannel(sessionId, text, getState().replyTo[sessionId]);
         setDraft("");
+        setReply(sessionId, null);
         setMention(null);
         const who = agents[r.agent]?.name ?? r.agent;
         toast(r.position > 0 ? t("ch.queued", { name: who, n: r.position }) : t("ch.sentTo", { name: who }));
@@ -1879,8 +1891,10 @@ function Composer({
         model: override ?? undefined,
         session: sessionId === agent.session ? undefined : sessionId,
         attachments: ready.length ? ready.map((f) => ({ path: f.att!.path, name: f.att!.name })) : undefined,
+        reply: getState().replyTo[sessionId],
       });
       setDraft("");
+      setReply(sessionId, null);
       clearFiles(sessionId);
       if (wasBusy) toast(queue && busy ? t("chat.queued", { n: agent.queue.length + 1 }) : busy ? t("steer.sent", { name: agent.name }) : t("chat.queued", { n: agent.queue.length + 1 }));
     } catch (e: any) {
@@ -1994,6 +2008,7 @@ function Composer({
         }}
       >
         {dragging && <div className="dropmask">{t("att.drop")}</div>}
+        <ReplyChip session={sessionId} />
         <PendingChips session={sessionId} files={pending} />
         {candidates.length > 0 && (
           <div className="mention" role="listbox" aria-label={t("ch.mention")}>
@@ -2073,6 +2088,12 @@ function Composer({
                 setMention(null);
                 return;
               }
+            }
+            if (e.key === "Escape" && getState().replyTo[sessionId]) {
+              e.preventDefault();
+              e.stopPropagation();
+              setReply(sessionId, null);
+              return;
             }
             // ⌘Enter sends; with 「Enter 发送」 on, plain Enter sends and
             // Shift+Enter starts a new line

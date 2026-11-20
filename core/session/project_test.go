@@ -246,3 +246,23 @@ func TestDeriveMessagesNativeComputerImages(t *testing.T) {
 		t.Fatalf("kept: %v", kept)
 	}
 }
+
+// A reply carries its quote to the model; a reaction is not a message.
+func TestDeriveMessagesReplyAndReaction(t *testing.T) {
+	st, _ := NewStore(nil, "")
+	ss, _ := st.Create(Meta{Kind: "agent"})
+	first, _ := ss.Append(TypeUserMessage, "", UserMessage{Text: "plan the launch", To: "kai"})
+	ss.Append(TypeReaction, "kai", map[string]any{"target": first.Seq, "emoji": "👀"})
+	ss.Append(TypeUserMessage, "", UserMessage{Text: "make it Friday", To: "kai", Reply: &Quote{Seq: 1, Who: "Kai", Text: "Tuesday or Friday?"}})
+	msgs := DeriveMessages(ss.Events(), "kai", nil)
+	var all []string
+	for _, m := range msgs {
+		for _, p := range m.Parts {
+			all = append(all, p.Text)
+		}
+	}
+	joined := strings.Join(all, "\n")
+	if !strings.Contains(joined, `[replying to Kai: "Tuesday or Friday?"]`+"\nmake it Friday") || strings.Contains(joined, "👀") {
+		t.Fatalf("%q", joined)
+	}
+}

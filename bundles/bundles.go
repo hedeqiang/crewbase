@@ -19,6 +19,8 @@ import (
 	_ "github.com/hedeqiang/crewbase/core/prompt"
 	_ "github.com/hedeqiang/crewbase/core/session"
 	_ "github.com/hedeqiang/crewbase/core/tools"
+	_ "github.com/hedeqiang/crewbase/features/addonupdates"
+	_ "github.com/hedeqiang/crewbase/features/agentdocs"
 	_ "github.com/hedeqiang/crewbase/features/alerts"
 	_ "github.com/hedeqiang/crewbase/features/api"
 	_ "github.com/hedeqiang/crewbase/features/attachments"
@@ -36,8 +38,6 @@ import (
 	_ "github.com/hedeqiang/crewbase/features/goals"
 	_ "github.com/hedeqiang/crewbase/features/im"
 	_ "github.com/hedeqiang/crewbase/features/imconfig"
-	_ "github.com/hedeqiang/crewbase/features/addonupdates"
-	_ "github.com/hedeqiang/crewbase/features/agentdocs"
 	_ "github.com/hedeqiang/crewbase/features/library"
 	_ "github.com/hedeqiang/crewbase/features/linkpreview"
 	_ "github.com/hedeqiang/crewbase/features/mcp"
@@ -48,6 +48,7 @@ import (
 	_ "github.com/hedeqiang/crewbase/features/plugins"
 	_ "github.com/hedeqiang/crewbase/features/preview"
 	_ "github.com/hedeqiang/crewbase/features/providers"
+	_ "github.com/hedeqiang/crewbase/features/reactions"
 	_ "github.com/hedeqiang/crewbase/features/redact"
 	_ "github.com/hedeqiang/crewbase/features/relay"
 	_ "github.com/hedeqiang/crewbase/features/roles"
@@ -182,6 +183,7 @@ var Desktop = kernel.Bundle{Name: "desktop", Entries: []kernel.Entry{
 	// 插件与技能 › 更新: plugins, skills from GitHub, apps Crewbase runs.
 	{ID: "addon-updates", Name: "@crewbase/addon-updates"},
 	{ID: "followups-api", Name: "@crewbase/followups-api"},
+	{ID: "reactions", Name: "@crewbase/reactions"},
 	{ID: "memory-working-api", Name: "@crewbase/memory-working-api"},
 	{ID: "usage", Name: "@crewbase/usage"},
 	{ID: "workflows-api", Name: "@crewbase/workflows-api"},

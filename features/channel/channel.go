@@ -314,6 +314,11 @@ type PostResult struct {
 // and the owner stays; otherwise the current owner receives it. Changing
 // the owner is Reassign (the channel panel) or a handover.
 func (s *Service) Post(id, text, from string) (PostResult, error) {
+	return s.PostReply(id, text, from, nil)
+}
+
+// PostReply is Post answering an earlier message (回复), quoted.
+func (s *Service) PostReply(id, text, from string, reply *session.Quote) (PostResult, error) {
 	ss, err := s.channel(id)
 	if err != nil {
 		return PostResult{}, err
@@ -324,7 +329,7 @@ func (s *Service) Post(id, text, from string) (PostResult, error) {
 	}
 	targets := s.resolveMentions(ss, text)
 	if len(targets) > 1 {
-		return s.postMany(ss, id, text, from, targets)
+		return s.postMany(ss, id, text, from, targets, reply)
 	}
 	target := ""
 	if len(targets) == 1 {
@@ -340,7 +345,7 @@ func (s *Service) Post(id, text, from string) (PostResult, error) {
 	if State(ss) == StatePaused {
 		_ = s.setState(ss, StateActive, from)
 	}
-	in, err := a.Enqueue(agent.Input{Session: id, Text: text, From: from})
+	in, err := a.Enqueue(agent.Input{Session: id, Text: text, From: from, Reply: reply})
 	if err != nil {
 		return PostResult{}, err
 	}
@@ -358,11 +363,11 @@ func (s *Service) Post(id, text, from string) (PostResult, error) {
 
 // postMany gives one message to several mentioned members: it is recorded
 // once (addressed to all of them) and each gets it as its own task.
-func (s *Service) postMany(ss *session.Session, id, text, from string, targets []string) (PostResult, error) {
+func (s *Service) postMany(ss *session.Session, id, text, from string, targets []string, reply *session.Quote) (PostResult, error) {
 	if State(ss) == StatePaused {
 		_ = s.setState(ss, StateActive, from)
 	}
-	if _, err := ss.Append(session.TypeUserMessage, "", session.UserMessage{Text: text, From: from, To: targets[0], Also: targets[1:]}); err != nil {
+	if _, err := ss.Append(session.TypeUserMessage, "", session.UserMessage{Text: text, From: from, To: targets[0], Also: targets[1:], Reply: reply}); err != nil {
 		return PostResult{}, err
 	}
 	res := PostResult{Agents: targets}

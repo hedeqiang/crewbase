@@ -127,7 +127,9 @@ type Input struct {
 	Model   *llm.ModelRef `json:"model,omitempty"` // composer override for this input
 	// Attachments are files already saved in the agent workspace.
 	Attachments []llm.Attachment `json:"attachments,omitempty"`
-	Front       bool             `json:"front,omitempty"`
+	// Reply quotes the message this one answers (回复).
+	Reply *session.Quote `json:"reply,omitempty"`
+	Front bool           `json:"front,omitempty"`
 	// Queue: wait for the turn running now to end (the person chose 排队),
 	// instead of joining it at its next step (插话, the default).
 	Queue bool `json:"queue,omitempty"`
