@@ -2611,3 +2611,19 @@ a.lcard:hover, .lvideo .ltext:hover { background: var(--hover); }
 .routineask h4 svg { color: var(--accent-text); flex: none; }
 .rawhen { display: flex; gap: 6px; flex-wrap: wrap; margin: 4px 0 8px; }
 .raprompt { max-height: 180px; overflow-y: auto; margin: 0 0 8px; padding: 8px 12px; border-left: 3px solid var(--accent-soft); background: var(--raised); border-radius: 0 8px 8px 0; font-size: 13px; line-height: 1.6; color: var(--text); white-space: pre-wrap; }
+
+/* Open Agent Docs */
+.adicon { display: grid; place-items: center; border-radius: 10px; background: linear-gradient(135deg, #2a78d6, #6250d6); color: #fff; flex: none; }
+.addlg .mbd { display: flex; flex-direction: column; gap: 6px; }
+.addesc { line-height: 1.6; margin: 0 0 6px; }
+.adsteps { margin: 0 0 8px; padding-left: 20px; line-height: 1.7; color: var(--text2); }
+.adconn { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.adids { display: flex; flex-direction: column; gap: 2px; }
+.adid { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; padding: 7px 10px; border-radius: 8px; background: var(--raised); font-size: 13px; }
+.adid b { font-weight: 500; }
+.adid code { font-family: var(--mono); font-size: 12px; color: var(--accent-text); }
+.adwake { display: flex; gap: 9px; align-items: flex-start; margin-top: 12px; cursor: pointer; }
+.adwake input { margin-top: 3px; }
+.adwake > span { display: flex; flex-direction: column; gap: 2px; font-size: 13px; }
+.adwake b { font-weight: 500; }
+.mkmanage { display: inline-flex; align-items: center; gap: 10px; }

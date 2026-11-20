@@ -1,4 +1,5 @@
 import { Fragment, useEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent, type ReactNode } from "react";
+import { AgentDocsDialog, AgentDocsIcon, useAgentDocs } from "./AgentDocs";
 import { createPortal } from "react-dom";
 import {
   BadgeCheck, Bug, CalendarDays, Check, ClipboardPaste, Copy, ExternalLink, GitCommitHorizontal, Globe, ListChecks, LogIn, Megaphone,
@@ -237,7 +238,7 @@ export function Extensions() {
       )}
     </label>
   );
-  const installedN = (d.servers?.length ?? 0) + (d.skills?.length ?? 0) + (d.plugins?.length ?? 0);
+  const installedN = (d.servers ?? []).filter((x) => !isDocsServer(x.name)).length + (d.skills?.length ?? 0) + (d.plugins?.length ?? 0);
   return (
     <>
       <Head
@@ -318,6 +319,10 @@ interface Shared {
   focus: string | null;
 }
 
+/** The MCP servers features/agentdocs makes (one per agent): shown as the
+ *  Open Agent Docs app, not as connectors. */
+const isDocsServer = (name: string) => /^docs-[0-9a-f]{8}$/.test(name);
+
 function matches(q: string, ...xs: (string | undefined)[]) {
   return !q || xs.some((x) => x?.toLowerCase().includes(q));
 }
@@ -349,6 +354,8 @@ interface Row {
   menu?: MenuItem[];
   /** how connecting goes: 免登录 / 官方登录 / 需要令牌 … */
   badge?: { label: string; tone: "free" | "login" | "token" | "" };
+  /** connected, with a 管理 button instead of the 已连接 label */
+  manage?: boolean;
 }
 
 /** The badge that says what connecting an item takes. */
@@ -376,6 +383,8 @@ function MarketView({ d, q, reload, reloadMarket, onApprove, onSignIn, onManage,
   const [busy, setBusy] = useState<Record<string, boolean>>({});
   const [errs, setErrs] = useState<Record<string, string>>({});
   const [dialog, setDialog] = useState<CatItem | null>(null);
+  const docs = useAgentDocs();
+  const [docsOpen, setDocsOpen] = useState(false);
   const servers = d.servers ?? [];
   const mark = (id: string, on: boolean) => setBusy((b) => ({ ...b, [id]: on }));
   const fail = (id: string, e: unknown) => setErrs((x) => ({ ...x, [id]: errMsg(e) }));
@@ -523,6 +532,19 @@ function MarketView({ d, q, reload, reloadMarket, onApprove, onSignIn, onManage,
     { id: "skill" as const, label: t("mk3.k.skill"), n: count("skill") },
     { id: "plugin" as const, label: t("mk3.k.plugin"), n: count("plugin") },
   ];
+  const docsShown = (kind === "all" || kind === "mcp") && matches(q, "Open Agent Docs", t("ad.short"), "文档 docs notion");
+  const docsRow: Row = {
+    key: "app:agentdocs",
+    name: "Open Agent Docs",
+    desc: t("ad.short"),
+    icon: <AgentDocsIcon />,
+    badge: { label: t("ad.badge"), tone: "" as const },
+    verb: "connect",
+    state: docs.st?.connected ? (docs.st.error ? "error" : "connected") : "idle",
+    error: docs.st?.connected ? docs.st.error : undefined,
+    onAct: () => setDocsOpen(true),
+    manage: true,
+  };
   return (
     <>
       {!q && <PasteHero onPaste={onPaste} />}
@@ -547,7 +569,8 @@ function MarketView({ d, q, reload, reloadMarket, onApprove, onSignIn, onManage,
           </span>
         )}
       </div>
-      {shown.length === 0 && <div className="empty">{t("mk.noResults", { q })}</div>}
+      {docsShown && <Section title={t("ad.section")} desc={t("ad.sectionDesc")} rows={[docsRow]} />}
+      {shown.length === 0 && !docsShown && <div className="empty">{t("mk.noResults", { q })}</div>}
       {shown.map((x) => (
         <Fragment key={x.id}>
           <Section title={x.title} desc={x.desc} rows={x.rows} />
@@ -555,6 +578,7 @@ function MarketView({ d, q, reload, reloadMarket, onApprove, onSignIn, onManage,
         </Fragment>
       ))}
       {kind === "skill" && !shown.some((x) => x.kind === "skill") && libs.length > 0 && <Libraries libs={libs} onOpen={(l) => onPaste(l.repo, l.picks)} />}
+      {docsOpen && <AgentDocsDialog st={docs.st} onClose={() => setDocsOpen(false)} onChanged={(x) => docs.setSt(x)} />}
       {dialog && <ConnectDialog item={dialog} target={target} servers={servers} onClose={() => setDialog(null)} onChanged={reload} onSignIn={onSignIn} />}
     </>
   );
@@ -646,6 +670,18 @@ function PasteHero({ onPaste }: { onPaste: (text: string) => void }) {
 }
 
 function RowAction({ r }: { r: Row }) {
+  if (r.manage && r.state === "connected")
+    return (
+      <span className="mkmanage">
+        <span className="mkst ok">
+          <Check size={13} />
+          {t("mk2.connected")}
+        </span>
+        <button className="btn sm" type="button" onClick={r.onAct}>
+          {t("mk2.manage")}
+        </button>
+      </span>
+    );
   const label = r.verb === "connect" ? t("mk2.connectName", { name: r.name }) : t("mk2.addName", { name: r.name });
   switch (r.state) {
     case "connected":
@@ -1239,7 +1275,7 @@ function InstalledView({ d, q, reload, reloadMarket, onApprove, onSignIn, onScop
     }
   };
 
-  const servers = (d.servers ?? []).filter((s) => matches(q, s.name, byServer[s.name]?.name, s.url, (s.command ?? []).join(" ")));
+  const servers = (d.servers ?? []).filter((s) => !isDocsServer(s.name)).filter((s) => matches(q, s.name, byServer[s.name]?.name, s.url, (s.command ?? []).join(" ")));
   const skills = (d.skills ?? []).filter((s) => matches(q, s.name, s.description));
   const plugins = (d.plugins ?? []).filter((p) => matches(q, p.name, p.description));
   const loading = d.servers === null || d.skills === null || d.plugins === null;

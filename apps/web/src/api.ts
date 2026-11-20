@@ -1108,6 +1108,15 @@ export async function uploadLibrary(team: string, file: Blob, name: string, fold
   return data as LibItem;
 }
 
+/** Open Agent Docs connection (features/agentdocs). */
+export interface AgentDocsStatus {
+  connected: boolean;
+  settings: { url: string; workspace: string; workspaceName?: string; agents?: string[]; scope?: string; wake: boolean };
+  identities: { agent: string; id: string; name: string; after?: number }[];
+  error?: string;
+  woken: number;
+}
+
 export interface DeviceView {
   id: string;
   name: string;
@@ -1221,6 +1230,11 @@ export type ToldEntry = { time: string; session: string; via: string; text: stri
 export type Working = { tasks: WorkTask[]; notes: WorkNote[]; told: ToldEntry[] };
 
 export const API = {
+  agentDocs: () => api<AgentDocsStatus>("GET", "/api/agentdocs"),
+  connectAgentDocs: (b: { url: string; token: string; workspace?: string; agents?: string[]; wake?: boolean }) => api<AgentDocsStatus>("POST", "/api/agentdocs", b),
+  patchAgentDocs: (b: { agents?: string[]; wake?: boolean }) => api<AgentDocsStatus>("PATCH", "/api/agentdocs", b),
+  syncAgentDocs: () => api<AgentDocsStatus>("POST", "/api/agentdocs/sync"),
+  disconnectAgentDocs: () => api<AgentDocsStatus>("DELETE", "/api/agentdocs"),
   library: (team: string, q: LibQuery = {}) => api<{ items: LibItem[]; stats?: LibStats }>("GET", `/api/library?${libQS(team, q as Record<string, string | number | undefined>)}`),
   libraryItem: (team: string, id: number) => api<{ item: LibItem; versions: LibVersion[] }>("GET", `/api/library/${id}?${libQS(team)}`),
   libraryText: (team: string, id: number) => api<{ text: string }>("GET", `/api/library/${id}/text?${libQS(team)}`),
