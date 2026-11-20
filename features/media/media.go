@@ -297,6 +297,7 @@ func (s *Service) GenerateImages(ctx context.Context, a *agent.Agent, workspace 
 			return out, err
 		}
 		out.Files = append(out.Files, sv)
+		Created.Emit(s.c, CreatedFile{Agent: a.ID(), Workspace: workspace, Kind: llm.KindImage, Prompt: args.Prompt, Saved: sv})
 		if img.RevisedPrompt != "" {
 			out.Revised = append(out.Revised, img.RevisedPrompt)
 		}

@@ -148,6 +148,13 @@ func (js *jobs) start(ctx context.Context, call tools.Call, a VideoArgs) (tools.
 		if err == nil {
 			saved, err = Save(workspace, llm.KindVideo, a.Prompt, v.Body, MaxVideoBytes, s.now())
 			v.Body.Close()
+			if err == nil {
+				sid := ""
+				if j.Session != nil {
+					sid = j.Session.ID()
+				}
+				Created.Emit(s.c, CreatedFile{Agent: j.Agent, Session: sid, Workspace: workspace, Kind: llm.KindVideo, Prompt: a.Prompt, Saved: saved})
+			}
 		}
 		if err != nil && jctx.Err() == context.DeadlineExceeded && hostCtx.Err() == nil {
 			err = fmt.Errorf("no video after %s; the provider may still finish and bill it", s.vidMax)

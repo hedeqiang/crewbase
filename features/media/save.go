@@ -12,6 +12,8 @@ import (
 	"strings"
 	"time"
 	"unicode"
+
+	"github.com/hedeqiang/crewbase/kernel"
 )
 
 // Dir is the workspace folder generated files go to.
@@ -96,6 +98,20 @@ func generatedDir(workspace string) (string, error) {
 		return "", fmt.Errorf("%s/ leaves the workspace", Dir)
 	}
 	return real, nil
+}
+
+// Created is emitted for every generated image or video saved (the
+// library files it).
+var Created = kernel.NewEmit[CreatedFile]("media/created")
+
+// CreatedFile is a generated file of an agent.
+type CreatedFile struct {
+	Agent     string
+	Session   string
+	Workspace string
+	Kind      string // image | video
+	Prompt    string
+	Saved     Saved
 }
 
 // Saved is a file written into the workspace.

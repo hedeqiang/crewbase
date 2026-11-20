@@ -28,6 +28,18 @@ import (
 	"github.com/hedeqiang/crewbase/kernel"
 )
 
+// Uploaded is emitted for every file a person uploads (the library files
+// it).
+var Uploaded = kernel.NewEmit[UploadedFile]("attachments/uploaded")
+
+// UploadedFile is a file uploaded into an agent's workspace.
+type UploadedFile struct {
+	Agent      string
+	Team       string
+	Workspace  string
+	Attachment llm.Attachment
+}
+
 // Limits.
 const (
 	MaxFileBytes = 30 << 20 // per file (provider inline limits are ~32 MB)

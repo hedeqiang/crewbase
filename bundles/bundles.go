@@ -36,6 +36,7 @@ import (
 	_ "github.com/hedeqiang/crewbase/features/goals"
 	_ "github.com/hedeqiang/crewbase/features/im"
 	_ "github.com/hedeqiang/crewbase/features/imconfig"
+	_ "github.com/hedeqiang/crewbase/features/library"
 	_ "github.com/hedeqiang/crewbase/features/linkpreview"
 	_ "github.com/hedeqiang/crewbase/features/mcp"
 	_ "github.com/hedeqiang/crewbase/features/media"
@@ -158,6 +159,8 @@ var Base = kernel.Bundle{Name: "base", Entries: []kernel.Entry{
 	{ID: "catalog", Name: "@crewbase/catalog"},
 	{ID: "compaction", Name: "@crewbase/compaction-summary"},
 	{ID: "memory", Name: "@crewbase/memory-markdown-sqlite", Config: map[string]any{"root": "${root}"}},
+	// 文档库: uploads, generated media and saved documents per team (<root>/library).
+	{ID: "library", Name: "@crewbase/library", Config: map[string]any{"root": "${root}"}},
 	// Nightly: agents curate an overgrown MEMORY.md (backed up first).
 	{ID: "memory-tidy", Name: "@crewbase/memory-tidy"},
 	{ID: "memory-working", Name: "@crewbase/memory-working"},

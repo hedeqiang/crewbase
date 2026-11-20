@@ -58,6 +58,7 @@ var APIPlugin = kernel.Register(kernel.Spec{
 				if err != nil {
 					return nil, gateway.BadRequest("%v", err)
 				}
+				Uploaded.Emit(c, UploadedFile{Agent: a.ID(), Team: a.Spec().TeamID(), Workspace: a.Workspace(), Attachment: at})
 				return at, nil
 			}})
 		g.Handle(c, gateway.Route{Method: "GET", Path: "/api/agents/{id}/raw", Devices: viewers,
