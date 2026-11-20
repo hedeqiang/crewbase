@@ -178,7 +178,7 @@ function Routines() {
               <div className="rch">
                 <Avatar agent={a} size={30} />
                 <div className="g">
-                  <b>{r.name}</b>
+                  <b title={r.name}>{r.name}</b>
                   <span className="small">
                     {a?.name ?? r.agent} · {scheduleLabel(r.schedule)} · {modeLabel(r.mode)}
                   </span>

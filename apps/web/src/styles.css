@@ -814,9 +814,10 @@ button.tg:disabled { opacity: .5; cursor: not-allowed; }
 .rcard { border: 1px solid var(--border); border-radius: 14px; padding: 12px 14px; background: var(--surface); min-width: 0; display: flex; flex-direction: column; }
 .rcard.off { background: var(--raised); }
 .rcard.off .rch .g b { color: var(--text2); }
-.rch { display: flex; align-items: center; gap: 10px; }
+.rch { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.rch > .tg { align-self: flex-start; margin-top: 2px; }
 .rch .g { flex: 1; min-width: 0; display: flex; flex-direction: column; line-height: 1.35; }
-.rch .g b { font-size: 13.5px; font-weight: 600; }
+.rch .g b { font-size: 13.5px; font-weight: 600; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .rch .g .small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ell { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: block; }
 .rprompt { margin: 8px 0 6px; font-size: 12.5px; color: var(--text2); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; }

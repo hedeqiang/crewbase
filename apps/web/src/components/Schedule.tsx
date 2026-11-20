@@ -141,7 +141,7 @@ export function ScheduleTab({ agent, data }: { agent: AgentView; data: ScheduleD
                   <AlarmClock size={14} />
                 </span>
                 <div className="g">
-                  <b>{r.name}</b>
+                  <b title={r.name}>{r.name}</b>
                   <span className="small">
                     {scheduleLabel(r.schedule)} · {modeLabel(r.mode)}
                   </span>
