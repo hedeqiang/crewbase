@@ -206,15 +206,18 @@ function onPop(e: Event) {
   const l = parse(location.hash);
   if (!l) return;
   if (location.hash === shown) return;
-  // back with a dialog open closes the dialog and stays
-  if (closeOverlay()) {
+  const at = (history.state as { crewbase?: number } | null)?.crewbase;
+  // back / forward reach one of our entries; a hash set from outside (the
+  // tray, a notification, a typed address) is a new entry with no state.
+  // Only back closes what is open on top instead of moving.
+  if (typeof at === "number" && at < idx && closeOverlay()) {
     idx++;
     entries.length = idx;
     entries[idx] = shown;
     history.pushState({ crewbase: idx }, "", here() + shown);
     return;
   }
-  const at = e.type === "popstate" ? (history.state as { crewbase?: number } | null)?.crewbase : undefined;
+  void e;
   if (typeof at === "number") idx = at;
   else {
     // a hash set from outside (tray, notification): a new entry

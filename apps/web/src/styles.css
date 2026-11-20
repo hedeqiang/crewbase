@@ -966,7 +966,9 @@ button.tg:disabled { opacity: .5; cursor: not-allowed; }
 
 .mdtable { overflow-x: auto; margin: 6px 0 10px; border: 1px solid var(--border); border-radius: 10px; }
 .mdtable table { border-collapse: collapse; width: 100%; font-size: 13px; }
-.mdtable th, .mdtable td { padding: 7px 12px; border-bottom: 1px solid var(--border); vertical-align: top; text-align: left; }
+.mdtable th, .mdtable td { padding: 7px 12px; border-bottom: 1px solid var(--border); vertical-align: top; text-align: left; overflow-wrap: break-word; word-break: normal; }
+/* a long unbroken value (an address, a hash) sets the column's width and the table scrolls; prose still wraps */
+.mdtable td { min-width: 4em; max-width: 34em; }
 .mdtable th { font-weight: 600; background: var(--raised); white-space: nowrap; }
 .mdtable tr:last-child td { border-bottom: 0; }
 .mdtable td + td, .mdtable th + th { border-left: 1px solid var(--border); }
@@ -2201,6 +2203,13 @@ a.lcard:hover, .lvideo .ltext:hover { background: var(--hover); }
   .crow .cbtn:not(.cmodel):not(.round) > svg.lucide:last-child:not(:first-child) { display: none; }
   .crow .cmodel { flex-shrink: 0; max-width: 180px; }
 }
+/* a phone: the model button gives way so the send button is never cut off */
+@container comp (max-width: 380px) {
+  .crow .cmodel { flex-shrink: 1; min-width: 0; max-width: 150px; }
+  .crow .cmodel .lbl, .crow .cmodel > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  .crow { gap: 4px; }
+}
+.crow .send { flex: none; }
 .prvscale { font-variant-numeric: tabular-nums; flex: none; }
 .mkirow .mknosb { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 /* example requests under a greeting / a new chat's opening */
@@ -2470,7 +2479,9 @@ a.lcard:hover, .lvideo .ltext:hover { background: var(--hover); }
 .lnv[aria-current="true"] svg { color: var(--text); }
 .lnsec { display: flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 600; color: var(--muted); letter-spacing: .02em; padding: 14px 10px 6px; }
 .libtags { display: flex; flex-wrap: wrap; gap: 5px; padding: 0 6px; }
-.libtag { display: inline-flex; align-items: center; gap: 5px; height: 24px; padding: 0 9px; border-radius: 12px; font-size: 12px; color: var(--text2); background: var(--surface); border: 1px solid var(--border2); white-space: nowrap; }
+.libtag { display: inline-flex; align-items: center; gap: 5px; height: 24px; padding: 0 9px; border-radius: 12px; font-size: 12px; color: var(--text2); background: var(--surface); border: 1px solid var(--border2); white-space: nowrap; max-width: 100%; min-width: 0; }
+.libtag .tagl { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.libtag > button, .libtag > span:not(.tagl) { flex: none; }
 .libtag span { color: var(--muted); font-size: 11px; }
 .libtag:hover { color: var(--text); border-color: var(--text2); }
 .libtag[aria-pressed="true"], .libtag.on { background: var(--accent-soft); border-color: transparent; color: var(--accent-text); }
@@ -2492,10 +2503,13 @@ a.lcard:hover, .lvideo .ltext:hover { background: var(--hover); }
 .librow:hover { background: var(--hover); }
 .librow[aria-current="true"] { background: var(--active); }
 .librow .g { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-.librow .g b { font-size: 13.5px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: flex; align-items: center; gap: 5px; }
+.librow .g b { font-size: 13.5px; font-weight: 500; white-space: nowrap; display: flex; align-items: center; gap: 5px; min-width: 0; }
+.librow .g b .libtl { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.librow .g b .lock { flex: none; }
 .librow .g > span { font-size: 12px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .librow .lock { color: var(--muted); flex: none; }
-.libtg { display: flex; gap: 4px; justify-content: flex-end; min-width: 0; }
+.libtg { display: flex; gap: 4px; justify-content: flex-end; min-width: 0; max-width: 260px; overflow: hidden; }
+.libtg .pill { min-width: 0; max-width: 140px; overflow: hidden; text-overflow: ellipsis; display: inline-block; }
 .libsz, .libwhen { font-size: 12px; color: var(--muted); text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .libsnip mark { background: var(--amber-soft); color: var(--text); border-radius: 3px; padding: 0 2px; }
 .libic { width: 34px; height: 34px; border-radius: 9px; display: grid; place-items: center; flex: none; background: var(--sunken); color: var(--text2); }
@@ -2537,7 +2551,8 @@ a.lcard:hover, .lvideo .ltext:hover { background: var(--hover); }
 .libpvbar { display: flex; align-items: center; justify-content: flex-end; padding: 6px 8px; border-bottom: 1px solid var(--border); background: var(--surface); }
 .libpvbar.small { justify-content: flex-start; padding: 7px 12px; }
 .libpv .fxcode { max-height: 380px; overflow: auto; }
-.libmd { max-height: 380px; overflow: auto; padding: 4px 14px 12px; background: var(--surface); font-size: 13px; }
+.libmd { max-height: 380px; overflow: auto; padding: 4px 14px 12px; background: var(--surface); font-size: 13px; overflow-wrap: anywhere; }
+.libmd .mdtable td, .libmd .mdtable th { overflow-wrap: break-word; }
 .libtext { max-height: 380px; overflow: auto; padding: 12px 14px; font-size: 12.5px; line-height: 1.65; white-space: pre-wrap; word-break: break-word; color: var(--text2); background: var(--surface); }
 .libhtml { width: 100%; height: 360px; border: 0; background: #fff; display: block; }
 .libmeta { display: grid; grid-template-columns: 76px minmax(0, 1fr); gap: 8px 12px; margin: 0; font-size: 12.5px; }

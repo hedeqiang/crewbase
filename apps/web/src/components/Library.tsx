@@ -318,8 +318,8 @@ export function LibraryPage({ embedded = false }: { embedded?: boolean }) {
               <div className="lnsec">{t("lib.tags")}</div>
               <div className="libtags">
                 {stats.tags.slice(0, 30).map((x) => (
-                  <button key={x.tag} type="button" className="libtag" aria-pressed={f.tag === x.tag} onClick={() => setF({ ...f, tag: f.tag === x.tag ? "" : x.tag })}>
-                    {x.tag}
+                  <button key={x.tag} type="button" className="libtag" title={x.tag} aria-pressed={f.tag === x.tag} onClick={() => setF({ ...f, tag: f.tag === x.tag ? "" : x.tag })}>
+                    <span className="tagl">{x.tag}</span>
                     <span>{x.n}</span>
                   </button>
                 ))}
@@ -400,7 +400,7 @@ export function LibraryPage({ embedded = false }: { embedded?: boolean }) {
                     </span>
                     <span className="g">
                       <b>
-                        {it.title || it.name}
+                        <span className="libtl">{it.title || it.name}</span>
                         {it.private && <Lock size={11} className="lock" />}
                       </b>
                       {it.snippet ? (
@@ -414,7 +414,7 @@ export function LibraryPage({ embedded = false }: { embedded?: boolean }) {
                     </span>
                     <span className="libtg">
                       {(it.tags ?? []).slice(0, 2).map((x) => (
-                        <span key={x} className="pill sm">
+                        <span key={x} className="pill sm" title={x}>
                           {x}
                         </span>
                       ))}
@@ -704,8 +704,8 @@ function Edits({ team, it, onSaved }: { team: string; it: LibItem; onSaved: (it:
         {t("lib.tags")}
         <div className="libtagedit">
           {tags.map((x) => (
-            <span key={x} className="libtag on">
-              {x}
+            <span key={x} className="libtag on" title={x}>
+              <span className="tagl">{x}</span>
               <button type="button" aria-label={t("lib.removeTag", { tag: x })} onClick={() => void patch({ tags: tags.filter((y) => y !== x) })}>
                 <X size={10} />
               </button>
