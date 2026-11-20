@@ -64,16 +64,17 @@ export function Panel() {
           <SubRunView key={subView} session={subView} parentSession={current ?? agent.session} />
         ) : (
           <>
-        {view === "task" && (channel ? <ChannelTask key={channel.id} channel={channel} /> : <TaskTab agent={agent} />)}
+        {/* siblings: keys must differ (in a channel current is the channel id) */}
+        {view === "task" && (channel ? <ChannelTask key={"ch:" + channel.id} channel={channel} /> : <TaskTab agent={agent} />)}
         {view === "task" && <SubRuns session={current ?? agent.session} />}
-        {view === "task" && agent.kind !== "chat" && <TaskBoard key={current ?? agent.session} session={current ?? agent.session} />}
+        {view === "task" && agent.kind !== "chat" && <TaskBoard key={"board:" + (current ?? agent.session)} session={current ?? agent.session} />}
           </>
         )}
         {view === "files" && <FilesTab agent={agent} />}
         {view === "library" && <LibraryTab />}
-        {view === "schedule" && <ScheduleTab key={agent.id} agent={agent} data={sched} />}
-        {view === "preview" && <PreviewTab key={current ?? agent.session} session={current ?? agent.session} />}
-        {view === "agent" && <AgentTab key={agent.id} agent={agent} sessionId={current ?? agent.session} />}
+        {view === "schedule" && <ScheduleTab key={"sched:" + agent.id} agent={agent} data={sched} />}
+        {view === "preview" && <PreviewTab key={"prv:" + (current ?? agent.session)} session={current ?? agent.session} />}
+        {view === "agent" && <AgentTab key={"agent:" + agent.id} agent={agent} sessionId={current ?? agent.session} />}
         {pluginTab && (
           <div className="uitab">
             <div className="uitabh">
