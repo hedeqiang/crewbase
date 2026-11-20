@@ -36,6 +36,7 @@ import (
 	_ "github.com/hedeqiang/crewbase/features/goals"
 	_ "github.com/hedeqiang/crewbase/features/im"
 	_ "github.com/hedeqiang/crewbase/features/imconfig"
+	_ "github.com/hedeqiang/crewbase/features/agentdocs"
 	_ "github.com/hedeqiang/crewbase/features/library"
 	_ "github.com/hedeqiang/crewbase/features/linkpreview"
 	_ "github.com/hedeqiang/crewbase/features/mcp"
@@ -155,6 +156,8 @@ var Base = kernel.Bundle{Name: "base", Entries: []kernel.Entry{
 	{ID: "browser", Name: "@crewbase/browser-chrome"},
 	{ID: "browser-tools", Name: "@crewbase/browser-tools"},
 	{ID: "mcp", Name: "@crewbase/mcp", Config: map[string]any{"dir": "${root}"}},
+	// Open Agent Docs (docs/agentdocs.md): idle until a server is connected.
+	{ID: "agentdocs", Name: "@crewbase/agentdocs", Config: map[string]any{"dir": "${root}"}},
 	{ID: "skills", Name: "@crewbase/skills", Config: map[string]any{"dirs": []string{"${root}/skills"}}},
 	{ID: "catalog", Name: "@crewbase/catalog"},
 	{ID: "compaction", Name: "@crewbase/compaction-summary"},
@@ -174,6 +177,7 @@ var Desktop = kernel.Bundle{Name: "desktop", Entries: []kernel.Entry{
 	{ID: "channel-api", Name: "@crewbase/channel-api"},
 	{ID: "webhook", Name: "@crewbase/webhook"},
 	{ID: "routines-api", Name: "@crewbase/routines-api"},
+	{ID: "agentdocs-api", Name: "@crewbase/agentdocs-api"},
 	{ID: "followups-api", Name: "@crewbase/followups-api"},
 	{ID: "memory-working-api", Name: "@crewbase/memory-working-api"},
 	{ID: "usage", Name: "@crewbase/usage"},
