@@ -666,6 +666,8 @@ const zh = {
   "att.failed": "上传失败：{error}",
   "att.remove": "移除 {name}",
   "att.tooMany": "每条消息最多 {n} 个附件",
+  "att.pasted": "粘贴的文本",
+  "att.longPaste": "内容较长（{size}），已作为文本附件发送",
   "att.tooBig": "{name} 超过 30 MB",
   "att.waitUpload": "附件还在上传",
   "att.channel": "频道里暂不支持附件，请在助理的对话中发送",

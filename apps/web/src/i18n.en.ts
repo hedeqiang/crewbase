@@ -337,6 +337,8 @@ export const en: Partial<Record<Key, string>> = {
   "att.failed": "Upload failed: {error}",
   "att.remove": "Remove {name}",
   "att.tooMany": "Up to {n} attachments per message",
+  "att.pasted": "Pasted text",
+  "att.longPaste": "Long paste ({size}) added as a text attachment",
   "att.tooBig": "{name} is larger than 30 MB",
   "att.waitUpload": "Attachments are still uploading",
   "att.channel": "Attachments are not supported in channels yet; send them in the agent's own conversation",

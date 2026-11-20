@@ -883,6 +883,29 @@ const REASONS: Record<string, true> = {
   "chat.reason.model_not_found": true,
 };
 
+/** pastes this long (bytes) become a text attachment */
+const LONG_PASTE = 32 * 1024;
+
+function pastedFile(text: string): File {
+  let ext = "txt";
+  let type = "text/plain";
+  const head = text.trimStart()[0];
+  if (head === "{" || head === "[") {
+    try {
+      JSON.parse(text);
+      ext = "json";
+      type = "application/json";
+    } catch {}
+  }
+  const when = new Date().toLocaleString("sv").replace(/[: ]/g, (c) => (c === ":" ? "." : " "));
+  return new File([text], `${t("att.pasted")} ${when}.${ext}`, { type });
+}
+
+const fmtKB = (text: string) => {
+  const n = new Blob([text]).size;
+  return n >= 1 << 20 ? `${(n / (1 << 20)).toFixed(1)} MB` : `${Math.round(n / 1024)} KB`;
+};
+
 function AgentMsg({ it, agent, showModel, bare, opened, extra }: { it: AgentItem; agent?: AgentView; showModel: boolean; bare?: boolean; opened?: string[]; extra?: ReactNode }) {
   const models = useStore((s) => s.models);
   const [showThink, setShowThink] = useState(false);
@@ -2001,6 +2024,15 @@ function Composer({
             if (files.length) {
               e.preventDefault();
               attach(files);
+              return;
+            }
+            // a long paste (a log, a document, a file's code) is sent as a
+            // text file instead of filling the box
+            const text = e.clipboardData.getData("text/plain");
+            if (!channel && text.length >= LONG_PASTE && new Blob([text]).size >= LONG_PASTE) {
+              e.preventDefault();
+              attach([pastedFile(text)]);
+              toast(t("att.longPaste", { size: fmtKB(text) }));
             }
           }}
           onKeyDown={(e) => {
