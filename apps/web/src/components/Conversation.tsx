@@ -1,4 +1,5 @@
 import { TurnFiles } from "./TurnFiles";
+import { WaitingFor } from "./WaitingFor";
 import { FeedCtx, QuoteLine, ReactBtn, Reactions, ReplyBtn, ReplyChip } from "./MsgExtras";
 import { Skeleton } from "./Skeleton";
 import { markEntering } from "../lib/motion";
@@ -157,6 +158,7 @@ function ConversationView({ sessionId, agent, channel }: { sessionId: string; ag
           <Feed sessionId={sessionId} agent={agent} channel={channel} items={proj.items} working={proj.openTurns} loading={!events} error={err} />
         </FeedCtx.Provider>
       </MsgCtx.Provider>
+      <WaitingFor runs={proj.subruns} />
       <Composer sessionId={sessionId} agent={agent} channel={channel} ctx={ctx} lastModel={proj.lastModel[agent.id]} />
     </section>
   );

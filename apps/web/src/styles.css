@@ -2971,3 +2971,28 @@ b > .mkver, .g b .mkver { margin: 0 0 0 6px; }
 .lunread { margin-bottom: 4px; }
 .lunread .ci { animation: rise-in var(--dur-slow) var(--ease-out) both; }
 @media (prefers-reduced-motion: reduce) { .ucnt, .lunread .ci { animation: none; } }
+
+/* 等待回复 (WaitingFor.tsx): above the composer, aligned with it */
+.waitfor { margin: 0 max(24px, calc((100% - 760px) / 2)) -2px; border: 1px solid var(--border2); border-bottom: 0; border-radius: 14px 14px 0 0; background: var(--raised); overflow: hidden; animation: wf-in var(--dur-dialog) var(--ease-spring) both; }
+.waitfor[data-exit] { animation: wf-out var(--dur-normal) var(--ease-in) both; }
+@keyframes wf-in { from { opacity: 0; translate: 0 10px; } }
+@keyframes wf-out { to { opacity: 0; translate: 0 8px; } }
+.wfh { display: flex; align-items: center; gap: 8px; width: 100%; padding: 8px 12px; font-size: 13px; color: var(--text); text-align: left; }
+.wfh b { font-weight: 600; }
+.wfh .sp { flex: 1; }
+.wfn { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.wfspin { color: var(--accent); animation: spin 1.4s linear infinite; }
+.wfok { color: var(--ok); }
+.wfbad { color: var(--danger); }
+.waitfor.done .wfh b { color: var(--ok-text); }
+.wfl { display: flex; flex-direction: column; padding: 0 6px 6px; }
+.wfr { display: flex; align-items: center; gap: 8px; padding: 6px 6px; border-radius: 8px; font-size: 12.5px; text-align: left; min-width: 0; animation: rise-in var(--dur-slow) var(--ease-out) both; transition: background-color var(--dur-hover) ease; }
+.wfr:hover { background: var(--hover); }
+.wfname { flex: none; font-weight: 600; }
+.wftask { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); }
+.wfst { flex: none; display: inline-flex; align-items: center; gap: 5px; font-size: 11.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.wfr.fin .wfname { color: var(--text2); }
+.wfdot { width: 18px; height: 18px; border-radius: 6px; background: var(--accent-soft); color: var(--accent-text); flex: none; display: grid; place-items: center; }
+.wfring { width: 11px; height: 11px; border-radius: 50%; border: 1.5px solid var(--border2); border-top-color: var(--accent); animation: spin .9s linear infinite; }
+@media (max-width: 700px) { .waitfor { margin: 0 12px -2px; } }
+@media (prefers-reduced-motion: reduce) { .waitfor, .wfr { animation: none; } .wfspin, .wfring { animation: none; } }
