@@ -531,3 +531,70 @@ func (passBox) Check(context.Context, sandbox.Policy) (string, error) {
 func (passBox) Confine(_ context.Context, argv []string, _ string, env []string, _ sandbox.Policy) (sandbox.Confined, error) {
 	return sandbox.Confined{Argv: argv, Env: env, Enforcement: sandbox.EnforcementPartial}, nil
 }
+
+// A newer marketplace version is offered and installed; new permissions
+// keep it stopped until approved; the person's own copy is never offered.
+func TestMarketUpdates(t *testing.T) {
+	if _, err := exec.LookPath("node"); err != nil {
+		t.Skip("node not available")
+	}
+	mk := t.TempDir()
+	v1, v2 := filepath.Join(mk, "wc-1"), filepath.Join(mk, "wc-2")
+	copyDir(t, repo(t, "examples/plugins/word-count"), v1)
+	copyDir(t, repo(t, "examples/plugins/word-count"), v2)
+	man := filepath.Join(v2, "crewbase-plugin.toml")
+	b, _ := os.ReadFile(man)
+	b = bytes.Replace(b, []byte(`version = "0.1.0"`), []byte(`version = "0.2.0"`), 1)
+	if err := os.WriteFile(man, b, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	idx := filepath.Join(mk, "market.json")
+	write := func(src, ver, perms string) {
+		s := `[{"name":"word-count","description":"test","version":"` + ver + `","source":"./` + src + `","permissions":` + perms + `}]`
+		if err := os.WriteFile(idx, []byte(s), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	perms := `{"services":["tools"],"events":["tools/result"]}`
+	write("wc-1", "0.1.0", perms)
+	e := start(t, t.TempDir(), map[string]any{"marketURL": idx})
+	e.must("POST", "/api/plugins/install", map[string]any{"market": "word-count"})
+	e.must("POST", "/api/plugins/word-count/approve", map[string]any{})
+	if u := e.must("GET", "/api/plugins/updates", nil)["updates"].([]any); len(u) != 0 {
+		t.Fatalf("no update yet: %v", u)
+	}
+	// 0.2.0 in the marketplace, same permissions: offered, updated, still running
+	write("wc-2", "0.2.0", perms)
+	u := e.must("GET", "/api/plugins/updates", nil)["updates"].([]any)
+	if len(u) != 1 || u[0].(map[string]any)["latest"] != "0.2.0" || u[0].(map[string]any)["newPermissions"] != nil {
+		t.Fatalf("updates: %v", u)
+	}
+	v := e.must("POST", "/api/plugins/word-count/update", nil)
+	if v["version"] != "0.2.0" || state(v) != "ACTIVE" {
+		t.Fatalf("update: %v", v)
+	}
+	if u := e.must("GET", "/api/plugins/updates", nil)["updates"].([]any); len(u) != 0 {
+		t.Fatalf("after update: %v", u)
+	}
+	// a newer version asking for more is flagged
+	man2 := filepath.Join(v1, "crewbase-plugin.toml")
+	b, _ = os.ReadFile(man2)
+	b = bytes.Replace(b, []byte(`version = "0.1.0"`), []byte(`version = "0.3.0"`), 1)
+	_ = os.WriteFile(man2, b, 0o644)
+	write("wc-1", "0.3.0", `{"services":["tools","notify"],"events":["tools/result"]}`)
+	u = e.must("GET", "/api/plugins/updates", nil)["updates"].([]any)
+	if len(u) != 1 || fmt.Sprint(u[0].(map[string]any)["newPermissions"]) != "[service:notify]" {
+		t.Fatalf("new permissions: %v", u)
+	}
+}
+
+func TestVersionNewer(t *testing.T) {
+	for _, c := range []struct {
+		a, b string
+		want bool
+	}{{"0.2.0", "0.1.9", true}, {"1.0.0", "1.0.0", false}, {"1.10.0", "1.9.0", true}, {"1.0.0", "1.0.0-rc.1", true}, {"1.0.0-rc.1", "1.0.0", false}, {"v2", "1.9.9", true}} {
+		if got := plugins.VersionNewer(c.a, c.b); got != c.want {
+			t.Errorf("%s > %s = %v", c.a, c.b, got)
+		}
+	}
+}

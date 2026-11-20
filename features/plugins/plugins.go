@@ -100,6 +100,8 @@ type record struct {
 	// the marketplace data, so updates verify the same way
 	Signed *Signed `json:"signed,omitempty"`
 	Pinned string  `json:"pinned,omitempty"`
+	// Market is the marketplace entry it was installed from (updates).
+	Market string `json:"market,omitempty"`
 }
 
 // Installed is the API view of an installed plugin.
@@ -111,6 +113,7 @@ type Installed struct {
 	Repo        string    `json:"repo,omitempty"`
 	Source      string    `json:"source"`
 	SourceKind  string    `json:"sourceKind"`
+	Market      string    `json:"market,omitempty"`
 	InstalledAt time.Time `json:"installedAt"`
 	// Integrity is the package's sha256 (packages only).
 	Integrity string `json:"integrity,omitempty"`
@@ -240,7 +243,7 @@ func approval(man process.Manifest, g *Grant) (bool, []string) {
 func (m *Manager) view(in installed, enabled bool) Installed {
 	ok, needs := approval(in.man, in.grant)
 	v := Installed{Name: in.man.Name, Version: in.man.Version, Description: in.man.Description, Author: in.man.Author,
-		Repo: in.man.Repo, Source: in.rec.Source, SourceKind: in.rec.SourceKind, InstalledAt: in.rec.InstalledAt, Integrity: in.rec.Integrity,
+		Repo: in.man.Repo, Source: in.rec.Source, SourceKind: in.rec.SourceKind, Market: in.rec.Market, InstalledAt: in.rec.InstalledAt, Integrity: in.rec.Integrity,
 		Dir: in.dir, Sandbox: in.man.Sandbox, Requested: in.man.Requested(), Grant: in.grant, Approved: ok,
 		NeedsApproval: needs, Enabled: enabled}
 	if in.rec.Publisher != "" {
@@ -464,7 +467,7 @@ func (m *Manager) installLocked(ctx context.Context, src string, enable, keepEna
 	if err := os.Rename(root, dest); err != nil {
 		return Installed{}, err
 	}
-	rec := record{Name: name, Version: man.Version, Source: canon, SourceKind: kind, InstalledAt: time.Now().UTC(), Signed: vo.signed, Pinned: vo.integrity}
+	rec := record{Name: name, Version: man.Version, Source: canon, SourceKind: kind, InstalledAt: time.Now().UTC(), Signed: vo.signed, Pinned: vo.integrity, Market: vo.name}
 	if digest != nil {
 		rec.Integrity = Integrity(digest)
 	}

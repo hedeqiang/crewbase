@@ -88,6 +88,22 @@ var APIPlugin = kernel.Register(kernel.Spec{
 					return v, apiErr(err)
 				}})
 		}
+		g.Handle(c, gateway.Route{Method: "GET", Path: "/api/plugins/updates", Devices: view,
+			Handle: func(ctx context.Context, _ *gateway.Request) (any, error) {
+				u, err := m.Updates(ctx)
+				if err != nil {
+					return nil, gateway.BadRequest("%v", err)
+				}
+				return map[string]any{"updates": u}, nil
+			}})
+		g.Handle(c, gateway.Route{Method: "POST", Path: "/api/plugins/{name}/update",
+			Handle: func(ctx context.Context, r *gateway.Request) (any, error) {
+				v, err := m.Update(ctx, r.Params["name"])
+				if err != nil {
+					return nil, gateway.BadRequest("%v", err)
+				}
+				return v, nil
+			}})
 		g.Handle(c, gateway.Route{Method: "POST", Path: "/api/plugins/{name}/reload",
 			Handle: func(ctx context.Context, r *gateway.Request) (any, error) {
 				v, err := m.Reload(context.WithoutCancel(ctx), r.Params["name"])
