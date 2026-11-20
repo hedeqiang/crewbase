@@ -2347,6 +2347,15 @@ const zh = {
   "aprx.other": "这一步要你确认",
   "aprx.off": "已关闭",
   "aprx.schedOnDesktop": "在手机上可以查看和立即运行；开关、修改和删除请在电脑上操作。",
+  "lsum.by": "按摘要",
+  "lsum.title": "摘要",
+  "lsum.title2": "自动写摘要和关键词",
+  "lsum.desc": "每份文档进文档库时，用你的模型写两三句摘要和一组关键词（同义词、中英文），按意思也能搜到。",
+  "lsum.privacy": "会把每份文档的文字（最多前 8000 字）发给「路由与切换」里「摘要」用的模型的提供方。打开后，已有的文档也会在后台陆续补写。",
+  "lsum.btnOn": "自动摘要：开",
+  "lsum.btnOff": "自动摘要",
+  "lsum.onToast": "已打开自动摘要，已有的文档会在后台陆续补写",
+  "lsum.offToast": "已关闭自动摘要",
 } as const;
 
 export type Key = keyof typeof zh;

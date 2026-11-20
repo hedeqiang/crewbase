@@ -2756,3 +2756,18 @@ b > .mkver, .g b .mkver { margin: 0 0 0 6px; }
   .tg::after { width: 20px; height: 20px; }
   .tg[aria-checked="true"]::after { transform: translateX(18px); }
 }
+
+/* 文档库: where a hit is, summaries */
+.libhit { display: flex; align-items: baseline; gap: 6px; min-width: 0; overflow: hidden; white-space: nowrap; }
+.libhit .libsnip { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.libwhere { flex: none; font-size: 11px; padding: 0 6px; border-radius: 8px; background: var(--active); color: var(--text2); max-width: 40%; overflow: hidden; text-overflow: ellipsis; }
+.libsum { border: 1px solid var(--border); border-radius: 12px; padding: 10px 12px; background: var(--raised); }
+.libsum .lnsec { padding: 0 0 6px; }
+.libsum p { margin: 0; font-size: 13px; line-height: 1.6; }
+.libkw { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 8px; }
+.btn.lsumon { color: var(--accent-text); border-color: color-mix(in srgb, var(--accent), transparent 60%); }
+.lsumpop { padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; }
+.lsumrow { display: flex; gap: 12px; align-items: flex-start; cursor: pointer; }
+.lsumrow .g { flex: 1; display: flex; flex-direction: column; gap: 3px; font-size: 13px; }
+.lsumrow .g span { font-size: 12px; color: var(--muted); line-height: 1.5; }
+.lsumnote { margin: 0; color: var(--amber-text); line-height: 1.5; }

@@ -2304,4 +2304,13 @@ export const en: Partial<Record<Key, string>> = {
   "aprx.other": "This step needs your OK",
   "aprx.off": "Off",
   "aprx.schedOnDesktop": "On a phone you can see routines and run them now; turn them on or off, edit or delete them on the computer.",
+  "lsum.by": "by summary",
+  "lsum.title": "Summary",
+  "lsum.title2": "Write summaries and keywords",
+  "lsum.desc": "As each document comes in, your model writes two or three sentences and keywords (synonyms, both languages), so a search by meaning finds it too.",
+  "lsum.privacy": "Each document's text (up to the first 8,000 characters) goes to the provider of the model set for Summaries in Routing. Once on, documents already here are done in the background.",
+  "lsum.btnOn": "Summaries: on",
+  "lsum.btnOff": "Summaries",
+  "lsum.onToast": "Summaries on; documents already here are done in the background",
+  "lsum.offToast": "Summaries off",
 };

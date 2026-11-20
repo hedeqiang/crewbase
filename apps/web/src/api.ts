@@ -1021,6 +1021,13 @@ export interface LibItem {
   versions?: number;
   /** search hit: the matching passage, the match in «» */
   snippet?: string;
+  /** search hit: where in the document (section / page) */
+  passage?: { start: number; heading?: string };
+  /** search hit: only its summary or keywords matched */
+  bySummary?: boolean;
+  /** written by a model when summaries are on (item detail) */
+  summary?: string;
+  keywords?: string[];
 }
 
 export interface LibStats {
@@ -1282,6 +1289,8 @@ export const API = {
   disconnectAgentDocs: () => api<AgentDocsStatus>("DELETE", "/api/agentdocs"),
   library: (team: string, q: LibQuery = {}) => api<{ items: LibItem[]; stats?: LibStats }>("GET", `/api/library?${libQS(team, q as Record<string, string | number | undefined>)}`),
   libraryItem: (team: string, id: number) => api<{ item: LibItem; versions: LibVersion[] }>("GET", `/api/library/${id}?${libQS(team)}`),
+  librarySettings: () => api<{ summaries: boolean }>("GET", "/api/library/settings"),
+  setLibrarySettings: (b: { summaries: boolean }) => api<{ summaries: boolean }>("PUT", "/api/library/settings", b),
   libraryText: (team: string, id: number) => api<{ text: string }>("GET", `/api/library/${id}/text?${libQS(team)}`),
   patchLibrary: (team: string, id: number, b: { title?: string; tags?: string[]; private?: boolean }) => api<LibItem>("PATCH", `/api/library/${id}?${libQS(team)}`, b),
   deleteLibrary: (team: string, id: number) => api("DELETE", `/api/library/${id}?${libQS(team)}`),

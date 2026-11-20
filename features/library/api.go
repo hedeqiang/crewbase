@@ -72,6 +72,10 @@ var APIPlugin = kernel.Register(kernel.Spec{
 				out := map[string]any{}
 				if text := strings.TrimSpace(q.Get("q")); text != "" {
 					hits, err := s.Search(ctx, v, text, max(limit, 100))
+					// nothing for the whole: each word on its own (流失 churn, …)
+					if err == nil && len(hits) == 0 && len(strings.Fields(text)) > 1 {
+						hits, err = s.SearchMany(ctx, v, strings.Fields(text), max(limit, 100))
+					}
 					if err != nil {
 						return nil, err
 					}
@@ -104,6 +108,19 @@ var APIPlugin = kernel.Register(kernel.Spec{
 				return out, nil
 			}})
 
+		g.Handle(c, gateway.Route{Method: "GET", Path: "/api/library/settings", Devices: viewers,
+			Handle: func(context.Context, *gateway.Request) (any, error) { return s.Settings(), nil }})
+		g.Handle(c, gateway.Route{Method: "PUT", Path: "/api/library/settings",
+			Handle: func(_ context.Context, r *gateway.Request) (any, error) {
+				var b Settings
+				if err := r.Decode(&b); err != nil {
+					return nil, gateway.BadRequest("%v", err)
+				}
+				if err := s.SetSettings(b); err != nil {
+					return nil, err
+				}
+				return s.Settings(), nil
+			}})
 		g.Handle(c, gateway.Route{Method: "POST", Path: "/api/library", Devices: viewers, RawBody: true, MaxBody: MaxItemBytes,
 			Validate: func(r *gateway.Request) error {
 				if strings.TrimSpace(r.HTTP.URL.Query().Get("name")) == "" {

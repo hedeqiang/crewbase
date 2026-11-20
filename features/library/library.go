@@ -91,6 +91,9 @@ type Item struct {
 	// Text: the item's text was extracted (searchable beyond its name).
 	Text     bool `json:"text"`
 	Versions int  `json:"versions,omitempty"`
+	// Summary and Keywords: written by a model when summaries are on (Get only).
+	Summary  string   `json:"summary,omitempty"`
+	Keywords []string `json:"keywords,omitempty"`
 }
 
 // Path is the item's file, relative to its team's folder.
@@ -100,6 +103,10 @@ func (it Item) Path() string { return path.Join(it.Folder, it.Name) }
 type Hit struct {
 	Item
 	Snippet string `json:"snippet,omitempty"`
+	// Passage: where in the document the best match is.
+	Passage *Passage `json:"passage,omitempty"`
+	// BySummary: only its summary or keywords matched (Snippet is the summary).
+	BySummary bool `json:"bySummary,omitempty"`
 }
 
 // AddRequest files content in the library.
@@ -135,6 +142,9 @@ type Service struct {
 
 	mu      sync.Mutex // serialises writes
 	pending chan int64 // items whose text still has to be extracted
+
+	summarize Summarizer    // nil: no summaries
+	sumKick   chan struct{} // a summary may be due
 }
 
 // Open opens (creating) the library under root.
@@ -151,7 +161,12 @@ func Open(root string) (*Service, error) {
 		db.Close()
 		return nil, fmt.Errorf("library index: %w", err)
 	}
-	return &Service{root: root, db: db, pending: make(chan int64, 256)}, nil
+	s := &Service{root: root, db: db, pending: make(chan int64, 256), sumKick: make(chan struct{}, 1)}
+	if err := s.migratePassages(); err != nil {
+		db.Close()
+		return nil, fmt.Errorf("library index: %w", err)
+	}
+	return s, nil
 }
 
 const schema = `
@@ -435,6 +450,7 @@ func (s *Service) Get(v Viewer, id int64) (Item, error) {
 	if !v.sees(it) {
 		return Item{}, ErrNotFound
 	}
+	it.Summary, it.Keywords = s.summaryOf(id)
 	return it, nil
 }
 
@@ -510,6 +526,21 @@ func (s *Service) Search(ctx context.Context, v Viewer, q string, limit int) ([]
 		}
 		return out, err
 	}
+	// each hit's best passage: a focused snippet, its place, where to read
+	withPassages := func(hits []Hit, table, match, like string) []Hit {
+		for i := range hits {
+			if p, snip, ok := s.bestPassage(hits[i].ID, table, match, like); ok {
+				hits[i].Passage = &p
+				if strings.TrimSpace(snip) != "" {
+					hits[i].Snippet = snip
+				}
+			} else if sum, _ := s.summaryOf(hits[i].ID); sum != "" && !strings.Contains(strings.ToLower(hits[i].Name+" "+hits[i].Title), strings.ToLower(strings.Trim(match, `"*`))) {
+				// matched by its summary or keywords: show the summary, not the keyword list
+				hits[i].Snippet, hits[i].BySummary = sum, true
+			}
+		}
+		return hits
+	}
 	run := func(table, match string) ([]Hit, error) {
 		rows, err := s.db.Query(`SELECT `+icols+`, snippet(`+table+`, 0, '«', '»', '…', 18)
 			FROM `+table+` JOIN items i ON i.id = `+table+`.rowid WHERE `+table+` MATCH ? AND `+where+` ORDER BY `+table+`.rank LIMIT ?`,
@@ -540,13 +571,13 @@ func (s *Service) Search(ctx context.Context, v Viewer, q string, limit int) ([]
 		if hasCJK(q) {
 			if m := trigramQuery(q, op); m != "" {
 				if h, err := run("texts_tri", m); err != nil || len(h) > 0 {
-					return h, err
+					return withPassages(h, "passages_tri", m, ""), err
 				}
 			}
 		}
 		if m := ftsQuery(q, op); m != "" {
 			if h, err := run("texts_fts", m); err != nil || len(h) > 0 {
-				return h, err
+				return withPassages(h, "passages_fts", m, ""), err
 			}
 		}
 	}
@@ -566,7 +597,10 @@ func (s *Service) Search(ctx context.Context, v Viewer, q string, limit int) ([]
 		}
 		out = append(out, Hit{Item: it})
 	}
-	return out, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return withPassages(out, "", "", like), nil
 }
 
 // Text is an item's extracted text ("" when it has none).
@@ -652,7 +686,7 @@ func (s *Service) Delete(v Viewer, id int64) error {
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if _, err := s.db.Exec(`DELETE FROM items WHERE id = ?; DELETE FROM versions WHERE item = ?`, id, id); err != nil {
+	if _, err := s.db.Exec(`DELETE FROM items WHERE id = ?; DELETE FROM versions WHERE item = ?; DELETE FROM summaries WHERE id = ?`, id, id, id); err != nil {
 		return err
 	}
 	s.unindex(id)
@@ -744,15 +778,9 @@ func (s *Service) index(ctx context.Context, id int64) {
 	}
 	data, _ := os.ReadFile(s.File(it))
 	body, ok := s.extract(ctx, it, data)
-	// the head (name, title, note, tags: one line each, never blank) is
-	// searchable too; Body strips it again
-	var head []string
-	for _, p := range append([]string{it.Name, it.Title, it.Note}, it.Tags...) {
-		if p = strings.Join(strings.Fields(p), " "); p != "" {
-			head = append(head, p)
-		}
-	}
-	full := strings.Join(head, "\n") + "\n\n" + strings.TrimSpace(body)
+	// the head (name, title, note, tags, summary: one line each, never
+	// blank) is searchable too; Body strips it again
+	full := s.headOf(it) + "\n\n" + strings.TrimSpace(body)
 	if r := []rune(full); len(r) > maxTextChars {
 		full = string(r[:maxTextChars])
 	}
@@ -773,6 +801,14 @@ func (s *Service) index(ctx context.Context, id int64) {
 	if _, err := tx.Exec(`INSERT INTO texts_tri(rowid, body) VALUES (?, ?)`, id, full); err != nil {
 		return
 	}
+	// the passages of the text as kept (what Body returns)
+	kept := ""
+	if i := strings.Index(full, "\n\n"); i >= 0 {
+		kept = strings.TrimSpace(full[i+2:])
+	}
+	if err := indexPassages(tx, id, kept); err != nil {
+		return
+	}
 	state := "none"
 	if ok {
 		state = "ok"
@@ -780,7 +816,9 @@ func (s *Service) index(ctx context.Context, id int64) {
 	if _, err := tx.Exec(`UPDATE items SET text_state = ? WHERE id = ?`, state, id); err != nil {
 		return
 	}
-	_ = tx.Commit()
+	if tx.Commit() == nil && ok {
+		s.kickSummaries()
+	}
 }
 
 // unindex removes item id's search rows (callers hold s.mu).
@@ -792,6 +830,7 @@ func (s *Service) unindex(id int64) {
 	_, _ = s.db.Exec(`INSERT INTO texts_fts(texts_fts, rowid, body) VALUES('delete', ?, ?)`, id, body)
 	_, _ = s.db.Exec(`INSERT INTO texts_tri(texts_tri, rowid, body) VALUES('delete', ?, ?)`, id, body)
 	_, _ = s.db.Exec(`DELETE FROM texts WHERE id = ?`, id)
+	s.unindexPassages(id)
 }
 
 // extract is a file's text: documents through attachments.Extract, scans
@@ -944,6 +983,8 @@ var Plugin = kernel.Register(kernel.Spec{
 			return o
 		}
 		c.Go(s.worker)
+		s.summarize = summarizer(c)
+		c.Go(s.summaryWorker)
 		agents := kernel.Use[*agent.Registry](c, agent.ServiceKey)
 		teamOf := func(id string) string {
 			if a, ok := agents.Get(id); ok {

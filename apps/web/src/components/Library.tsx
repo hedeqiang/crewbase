@@ -3,6 +3,7 @@
 // browsing and managing, and a compact right-panel tab to drag documents
 // into the conversation.
 
+import { Popover, useMenu } from "./Popover";
 import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from "react";
 import {
   Bot,
@@ -241,6 +242,7 @@ export function LibraryPage({ embedded = false }: { embedded?: boolean }) {
           sub={teamName ? t("lib.subTeam", { team: teamName }) : t("lib.sub")}
           right={
             <>
+              <SummariesSwitch />
               <button className="btn sm" type="button" onClick={() => fileInput.current?.click()}>
             <Upload size={12} />
             {t("lib.add")}
@@ -404,7 +406,10 @@ export function LibraryPage({ embedded = false }: { embedded?: boolean }) {
                         {it.private && <Lock size={11} className="lock" />}
                       </b>
                       {it.snippet ? (
-                        <Snippet text={it.snippet} />
+                        <span className="libhit">
+                          {it.bySummary ? <span className="libwhere">{t("lsum.by")}</span> : it.passage?.heading && <span className="libwhere">{it.passage.heading}</span>}
+                          <Snippet text={it.snippet} />
+                        </span>
                       ) : (
                         <span>
                           {it.title && it.title !== it.name ? it.name + " · " : ""}
@@ -553,6 +558,24 @@ function Detail({ team, id, onChanged }: { team: string; id: number; onChanged: 
           <span className="small muted">{t("lib.dragHint")}</span>
         </div>
         <ItemPreview key={it.sha256} team={team} it={it} />
+        {it.summary && (
+          <div className="libsum">
+            <div className="lnsec">
+              <Sparkles size={12} />
+              {t("lsum.title")}
+            </div>
+            <p>{it.summary}</p>
+            {!!it.keywords?.length && (
+              <div className="libkw">
+                {it.keywords.map((k) => (
+                  <span key={k} className="pill sm">
+                    {k}
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
         <dl className="libmeta">
           <dt>{t("lib.meta.source")}</dt>
           <dd>{sourceLine(it, agentName)}</dd>
@@ -838,5 +861,53 @@ export function LibraryTab() {
         )}
       </div>
     </div>
+  );
+}
+
+/** 自动摘要: a cheap model writes a summary and keywords for each document,
+ *  so the search box finds documents by what they are about. Off by
+ *  default: it sends every document's text to the model's provider. */
+function SummariesSwitch() {
+  const m = useMenu();
+  const [on, setOn] = useState<boolean | null>(null);
+  const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    API.librarySettings().then(
+      (x) => setOn(x.summaries),
+      () => setOn(null),
+    );
+  }, []);
+  if (on === null) return null;
+  const set = async (v: boolean) => {
+    setBusy(true);
+    try {
+      const x = await API.setLibrarySettings({ summaries: v });
+      setOn(x.summaries);
+      toast(x.summaries ? t("lsum.onToast") : t("lsum.offToast"));
+    } catch (e: any) {
+      toast(e?.message ?? String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <>
+      <button className={"btn sm" + (on ? " lsumon" : "")} type="button" ref={m.ref} onClick={m.toggle} aria-haspopup="dialog" aria-expanded={m.open}>
+        <Sparkles size={12} />
+        {on ? t("lsum.btnOn") : t("lsum.btnOff")}
+      </button>
+      <Popover anchor={m.anchor} open={m.open} onClose={m.close} align="end" width={320}>
+        <div className="lsumpop">
+          <label className="lsumrow">
+            <span className="g">
+              <b>{t("lsum.title2")}</b>
+              <span>{t("lsum.desc")}</span>
+            </span>
+            <button className="tg" type="button" role="switch" aria-checked={on} disabled={busy} aria-label={t("lsum.title2")} onClick={() => void set(!on)} />
+          </label>
+          <p className="small lsumnote">{t("lsum.privacy")}</p>
+        </div>
+      </Popover>
+    </>
   );
 }

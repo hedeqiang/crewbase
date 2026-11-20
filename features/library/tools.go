@@ -75,19 +75,24 @@ func registerTools(c *kernel.Context, s *Service, agents *agent.Registry) {
 	reg.Register(c, &tools.Tool{
 		Name: "library_search",
 		Description: "Search the team's document library (文档库): files the person uploaded, images and videos agents generated, and documents agents saved. " +
-			"It matches names, titles, tags and the text inside PDFs, Word, Excel, PowerPoint and text files. Use it when the person refers to a document, " +
-			"a file they sent before, or earlier work you cannot see in this conversation. An empty query lists the newest documents.",
+			"It matches names, titles, tags, summaries and the text inside PDFs, Word, Excel, PowerPoint and text files, and says where in each document " +
+			"the best match is (section / page) and the offset to read it from. The search is by words, not meaning: give several phrasings at once in " +
+			"queries — synonyms, the Chinese and the English term (e.g. [\"流失\", \"churn\", \"用户离开\"]) — rather than searching again and again. " +
+			"Use it when the person refers to a document, a file they sent before, or earlier work you cannot see in this conversation. " +
+			"No query lists the newest documents.",
 		Params: tools.Schema(map[string]any{
-			"query":  tools.Prop("string", "words to find (any language); empty: the newest documents"),
-			"folder": tools.Prop("string", "only inbox (uploads), media (images, videos), docs or pages"),
-			"limit":  tools.Prop("integer", "how many results (default 10, at most 50)"),
+			"query":   tools.Prop("string", "words to find (any language)"),
+			"queries": map[string]any{"type": "array", "items": map[string]any{"type": "string"}, "description": "several phrasings of what you look for (synonyms, both languages); documents found by more of them come first"},
+			"folder":  tools.Prop("string", "only inbox (uploads), media (images, videos), docs or pages"),
+			"limit":   tools.Prop("integer", "how many results (default 10, at most 50)"),
 		}),
 		Category: tools.CategoryRead,
 		Execute: func(ctx context.Context, call tools.Call) (tools.Result, error) {
 			var args struct {
-				Query  string `json:"query"`
-				Folder string `json:"folder"`
-				Limit  int    `json:"limit"`
+				Query   string   `json:"query"`
+				Queries []string `json:"queries"`
+				Folder  string   `json:"folder"`
+				Limit   int      `json:"limit"`
 			}
 			if err := call.Decode(&args); err != nil {
 				return tools.Errorf("invalid arguments: %v", err), nil
@@ -96,7 +101,7 @@ func registerTools(c *kernel.Context, s *Service, agents *agent.Registry) {
 			if err != nil {
 				return tools.Errorf("%v", err), nil
 			}
-			hits, err := s.Search(ctx, v, args.Query, args.Limit)
+			hits, err := s.SearchMany(ctx, v, append([]string{args.Query}, args.Queries...), args.Limit)
 			if err != nil {
 				return tools.Errorf("library_search: %v", err), nil
 			}
@@ -115,12 +120,21 @@ func registerTools(c *kernel.Context, s *Service, agents *agent.Registry) {
 			var b strings.Builder
 			for _, h := range hits {
 				b.WriteString(describe(h.Item))
-				if h.Snippet != "" {
+				if p := h.Passage; p != nil {
+					where := p.Heading
+					if where == "" {
+						where = "the text"
+					}
+					fmt.Fprintf(&b, "\n    in %s (library_read {\"id\": %d, \"from\": %d})", where, h.ID, p.Start)
+				}
+				if h.BySummary {
+					b.WriteString("\n    (matched its summary) " + strings.TrimSpace(h.Snippet))
+				} else if h.Snippet != "" {
 					b.WriteString("\n    " + strings.ReplaceAll(strings.TrimSpace(h.Snippet), "\n", " "))
 				}
 				b.WriteString("\n")
 			}
-			b.WriteString("Read one with library_read {id}.")
+			b.WriteString("Read one with library_read {id} (add from to start at the passage found).")
 			return tools.Result{Content: b.String(), Data: hits}, nil
 		},
 	})
@@ -180,6 +194,9 @@ func registerTools(c *kernel.Context, s *Service, agents *agent.Registry) {
 			b.WriteString(describe(it) + "\n")
 			if it.Note != "" {
 				b.WriteString("Prompt / note: " + it.Note + "\n")
+			}
+			if it.Summary != "" {
+				b.WriteString("Summary: " + it.Summary + "\n")
 			}
 			switch {
 			case !it.Text && (strings.HasPrefix(it.Mime, "image/") || strings.HasPrefix(it.Mime, "video/")):
