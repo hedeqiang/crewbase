@@ -317,6 +317,16 @@ export interface PreviewInfo {
 }
 
 /** A visual reply in the conversation (show_page, features/preview/page.go). */
+/** A message found by ⌘K search (features/console/search.go). */
+export interface SearchHit {
+  session: string;
+  seq: number;
+  agent?: string;
+  from?: string;
+  snippet: string;
+  time: string;
+}
+
 /** A message replied to (回复): its seq, who wrote it, an excerpt. */
 export interface Quote {
   seq: number;
@@ -1465,6 +1475,8 @@ export const API = {
   patchChannel: (id: string, b: { handoverConfirm: boolean }) => api<ChannelView>("PATCH", `/api/channels/${enc(id)}`, b),
   postChannel: (id: string, text: string, reply?: Quote) =>
     api<{ agent: string; input: string; position: number }>("POST", `/api/channels/${enc(id)}/messages`, { text, reply }),
+  /** messages containing q in every conversation the caller sees */
+  search: (q: string) => api<{ hits: SearchHit[] }>("GET", `/api/search?q=${enc(q)}`),
   /** the person has seen session up to seq (0: all of it) */
   markRead: (session: string, seq: number) => api<{ read: number }>("POST", `/api/sessions/${enc(session)}/read`, { seq }),
   /** an emoji on a message (features/reactions); remove takes yours back */

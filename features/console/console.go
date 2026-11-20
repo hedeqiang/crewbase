@@ -498,10 +498,31 @@ var Plugin = kernel.Register(kernel.Spec{
 			}})
 
 		// ---- session summaries
-		g.Handle(c, gateway.Route{Method: "GET", Path: "/api/sessions/summary", Devices: mobile,
-			Handle: func(context.Context, *gateway.Request) (any, error) {
-				out := []SessionSummary{}
+		// visibleTo: what the caller may see (teams; everything without them)
+		visibleTo := func(r *gateway.Request) func(string) bool {
+			if acc, ok := kernel.Lookup[interface{ Session(deviceID, id string) bool }](c, "access"); ok {
+				return func(id string) bool { return acc.Session(r.DeviceID, id) }
+			}
+			return func(string) bool { return true }
+		}
+		g.Handle(c, gateway.Route{Method: "GET", Path: "/api/search", Devices: mobile,
+			Handle: func(_ context.Context, r *gateway.Request) (any, error) {
+				var list []*session.Session
 				for _, m := range sessions.List() {
+					if ss, err := sessions.Get(m.ID); err == nil {
+						list = append(list, ss)
+					}
+				}
+				return map[string]any{"hits": searchSessions(list, r.HTTP.URL.Query().Get("q"), visibleTo(r))}, nil
+			}})
+		g.Handle(c, gateway.Route{Method: "GET", Path: "/api/sessions/summary", Devices: mobile,
+			Handle: func(_ context.Context, r *gateway.Request) (any, error) {
+				out := []SessionSummary{}
+				visible := visibleTo(r)
+				for _, m := range sessions.List() {
+					if !visible(m.ID) {
+						continue
+					}
 					ss, err := sessions.Get(m.ID)
 					if err != nil {
 						continue

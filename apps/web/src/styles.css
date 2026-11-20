@@ -2996,3 +2996,14 @@ b > .mkver, .g b .mkver { margin: 0 0 0 6px; }
 .wfring { width: 11px; height: 11px; border-radius: 50%; border: 1.5px solid var(--border2); border-top-color: var(--accent); animation: spin .9s linear infinite; }
 @media (max-width: 700px) { .waitfor { margin: 0 12px -2px; } }
 @media (prefers-reduced-motion: reduce) { .waitfor, .wfr { animation: none; } .wfspin, .wfring { animation: none; } }
+
+/* ⌘K: drops in like a dialog; messages found show their match */
+.palette { animation: pal-in var(--dur-dialog) var(--ease-spring) both; }
+.palette[data-exit] { animation: pal-out var(--dur-normal) var(--ease-in) both; }
+@keyframes pal-in { from { opacity: 0; translate: 0 -8px; scale: .97; } }
+@keyframes pal-out { to { opacity: 0; translate: 0 -4px; scale: .98; } }
+.plist .pi .g.msg { white-space: normal; display: flex; flex-direction: column; gap: 2px; }
+.plist .pi .g.msg > b { font-weight: 400; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; line-height: 1.45; }
+.plist .pi .g.msg > span { margin-left: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pi mark { background: color-mix(in srgb, var(--amber) 32%, transparent); color: inherit; border-radius: 3px; padding: 0 1px; }
+@media (prefers-reduced-motion: reduce) { .palette { animation: none !important; } }

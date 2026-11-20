@@ -643,7 +643,7 @@ export const en: Partial<Record<Key, string>> = {
   "theme.system": "System",
   "theme.light": "Light",
   "theme.dark": "Dark",
-  "pal.placeholder": "Jump to a channel, agent, page, or type a command…",
+  "pal.placeholder": "Jump to a channel, agent or page, search messages, or type a command…",
 
   "list.chats": "Chats",
   "list.agents": "Agents",
@@ -1074,6 +1074,7 @@ export const en: Partial<Record<Key, string>> = {
   "wf.helper": "Helper",
   "wf.working": "Working",
   "wf.stopped": "Stopped",
+  "pal.messages": "Messages",
   "rx.you": "You",
   "rx.by": "{names} reacted {emoji}",
   "rx.add": "Add reaction",

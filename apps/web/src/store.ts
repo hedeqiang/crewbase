@@ -170,6 +170,8 @@ export interface State {
   drafts: Record<string, string>; // session → unsent text
   attach: Record<string, PendingFile[]>; // session → files picked for the next message
   replyTo: Record<string, Quote | undefined>; // session → the message the next one answers (回复)
+  /** a message to scroll to and flash once its conversation shows it (search) */
+  jump: { session: string; seq: number } | null;
   hostConfirm: string | null; // agent id awaiting host-mode confirm
   toasts: Toast[];
 }
@@ -316,6 +318,7 @@ let state: State = {
   drafts: loadDrafts(),
   attach: {},
   replyTo: {},
+  jump: null,
   hostConfirm: null,
   toasts: [],
 };

@@ -45,8 +45,8 @@ export function viewTransition(update: () => void) {
 
 // ---------------------------------------------------------------- exit ghosts
 
-const GHOST = ".menu, .modal, .scrim, .toast, .ui-pop";
-const EXIT_MS: Record<string, number> = { menu: DUR.fast + 20, modal: DUR.normal, scrim: DUR.normal, toast: DUR.normal, "ui-pop": DUR.fast + 20 };
+const GHOST = ".menu, .modal, .scrim, .toast, .ui-pop, .palette, .waitfor, .replychip";
+const EXIT_MS: Record<string, number> = { menu: DUR.fast + 20, modal: DUR.normal, scrim: DUR.normal, toast: DUR.normal, "ui-pop": DUR.fast + 20, palette: DUR.normal, waitfor: DUR.normal, replychip: DUR.fast };
 
 function exitMs(el: Element): number {
   for (const k of Object.keys(EXIT_MS)) if (el.classList.contains(k)) return EXIT_MS[k];

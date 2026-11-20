@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"strings"
 	"testing"
@@ -18,6 +19,7 @@ import (
 	"github.com/hedeqiang/crewbase/core/tools"
 	"github.com/hedeqiang/crewbase/features/api"
 	"github.com/hedeqiang/crewbase/features/channel"
+	"github.com/hedeqiang/crewbase/features/console"
 	"github.com/hedeqiang/crewbase/features/devices"
 	"github.com/hedeqiang/crewbase/features/gateway"
 	"github.com/hedeqiang/crewbase/features/members"
@@ -49,7 +51,7 @@ func astart(t *testing.T, root string) *aenv {
 		{agent.Plugin, map[string]any{"root": root, "defaultModels": []string{"mock/default"}}},
 		{agentloop.Plugin, nil}, {channel.Plugin, nil}, {channel.APIPlugin, nil},
 		{gateway.Plugin, map[string]any{"addr": "127.0.0.1:0", "token": tok}},
-		{api.Plugin, nil},
+		{api.Plugin, nil}, {console.Plugin, map[string]any{"dir": root}},
 		{devices.Plugin, map[string]any{"dir": root}},
 		{members.Plugin, map[string]any{"dir": root}},
 		{teams.Plugin, map[string]any{"dir": root}},
@@ -138,6 +140,14 @@ func TestAccess(t *testing.T) {
 	if b, _ := json.Marshal(out); strings.Contains(string(b), secSession) || strings.Contains(string(b), ownerChat["session"].(string)) {
 		t.Fatal("hidden sessions listed")
 	}
+	code, out := e.do(t, bobTok, "GET", "/api/sessions/summary", nil)
+	if code != 200 {
+		t.Fatalf("summary: %d", code)
+	}
+	if b, _ := json.Marshal(out); strings.Contains(string(b), secSession) || strings.Contains(string(b), ownerChat["session"].(string)) {
+		t.Fatal("hidden sessions in the summary")
+	}
+
 	// direct access to a hidden agent or its session: not found
 	if code, _ := e.do(t, bobTok, "GET", "/api/agents/"+secID, nil); code != 404 {
 		t.Fatalf("hidden agent: %d", code)
@@ -218,6 +228,13 @@ func TestAccess(t *testing.T) {
 		case <-deadline:
 			t.Fatal("bob did not get the visible event")
 		}
+	}
+	// search: the owner finds the secret plan, Bob does not
+	if _, out := e.do(t, tok, "GET", "/api/search?q=secret%20plan", nil); !strings.Contains(fmt.Sprint(out), secSession) {
+		t.Fatalf("owner search: %v", out)
+	}
+	if code, out := e.do(t, bobTok, "GET", "/api/search?q=secret%20plan", nil); code != 200 || strings.Contains(fmt.Sprint(out), secSession) {
+		t.Fatalf("bob search: %d %v", code, out)
 	}
 }
 

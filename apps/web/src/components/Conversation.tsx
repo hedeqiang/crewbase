@@ -1,6 +1,6 @@
 import { TurnFiles } from "./TurnFiles";
 import { WaitingFor } from "./WaitingFor";
-import { FeedCtx, QuoteLine, ReactBtn, Reactions, ReplyBtn, ReplyChip } from "./MsgExtras";
+import { FeedCtx, QuoteLine, ReactBtn, Reactions, ReplyBtn, ReplyChip, jumpTo } from "./MsgExtras";
 import { Skeleton } from "./Skeleton";
 import { markEntering } from "../lib/motion";
 import { PageCard } from "./PageCard";
@@ -631,6 +631,17 @@ function Feed({
     const it = items.find((i) => (i.k === "turn" || i.k === "agent") && Number(i.id) > r);
     return it ? it.id : null;
   }, [items, summary !== undefined]);
+  // a message found by search: scroll to it once it is here
+  const jump = useStore((s) => (s.jump?.session === sessionId ? s.jump : null));
+  useEffect(() => {
+    if (!jump || loading) return;
+    const id = setTimeout(() => {
+      stick.current = false;
+      jumpTo(jump.seq);
+      setState({ jump: null });
+    }, 120);
+    return () => clearTimeout(id);
+  }, [jump, loading, items.length]);
   // reading: at the end of the conversation, with the window in front
   const lastSeq = useStore((s) => {
     const ev = s.events[sessionId];

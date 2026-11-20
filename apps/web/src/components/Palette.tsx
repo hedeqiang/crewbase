@@ -1,9 +1,9 @@
 import { keyLabel } from "../shortcuts";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Bot, Hash, ListChecks, Monitor, PanelRight, Search, Shield, Square, SunMoon, MessageSquare } from "lucide-react";
-import { API } from "../api";
+import { API, type SearchHit } from "../api";
 import { t, type Key } from "../i18n";
-import { modeLabel } from "../format";
+import { ago, modeLabel } from "../format";
 import { newChat, openNewAgent, openSession, openSettings, sessionAgent, setState, setTheme, toast, useStore } from "../store";
 import { Avatar } from "./Avatar";
 import { SlotIcon, runCommand, useSlot } from "./UISlots";
@@ -14,7 +14,23 @@ interface Item {
   icon: ReactNode;
   title: string;
   sub?: string;
+  /** highlight this in the title (a message found) */
+  mark?: string;
   run: () => void;
+}
+
+/** text with each case-insensitive occurrence of m in <mark> */
+function Marked({ text, m }: { text: string; m?: string }) {
+  if (!m) return <>{text}</>;
+  const low = text.toLowerCase();
+  const out: ReactNode[] = [];
+  let i = 0;
+  for (let j = low.indexOf(m); j >= 0 && out.length < 20; j = low.indexOf(m, i)) {
+    out.push(text.slice(i, j), <mark key={j}>{text.slice(j, j + m.length)}</mark>);
+    i = j + m.length;
+  }
+  out.push(text.slice(i));
+  return <>{out}</>;
 }
 
 export function Palette() {
@@ -37,6 +53,23 @@ function PaletteInner() {
   const paletteCmds = useSlot("palette.command");
 
   useEffect(() => inp.current?.focus(), []);
+
+  // messages: asked from the daemon as the person types (a moment after)
+  const [hits, setHits] = useState<{ q: string; list: SearchHit[] }>({ q: "", list: [] });
+  useEffect(() => {
+    const ql = q.trim();
+    if ([...ql].length < 2) {
+      setHits({ q: "", list: [] });
+      return;
+    }
+    const id = setTimeout(() => {
+      API.search(ql).then(
+        (r) => setHits({ q: ql, list: r.hits ?? [] }),
+        () => setHits({ q: ql, list: [] }),
+      );
+    }, 180);
+    return () => clearTimeout(id);
+  }, [q]);
 
   const items = useMemo(() => {
     const it: Item[] = [];
@@ -79,8 +112,28 @@ function PaletteInner() {
       it.push({ group: t("ui.pluginCmd"), icon: <SlotIcon name={c.icon} size={16} />, title: c.title || c.key, sub: c.desc || c.owner, run: () => void runCommand(c, current ?? "") });
     const ql = q.trim().toLowerCase();
     if (!ql) return it;
-    return it.filter((x) => x.title.toLowerCase().includes(ql) || x.sub?.toLowerCase().includes(ql) || x.group.toLowerCase().includes(ql));
-  }, [agents, sessions, approvals, current, theme, q, paletteCmds]);
+    const found = it.filter((x) => x.title.toLowerCase().includes(ql) || x.sub?.toLowerCase().includes(ql) || x.group.toLowerCase().includes(ql));
+    // then the messages that say it
+    if (hits.q && hits.q.toLowerCase() === ql)
+      for (const h of hits.list) {
+        const where = sessions[h.session];
+        const owner = sessionAgent(h.session);
+        const place = where?.kind === "channel" ? "# " + (where.title || where.id) : owner?.name ?? h.session;
+        const who = h.agent ? agents[h.agent]?.name ?? h.agent : h.from || t("rx.you");
+        found.push({
+          group: t("pal.messages"),
+          icon: h.agent && agents[h.agent] ? <Avatar agent={agents[h.agent]} size={20} /> : <MessageSquare size={16} />,
+          title: h.snippet,
+          sub: [who, place !== who ? place : "", ago(h.time)].filter(Boolean).join(" · "),
+          mark: ql,
+          run: () => {
+            setState({ jump: { session: h.session, seq: h.seq } });
+            openSession(h.session);
+          },
+        });
+      }
+    return found;
+  }, [agents, sessions, approvals, current, theme, q, paletteCmds, hits]);
 
   useEffect(() => setSel(0), [q]);
   useEffect(() => {
@@ -134,10 +187,19 @@ function PaletteInner() {
                 {head}
                 <button className="pi" type="button" aria-selected={i === sel} onMouseMove={() => setSel(i)} onClick={() => runAt(i)}>
                   {x.icon}
-                  <span className="g">
-                    {x.title}
-                    {x.sub && <span>{x.sub}</span>}
-                  </span>
+                  {x.mark ? (
+                    <span className="g msg">
+                      <b>
+                        <Marked text={x.title} m={x.mark} />
+                      </b>
+                      {x.sub && <span>{x.sub}</span>}
+                    </span>
+                  ) : (
+                    <span className="g">
+                      {x.title}
+                      {x.sub && <span>{x.sub}</span>}
+                    </span>
+                  )}
                 </button>
               </div>
             );

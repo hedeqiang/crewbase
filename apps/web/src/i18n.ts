@@ -736,6 +736,7 @@ const zh = {
   "wf.helper": "子助手",
   "wf.working": "处理中",
   "wf.stopped": "已停止",
+  "pal.messages": "消息",
   "rx.you": "你",
   "rx.by": "{names} 回应了 {emoji}",
   "rx.add": "添加回应",
@@ -1426,7 +1427,7 @@ const zh = {
   "set.whichAskDesc": "读文件、执行命令、安装依赖：直接执行。推送代码、删除文件、对外发消息：先问你。外部支付：一律拦截，不能改为允许。",
   "set.routingSoon": "新 Agent 的默认模型顺序、切换规则和按任务分流即将推出。每个 Agent 的模型顺序现在可以在右侧面板的 Agent 标签里调整。",
 
-  "pal.placeholder": "跳转到频道、Agent、页面，或输入命令…",
+  "pal.placeholder": "跳转到频道、Agent、页面，搜索消息，或输入命令…",
   "pal.agents": "Agent",
   "pal.channels": "频道",
   "pal.pending": "待处理",
