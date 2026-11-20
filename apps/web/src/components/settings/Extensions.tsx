@@ -150,12 +150,21 @@ interface Data {
 
 /** 设置 › 插件与技能: a marketplace of built-in services, skills and
  *  third-party plugins, and everything connected or installed. */
+let lastData: Data | null = null;
+
 export function Extensions() {
   const want = useStore((s) => s.settingsTab);
   const tick = useStore((s) => s.mcpTick);
   const [view, setView] = useState<View>(want === "mcp" || want === "installed" ? "installed" : "market");
   const [q, setQ] = useState("");
-  const [d, setD] = useState<Data>({ catalog: null, servers: null, skills: null, plugins: null, market: null, marketErr: null });
+  // what was shown last time: coming back shows it at once, then refreshes
+  const [d, setD0] = useState<Data>(() => lastData ?? { catalog: null, servers: null, skills: null, plugins: null, market: null, marketErr: null });
+  const setD = (f: (x: Data) => Data) =>
+    setD0((x) => {
+      const n = f(x);
+      lastData = n;
+      return n;
+    });
   const [approve, setApprove] = useState<PluginView | null>(null);
   const upd = useAddonUpdates();
   const nUpd = upd.d?.items.length ?? 0;
