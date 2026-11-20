@@ -147,3 +147,10 @@ func TestFolders(t *testing.T) {
 		t.Fatal("path in a name")
 	}
 }
+
+func TestHTMLText(t *testing.T) {
+	got := htmlText(`<html><head><style>p{color:red}</style><script>alert(1)</script></head><body><h1>Pelican &amp; Co</h1><p>海外市场</p><table><tr><td>欧洲</td><td>1</td></tr></table></body></html>`)
+	if got != "Pelican & Co\n海外市场\n欧洲 1" {
+		t.Fatalf("%q", got)
+	}
+}

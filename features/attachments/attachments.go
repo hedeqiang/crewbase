@@ -278,6 +278,9 @@ func (s *Service) extract(at *llm.Attachment, data []byte) textEntry {
 		}
 	}
 	t, ok, _ := Extract(at.Name, at.Mime, data)
+	if Garbled(t) {
+		t, ok = "", false // the file itself (or OCR) rather than junk
+	}
 	t, cut := clipText(strings.TrimSpace(t))
 	e := textEntry{text: t, ok: ok && t != "", truncated: cut}
 	if key != "" {

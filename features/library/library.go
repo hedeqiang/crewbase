@@ -27,6 +27,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"html"
 	"os"
 	"path"
 	"path/filepath"
@@ -803,7 +804,13 @@ func (s *Service) extract(ctx context.Context, it Item, data []byte) (string, bo
 		return "", false
 	}
 	text, ok, _ := attachments.Extract(it.Name, it.Mime, data)
+	if ok && it.Mime == "text/html" {
+		text = htmlText(text)
+	}
 	text = strings.TrimSpace(text)
+	if attachments.Garbled(text) {
+		text, ok = "", false // OCR below, or nothing rather than junk
+	}
 	if (!ok || text == "") && (strings.HasPrefix(it.Mime, "image/") || it.Mime == "application/pdf") && s.ocr != nil {
 		if o := s.ocr(); o != nil {
 			octx, cancel := context.WithTimeout(ctx, 2*time.Minute)
@@ -1016,4 +1023,22 @@ func splitTags(s string) []string {
 		return nil
 	}
 	return strings.Split(s, ",")
+}
+
+var (
+	htmlDropRe  = regexp.MustCompile(`(?is)<(script|style|noscript|svg|template)\b.*?</(script|style|noscript|svg|template)>|<!--.*?-->`)
+	htmlBreakRe = regexp.MustCompile(`(?i)<(br|/p|/div|/h[1-6]|/li|/tr|/table|/section|/article|/header|/footer)\b[^>]*>`)
+	htmlTagRe   = regexp.MustCompile(`(?s)<[^>]*>`)
+	blankRe     = regexp.MustCompile(`[ \t]*\n[ \t\n]*`)
+	spacesRe    = regexp.MustCompile(`[ \t]{2,}`)
+)
+
+// htmlText is the visible text of an HTML page (for search and reading).
+func htmlText(s string) string {
+	s = htmlDropRe.ReplaceAllString(s, " ")
+	s = htmlBreakRe.ReplaceAllString(s, "\n")
+	s = htmlTagRe.ReplaceAllString(s, " ")
+	s = html.UnescapeString(s)
+	s = spacesRe.ReplaceAllString(s, " ")
+	return strings.TrimSpace(blankRe.ReplaceAllString(s, "\n"))
 }

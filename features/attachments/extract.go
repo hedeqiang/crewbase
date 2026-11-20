@@ -11,6 +11,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"unicode"
 	"unicode/utf8"
 
 	"github.com/ledongthuc/pdf"
@@ -353,4 +354,29 @@ func colIndex(ref string) int {
 		n = n*26 + int(r-'A'+1)
 	}
 	return n - 1
+}
+
+// Garbled reports whether extracted text is mostly junk: control
+// characters, private-use glyphs and stray Latin-1 characters, which is
+// what PDF fonts without a usable character map come out as (subset CJK
+// fonts often). Such text is better replaced by OCR than shown or indexed.
+// Real text has no control characters, so accented Latin alone (French,
+// German) never counts.
+func Garbled(s string) bool {
+	total, bad, odd := 0, 0, 0
+	for _, r := range s {
+		switch {
+		case r == '\n' || r == '\r' || r == '\t' || r == ' ':
+			continue
+		case r == utf8.RuneError, unicode.IsControl(r), r >= 0xE000 && r <= 0xF8FF:
+			bad++
+		case r >= 0x80 && r <= 0xFF:
+			odd++
+		}
+		total++
+	}
+	if total == 0 || bad == 0 {
+		return false
+	}
+	return bad*10 > total || (bad+odd)*5 > total
 }
