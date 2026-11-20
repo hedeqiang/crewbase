@@ -2726,3 +2726,6 @@ a.lcard:hover, .lvideo .ltext:hover { background: var(--hover); }
 .mmdfull .mmdsvg.big svg { max-width: none; max-height: none; width: auto; min-width: min(100%, 900px); }
 .mmdfullbar { position: absolute; top: 10px; right: 10px; z-index: 1; display: flex; align-items: center; gap: 6px; }
 @media (max-width: 820px) { .mmdfull { inset: 10px; } }
+/* a version next to a name or at the start of a meta line */
+.mkver { display: inline-block; font-family: var(--mono); font-size: 11px; font-weight: 400; color: var(--muted); margin-right: 6px; white-space: nowrap; }
+b > .mkver, .g b .mkver { margin: 0 0 0 6px; }

@@ -303,10 +303,17 @@ func (c *conn) install(list []*sdk.Tool, sess *session) {
 	if sess != nil {
 		extra = c.installExtras(tc, sess, srv.Tools)
 	}
+	version := ""
+	if sess != nil {
+		if ir := sess.cs.InitializeResult(); ir != nil && ir.ServerInfo != nil {
+			version = strings.TrimSpace(ir.ServerInfo.Version)
+		}
+	}
 	c.mu.Lock()
 	old := c.toolCtx
 	c.toolCtx, c.infos, c.list = tc, infos, list
 	c.st.Tools = registered + extra
+	c.st.Version = version
 	c.mu.Unlock()
 	if old != nil {
 		old.Dispose()

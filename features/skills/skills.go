@@ -32,6 +32,7 @@ const ServiceKey = "skills"
 type Skill struct {
 	Name        string `json:"name"`
 	Description string `json:"description"`
+	Version     string `json:"version,omitempty"`
 	Dir         string `json:"dir"`
 	Source      string `json:"source"` // workspace | <configured dir>
 	// Agent is the agent whose workspace holds the skill (All only).
@@ -96,7 +97,7 @@ func (s *Service) scan(dir, source string) []Skill {
 		if meta.Name == "" {
 			meta.Name = e.Name()
 		}
-		out = append(out, Skill{Name: meta.Name, Description: meta.Description, Dir: sd, Source: source})
+		out = append(out, Skill{Name: meta.Name, Description: meta.Description, Version: meta.version(), Dir: sd, Source: source})
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
 	s.mu.Lock()
@@ -112,6 +113,17 @@ func (s *Service) scan(dir, source string) []Skill {
 type frontMatter struct {
 	Name        string `yaml:"name"`
 	Description string `yaml:"description"`
+	// Version: optional; also accepted under metadata (as Anthropic's
+	// skills put it).
+	Version  string            `yaml:"version"`
+	Metadata map[string]string `yaml:"metadata"`
+}
+
+func (f frontMatter) version() string {
+	if v := strings.TrimSpace(f.Version); v != "" {
+		return v
+	}
+	return strings.TrimSpace(f.Metadata["version"])
 }
 
 // parse reads SKILL.md: optional `---` YAML front matter, then the body.
@@ -306,7 +318,7 @@ func (s *Service) Install(agentID, name string, files map[string][]byte) (Skill,
 	if meta.Name == "" {
 		meta.Name = name
 	}
-	return Skill{Name: meta.Name, Description: meta.Description, Dir: dir, Source: source, Agent: agentID}, nil
+	return Skill{Name: meta.Name, Description: meta.Description, Version: meta.version(), Dir: dir, Source: source, Agent: agentID}, nil
 }
 
 // OriginFile records where a skill was installed from (written by the
@@ -362,7 +374,7 @@ func (s *Service) Replace(agentID, name string, files map[string][]byte) (Skill,
 	if meta.Name == "" {
 		meta.Name = name
 	}
-	return Skill{Name: meta.Name, Description: meta.Description, Dir: dir, Source: source, Agent: agentID}, nil
+	return Skill{Name: meta.Name, Description: meta.Description, Version: meta.version(), Dir: dir, Source: source, Agent: agentID}, nil
 }
 
 // Remove deletes the skill named name from agentID's workspace or, for "",

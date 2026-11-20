@@ -343,6 +343,8 @@ type Status struct {
 	RefreshError string `json:"refreshError,omitempty"`
 	// LoginURL is where the person signs in (state "login", OAuth servers).
 	LoginURL string `json:"loginUrl,omitempty"`
+	// Version is what the server says it is when it connects (serverInfo).
+	Version string `json:"version,omitempty"`
 }
 
 // ToolInfo describes one MCP tool as registered.

@@ -710,6 +710,8 @@ export interface McpStatus {
   refreshError?: string;
   /** state "login": where the person signs in (OAuth servers) */
   loginUrl?: string;
+  /** what the server says it is when it connects */
+  version?: string;
 }
 export interface McpServer {
   name: string;

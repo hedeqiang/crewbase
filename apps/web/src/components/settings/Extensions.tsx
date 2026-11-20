@@ -78,7 +78,7 @@ interface CatItem {
 interface CatCategory { id: string; title: Text; desc: Text }
 interface SkillLibrary { id: string; name: string; repo: string; author: string; desc: Text; picks?: string[] }
 interface Catalog { categories: CatCategory[]; items: CatItem[]; libraries?: SkillLibrary[] }
-interface SkillView { name: string; description: string; dir: string; source: string; agent?: string }
+interface SkillView { name: string; description: string; dir: string; source: string; agent?: string; version?: string }
 /** A built-in device sign-in (GitHub). */
 interface SignInView {
   state: "pending" | "done" | "denied" | "expired" | "error";
@@ -333,6 +333,9 @@ interface Shared {
   focus: string | null;
 }
 
+/** v1.2.3 (a version that already starts with v or is not a number as is). */
+export const verLabel = (v: string) => (/^\d/.test(v.trim()) ? "v" + v.trim() : v.trim());
+
 /** The MCP servers features/agentdocs makes (one per agent): shown as the
  *  Open Agent Docs app, not as connectors. */
 const isDocsServer = (name: string) => /^docs-[0-9a-f]{8}$/.test(name);
@@ -370,6 +373,8 @@ interface Row {
   badge?: { label: string; tone: "free" | "login" | "token" | "" };
   /** connected, with a 管理 button instead of the 已连接 label */
   manage?: boolean;
+  /** shown by the name (plugins: the marketplace's; installed: what is installed) */
+  version?: string;
 }
 
 /** The badge that says what connecting an item takes. */
@@ -530,6 +535,7 @@ function MarketView({ d, q, reload, reloadMarket, onApprove, onSignIn, onManage,
         key: "plugin:" + m.name,
         name: m.name,
         desc: m.description,
+        version: m.installed && m.installed !== m.version ? m.installed + " → " + m.version : m.version,
         icon: <ItemIcon id={m.name} label={m.name} kind="plugin" />,
         badge: { label: t("mk3.b.perms"), tone: "" as const },
         verb: "add" as const,
@@ -754,7 +760,10 @@ function Section({ title, desc, rows }: { title: string; desc: string; rows: Row
             <div className="mkctop">
               {r.icon}
               <div className="g">
-                <b title={r.name}>{r.name}</b>
+                <b title={r.name}>
+                  {r.name}
+                  {r.version && <span className="mkver">{r.version.includes("→") ? r.version.split(" → ").map(verLabel).join(" → ") : verLabel(r.version)}</span>}
+                </b>
                 {r.badge && <span className={"mkbadge " + r.badge.tone}>{r.badge.label}</span>}
               </div>
               {r.menu && <MoreMenu items={r.menu} />}
@@ -1342,6 +1351,7 @@ function InstalledView({ d, q, reload, reloadMarket, onApprove, onSignIn, onScop
                         <span className={"pill sm " + (reauth ? "amber" : MCP_TONE[st] ?? "")}>{stLabel(s)}</span>
                       </b>
                       <span className="mkmeta">
+                        {s.status?.version && <span className="mkver">{verLabel(s.status.version)}</span>}
                         {scopeLabel(s.scope)} · {t("ext.toolsN", { n: s.status?.tools ?? 0 })}
                         {(s.transport === "http" || (s.command ?? []).some((a) => /@latest$/.test(a))) && (
                           <span className="autoupd" title={s.transport === "http" ? t("aup.autoRemote") : t("aup.autoNpx")}>
@@ -1436,7 +1446,10 @@ function InstalledView({ d, q, reload, reloadMarket, onApprove, onSignIn, onScop
                         {s.name}
                         <span className="pill sm">{s.agent ? t("ext.scopeAgent", { name: agents[s.agent]?.name ?? s.agent }) : t("mk.skillAll")}</span>
                       </b>
-                      <span title={t("mk.skillDir", { dir: s.dir })}>{(b && tx(b.desc)) || s.description}</span>
+                      <span title={t("mk.skillDir", { dir: s.dir })}>
+                        {s.version && <span className="mkver">{verLabel(s.version)}</span>}
+                        {(b && tx(b.desc)) || s.description}
+                      </span>
                     </div>
                     <MoreMenu
                       items={[
@@ -1485,7 +1498,8 @@ function InstalledView({ d, q, reload, reloadMarket, onApprove, onSignIn, onScop
                         )}
                       </b>
                       <span>
-                        v{p.version} · {p.description || p.source}
+                        <span className="mkver">{verLabel(p.version)}</span>
+                        {p.description || p.source}
                       </span>
                     </div>
                     {pending && (
