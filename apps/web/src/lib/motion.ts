@@ -1,11 +1,8 @@
-import { flushSync } from "react-dom";
-
 /* Motion: one scale of durations and curves for the whole app (the CSS
- * tokens --dur-* / --ease-* in styles.css are the same values), and three
- * pieces that make it move as one:
+ * tokens --dur-* / --ease-* in styles.css are the same values), and two
+ * pieces that make it move as one (a change of place — another
+ * conversation, settings — is instant, as in native apps):
  *
- *  - viewTransition: a change of place (another conversation, settings,
- *    a settings section) cross-fades through the View Transitions API;
  *  - exit ghosts: a menu, dialog, scrim or toast that leaves the page is
  *    replaced for a moment by an inert copy that plays its exit, so every
  *    overlay closes as smoothly as it opens without each component
@@ -20,28 +17,6 @@ export const DUR = { fast: 120, hover: 150, normal: 200, overlay: 220, dialog: 2
 
 const reduce = typeof window !== "undefined" ? window.matchMedia("(prefers-reduced-motion: reduce)") : null;
 export const reducedMotion = () => !!reduce?.matches;
-
-type VTDoc = Document & { startViewTransition?: (cb: () => void) => { finished: Promise<void> } };
-
-let inTransition = false;
-
-/** Runs update (a state change that re-renders) inside a view transition
- *  when the browser has them; else just runs it. */
-export function viewTransition(update: () => void) {
-  const d = document as VTDoc;
-  if (!d.startViewTransition || reducedMotion() || document.visibilityState !== "visible" || inTransition) {
-    update();
-    return;
-  }
-  inTransition = true;
-  try {
-    const vt = d.startViewTransition(() => flushSync(update));
-    vt.finished.finally(() => (inTransition = false));
-  } catch {
-    inTransition = false;
-    update();
-  }
-}
 
 // ---------------------------------------------------------------- exit ghosts
 
