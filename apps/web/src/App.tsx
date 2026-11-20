@@ -1,3 +1,4 @@
+import { installExitGhosts } from "./lib/motion";
 import { lazy, Suspense, useEffect, useState } from "react";
 import { API, desktop, initToken, openExternal, setUnauthorizedHandler, setToken } from "./api";
 import { t } from "./i18n";
@@ -27,6 +28,7 @@ export function App() {
   const lang = useStore((s) => s.lang);
 
   useEffect(() => {
+    installExitGhosts();
     applyTheme(getState().theme);
     setUnauthorizedHandler(() => {
       disconnectEvents();

@@ -4,6 +4,7 @@
 // the REST API or applied from SSE pushes; the conversation is a projection
 // of the session events.
 
+import { viewTransition } from "./lib/motion";
 import { useMemo, useSyncExternalStore } from "react";
 import {
   API,
@@ -330,12 +331,22 @@ export function subscribe(f: () => void): () => void {
 
 export function setState(patch: Partial<State> | ((s: State) => Partial<State>)) {
   const p = typeof patch === "function" ? patch(state) : patch;
+  const prev = state;
   state = { ...state, ...p };
   if ("current" in p) LS.set("current", state.current);
   if ("drafts" in p) saveDrafts();
   if ("panelOpen" in p && !midWidth()) LS.set("panel", state.panelOpen ? "1" : "0");
-  subs.forEach((f) => f());
+  // another place (conversation, settings, a settings section, the new
+  // agent page): cross-fade to it (lib/motion)
+  const moved =
+    prev.view !== state.view || (state.view === "chat" && prev.current !== state.current) || (state.view === "settings" && prev.settings !== state.settings);
+  if (moved && booted) viewTransition(() => subs.forEach((f) => f()));
+  else subs.forEach((f) => f());
 }
+
+/** set once the first screen is up (no transition into it) */
+let booted = false;
+setTimeout(() => (booted = true), 1500);
 
 export function useStore<T>(sel: (s: State) => T): T {
   return useSyncExternalStore(

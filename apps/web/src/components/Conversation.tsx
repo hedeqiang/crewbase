@@ -1,4 +1,5 @@
 import { TurnFiles } from "./TurnFiles";
+import { markEntering } from "../lib/motion";
 import { PageCard } from "./PageCard";
 import { Welcome } from "./Welcome";
 import { runShortcut } from "../actions";
@@ -612,12 +613,25 @@ function Feed({
     if (stick.current) el.scrollTop = el.scrollHeight;
   });
 
+  // what is added after the conversation has loaded animates in (lib/motion)
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || loading) return;
+    let stop = () => {};
+    const id = setTimeout(() => (stop = markEntering(el, sessionId)), 300);
+    return () => {
+      clearTimeout(id);
+      stop();
+    };
+  }, [sessionId, loading]);
+
   // your bubbles can take the agent's colour (a channel's own colour)
   const bubbleColor = channel ? channelColor(channel.id) : agent.kind === "chat" ? channelColor(agent.id) : agent.color || colorFor(agent.id);
   return (
     <div
       className="feed"
       ref={ref}
+      data-sess={sessionId}
       onScroll={onScroll}
       data-bubbles={bubbles}
       style={bubbles === "neutral" ? undefined : ({ "--ac": bubbleColor, "--ac-ink": ink(bubbleColor) } as CSSProperties)}

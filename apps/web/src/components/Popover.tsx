@@ -15,7 +15,7 @@ interface Props {
 /** Anchored menu rendered in a portal; closes on outside click and Esc. */
 export function Popover({ anchor, open, onClose, children, placement = "bottom", align = "start", className = "", width }: Props) {
   const ref = useRef<HTMLDivElement>(null);
-  const [pos, setPos] = useState<{ left: number; top: number; maxH: number } | null>(null);
+  const [pos, setPos] = useState<{ left: number; top: number; maxH: number; up: boolean } | null>(null);
 
   useLayoutEffect(() => {
     if (!open || !anchor) return;
@@ -40,7 +40,7 @@ export function Popover({ anchor, open, onClose, children, placement = "bottom",
         maxH = below;
         top = r.bottom + 6;
       }
-      setPos({ left, top: Math.max(8, top), maxH: Math.max(120, maxH) });
+      setPos({ left, top: Math.max(8, top), maxH: Math.max(120, maxH), up });
     };
     place();
     const ro = new ResizeObserver(place);
@@ -79,6 +79,8 @@ export function Popover({ anchor, open, onClose, children, placement = "bottom",
       ref={ref}
       className={"menu " + className}
       role="menu"
+      data-side={pos?.up ? "top" : "bottom"}
+      data-align={align}
       style={{
         left: pos?.left ?? -9999,
         top: pos?.top ?? -9999,

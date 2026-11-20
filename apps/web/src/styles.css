@@ -2808,3 +2808,92 @@ b > .mkver, .g b .mkver { margin: 0 0 0 6px; }
 @media (max-width: 600px) { .srow.bgrow { grid-template-columns: minmax(0, 1fr); align-items: stretch; } }
 .amber-t { color: var(--amber-text); }
 .lsumuse { margin: 0 0 6px; color: var(--text2); line-height: 1.5; }
+
+/* ================================================================ motion
+   One scale for the whole app (lib/motion.ts has the same values). Things
+   come in with an ease-out that settles, menus and dialogs also go out
+   (exit ghosts, data-exit), places cross-fade (View Transitions), and what
+   is added to a conversation after it loaded rises in (data-enter). */
+:root {
+  --dur-fast: 120ms; --dur-hover: 150ms; --dur-normal: 200ms; --dur-overlay: 220ms; --dur-dialog: 260ms; --dur-slow: 360ms;
+  --ease-out: cubic-bezier(.22, 1, .36, 1);
+  --ease-snap: cubic-bezier(.23, 1, .32, 1);
+  --ease-spring: cubic-bezier(.34, 1.36, .64, 1);
+  --ease-in: cubic-bezier(.55, 0, 1, .45);
+}
+
+/* menus and popovers: grow from the anchor's side */
+.menu { transform-origin: top left; animation: m-in var(--dur-overlay) var(--ease-snap) both; }
+.menu[data-align="end"] { transform-origin: top right; }
+.menu[data-side="top"] { transform-origin: bottom left; --m-dy: 4px; }
+.menu[data-side="top"][data-align="end"] { transform-origin: bottom right; }
+.menu[data-exit] { animation: m-out calc(var(--dur-fast) + 20ms) var(--ease-in) both; }
+@keyframes m-in { from { opacity: 0; scale: .96; translate: 0 var(--m-dy, -4px); } }
+@keyframes m-out { to { opacity: 0; scale: .97; translate: 0 var(--m-dy, -2px); } }
+
+/* dialogs and their scrim */
+.scrim { animation: fade-in var(--dur-normal) var(--ease-out) both; }
+.scrim[data-exit] { animation: fade-out var(--dur-normal) var(--ease-out) both; }
+.modal { animation: dlg-in var(--dur-dialog) var(--ease-spring) both; }
+.modal[data-exit] { animation: dlg-out var(--dur-normal) var(--ease-in) both; }
+@keyframes dlg-in { from { opacity: 0; scale: .95; } }
+@keyframes dlg-out { to { opacity: 0; scale: .97; } }
+@keyframes fade-in { from { opacity: 0; } }
+@keyframes fade-out { to { opacity: 0; } }
+
+/* toasts drop in with a little give, and lift away */
+.toast { animation: toast-in var(--dur-dialog) var(--ease-spring) both; }
+.toast[data-exit] { animation: toast-out var(--dur-normal) var(--ease-in) both; }
+@keyframes toast-in { from { opacity: 0; translate: 0 -10px; scale: .96; } }
+@keyframes toast-out { to { opacity: 0; translate: 0 -6px; scale: .98; } }
+
+/* a conversation: what arrives after it opened */
+.feed [data-enter] { animation: rise-in var(--dur-slow) var(--ease-out) both; }
+.feed [data-enter="sent"] { transform-origin: bottom right; animation: sent-in var(--dur-dialog) var(--ease-spring) both; }
+.feed [data-enter="text"] { animation: text-in var(--dur-slow) var(--ease-out) both; }
+@keyframes rise-in { from { opacity: 0; translate: 0 6px; } }
+@keyframes sent-in { from { opacity: 0; translate: 0 14px; scale: .97; } }
+@keyframes text-in { from { opacity: 0; filter: blur(2px); } }
+
+/* "Reading launch-brief.md" / "思考中": the label shimmers while it works */
+.typing > span:not(.dots) {
+  background: linear-gradient(90deg, var(--muted) 0%, var(--muted) 40%, var(--text) 50%, var(--muted) 60%, var(--muted) 100%);
+  background-size: 300% 100%; -webkit-background-clip: text; background-clip: text; color: transparent;
+  animation: shimmer 2.2s linear infinite;
+}
+@keyframes shimmer { from { background-position: 100% 0; } to { background-position: 0 0; } }
+
+/* press feedback and calm hovers */
+.btn, .ix, .row-btn, .mact, .cbtn { transition: background-color var(--dur-hover) ease, color var(--dur-hover) ease, opacity var(--dur-hover) ease, scale var(--dur-fast) var(--ease-out); }
+.btn:active:not(:disabled), .ix:active:not(:disabled), .cbtn:active:not(:disabled) { scale: .96; }
+.menu .mi { transition: background-color var(--dur-hover) ease; }
+
+/* places cross-fade: the sidebar holds still, the main column settles in */
+.center { view-transition-name: main; }
+.setwrap > .vw { view-transition-name: spane; }
+::view-transition-old(root), ::view-transition-new(root) { animation-duration: var(--dur-normal); animation-timing-function: var(--ease-out); }
+::view-transition-old(main), ::view-transition-old(spane) { animation: vt-out var(--dur-fast) var(--ease-in) both; }
+::view-transition-new(main), ::view-transition-new(spane) { animation: vt-in var(--dur-dialog) var(--ease-out) both; }
+::view-transition-group(main), ::view-transition-group(spane) { animation-duration: var(--dur-dialog); animation-timing-function: var(--ease-out); }
+@keyframes vt-out { to { opacity: 0; } }
+@keyframes vt-in { from { opacity: 0; translate: 0 6px; } }
+
+/* long lists fade at the edge they continue past */
+@property --fade-top { syntax: "<length>"; inherits: false; initial-value: 0px; }
+@property --fade-end { syntax: "<length>"; inherits: false; initial-value: 0px; }
+@supports (animation-timeline: scroll()) {
+  .lscroll, .feed, .pbody, .vb, .pvlist, .snav, .plist {
+    mask-image: linear-gradient(to bottom, transparent 0, #000 var(--fade-top), #000 calc(100% - var(--fade-end)), transparent 100%);
+    animation: edge-top linear both, edge-end linear both;
+    animation-timeline: scroll(self), scroll(self);
+    animation-range: 0 24px, calc(100% - 24px) 100%;
+  }
+  @keyframes edge-top { from { --fade-top: 0px; } to { --fade-top: 18px; } }
+  @keyframes edge-end { from { --fade-end: 18px; } to { --fade-end: 0px; } }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .menu, .modal, .scrim, .toast, .feed [data-enter], .typing > span:not(.dots) { animation: none !important; }
+  .typing > span:not(.dots) { color: var(--muted); background: none; }
+  ::view-transition-group(*), ::view-transition-old(*), ::view-transition-new(*) { animation: none !important; }
+}
