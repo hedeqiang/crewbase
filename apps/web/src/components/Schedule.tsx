@@ -3,11 +3,11 @@
 // agent only) and the follow-ups it set for itself (followup_set).
 
 import { useCallback, useEffect, useState } from "react";
-import { AlarmClock, ChevronRight, Pencil, Play, Plus, Trash, X } from "lucide-react";
+import { AlarmClock, ChevronRight, MessageSquare, Pencil, Play, Trash, X } from "lucide-react";
 import { API, type AgentView, type Followup, type Routine } from "../api";
 import { t } from "../i18n";
 import { ago, modeLabel, until } from "../format";
-import { openSettings, toast } from "../store";
+import { openSession, openSettings, toast } from "../store";
 import { confirmDialog } from "./Confirm";
 import { RoutineForm, RoutineRuns, scheduleLabel } from "./settings/Automation";
 
@@ -100,14 +100,8 @@ export function ScheduleTab({ agent, data }: { agent: AgentView; data: ScheduleD
 
   return (
     <div className="sched">
-      <div className="psec2 psec2r">
+      <div className="psec2">
         <span>{t("auto.routines")}</span>
-        {!edit && (
-          <button className="btn sm" type="button" onClick={() => setEdit({ agent: agent.id, mode: "read-only", schedule: "daily 08:30", enabled: true })}>
-            <Plus size={12} />
-            {t("sched.new")}
-          </button>
-        )}
       </div>
       {secret && (
         <div className="box rulenote warnbox">
@@ -137,7 +131,7 @@ export function ScheduleTab({ agent, data }: { agent: AgentView; data: ScheduleD
       {routines === null ? (
         <p className="small muted">{t("common.loading")}</p>
       ) : routines.length === 0 ? (
-        !edit && <p className="small schedempty">{t("sched.noRoutines", { name: agent.name })}</p>
+        !edit && <SetupHint name={agent.name} />
       ) : (
         <div className="schedlist">
           {routines.map((r) => (
@@ -155,6 +149,19 @@ export function ScheduleTab({ agent, data }: { agent: AgentView; data: ScheduleD
                 <button className="tg" type="button" role="switch" aria-checked={r.enabled} aria-label={t("auto.enabled")} onClick={() => void toggle(r)} />
               </div>
               <p className="rprompt">{r.prompt}</p>
+              <div className="rorigin small">
+                {r.by === "agent" ? (
+                  r.origin ? (
+                    <button className="linkbtn" type="button" onClick={() => r.origin && openSession(r.origin)}>
+                      {t("sched.byAgent", { name: agent.name })}
+                    </button>
+                  ) : (
+                    <span>{t("sched.byAgent", { name: agent.name })}</span>
+                  )
+                ) : (
+                  <span>{t("sched.byYou")}</span>
+                )}
+              </div>
               <div className="rmeta small">
                 {r.enabled && r.nextRun && <span className="pill blue sm">{t("auto.nextRun", { time: until(r.nextRun) })}</span>}
                 {r.lastRun && <span>{t("auto.lastRun", { time: ago(r.lastRun) })}</span>}
@@ -206,6 +213,7 @@ export function ScheduleTab({ agent, data }: { agent: AgentView; data: ScheduleD
         ))
       )}
 
+      {routines !== null && routines.length > 0 && !edit && <SetupHint name={agent.name} more />}
       <button className="linkbtn schedall" type="button" onClick={() => openSettings("auto")}>
         {t("sched.all")}
       </button>
@@ -222,4 +230,17 @@ export function dueLabel(iso: string): string {
   if (diff === 0) return t("fu.today", { time: hm });
   if (diff === 1) return t("fu.tomorrow", { time: hm });
   return t("fu.on", { date: d.toLocaleDateString([], { month: "numeric", day: "numeric" }), time: hm });
+}
+
+/** Routines are set up by asking the agent; this says how. */
+function SetupHint({ name, more = false }: { name: string; more?: boolean }) {
+  return (
+    <div className={"schedhint" + (more ? " more" : "")}>
+      <MessageSquare size={14} />
+      <span>
+        {more ? t("sched.askMore", { name }) : t("sched.ask", { name })}
+        <span className="ex">{t("sched.askExample")}</span>
+      </span>
+    </div>
+  );
 }

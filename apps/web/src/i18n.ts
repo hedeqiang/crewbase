@@ -2223,11 +2223,19 @@ const zh = {
   "lib.source.generated": "AI 生成",
   // 定时
   "sched.tab": "定时",
-  "sched.new": "新建巡检",
   "sched.followups": "跟进提醒",
-  "sched.noRoutines": "还没有给 {name} 排定时任务。比如每天早上让它检查一遍、整理日报。",
   "sched.noFollowups": "{name} 没有给自己设跟进。它在对话里说「过会儿再看」时，会出现在这里。",
   "sched.all": "在设置里管理所有助理的定时任务",
+  "sched.ask": "在对话里告诉 {name} 就能设置定时任务，它会先请你确认。",
+  "sched.askMore": "想加或改定时任务，直接在对话里跟 {name} 说。",
+  "sched.askExample": "比如：「每天早上 8 点检查一遍竞品的定价页」「每周五下午 5 点写周报」",
+  "sched.byAgent": "你在对话中让 {name} 设置的",
+  "sched.byYou": "你在设置里添加的",
+  "sched.askCreate": "{agent} 想新建例行巡检「{name}」",
+  "sched.askUpdate": "{agent} 想修改一个例行巡检",
+  "sched.askNote": "确认后会按时自动运行；没有异常时安静收起，有需要关注的才通知你。随时可以在右侧「定时」里修改或关掉。",
+  "tool.routineCreate": "新建例行巡检",
+  "tool.routineUpdate": "修改例行巡检",
 } as const;
 
 export type Key = keyof typeof zh;

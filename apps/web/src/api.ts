@@ -628,6 +628,9 @@ export interface Routine {
   secret?: string;
   nextRun?: string;
   lastRun?: string;
+  /** "agent": set up by the agent in a conversation (origin) */
+  by?: string;
+  origin?: string;
 }
 export interface RoutineRun {
   routine: string;

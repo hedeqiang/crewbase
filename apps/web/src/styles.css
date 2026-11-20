@@ -2601,3 +2601,13 @@ a.lcard:hover, .lvideo .ltext:hover { background: var(--hover); }
 .rcard.off .schedic { background: var(--active); color: var(--muted); }
 .schedempty { margin: 0 0 4px; line-height: 1.55; }
 .schedall { margin-top: 22px; align-self: flex-start; }
+.rorigin { margin: 2px 0 2px; color: var(--muted); }
+.rorigin .linkbtn { font-size: 12px; font-weight: 400; }
+.schedhint { display: flex; gap: 9px; align-items: flex-start; padding: 12px 13px; border-radius: 12px; background: var(--raised); border: 1px dashed var(--border2); font-size: 12.5px; line-height: 1.6; color: var(--text2); }
+.schedhint svg { flex: none; margin-top: 3px; color: var(--accent-text); }
+.schedhint .ex { display: block; color: var(--muted); margin-top: 2px; }
+.schedhint.more { margin-top: 10px; }
+.routineask h4 { display: flex; align-items: center; gap: 7px; }
+.routineask h4 svg { color: var(--accent-text); flex: none; }
+.rawhen { display: flex; gap: 6px; flex-wrap: wrap; margin: 4px 0 8px; }
+.raprompt { max-height: 180px; overflow-y: auto; margin: 0 0 8px; padding: 8px 12px; border-left: 3px solid var(--accent-soft); background: var(--raised); border-radius: 0 8px 8px 0; font-size: 13px; line-height: 1.6; color: var(--text); white-space: pre-wrap; }

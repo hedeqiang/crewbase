@@ -47,7 +47,8 @@ import {
   History,
 } from "lucide-react";
 import { display, enterSends, MAC } from "../shortcuts";
-import { API, desktop, parseRef, refString, useRawURL, type AgentView, type ChannelView, type ModelRef } from "../api";
+import { API, desktop, parseRef, refString, useRawURL, type AgentView, type ApprovalRequest, type ChannelView, type ModelRef } from "../api";
+import { scheduleLabel } from "./settings/Automation";
 import { t, type Key } from "../i18n";
 import { argsFull, argsPreview, project, type AgentItem, type Decision, type FeedItem, type Rewind, type Step, type TurnPart, type TurnStats } from "../projection";
 import { hasModels, loadSession, setModelOverride, openConnect, openSubRun, setState, toast, useStore, sessionAgent } from "../store";
@@ -1470,6 +1471,8 @@ const TOOL_LABELS: Record<string, Key> = {
   video_generate: "tool.video",
   memory_add: "tool.remember",
   followup_set: "tool.followup",
+  routine_create: "tool.routineCreate",
+  routine_update: "tool.routineUpdate",
   task_progress: "tool.progress",
   note_read: "tool.note",
   computer_apps: "tool.cuApps",
@@ -1530,6 +1533,9 @@ function ApprovalCard({ it, agent }: { it: Extract<FeedItem, { k: "approval" }>;
       </div>
     );
   }
+  if (it.req.tool === "routine_create" || it.req.tool === "routine_update") {
+    return <RoutineAsk it={it} name={name} pending={pending} req={req} />;
+  }
   const cmd = it.call ? argsPreview(it.call.args) : "";
   return (
     <div className={"qcard" + (pending ? " wait" : "")}>
@@ -1549,6 +1555,42 @@ function ApprovalCard({ it, agent }: { it: Extract<FeedItem, { k: "approval" }>;
           {toolLabel(it.req.tool)}
         </div>
       )}
+      {pending ? <ApprovalActions req={req} /> : <p className="small" style={{ margin: "10px 0 0" }}>{t("appr.expired")}</p>}
+    </div>
+  );
+}
+
+/** An agent asks to set up (or change) a routine: what, when and how, in
+ *  plain words. */
+function RoutineAsk({ it, name, pending, req }: { it: Extract<FeedItem, { k: "approval" }>; name: string; pending: boolean; req: ApprovalRequest }) {
+  let a: { name?: string; prompt?: string; schedule?: string; mode?: string } = {};
+  try {
+    const raw = it.call?.args;
+    a = typeof raw === "string" ? JSON.parse(raw) : (raw ?? {});
+  } catch {
+    /* the summary still says it */
+  }
+  const create = it.req.tool === "routine_create";
+  if (!create && !a.schedule && !a.prompt) {
+    // a change of name or mode only: the server's summary says it
+    a = {};
+  }
+  return (
+    <div className={"qcard routineask" + (pending ? " wait" : "")}>
+      <h4>
+        <AlarmClock size={15} />
+        {create ? t("sched.askCreate", { agent: name, name: a.name ?? "" }) : t("sched.askUpdate", { agent: name })}
+      </h4>
+      {a.schedule || a.mode ? (
+        <div className="rawhen">
+          {a.schedule && <span className="pill blue">{scheduleLabel(a.schedule)}</span>}
+          {(create || a.mode) && <span className="pill">{modeLabel(a.mode || "read-only")}</span>}
+        </div>
+      ) : (
+        <div className="qs">{it.req.summary}</div>
+      )}
+      {a.prompt && <blockquote className="raprompt">{a.prompt}</blockquote>}
+      <p className="small">{t("sched.askNote")}</p>
       {pending ? <ApprovalActions req={req} /> : <p className="small" style={{ margin: "10px 0 0" }}>{t("appr.expired")}</p>}
     </div>
   );
