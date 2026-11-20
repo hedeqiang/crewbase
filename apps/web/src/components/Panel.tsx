@@ -1,6 +1,6 @@
 import { TaskBoard } from "./TaskBoard";
 import { WorkNotes, WorkTasks } from "./Working";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useRef } from "react";
 import { Archive, ArrowDown, ArrowUp, Check, ChevronLeft, ChevronRight, CircleMinus, CircleX, Globe, GripVertical, Link2, Minimize2, Pause, Play, Plus, Shuffle, Square, Trash, UserPlus, X } from "lucide-react";
 import { API, refString, type AgentView, type ChannelView, type ContextBreakdown, type ModelRef } from "../api";
 import { t, type Key } from "../i18n";
@@ -31,6 +31,12 @@ export function Panel() {
   const subView = useStore((s) => s.subView);
   const sched = useSchedule(agent);
   const nSched = scheduleCount(sched);
+  const tabsRef = useRef<HTMLDivElement>(null);
+  // the open tab stays in sight
+  useEffect(() => {
+    const el = tabsRef.current?.querySelector<HTMLElement>(`[data-tab="${CSS.escape(tab)}"]`);
+    el?.scrollIntoView({ block: "nearest", inline: "nearest" });
+  }, [tab, agent?.id]);
   if (!agent) return null;
   const chat = agent.kind === "chat";
   const view: typeof tab = chat && (tab === "files" || tab === "library" || tab === "schedule") ? "task" : tab;
@@ -47,14 +53,16 @@ export function Panel() {
   const pluginTab = view.startsWith("ui:") ? pluginTabs.find((c) => "ui:" + c.key === view) : undefined;
   return (
     <aside className={"panel" + (view === "preview" ? " wide" : view === "files" ? " files-wide" : "")}>
-      <div className="ptabs" role="tablist">
-        {tabs.map(([k, l]) => (
-          <button key={k} className="ptab" type="button" role="tab" aria-selected={view === k} onClick={() => setState({ panelTab: k })}>
-            {l}
-            {k === "schedule" && nSched > 0 && <span className="ptabn">{nSched}</span>}
-          </button>
-        ))}
-        <span style={{ flex: 1 }} />
+      <div className="ptabs">
+        {/* the tabs scroll sideways when the panel is narrow; the close button stays */}
+        <div className="ptabsc" role="tablist" ref={tabsRef}>
+          {tabs.map(([k, l]) => (
+            <button key={k} className="ptab" type="button" role="tab" aria-selected={view === k} data-tab={k} title={l} onClick={() => setState({ panelTab: k })}>
+              <span className="ptabl">{l}</span>
+              {k === "schedule" && nSched > 0 && <span className="ptabn">{nSched}</span>}
+            </button>
+          ))}
+        </div>
         <button className="ix" type="button" aria-label={t("common.close")} onClick={() => setState({ panelOpen: false })}>
           <X size={13} />
         </button>

@@ -7,6 +7,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } fro
 import {
   Bot,
   Download,
+  ExternalLink,
   FileImage,
   FileSpreadsheet,
   FileText,
@@ -791,6 +792,9 @@ export function LibraryTab() {
           <Search size={13} />
           <input value={f.q} onChange={(e) => setF({ ...f, q: e.target.value })} placeholder={t("lib.search")} />
         </label>
+        <button className="ix" type="button" title={t("lib.openPage")} aria-label={t("lib.openPage")} onClick={() => openLibrary()}>
+          <ExternalLink size={14} />
+        </button>
       </div>
       <div className="libtabf">
         <button type="button" className="libtag" aria-pressed={!f.folder} onClick={() => setF({ ...f, folder: "" })}>
@@ -833,9 +837,6 @@ export function LibraryTab() {
           ))
         )}
       </div>
-      <button className="linkbtn libtabmore" type="button" onClick={() => openLibrary()}>
-        {t("lib.openPage")}
-      </button>
     </div>
   );
 }
