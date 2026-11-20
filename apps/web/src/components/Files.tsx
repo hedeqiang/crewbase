@@ -1,3 +1,4 @@
+import { Skeleton } from "./Skeleton";
 import { Fragment, useEffect, useMemo, useState } from "react";
 import {
   AppWindow, ChevronDown, ChevronRight, Columns2, Download, File, FileCode2, FileImage, FileJson, FileText, Folder, FolderOpen, GitBranch,
@@ -334,7 +335,7 @@ function Preview({ agentId, path, onClose, change, onDiff }: { agentId: string; 
       ) : err ? (
         <div className="fxmsg small">{creatable ? t(path.startsWith("MEMORY") ? "files.noMemory" : "files.noInstructions") : err}</div>
       ) : !f ? (
-        <div className="fxmsg small muted">{t("common.loading")}</div>
+        <div className="fxmsg"><Skeleton kind="code" /></div>
       ) : image ? (
         <div className="fxbody fximg">
           <RawImg agent={agentId} path={path} />
@@ -402,7 +403,7 @@ function Changes({ agent, data, onChanged, onOpen }: { agent: AgentView; data: C
   const [busy, setBusy] = useState(false);
   const [focus, setFocus] = useState<string | null>(null);
   useEffect(() => write(LAYOUT_KEY, layout), [layout]);
-  if (!data) return <div className="fxmsg small muted">{t("common.loading")}</div>;
+  if (!data) return <div className="fxmsg"><Skeleton kind="code" /></div>;
   if (data.files.length === 0)
     return (
       <div className="fxnone">
@@ -551,7 +552,7 @@ function DiffCard({ agentId, f, layout, busy, onRevert, onOpen }: { agentId: str
         ) : err ? (
           <div className="fxmsg small errt">{err}</div>
         ) : !d ? (
-          <div className="fxmsg small muted">{t("common.loading")}</div>
+          <div className="fxmsg"><Skeleton kind="code" /></div>
         ) : d.hunks.length === 0 ? (
           <div className="fxmsg small muted">{f.status === "deleted" ? t("fx.emptyDeleted") : t("fx.emptyFile")}</div>
         ) : layout === "split" ? (

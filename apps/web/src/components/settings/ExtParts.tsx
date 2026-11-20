@@ -1,6 +1,7 @@
 // Pieces of 设置 › 插件与技能 shared by the marketplace and installed views
 // (Extensions.tsx): plugin permission review, the hand-entry MCP form and
 // an MCP server's tool list.
+import { Skeleton } from "../Skeleton";
 import { useEffect, useState } from "react";
 import { Plus, RefreshCw, X } from "lucide-react";
 import { API, desktop, openExternal, type McpServer, type McpTool, type McpToolFilter, type Permissions, type PluginView } from "../../api";
@@ -203,7 +204,7 @@ export function McpTools({ name, server, onProbed }: { name: string; server?: Mc
         {server && tools && tools.length > 0 && <span className="small">{t("ext.toolsOnOff", { on: tools.length - off, n: tools.length })}</span>}
       </div>
       {tools === null ? (
-        <p className="small">{t("common.loading")}</p>
+        <Skeleton />
       ) : tools.length === 0 ? (
         <p className="small">{t("ext.noTools")}</p>
       ) : (

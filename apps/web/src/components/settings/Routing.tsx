@@ -1,3 +1,4 @@
+import { Skeleton } from "../Skeleton";
 import { useEffect, useMemo, useState } from "react";
 import { ArrowDown, ArrowUp, Plus, RefreshCw, X } from "lucide-react";
 import { API, parseRef, refString, type ModelKind, type TaskRoute } from "../../api";
@@ -139,7 +140,7 @@ function DefaultOrder() {
         {t("rt.defaultOrderDesc")}
       </p>
       <div className="route wide">
-        {!st && <div className="small">{t("common.loading")}</div>}
+        {!st && <Skeleton />}
         {order.map((m, i) => {
           const r = parseRef(m);
           const off = !!r && modelOff(models, r);

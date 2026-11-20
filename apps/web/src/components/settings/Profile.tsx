@@ -1,3 +1,4 @@
+import { Skeleton } from "../Skeleton";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Lock, Pencil } from "lucide-react";
 import { API, parseRef, type UsageStats } from "../../api";
@@ -53,7 +54,7 @@ export function Profile() {
           </span>
         </div>
         {err && <p className="small errt">{err}</p>}
-        {!u && !err && <p className="small">{t("common.loading")}</p>}
+        {!u && !err && <Skeleton />}
         {u && (
           <>
             <div className="stats">

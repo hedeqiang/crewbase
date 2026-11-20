@@ -1,4 +1,5 @@
 import { TurnFiles } from "./TurnFiles";
+import { Skeleton } from "./Skeleton";
 import { markEntering } from "../lib/motion";
 import { PageCard } from "./PageCard";
 import { Welcome } from "./Welcome";
@@ -645,6 +646,7 @@ function Feed({
           </button>
         </div>
       )}
+      {loading && items.length === 0 && <Skeleton kind="chat" />}
       {!loading && !channel && agent.kind === "chat" && hidden === 0 && <ChatOpening agent={agent} />}
       {!loading && items.length === 0 && !channel && agent.kind !== "chat" && (
         <div className="feedintro">

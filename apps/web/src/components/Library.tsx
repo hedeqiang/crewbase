@@ -3,6 +3,7 @@
 // browsing and managing, and a compact right-panel tab to drag documents
 // into the conversation.
 
+import { Skeleton } from "./Skeleton";
 import { Popover, useMenu } from "./Popover";
 import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from "react";
 import {
@@ -364,7 +365,7 @@ export function LibraryPage({ embedded = false }: { embedded?: boolean }) {
             {err ? (
               <p className="small libmsg">{err}</p>
             ) : items === null ? (
-              <p className="small muted libmsg">{t("common.loading")}</p>
+              <Skeleton kind="rows" />
             ) : items.length === 0 ? (
               filtered ? (
                 <p className="small muted libmsg">{t("lib.noMatch")}</p>
@@ -834,7 +835,7 @@ export function LibraryTab() {
         {err ? (
           <p className="small libmsg">{err}</p>
         ) : items === null ? (
-          <p className="small muted libmsg">{t("common.loading")}</p>
+          <Skeleton kind="rows" />
         ) : items.length === 0 ? (
           <p className="small muted libmsg">{f.q || f.folder ? t("lib.noMatch") : t("lib.tabEmpty")}</p>
         ) : (

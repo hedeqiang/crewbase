@@ -1,3 +1,4 @@
+import { Skeleton } from "./Skeleton";
 import { AddProviderDialog } from "./settings/AddProvider";
 import { MagpieModelsDialog, ModelCatalog } from "./settings/ModelSources";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
@@ -1187,7 +1188,7 @@ function Remembered() {
         {t("set.remembered")} {list && list.length > 0 ? `· ${list.length}` : ""}
       </div>
       {list === null ? (
-        <p className="small">{t("common.loading")}</p>
+        <Skeleton />
       ) : list.length === 0 ? (
         <p className="small" style={{ margin: 0 }}>
           {t("set.rememberedNone")}
@@ -1247,7 +1248,7 @@ function History() {
     <>
       <div className="vsec">{t("set.history")}</div>
       {list === null ? (
-        <p className="small">{t("common.loading")}</p>
+        <Skeleton />
       ) : list.length === 0 ? (
         <p className="small" style={{ margin: 0 }}>
           {t("set.historyNone")}

@@ -1,3 +1,4 @@
+import { Skeleton } from "../Skeleton";
 import { useEffect, useState } from "react";
 import { ArrowDown, ArrowUp, ChevronRight, Hand, Pencil, Play, Plus, RotateCcw, Square, Sunrise, Trash, Users, X } from "lucide-react";
 import { API, type AgentView, type Brief, type Routine, type RoutineRun, type WfRun, type WfStep, type Workflow } from "../../api";
@@ -304,7 +305,7 @@ export function RoutineRuns({ r }: { r: Routine }) {
       window.clearInterval(iv);
     };
   }, [r.id]);
-  if (!runs) return <p className="small">{t("common.loading")}</p>;
+  if (!runs) return <Skeleton />;
   return (
     <div className="runs">
       {runs.length === 0 && <p className="small">{t("auto.noRuns")}</p>}
@@ -547,7 +548,7 @@ function WorkflowDetail({ wf, reload, onDeleted }: { wf: Workflow; reload: () =>
       </div>
       <div className="psec2">{t("auto.runs")}</div>
       {!runs ? (
-        <p className="small">{t("common.loading")}</p>
+        <Skeleton />
       ) : runs.length === 0 ? (
         <p className="small">{t("auto.noRuns")}</p>
       ) : (

@@ -1,3 +1,4 @@
+import { Skeleton } from "../Skeleton";
 import { Fragment, useEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent, type ReactNode } from "react";
 import { UpdatesSection, useAddonUpdates } from "./Updates";
 import { AgentDocsDialog, AgentDocsIcon, useAgentDocs } from "./AgentDocs";
@@ -506,7 +507,7 @@ function MarketView({ d, q, reload, reloadMarket, onApprove, onSignIn, onManage,
     };
   };
 
-  if (!d.catalog) return <p className="small">{t("common.loading")}</p>;
+  if (!d.catalog) return <Skeleton />;
   type Sec = { id: string; kind: "mcp" | "skill" | "plugin"; title: string; desc: string; rows: Row[] };
   const cats = d.catalog.categories;
   const pick = (ids: string[]) =>
@@ -1158,7 +1159,7 @@ function AccessDialog({ server, label, onClose }: { server: McpServer; label: st
         <div className="mbd">
           <p className="small">{t("mk2.accessDesc", { n: server.status?.tools ?? 0 })}</p>
           {!all ? (
-            <p className="small">{t("common.loading")}</p>
+            <Skeleton />
           ) : list.length === 0 ? (
             <p className="small">{t("mk2.accessNone")}</p>
           ) : (
@@ -1305,7 +1306,7 @@ function InstalledView({ d, q, reload, reloadMarket, onApprove, onSignIn, onScop
   const skills = (d.skills ?? []).filter((s) => matches(q, s.name, s.description));
   const plugins = (d.plugins ?? []).filter((p) => matches(q, p.name, p.description));
   const loading = d.servers === null || d.skills === null || d.plugins === null;
-  if (loading) return <p className="small">{t("common.loading")}</p>;
+  if (loading) return <Skeleton />;
 
   return (
     <>

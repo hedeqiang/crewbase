@@ -3,6 +3,7 @@
 // Backed by features/computertools (GET /api/computer); without a computer
 // provider (server, web, non-macOS) the API is absent and the page says so.
 
+import { Skeleton } from "../Skeleton";
 import { Hand, MonitorOff, ShieldCheck } from "lucide-react";
 import { useEffect, useState } from "react";
 import { API, ApiError, desktop, type ComputerOverview, type DesktopPermission } from "../../api";
@@ -59,7 +60,7 @@ export function Computer() {
       <>
         <Head title={t("set.computer")} sub={t("cu.sub")} />
         <div className="vb">
-          <p className="small">{t("common.loading")}</p>
+          <Skeleton />
         </div>
       </>
     );

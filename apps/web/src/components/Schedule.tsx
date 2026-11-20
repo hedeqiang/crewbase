@@ -2,6 +2,7 @@
 // routines the person scheduled for it (设置 › 自动化, shown here for this
 // agent only) and the follow-ups it set for itself (followup_set).
 
+import { Skeleton } from "./Skeleton";
 import { useCallback, useEffect, useState } from "react";
 import { AlarmClock, ChevronRight, MessageSquare, Pencil, Play, Trash, X } from "lucide-react";
 import { API, type AgentView, type Followup, type Routine } from "../api";
@@ -131,7 +132,7 @@ export function ScheduleTab({ agent, data }: { agent: AgentView; data: ScheduleD
         />
       )}
       {routines === null ? (
-        <p className="small muted">{t("common.loading")}</p>
+        <Skeleton />
       ) : routines.length === 0 ? (
         !edit && <SetupHint name={agent.name} />
       ) : (

@@ -1,3 +1,4 @@
+import { Skeleton } from "../Skeleton";
 import { Check, ExternalLink, KeyRound, Loader2, MessagesSquare, MoreHorizontal, Pause, Pencil, Play, Plus, Send, Trash2, X } from "lucide-react";
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { API, type ImGateway, type ImPlatform, type ImRegion } from "../../api";
@@ -115,7 +116,7 @@ export function Im() {
           </div>
         )}
         <div className="tcards">
-          {!data && !err && <p className="small muted">{t("common.loading")}</p>}
+          {!data && !err && <Skeleton />}
           {data?.platforms.map((p) => {
             const mine = gateways.filter((g) => g.platform === p.id);
             return (

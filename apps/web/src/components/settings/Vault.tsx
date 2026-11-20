@@ -1,3 +1,4 @@
+import { Skeleton } from "../Skeleton";
 import { Fragment, useEffect, useState } from "react";
 import { Copy, KeyRound, Plus } from "lucide-react";
 import { API, type VaultItem } from "../../api";
@@ -47,7 +48,7 @@ export function Vault() {
       <div className="vb">
         {adding && <AddSecret onDone={() => (setAdding(false), void load())} onCancel={() => setAdding(false)} />}
         {err && <p className="small errt">{err}</p>}
-        {!items && !err && <p className="small">{t("common.loading")}</p>}
+        {!items && !err && <Skeleton />}
         {items && items.length === 0 && (
           <div className="vltempty">
             <KeyRound size={20} />

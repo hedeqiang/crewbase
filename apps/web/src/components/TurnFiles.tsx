@@ -1,3 +1,4 @@
+import { Skeleton } from "./Skeleton";
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { ChevronDown, ChevronRight, FileDiff as FileDiffIcon, Undo2 } from "lucide-react";
 import { API, type FileDiff, type TurnChanges, type TurnSummary } from "../api";
@@ -116,7 +117,7 @@ export function TurnFiles({ agent, turn, ended }: { agent: string; turn: string;
           {err ? (
             <div className="fxmsg small errt">{err}</div>
           ) : !tc ? (
-            <div className="fxmsg small muted">{t("common.loading")}</div>
+            <div className="fxmsg"><Skeleton kind="code" /></div>
           ) : tc.files.length === 0 ? (
             <div className="fxmsg small muted">{t("tf.none")}</div>
           ) : (
@@ -159,7 +160,7 @@ function TurnFile({ agent, turn, f }: { agent: string; turn: string; f: TurnChan
         ) : err ? (
           <div className="fxmsg small errt">{err}</div>
         ) : !d ? (
-          <div className="fxmsg small muted">{t("common.loading")}</div>
+          <div className="fxmsg"><Skeleton kind="code" /></div>
         ) : d.hunks.length === 0 ? (
           <div className="fxmsg small muted">{f.status === "deleted" ? t("fx.emptyDeleted") : t("fx.emptyFile")}</div>
         ) : (

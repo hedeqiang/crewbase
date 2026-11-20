@@ -2897,3 +2897,20 @@ b > .mkver, .g b .mkver { margin: 0 0 0 6px; }
   .typing > span:not(.dots) { color: var(--muted); background: none; }
   ::view-transition-group(*), ::view-transition-old(*), ::view-transition-new(*) { animation: none !important; }
 }
+
+/* skeletons (Skeleton.tsx): appear after a moment, shimmer softly */
+.skel { display: flex; flex-direction: column; gap: 9px; padding: 4px 0; animation: fade-in var(--dur-normal) var(--ease-out) 150ms both; }
+.skb { display: block; height: 10px; border-radius: 5px; background: linear-gradient(90deg, var(--sunken) 0%, var(--hover) 40%, var(--sunken) 80%); background-size: 250% 100%; animation: skel-wave 1.6s var(--ease-out) infinite; }
+.skb.thin { height: 8px; opacity: .7; }
+.skb.sq { width: 32px; height: 32px; border-radius: 9px; flex: none; }
+.skb.av { width: 28px; height: 28px; border-radius: 9px; flex: none; }
+.skel-rows { gap: 14px; }
+.skr { display: flex; align-items: center; gap: 12px; }
+.skr > span, .skm > span { flex: 1; display: flex; flex-direction: column; gap: 7px; min-width: 0; }
+.skel-code .skb { height: 9px; }
+.skel-chat { gap: 22px; padding-top: 12px; }
+.skm { display: flex; gap: 10px; align-items: flex-start; }
+.skm.me > span { align-items: flex-end; }
+.skm.me .skb { height: 30px; border-radius: 15px; }
+@keyframes skel-wave { from { background-position: 100% 0; } to { background-position: -150% 0; } }
+@media (prefers-reduced-motion: reduce) { .skb, .skel { animation: none !important; } }
