@@ -55,6 +55,7 @@ const MOBILE_SECTIONS = new Set<string>(["general", "keys", "approvals"]);
 export function Settings() {
   const sec = useStore((s) => s.settings);
   const n = useStore((s) => s.approvals.length);
+  const nUpd = useStore((s) => s.addonUpdates);
   const manage = useStore((s) => s.tier === "desktop");
   const [q, setQ] = useState("");
   const ql = q.trim().toLowerCase();
@@ -80,6 +81,7 @@ export function Settings() {
                   {i.icon}
                   {t(`set.${i.id}` as Key)}
                   {i.id === "approvals" && n > 0 && <span className="sn">{n}</span>}
+                  {i.id === "market" && nUpd > 0 && <span className="sn upd" title={t("aup.dot", { n: nUpd })}>{nUpd}</span>}
                 </button>
               ))}
             </div>

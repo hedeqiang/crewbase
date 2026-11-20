@@ -134,6 +134,8 @@ export interface State {
   previewOpen: { session: string; item: PreviewInfo; n: number } | null;
   /** Bumped on SSE "mcp" pushes so settings pages can refetch. */
   mcpTick: number;
+  /** add-on updates waiting (插件与技能 badges) */
+  addonUpdates: number;
   events: Record<string, SessionEvent[]>;
   loadErr: Record<string, string>;
   streams: Record<string, StreamBuf>; // key `${session}|${agent}`
@@ -248,6 +250,7 @@ let state: State = {
   libOpen: null,
   previewOpen: null,
   mcpTick: 0,
+  addonUpdates: 0,
   events: {},
   loadErr: {},
   streams: {},
@@ -465,6 +468,16 @@ export function teamMode<M extends string>(m: M): M | "read-only" {
 /** The team new things are created in ("" = default, as the API stores it). */
 export function currentTeam(): string | undefined {
   return state.team === DEFAULT_TEAM ? undefined : state.team;
+}
+
+export async function refreshAddonUpdates() {
+  if (state.tier !== "desktop") return; // managing add-ons is the desktop's
+  try {
+    const u = await API.addonUpdates();
+    setState({ addonUpdates: u.items.length });
+  } catch {
+    /* an older server: no reminders */
+  }
 }
 
 export async function refreshTeams() {
@@ -779,6 +792,7 @@ export async function resync() {
     refreshProfile(),
     refreshUI(),
     refreshTeams(),
+    refreshAddonUpdates(),
   ]);
   // first run on a phone: the list is empty, the welcome steps matter
   if (narrow() && state.listOpen && Object.keys(state.agents).length === 0) setState({ listOpen: false });
@@ -907,6 +921,7 @@ export function connectEvents() {
   on("browser.state", (d: BrowserState) => setState((s) => ({ browser: { ...s.browser, [d.agent]: d } })));
   on("computer.state", (d: ComputerState) => setState({ computer: d }));
   on("mcp", () => setState((s) => ({ mcpTick: s.mcpTick + 1 })));
+  on("addons.updates", (d: { count: number }) => setState({ addonUpdates: d.count ?? 0 }));
   on("models.changed", () => void refreshModels());
   on("ui.changed", () => void refreshUI());
   on("members.changed", () => void refreshTier());

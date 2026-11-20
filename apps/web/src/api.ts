@@ -1119,6 +1119,28 @@ export interface AgentDocsStatus {
   local: { supported: boolean; release: string; running: boolean; url?: string; email?: string; version?: string; step?: string; error?: string };
 }
 
+/** An available update of an add-on (features/addonupdates). */
+export interface AddonUpdate {
+  kind: "plugin" | "skill" | "app";
+  id: string;
+  agent?: string;
+  name: string;
+  desc?: string;
+  /** plugins only: apps and skills show no version */
+  current?: string;
+  latest?: string;
+  notes?: string;
+  source?: string;
+  /** the update asks for more; it waits for approval */
+  newPermissions?: string[];
+}
+
+export interface AddonUpdates {
+  items: AddonUpdate[];
+  checked?: string;
+  error?: string;
+}
+
 export interface DeviceView {
   id: string;
   name: string;
@@ -1232,6 +1254,9 @@ export type ToldEntry = { time: string; session: string; via: string; text: stri
 export type Working = { tasks: WorkTask[]; notes: WorkNote[]; told: ToldEntry[] };
 
 export const API = {
+  addonUpdates: () => api<AddonUpdates>("GET", "/api/addons/updates"),
+  checkAddonUpdates: () => api<AddonUpdates>("POST", "/api/addons/updates/check"),
+  applyAddonUpdate: (b: { kind: string; id: string; agent?: string }) => api<{ result: any; state: AddonUpdates }>("POST", "/api/addons/update", b),
   agentDocs: () => api<AgentDocsStatus>("GET", "/api/agentdocs"),
   connectAgentDocs: (b: { url: string; token: string; workspace?: string; agents?: string[]; wake?: boolean }) => api<AgentDocsStatus>("POST", "/api/agentdocs", b),
   patchAgentDocs: (b: { agents?: string[]; wake?: boolean }) => api<AgentDocsStatus>("PATCH", "/api/agentdocs", b),

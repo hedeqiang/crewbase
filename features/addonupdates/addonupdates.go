@@ -1,6 +1,7 @@
 // Package addonupdates gathers what can be updated among the add-ons —
-// marketplace plugins, skills installed from GitHub, and apps Crewbase
-// runs (Open Agent Docs) — for the settings page's reminders. It checks at
+// marketplace plugins and skills installed from GitHub — for the settings
+// page's reminders, and keeps the apps Crewbase runs (Open Agent Docs)
+// current by itself. It checks at
 // start and every 12 hours, keeps the result, and publishes "addons.updates"
 // when it changes. MCP connectors are not listed: npx …@latest servers
 // update themselves on start and remote ones are kept current by their
@@ -116,13 +117,18 @@ func (s *Service) Check(ctx context.Context) State {
 			items = append(items, Item{Kind: KindSkill, ID: u.Name, Agent: u.Agent, Name: u.Title, Desc: u.Desc, Source: u.Source})
 		}
 	}
+	// apps Crewbase runs keep themselves current: a newer release is
+	// installed here, not listed (it restarts for a few seconds)
 	if d := s.docs(); d != nil {
 		st, err := d.CheckLocal(ctx)
 		if err != nil {
-			errs = append(errs, err.Error())
-		}
-		if st.Update != nil {
-			items = append(items, Item{Kind: KindApp, ID: "open-agent-docs", Name: "Open Agent Docs", Notes: st.Update.Notes})
+			s.c.Log().Warn("addonupdates: could not check Open Agent Docs", "err", err)
+		} else if st.Update != nil {
+			if _, err := d.UpdateLocal(ctx); err != nil {
+				s.c.Log().Warn("addonupdates: could not update Open Agent Docs", "err", err)
+			} else {
+				s.c.Log().Info("addonupdates: Open Agent Docs updated", "version", st.Update.Tag)
+			}
 		}
 	}
 	sort.SliceStable(items, func(i, j int) bool {

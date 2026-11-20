@@ -1,4 +1,5 @@
 import { Fragment, useEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent, type ReactNode } from "react";
+import { UpdatesSection, useAddonUpdates } from "./Updates";
 import { AgentDocsDialog, AgentDocsIcon, useAgentDocs } from "./AgentDocs";
 import { createPortal } from "react-dom";
 import {
@@ -155,6 +156,8 @@ export function Extensions() {
   const [q, setQ] = useState("");
   const [d, setD] = useState<Data>({ catalog: null, servers: null, skills: null, plugins: null, market: null, marketErr: null });
   const [approve, setApprove] = useState<PluginView | null>(null);
+  const upd = useAddonUpdates();
+  const nUpd = upd.d?.items.length ?? 0;
   const [paste, setPaste] = useState<{ text: string; picks?: string[] } | null>(null);
   const [focus, setFocus] = useState<string | null>(null); // server to open in Installed
   const [gh, setGh] = useState<CatItem | null>(null); // GitHub sign-in dialog
@@ -252,7 +255,7 @@ export function Extensions() {
             </button>
             <button type="button" aria-pressed={view === "installed"} onClick={() => setView("installed")}>
               {t("mk.tabInstalled")}
-              {installedN > 0 && <span className="segn">{installedN}</span>}
+              {nUpd > 0 ? <span className="segn upd" title={t("aup.available", { n: nUpd })}>{nUpd}</span> : installedN > 0 && <span className="segn">{installedN}</span>}
             </button>
           </div>
           </div>
@@ -260,9 +263,20 @@ export function Extensions() {
       />
       <div className="vb mkwrap">
         {view === "market" ? (
-          <MarketView {...shared} search={search} />
+          <>
+            {nUpd > 0 && (
+              <button className="updbar" type="button" onClick={() => setView("installed")}>
+                <span className="updot static" />
+                {t("aup.available", { n: nUpd })}
+                <span className="sp" />
+                {t("aup.see")}
+              </button>
+            )}
+            <MarketView {...shared} search={search} />
+          </>
         ) : (
           <>
+            <UpdatesSection u={upd} onChanged={reload} onApprove={setApprove} />
             {search}
             <InstalledView {...shared} />
           </>
@@ -1326,6 +1340,12 @@ function InstalledView({ d, q, reload, reloadMarket, onApprove, onSignIn, onScop
                       </b>
                       <span className="mkmeta">
                         {scopeLabel(s.scope)} · {t("ext.toolsN", { n: s.status?.tools ?? 0 })}
+                        {(s.transport === "http" || (s.command ?? []).some((a) => /@latest$/.test(a))) && (
+                          <span className="autoupd" title={s.transport === "http" ? t("aup.autoRemote") : t("aup.autoNpx")}>
+                            {" · "}
+                            {t("aup.auto")}
+                          </span>
+                        )}
                         {it?.name ? "" : (
                           <span className="mono" title={s.transport === "http" ? s.url : (s.command ?? []).join(" ")}>
                             {" · "}

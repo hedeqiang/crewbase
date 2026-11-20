@@ -151,6 +151,7 @@ export function AgentDocsDialog({ st, onClose, onChanged }: { st: AgentDocsStatu
                 {st!.local?.running && <span className="pill sm">{t("ad.runByCrewbase")}</span>}
               </div>
               {st!.local?.email && <p className="small muted" style={{ margin: "4px 0 0" }}>{t("ad.signInAs", { email: st!.local.email })}</p>}
+              {st!.local?.running && <p className="small muted" style={{ margin: "2px 0 0" }}>{t("ad.autoUpdate")}</p>}
               {(st!.error || st!.local?.error) && <div className="ferr">{st!.error || st!.local?.error}</div>}
               <div className="psec2 psec2r">
                 <span>{t("ad.identities", { n: st!.identities.length })}</span>

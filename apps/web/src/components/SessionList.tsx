@@ -44,6 +44,7 @@ export function SessionList() {
   const events = useStore((s) => s.events);
   const current = useStore((s) => s.current);
   const view = useStore((s) => s.view);
+  const addonUpdates = useStore((s) => s.addonUpdates);
   const manage = useStore((s) => s.tier === "desktop");
   const connected = useStore((s) => s.connected);
   const profile = useStore((s) => s.profile);
@@ -326,12 +327,13 @@ export function SessionList() {
         <button
           className="ib"
           type="button"
-          aria-label={t("list.settings")}
-          title={t("list.settings") + " (" + keyLabel("settings") + ")"}
+          aria-label={addonUpdates > 0 ? t("list.settings") + " · " + t("aup.dot", { n: addonUpdates }) : t("list.settings")}
+          title={(addonUpdates > 0 ? t("aup.dot", { n: addonUpdates }) + " · " : "") + t("list.settings") + " (" + keyLabel("settings") + ")"}
           aria-pressed={view === "settings"}
-          onClick={() => (view === "settings" ? setState({ view: "chat" }) : openSettings("general"))}
+          onClick={() => (view === "settings" ? setState({ view: "chat" }) : openSettings(addonUpdates > 0 ? "market" : "general"))}
         >
           <Settings size={16} />
+          {addonUpdates > 0 && <span className="updot" title={t("aup.dot", { n: addonUpdates })} />}
         </button>
       </div>
 

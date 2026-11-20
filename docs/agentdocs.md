@@ -20,8 +20,8 @@ person will sign in to the docs with, then:
 Crewbase restarts the server if it exits, starts it again when Crewbase starts, and stops it on quit. Disconnecting stops it
 too; its data stays, so starting again asks for the account used before.
 
-**Updates** follow upstream: Crewbase looks for a newer release when it starts and with the other update checks, and offers
-it (with the release notes). Updating installs it the same checked way, stops the old server (pausing the comment
+**Updates** follow upstream and happen by themselves: with the add-on update check (a minute after start, then twice a
+day) Crewbase installs a newer release without asking; nothing is listed. Updating installs it the same checked way, stops the old server (pausing the comment
 listeners, whose long polls would keep it open), starts the new one on the same data and removes the old binary; if the new
 one does not come up, it goes back to the old one.
 
