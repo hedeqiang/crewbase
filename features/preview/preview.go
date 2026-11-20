@@ -274,7 +274,7 @@ func (m *Manager) execute(ctx context.Context, call tools.Call) (tools.Result, e
 var Plugin = kernel.Register(kernel.Spec{
 	Name:        "@crewbase/preview",
 	Inject:      []string{tools.ServiceKey, agent.ServiceKey},
-	Description: "preview_open: show an agent's HTML, static site or dev server in the right panel (isolated per-root static servers on 127.0.0.1).",
+	Description: "preview_open: show an agent's HTML, static site or dev server in the right panel (isolated per-root static servers on 127.0.0.1); show_page: a checked page as the answer, in the conversation.",
 	Apply: func(c *kernel.Context) error {
 		cfg, err := kernel.Decode[struct {
 			// Idle closes a static server after this long without a request (default 30m).
@@ -292,7 +292,9 @@ var Plugin = kernel.Register(kernel.Spec{
 		m := NewManager(idle, 0)
 		c.Defer(m.Close)
 		agent.Deleted.Listen(c, m.CloseAgent)
-		kernel.Use[*tools.Registry](c, tools.ServiceKey).Register(c, m.tool())
+		reg := kernel.Use[*tools.Registry](c, tools.ServiceKey)
+		reg.Register(c, m.tool())
+		reg.Register(c, m.pageTool(c))
 		return c.Provide(ServiceKey, m)
 	},
 })

@@ -312,6 +312,18 @@ export interface PreviewInfo {
   time: string;
 }
 
+/** A visual reply in the conversation (show_page, features/preview/page.go). */
+export interface PageShown {
+  title: string;
+  path: string;
+  url: string;
+  agent?: string;
+  call?: string;
+  checked: boolean;
+  notes?: string[];
+  time: string;
+}
+
 export interface FileEntry {
   name: string;
   dir: boolean;

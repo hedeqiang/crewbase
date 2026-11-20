@@ -1,6 +1,6 @@
 // Projects a session's event log into conversation feed items.
 
-import type { ApprovalRequest, Attachment, ModelRef, Part, PreviewInfo, SessionEvent, ToolCall, ToolResult } from "./api";
+import type { ApprovalRequest, Attachment, ModelRef, Part, PageShown, PreviewInfo, SessionEvent, ToolCall, ToolResult } from "./api";
 
 export interface Step {
   call: ToolCall;
@@ -78,7 +78,9 @@ export type TurnPart =
   | { k: "msg"; it: AgentItem; narration: boolean }
   | { k: "steps"; id: string; steps: Step[] }
   /** preview_open showed a page in the right panel (preview/opened) */
-  | { k: "preview"; id: string; p: PreviewInfo };
+  | { k: "preview"; id: string; p: PreviewInfo }
+  /** show_page: a page as (part of) the answer (page/shown) */
+  | { k: "page"; id: string; p: PageShown };
 
 /** What a finished turn used, on the last reply of the turn. */
 export interface TurnStats {
@@ -537,6 +539,14 @@ export function project(events: SessionEvent[], cards?: ReadonlySet<string>): Pr
         }
         seenState = true;
         break;
+      case "page/shown": {
+        if (!d.path) break;
+        const tu = turnFor(e.agent ?? "", id, e.time);
+        // a new version of the same page replaces the one shown before
+        tu.parts = tu.parts.filter((x) => !(x.k === "page" && x.p.path === d.path));
+        tu.parts.push({ k: "page", id, p: { ...d, agent: d.agent || e.agent, time: d.time || e.time } });
+        break;
+      }
       case "preview/opened":
         if (d.url) turnFor(e.agent ?? "", id, e.time).parts.push({ k: "preview", id, p: { ...d, agent: d.agent || e.agent, time: d.time || e.time } });
         break;

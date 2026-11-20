@@ -1,4 +1,5 @@
 import { TurnFiles } from "./TurnFiles";
+import { PageCard } from "./PageCard";
 import { Welcome } from "./Welcome";
 import { runShortcut } from "../actions";
 import { keyLabel } from "../shortcuts";
@@ -1078,6 +1079,8 @@ function TurnMsg({ it, agent }: { it: Extract<FeedItem, { k: "turn" }>; agent?: 
             <Steps key={p.id} steps={p.steps} agent={it.agent} />
           ) : p.k === "preview" ? (
             <PreviewLine key={p.id} p={p.p} session={sid} />
+          ) : p.k === "page" ? (
+            <PageCard key={p.id} p={p.p} session={sid} />
           ) : p.narration ? (
             p.it.text || p.it.searches.length ? (
               <div className={"narr" + (it.open ? " fresh" : "")} key={p.it.id}>
@@ -1502,6 +1505,7 @@ function computerLabel(s: Step): string | null {
 const TOOL_LABELS: Record<string, Key> = {
   delegate: "tool.delegate",
   bash: "tool.bash",
+  show_page: "tool.page",
   read_file: "tool.read",
   write_file: "tool.write",
   edit_file: "tool.edit",

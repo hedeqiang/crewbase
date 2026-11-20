@@ -185,3 +185,49 @@ var (
 	// back) for live UIs.
 	Changed = kernel.NewEmit[State]("browser/changed")
 )
+
+// Renderer is implemented by browsers that can render a page in a
+// throwaway headless browser: no profile, no agent session, nothing kept.
+// It is how an agent checks a page it made (a screenshot of its own work
+// is not a page from the web, so it may go to the model).
+type Renderer interface {
+	Render(ctx context.Context, url string, o RenderOptions) (Rendered, error)
+}
+
+// RenderOptions are the viewport sizes to render at (CSS pixels).
+type RenderOptions struct {
+	Sizes []Size
+	// Settle is how long to wait after load for scripts (default 800ms).
+	Settle time.Duration
+}
+
+// Size is a viewport.
+type Size struct {
+	Width  int `json:"width"`
+	Height int `json:"height"`
+}
+
+// Rendered is what rendering found.
+type Rendered struct {
+	Title string `json:"title"`
+	// Shots: one PNG per size (the viewport, not the whole page).
+	Shots []Shot `json:"-"`
+	// Errors: uncaught exceptions and console.error messages.
+	Errors []string `json:"errors,omitempty"`
+	// Failed: resources that did not load (URL and reason).
+	Failed []string `json:"failed,omitempty"`
+}
+
+// Shot is the page at one size.
+type Shot struct {
+	Size
+	PNG []byte
+	// TextChars: visible text in the page (0: maybe a blank page).
+	TextChars int `json:"textChars"`
+	// Elements: visible elements with a size.
+	Elements int `json:"elements"`
+	// Overflow: the page is wider than the viewport by this many pixels.
+	Overflow int `json:"overflow"`
+	// PageHeight: the whole page's height.
+	PageHeight int `json:"pageHeight"`
+}
