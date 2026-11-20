@@ -1,7 +1,7 @@
 import { lazy, Suspense, useEffect, useState } from "react";
 import { API, desktop, initToken, openExternal, setUnauthorizedHandler, setToken } from "./api";
 import { t } from "./i18n";
-import { applyTheme, connectEvents, disconnectEvents, getState, resync, sessionAgent, setState, useStore, applyHashRoute } from "./store";
+import { applyTheme, connectEvents, disconnectEvents, docsEmbeddable, getState, isDocsLink, openDocs, resync, sessionAgent, setState, useStore, applyHashRoute } from "./store";
 import { actionOf } from "./shortcuts";
 import { runShortcut } from "./actions";
 import { ConvHeader, useNeedsYou } from "./components/Header";
@@ -105,10 +105,24 @@ function Shell() {
     }
   }, [needs]);
 
+  // Links to the connected docs open them in the right panel.
+  useEffect(() => {
+    const click = (e: MouseEvent) => {
+      if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+      const a = (e.target as HTMLElement | null)?.closest?.("a[href]") as HTMLAnchorElement | null;
+      if (!a || !isDocsLink(a.href) || !docsEmbeddable()) return;
+      e.preventDefault();
+      openDocs(a.href);
+    };
+    document.addEventListener("click", click, true);
+    return () => document.removeEventListener("click", click, true);
+  }, []);
+
   // Desktop shell: open external links in the system browser.
   useEffect(() => {
     if (!desktop()?.openExternal) return;
     const click = (e: MouseEvent) => {
+      if (e.defaultPrevented) return;
       const a = (e.target as HTMLElement | null)?.closest?.("a[href]") as HTMLAnchorElement | null;
       if (!a || a.target !== "_blank" || !/^https?:/.test(a.href)) return;
       e.preventDefault();

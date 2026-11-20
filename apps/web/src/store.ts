@@ -33,7 +33,7 @@ import { modelKind, setUserProviders } from "./format";
 
 export type View = "chat" | "newAgent" | "settings";
 /** Built-in tabs, or `ui:<key>` for a plugin's sidebar-right.tab. */
-export type PanelTab = "task" | "schedule" | "files" | "preview" | "library" | "agent" | `ui:${string}`;
+export type PanelTab = "task" | "schedule" | "files" | "preview" | "library" | "docs" | "agent" | `ui:${string}`;
 export type Theme = "system" | "light" | "dark";
 export type SettingsSection =
   | "general"
@@ -44,6 +44,7 @@ export type SettingsSection =
   | "models"
   | "market"
   | "library"
+  | "docs"
   | "computer"
   | "auto"
   | "approvals"
@@ -136,6 +137,10 @@ export interface State {
   mcpTick: number;
   /** add-on updates waiting (插件与技能 badges) */
   addonUpdates: number;
+  /** the connected Open Agent Docs server (null: none) */
+  agentDocs: { url: string; workspace?: string; local: boolean } | null;
+  /** the docs page shown in the right panel's 文档 tab (null: the docs home) */
+  docsOpen: string | null;
   events: Record<string, SessionEvent[]>;
   loadErr: Record<string, string>;
   streams: Record<string, StreamBuf>; // key `${session}|${agent}`
@@ -251,6 +256,8 @@ let state: State = {
   previewOpen: null,
   mcpTick: 0,
   addonUpdates: 0,
+  agentDocs: null,
+  docsOpen: null,
   events: {},
   loadErr: {},
   streams: {},
@@ -468,6 +475,44 @@ export function teamMode<M extends string>(m: M): M | "read-only" {
 /** The team new things are created in ("" = default, as the API stores it). */
 export function currentTeam(): string | undefined {
   return state.team === DEFAULT_TEAM ? undefined : state.team;
+}
+
+export async function refreshAgentDocs() {
+  if (state.tier !== "desktop") return;
+  try {
+    const d = await API.agentDocs();
+    setState({ agentDocs: d.connected ? { url: d.settings.url, workspace: d.settings.workspaceName, local: !!d.local?.running } : null });
+  } catch {
+    /* an older server */
+  }
+}
+
+/** Whether href is a page of the connected docs server. */
+export function isDocsLink(href: string): boolean {
+  const d = state.agentDocs;
+  if (!d) return false;
+  try {
+    return new URL(href).origin === new URL(d.url).origin;
+  } catch {
+    return false;
+  }
+}
+
+/** The docs can be shown inside Crewbase: same host as this page, so the
+ *  docs' sign-in cookie is a same-site one. */
+export function docsEmbeddable(): boolean {
+  const d = state.agentDocs;
+  if (!d || typeof location === "undefined") return false;
+  try {
+    return new URL(d.url).hostname === location.hostname;
+  } catch {
+    return false;
+  }
+}
+
+/** Opens a docs page (or the docs home) in the right panel. */
+export function openDocs(href?: string) {
+  setState({ panelOpen: true, panelTab: "docs", docsOpen: href ?? null });
 }
 
 export async function refreshAddonUpdates() {
@@ -793,6 +838,7 @@ export async function resync() {
     refreshUI(),
     refreshTeams(),
     refreshAddonUpdates(),
+    refreshAgentDocs(),
   ]);
   // first run on a phone: the list is empty, the welcome steps matter
   if (narrow() && state.listOpen && Object.keys(state.agents).length === 0) setState({ listOpen: false });

@@ -92,6 +92,13 @@ type Route struct {
 	RawBody bool
 }
 
+// Reply is a JSON response that also sets cookies (e.g. signing an
+// embedded local app in).
+type Reply struct {
+	Data    any
+	Cookies []*http.Cookie
+}
+
 // Blob is a non-JSON response (file downloads). Only raster images are
 // served inline; anything else downloads as an attachment, so uploaded
 // HTML or SVG can never run in the app's origin.
@@ -471,6 +478,15 @@ func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if b, ok := out.(*Blob); ok {
 		writeBlob(w, r, b)
 		return
+	}
+	if rp, ok := out.(*Reply); ok {
+		for _, ck := range rp.Cookies {
+			http.SetCookie(w, ck)
+		}
+		out = rp.Data
+		if out == nil {
+			out = map[string]bool{"ok": true}
+		}
 	}
 	if rd, ok := out.(*Redirect); ok {
 		p := rd.Path

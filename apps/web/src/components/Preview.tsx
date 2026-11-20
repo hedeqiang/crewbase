@@ -1,8 +1,8 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { AppWindow, Eye, ExternalLink, Monitor, RotateCw, Smartphone, Tablet, Unplug, X } from "lucide-react";
+import { AppWindow, Eye, ExternalLink, Monitor, RotateCw, Smartphone, Tablet, Unplug, X, FileText } from "lucide-react";
 import { API, type AgentView, type PreviewInfo } from "../api";
 import { t } from "../i18n";
-import { getState, openPreview, sessionAgent, setState, toast, useStore } from "../store";
+import { getState, openPreview, sessionAgent, setState, toast, useStore, docsEmbeddable, isDocsLink, openDocs } from "../store";
 
 // 预览 (docs/previews.md): pages an agent made, framed from their own origin
 // (a per-root static server on 127.0.0.1 or the dev server's address), never
@@ -344,7 +344,18 @@ export function LocalPreviewCards({ text, opened }: { text: string; opened?: str
   if (!links.length) return null;
   return (
     <div className="prvcards">
-      {links.map((u) => (
+      {links.map((u) =>
+        isDocsLink(u) && docsEmbeddable() ? (
+          <button key={u} type="button" className="prvcard" onClick={() => openDocs(u)}>
+            <span className="prvcic">
+              <FileText size={15} />
+            </span>
+            <span className="prvct">
+              <b>{t("adx.openInPanel")}</b>
+              <span className="mono small">{addrOf(u)}</span>
+            </span>
+          </button>
+        ) : (
         <button
           key={u}
           type="button"
@@ -362,7 +373,8 @@ export function LocalPreviewCards({ text, opened }: { text: string; opened?: str
             <span className="mono small">{addrOf(u)}</span>
           </span>
         </button>
-      ))}
+        ),
+      )}
     </div>
   );
 }

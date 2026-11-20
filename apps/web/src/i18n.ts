@@ -2315,6 +2315,14 @@ const zh = {
   "aup.auto": "自动保持最新",
   "aup.autoNpx": "每次启动时自动使用最新版本",
   "aup.autoRemote": "远程服务器由提供方维护，始终是最新的",
+  "set.docs": "Open Agent Docs",
+  "set.kw.docs": "文档,协作,页面,评论,docs,open agent docs",
+  "adx.tab": "文档",
+  "adx.home": "文档首页",
+  "adx.full": "在设置里打开完整文档",
+  "adx.openInPanel": "在右侧打开文档",
+  "adx.notHere": "这个文档服务器不在这台电脑上，不能在 Crewbase 里直接打开，请在浏览器里打开。",
+  "adx.notConnected": "还没有连接 Open Agent Docs。在「插件与技能 › 应用」里连接或一键启动。",
 } as const;
 
 export type Key = keyof typeof zh;

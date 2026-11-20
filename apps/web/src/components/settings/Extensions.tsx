@@ -9,7 +9,7 @@ import {
 import { API, api, openExternal, DEFAULT_TEAM, type AgentView, type MarketEntry, type McpServer, type PluginView } from "../../api";
 import { canUse, connectorsFor, nextConnectors, useConnectors } from "../AgentConnectors";
 import { getLang, t, type Key } from "../../i18n";
-import { setState, toast, useStore } from "../../store";
+import { setState, toast, useStore, refreshAgentDocs } from "../../store";
 import { Head } from "../Settings";
 import { MonoMark } from "../ProviderMark";
 import { PasteInstall } from "./PasteInstall";
@@ -592,7 +592,10 @@ function MarketView({ d, q, reload, reloadMarket, onApprove, onSignIn, onManage,
         </Fragment>
       ))}
       {kind === "skill" && !shown.some((x) => x.kind === "skill") && libs.length > 0 && <Libraries libs={libs} onOpen={(l) => onPaste(l.repo, l.picks)} />}
-      {docsOpen && <AgentDocsDialog st={docs.st} onClose={() => setDocsOpen(false)} onChanged={(x) => docs.setSt(x)} />}
+      {docsOpen && <AgentDocsDialog st={docs.st} onClose={() => setDocsOpen(false)} onChanged={(x) => {
+            docs.setSt(x);
+            void refreshAgentDocs();
+          }} />}
       {dialog && <ConnectDialog item={dialog} target={target} servers={servers} onClose={() => setDialog(null)} onChanged={reload} onSignIn={onSignIn} />}
     </>
   );

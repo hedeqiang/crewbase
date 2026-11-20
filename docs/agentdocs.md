@@ -25,6 +25,19 @@ day) Crewbase installs a newer release without asking; nothing is listed. Updati
 listeners, whose long polls would keep it open), starts the new one on the same data and removes the old binary; if the new
 one does not come up, it goes back to the old one.
 
+## Inside Crewbase
+
+Once connected, 设置 gets an **Open Agent Docs** item: the whole docs workspace in a frame, with 在浏览器打开 and 管理.
+A conversation's right panel gets a **文档** tab, and links to the docs in a conversation (an agent's 页面地址, or the
+在右侧打开文档 card under an answer) open the page there, in the docs' embed mode; ⌘-click opens the browser.
+
+The docs are shown only when they are on the same host as the page showing them (the desktop app and a browser on the
+same computer), so the docs' sign-in cookie is a same-site one. For a server Crewbase runs, the person's own session from
+setup is kept in the vault (`vault:crewbase/agentdocs-session`); `POST /api/agentdocs/embed` checks the browser's cookie
+and, when it has none that works, sets that session as an HttpOnly `oad_session` cookie (cookies are not separated by
+port, so it is the docs server's; HttpOnly keeps pages on other local ports from reading it). When the session has
+expired the frame shows the docs' own sign-in once. A server elsewhere opens in the browser.
+
 ## Connecting an existing server
 
 设置 › 插件与技能 › 应用 › Open Agent Docs. The person gives:

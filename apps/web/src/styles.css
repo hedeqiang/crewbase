@@ -2684,3 +2684,14 @@ a.lcard:hover, .lvideo .ltext:hover { background: var(--hover); }
 .updnotes { max-height: 260px; overflow: auto; padding: 4px 12px 8px; border-radius: 10px; background: var(--raised); font-size: 12.5px; }
 .updhint { margin: 6px 0 0; }
 .autoupd { color: var(--ok-text); }
+
+/* Open Agent Docs inside Crewbase */
+.docswrap { flex: 1; min-height: 0; display: flex; flex-direction: column; padding: 0 16px 16px; }
+.docsframe { flex: 1; min-height: 0; width: 100%; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); display: block; }
+.docsframe.loading { display: grid; place-items: center; }
+.docshr { display: inline-flex; gap: 6px; }
+.docsout { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; padding: 16px; }
+.docstab { display: flex; flex-direction: column; flex: 1; min-height: 0; }
+.docsbar { display: flex; align-items: center; gap: 4px; padding: 6px 10px; border-bottom: 1px solid var(--border); flex: none; }
+.docsbar .mono { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.docstab .docsframe { border: 0; border-radius: 0; }

@@ -1258,6 +1258,8 @@ export const API = {
   checkAddonUpdates: () => api<AddonUpdates>("POST", "/api/addons/updates/check"),
   applyAddonUpdate: (b: { kind: string; id: string; agent?: string }) => api<{ result: any; state: AddonUpdates }>("POST", "/api/addons/update", b),
   agentDocs: () => api<AgentDocsStatus>("GET", "/api/agentdocs"),
+  /** signs this browser in to the docs when Crewbase holds the session */
+  embedAgentDocs: () => api<{ url: string; signedIn: boolean }>("POST", "/api/agentdocs/embed"),
   connectAgentDocs: (b: { url: string; token: string; workspace?: string; agents?: string[]; wake?: boolean }) => api<AgentDocsStatus>("POST", "/api/agentdocs", b),
   patchAgentDocs: (b: { agents?: string[]; wake?: boolean }) => api<AgentDocsStatus>("PATCH", "/api/agentdocs", b),
   syncAgentDocs: () => api<AgentDocsStatus>("POST", "/api/agentdocs/sync"),

@@ -348,6 +348,7 @@ func (s *Service) Disconnect(ctx context.Context) error {
 	s.mu.Unlock()
 	if cs := s.creds(); cs != nil {
 		_ = cs.Delete(adminRef)
+		_ = cs.Delete(sessionRef)
 	}
 	s.removeLocal(false)
 	return err

@@ -6,9 +6,10 @@ import { API, refString, type AgentView, type ChannelView, type ContextBreakdown
 import { t, type Key } from "../i18n";
 import { activeModel, allModels, detailLabel, effortLabel, exhaustedHint, exhaustedLabel, hhmm, isExhausted, kfmt, modeLabel, modelLabel, modelMeta, modelOff, pillTone, sameRef, statusLabel, until } from "../format";
 import { project, type SubRun } from "../projection";
-import { openSubRun, refreshChannel, setState, toast, useStore, sessionAgent } from "../store";
+import { openSubRun, refreshChannel, setState, toast, useStore, sessionAgent, docsEmbeddable } from "../store";
 import { FilesTab } from "./Files";
 import { LibraryTab } from "./Library";
+import { DocsTab } from "./settings/AgentDocs";
 import { ScheduleTab, scheduleCount, useSchedule } from "./Schedule";
 import { PreviewTab } from "./Preview";
 import { Avatar, LookPicker } from "./Avatar";
@@ -30,6 +31,7 @@ export function Panel() {
   const pluginTabs = useSlot("sidebar-right.tab");
   const subView = useStore((s) => s.subView);
   const sched = useSchedule(agent);
+  const docsOn = useStore((s) => !!s.agentDocs) && docsEmbeddable();
   const nSched = scheduleCount(sched);
   const tabsRef = useRef<HTMLDivElement>(null);
   // the open tab stays in sight
@@ -39,7 +41,7 @@ export function Panel() {
   }, [tab, agent?.id]);
   if (!agent) return null;
   const chat = agent.kind === "chat";
-  const view: typeof tab = chat && (tab === "files" || tab === "library" || tab === "schedule") ? "task" : tab;
+  const view: typeof tab = (chat && (tab === "files" || tab === "library" || tab === "schedule" || tab === "docs")) || (tab === "docs" && !docsOn) ? "task" : tab;
   // a plain chat has no workspace to browse (an HTML answer can still be previewed)
   const tabs: [typeof tab, string][] = [
     ["task", t("panel.task")],
@@ -47,12 +49,13 @@ export function Panel() {
     ...(chat ? [] : ([["files", t("panel.files")]] as [typeof tab, string][])),
     ["preview", t("panel.preview")],
     ...(chat ? [] : ([["library", t("lib.title")]] as [typeof tab, string][])),
+    ...(!chat && docsOn ? ([["docs", t("adx.tab")]] as [typeof tab, string][]) : []),
     ["agent", agent.kind === "chat" ? t("chat.settingsTab") : agent.name || t("panel.agent")],
     ...pluginTabs.map((c): [typeof tab, string] => [`ui:${c.key}`, c.title || c.key]),
   ];
   const pluginTab = view.startsWith("ui:") ? pluginTabs.find((c) => "ui:" + c.key === view) : undefined;
   return (
-    <aside className={"panel" + (view === "preview" ? " wide" : view === "files" ? " files-wide" : "")}>
+    <aside className={"panel" + (view === "preview" || view === "docs" ? " wide" : view === "files" ? " files-wide" : "")}>
       <div className="ptabs">
         {/* the tabs scroll sideways when the panel is narrow; the close button stays */}
         <div className="ptabsc" role="tablist" ref={tabsRef}>
@@ -80,6 +83,7 @@ export function Panel() {
         )}
         {view === "files" && <FilesTab agent={agent} />}
         {view === "library" && <LibraryTab />}
+        {view === "docs" && <DocsTab />}
         {view === "schedule" && <ScheduleTab key={"sched:" + agent.id} agent={agent} data={sched} />}
         {view === "preview" && <PreviewTab key={"prv:" + (current ?? agent.session)} session={current ?? agent.session} />}
         {view === "agent" && <AgentTab key={"agent:" + agent.id} agent={agent} sessionId={current ?? agent.session} />}

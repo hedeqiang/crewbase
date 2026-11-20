@@ -66,6 +66,7 @@ var Plugin = kernel.Register(kernel.Spec{
 //	POST   /api/agentdocs/sync       set agents up again
 //	POST   /api/agentdocs/local      {email, password} 一键启动: install, run and connect a local server
 //	POST   /api/agentdocs/local/update   move it to the latest release
+//	POST   /api/agentdocs/embed      {url, signedIn}; signs this browser in when Crewbase holds the session
 //	DELETE /api/agentdocs            disconnect (identities revoked; a local server stops, its data stays)
 var APIPlugin = kernel.Register(kernel.Spec{
 	Name:        "@crewbase/agentdocs-api",
@@ -126,6 +127,16 @@ var APIPlugin = kernel.Register(kernel.Spec{
 					return nil, gateway.BadRequest("%v", err)
 				}
 				return st, nil
+			}})
+		// desktop only: the session goes to the browser of the computer the docs run on
+		g.Handle(c, gateway.Route{Method: "POST", Path: "/api/agentdocs/embed",
+			Handle: func(ctx context.Context, r *gateway.Request) (any, error) {
+				e, ck := s.EmbedFor(ctx, r.HTTP)
+				rp := &gateway.Reply{Data: e}
+				if ck != nil {
+					rp.Cookies = []*http.Cookie{ck}
+				}
+				return rp, nil
 			}})
 		g.Handle(c, gateway.Route{Method: "POST", Path: "/api/agentdocs/sync",
 			Handle: func(ctx context.Context, _ *gateway.Request) (any, error) {

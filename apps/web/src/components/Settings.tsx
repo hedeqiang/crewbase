@@ -46,6 +46,7 @@ import {
 import { ThemeSeg } from "./SessionList";
 import { confirmDialog } from "./Confirm";
 import { LibraryPage } from "./Library";
+import { DocsPage } from "./settings/AgentDocs";
 
 
 
@@ -56,6 +57,8 @@ export function Settings() {
   const sec = useStore((s) => s.settings);
   const n = useStore((s) => s.approvals.length);
   const nUpd = useStore((s) => s.addonUpdates);
+  const docsOn = useStore((s) => !!s.agentDocs);
+  const shown = (id: string) => id !== "docs" || docsOn;
   const manage = useStore((s) => s.tier === "desktop");
   const [q, setQ] = useState("");
   const ql = q.trim().toLowerCase();
@@ -71,7 +74,7 @@ export function Settings() {
           <input value={q} onChange={(e) => setQ(e.target.value)} placeholder={t("set.search")} />
         </label>
         {NAV.map((g) => {
-          const items = g.items.filter((i) => (manage || MOBILE_SECTIONS.has(i.id)) && (!ql || matchesSection(i.id, ql)));
+          const items = g.items.filter((i) => shown(i.id) && (manage || MOBILE_SECTIONS.has(i.id)) && (!ql || matchesSection(i.id, ql)));
           if (!items.length) return null;
           return (
             <div key={g.group} className="sgrp">
@@ -99,6 +102,7 @@ export function Settings() {
         {manage && sec === "auto" && <Automation />}
         {manage && sec === "market" && <Extensions />}
         {manage && sec === "library" && <LibraryPage embedded />}
+        {manage && sec === "docs" && <DocsPage />}
         {manage && sec === "profile" && <Profile />}
         {manage && sec === "vault" && <Vault />}
         {sec === "keys" && <Keys />}
@@ -108,7 +112,7 @@ export function Settings() {
         {manage && sec === "teams" && <Teams />}
         {manage && sec === "im" && <Im />}
         {manage && sec === "computer" && <Computer />}
-        {manage && !["general", "models", "approvals", "auto", "market", "library", "profile", "vault", "keys", "notify", "hosts", "team", "teams", "im", "computer"].includes(sec) && <Soon sec={sec} />}
+        {manage && !["general", "models", "approvals", "auto", "market", "library", "docs", "profile", "vault", "keys", "notify", "hosts", "team", "teams", "im", "computer"].includes(sec) && <Soon sec={sec} />}
       </div>
     </div>
   );

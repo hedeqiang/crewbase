@@ -2272,4 +2272,12 @@ export const en: Partial<Record<Key, string>> = {
   "aup.auto": "Kept up to date",
   "aup.autoNpx": "Uses the latest version every time it starts",
   "aup.autoRemote": "A remote server, kept current by its provider",
+  "set.docs": "Open Agent Docs",
+  "set.kw.docs": "docs,documents,pages,comments,collaboration,open agent docs",
+  "adx.tab": "Docs",
+  "adx.home": "Docs home",
+  "adx.full": "Open the full docs in Settings",
+  "adx.openInPanel": "Open the doc on the right",
+  "adx.notHere": "This docs server is not on this computer, so it cannot open inside Crewbase; open it in your browser.",
+  "adx.notConnected": "Open Agent Docs is not connected yet. Connect it or start it in Plugins & skills › Apps.",
 };

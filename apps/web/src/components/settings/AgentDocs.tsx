@@ -5,10 +5,11 @@
 
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
-import { Check, ExternalLink, FileText, RefreshCw, X } from "lucide-react";
+import { Check, ExternalLink, FileText, Home, Maximize2, RefreshCw, X } from "lucide-react";
 import { API, openExternal, type AgentDocsStatus } from "../../api";
-import { t } from "../../i18n";
-import { toast, useStore } from "../../store";
+import { getLang, t } from "../../i18n";
+import { docsEmbeddable, openSettings, refreshAgentDocs, setState, toast, useStore } from "../../store";
+import { Head } from "../Settings";
 import { confirmDialog } from "../Confirm";
 
 const REPO = "https://github.com/kadaliao/open-agent-docs";
@@ -201,5 +202,137 @@ export function AgentDocsDialog({ st, onClose, onChanged }: { st: AgentDocsStatu
       </div>
     </>,
     document.body,
+  );
+}
+
+// ---------------------------------------------------------------- inside Crewbase
+
+/** The docs URL with the theme and language of the app (and embed=1: the
+ *  page alone, for a page shown in the panel). */
+function docsSrc(raw: string, page: boolean): string {
+  try {
+    const u = new URL(raw);
+    const dark = document.documentElement.dataset.theme ? document.documentElement.dataset.theme === "dark" : window.matchMedia("(prefers-color-scheme: dark)").matches;
+    u.searchParams.set("theme", dark ? "dark" : "light");
+    u.searchParams.set("lang", getLang() === "en" ? "en" : "zh");
+    if (page && /^\/p\//.test(u.pathname)) u.searchParams.set("embed", "1");
+    return u.toString();
+  } catch {
+    return raw;
+  }
+}
+
+/** The docs in an iframe: first signs this browser in (when Crewbase holds
+ *  the session), then loads. Elsewhere (another host): a link out. */
+export function DocsFrame({ src, page = false }: { src: string; page?: boolean }) {
+  const [ready, setReady] = useState(false);
+  const embeddable = docsEmbeddable();
+  useEffect(() => {
+    if (!embeddable) return;
+    let live = true;
+    API.embedAgentDocs().then(
+      () => live && setReady(true),
+      () => live && setReady(true), // the page asks to sign in itself
+    );
+    return () => {
+      live = false;
+    };
+  }, [embeddable]);
+  if (!embeddable)
+    return (
+      <div className="docsout">
+        <p className="small muted">{t("adx.notHere")}</p>
+        <button className="btn sm" type="button" onClick={() => openExternal(src)}>
+          <ExternalLink size={12} />
+          {t("ad.open")}
+        </button>
+      </div>
+    );
+  if (!ready) return <div className="docsframe loading small muted">{t("common.loading")}</div>;
+  return <iframe className="docsframe" src={docsSrc(src, page)} title="Open Agent Docs" allow="clipboard-read; clipboard-write" />;
+}
+
+/** 设置 › Open Agent Docs: the whole docs workspace, with its connection. */
+export function DocsPage() {
+  const docs = useStore((s) => s.agentDocs);
+  const ad = useAgentDocs();
+  const [manage, setManage] = useState(false);
+  if (!docs)
+    return (
+      <>
+        <Head title="Open Agent Docs" />
+        <div className="vb">
+          <p className="small muted">{t("adx.notConnected")}</p>
+        </div>
+      </>
+    );
+  return (
+    <>
+      <Head
+        title="Open Agent Docs"
+        sub={[docs.workspace, docs.local ? t("ad.runByCrewbase") : docs.url].filter(Boolean).join(" · ")}
+        right={
+          <span className="docshr">
+            <button className="btn sm" type="button" onClick={() => openExternal(docs.url)}>
+              <ExternalLink size={12} />
+              {t("ad.open")}
+            </button>
+            <button className="btn sm" type="button" onClick={() => setManage(true)}>
+              {t("mk2.manage")}
+            </button>
+          </span>
+        }
+      />
+      <div className="docswrap">
+        <DocsFrame src={docs.url} />
+      </div>
+      {manage && (
+        <AgentDocsDialog
+          st={ad.st}
+          onClose={() => setManage(false)}
+          onChanged={(x) => {
+            ad.setSt(x);
+            void refreshAgentDocs();
+          }}
+        />
+      )}
+    </>
+  );
+}
+
+/** The right panel's 文档 tab: a docs page an agent linked (or the docs home). */
+export function DocsTab() {
+  const docs = useStore((s) => s.agentDocs);
+  const open = useStore((s) => s.docsOpen);
+  if (!docs) return null;
+  const src = open ?? docs.url;
+  let label = t("adx.home");
+  try {
+    const u = new URL(src);
+    if (u.pathname !== "/" && u.pathname) label = u.pathname;
+  } catch {
+    /* as is */
+  }
+  return (
+    <div className="docstab">
+      <div className="docsbar">
+        <span className="mono small muted" title={src}>
+          {label}
+        </span>
+        <span className="sp" />
+        {open && (
+          <button className="ix" type="button" title={t("adx.home")} aria-label={t("adx.home")} onClick={() => setState({ docsOpen: null })}>
+            <Home size={13} />
+          </button>
+        )}
+        <button className="ix" type="button" title={t("adx.full")} aria-label={t("adx.full")} onClick={() => openSettings("docs")}>
+          <Maximize2 size={13} />
+        </button>
+        <button className="ix" type="button" title={t("ad.open")} aria-label={t("ad.open")} onClick={() => openExternal(src)}>
+          <ExternalLink size={13} />
+        </button>
+      </div>
+      <DocsFrame key={src} src={src} page />
+    </div>
   );
 }

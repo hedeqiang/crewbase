@@ -20,6 +20,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/cookiejar"
+	"net/url"
 	"os"
 	"os/exec"
 	"path"
@@ -262,10 +263,14 @@ func (s *Service) StartLocal(ctx context.Context, r StartLocalRequest) (Status, 
 		return fail("start", err)
 	}
 	s.setStep("account", "")
-	token, err := createAdminAgent(ctx, base, email, r.Password, s.hasLocalData())
+	token, session, err := createAdminAgent(ctx, base, email, r.Password, s.hasLocalData())
 	if err != nil {
 		s.stopLocal()
 		return fail("account", err)
+	}
+	// the person's own session: signs the docs in when shown inside Crewbase
+	if cs := s.creds(); cs != nil && session != "" {
+		_ = cs.Set(sessionRef, session)
 	}
 	s.mu.Lock()
 	s.st.Managed = m
@@ -636,7 +641,7 @@ func (s *Service) hasLocalData() bool {
 }
 
 // createAdminAgent signs in as the person and creates Crewbase's admin agent.
-func createAdminAgent(ctx context.Context, base, email, password string, existing bool) (string, error) {
+func createAdminAgent(ctx context.Context, base, email, password string, existing bool) (token, session string, err error) {
 	jar, _ := cookiejar.New(nil)
 	c := &http.Client{Timeout: 20 * time.Second, Jar: jar}
 	do := func(method, p string, in, out any) error {
@@ -674,21 +679,27 @@ func createAdminAgent(ctx context.Context, base, email, password string, existin
 	}
 	if err := do("POST", "/auth/login", map[string]string{"email": email, "password": password}, nil); err != nil {
 		if existing {
-			return "", errors.New("the docs server kept its data from before: sign in with the email and password you used then")
+			return "", "", errors.New("the docs server kept its data from before: sign in with the email and password you used then")
 		}
-		return "", fmt.Errorf("could not sign in to the new docs server: %w", err)
+		return "", "", fmt.Errorf("could not sign in to the new docs server: %w", err)
+	}
+	if u, err := url.Parse(base); err == nil {
+		for _, ck := range jar.Cookies(u) {
+			if ck.Name == SessionCookie {
+				session = ck.Value
+			}
+		}
 	}
 	var me meOut
 	if err := do("GET", "/me", nil, &me); err != nil {
-		return "", err
+		return "", "", err
 	}
 	if len(me.Workspaces) == 0 {
-		return "", errors.New("the new docs server has no workspace")
+		return "", "", errors.New("the new docs server has no workspace")
 	}
 	var created struct {
 		Token string `json:"token"`
 	}
-	var err error
 	for i := 1; i <= 9; i++ {
 		name := "Crewbase"
 		if i > 1 {
@@ -700,10 +711,72 @@ func createAdminAgent(ctx context.Context, base, email, password string, existin
 		}
 	}
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 	if !strings.HasPrefix(created.Token, "oad_") {
-		return "", errors.New("the docs server returned no token")
+		return "", "", errors.New("the docs server returned no token")
 	}
-	return created.Token, nil
+	return created.Token, session, nil
+}
+
+// SessionCookie is the docs server's sign-in cookie.
+const SessionCookie = "oad_session"
+
+const sessionRef = "vault:crewbase/agentdocs-session"
+
+// Embed is what the web UI needs to show the docs inside Crewbase.
+type Embed struct {
+	URL string `json:"url"`
+	// SignedIn: the browser asking already has, or now gets, a session.
+	SignedIn bool `json:"signedIn"`
+}
+
+// EmbedFor tells whether the browser that sent r is signed in to the docs
+// and, when it is not but Crewbase holds the person's session (one-click
+// start), returns the cookie that signs it in. Cookies are not separated
+// by port, so one set here for 127.0.0.1 is the docs server's too; it is
+// HttpOnly, like the docs server's own, so pages on other local ports
+// cannot read it.
+func (s *Service) EmbedFor(ctx context.Context, r *http.Request) (Embed, *http.Cookie) {
+	s.mu.Lock()
+	base, managed := s.st.Settings.URL, s.st.Managed != nil
+	s.mu.Unlock()
+	e := Embed{URL: base}
+	if base == "" {
+		return e, nil
+	}
+	valid := func(v string) bool {
+		if v == "" {
+			return false
+		}
+		req, err := http.NewRequestWithContext(ctx, "GET", base+"/api/v1/me", nil)
+		if err != nil {
+			return false
+		}
+		req.AddCookie(&http.Cookie{Name: SessionCookie, Value: v})
+		resp, err := (&http.Client{Timeout: 5 * time.Second}).Do(req)
+		if err != nil {
+			return false
+		}
+		resp.Body.Close()
+		return resp.StatusCode == 200
+	}
+	if ck, err := r.Cookie(SessionCookie); err == nil && valid(ck.Value) {
+		e.SignedIn = true
+		return e, nil
+	}
+	cs := s.creds()
+	if !managed || cs == nil {
+		return e, nil
+	}
+	v, err := cs.Resolve(ctx, sessionRef)
+	if err != nil || v == "" {
+		return e, nil
+	}
+	if !valid(v) {
+		_ = cs.Delete(sessionRef) // expired: signing in inside the page renews it
+		return e, nil
+	}
+	e.SignedIn = true
+	return e, &http.Cookie{Name: SessionCookie, Value: v, Path: "/", HttpOnly: true, SameSite: http.SameSiteLaxMode, MaxAge: 30 * 24 * 3600}
 }
