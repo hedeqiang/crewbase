@@ -95,6 +95,12 @@ func tool() *tools.Tool {
 	}
 }
 
+// Pin is the message/pin event data.
+type Pin struct {
+	Target int64 `json:"target"`
+	Remove bool  `json:"remove,omitempty"`
+}
+
 // Namer gives a team member's name for a device (the members plugin).
 type Namer interface{ SenderName(deviceID string) string }
 
@@ -103,7 +109,7 @@ type Namer interface{ SenderName(deviceID string) string }
 var Plugin = kernel.Register(kernel.Spec{
 	Name:        "@crewbase/reactions",
 	Inject:      []string{tools.ServiceKey, session.ServiceKey, gateway.ServiceKey},
-	Description: "Emoji reactions on messages: the person's, and an agent's react tool.",
+	Description: "Emoji reactions on messages (the person's, and an agent's react tool) and pinned messages.",
 	Apply: func(c *kernel.Context) error {
 		kernel.Use[*tools.Registry](c, tools.ServiceKey).Register(c, tool())
 		sessions := kernel.Use[*session.Store](c, session.ServiceKey)
@@ -130,6 +136,24 @@ var Plugin = kernel.Register(kernel.Spec{
 					b.From = n.SenderName(r.DeviceID)
 				}
 				if _, err := ss.Append(session.TypeReaction, "", b); err != nil {
+					return nil, err
+				}
+				return nil, nil
+			}})
+		g.Handle(c, gateway.Route{Method: "POST", Path: "/api/sessions/{id}/pins", Devices: []string{"mobile"},
+			Handle: func(_ context.Context, r *gateway.Request) (any, error) {
+				ss, err := sessions.Get(r.Params["id"])
+				if err != nil {
+					return nil, gateway.NotFound()
+				}
+				var b Pin
+				if err := r.Decode(&b); err != nil {
+					return nil, gateway.BadRequest("%v", err)
+				}
+				if b.Target <= 0 || b.Target > int64(len(ss.Events())) {
+					return nil, gateway.BadRequest("no such message")
+				}
+				if _, err := ss.Append(session.TypePin, "", b); err != nil {
 					return nil, err
 				}
 				return nil, nil

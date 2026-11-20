@@ -1475,6 +1475,8 @@ export const API = {
   patchChannel: (id: string, b: { handoverConfirm: boolean }) => api<ChannelView>("PATCH", `/api/channels/${enc(id)}`, b),
   postChannel: (id: string, text: string, reply?: Quote) =>
     api<{ agent: string; input: string; position: number }>("POST", `/api/channels/${enc(id)}/messages`, { text, reply }),
+  /** pin a message to the top of its conversation (remove: unpin) */
+  pin: (session: string, target: number, remove?: boolean) => api<null>("POST", `/api/sessions/${enc(session)}/pins`, { target, remove: remove || undefined }),
   /** messages containing q in every conversation the caller sees */
   search: (q: string) => api<{ hits: SearchHit[] }>("GET", `/api/search?q=${enc(q)}`),
   /** the person has seen session up to seq (0: all of it) */

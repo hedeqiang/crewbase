@@ -198,6 +198,8 @@ export interface Projection {
   items: FeedItem[];
   /** message seq → its reactions (message/reaction) */
   reactions: Reactions;
+  /** pinned messages, newest pin first (message/pin) */
+  pins: number[];
   /** Last step/start numbers per agent. */
   context: Record<string, { tokens: number; window: number; model?: ModelRef }>;
   /** Last model used per agent (step/start or message/assistant). */
@@ -281,6 +283,7 @@ export function project(events: SessionEvent[], cards?: ReadonlySet<string>): Pr
   const compactedUpto: Record<string, number> = {};
   const lastTurn: Projection["lastTurn"] = {};
   const reactions: Reactions = {};
+  let pins: number[] = [];
   // the open turn per agent: its first user message, model calls, last reply
   type Open = { from?: number; input?: string; steps: TurnStep[]; last?: Extract<FeedItem, { k: "agent" }>; stepAt?: number };
   const turns = new Map<string, Open>();
@@ -346,6 +349,13 @@ export function project(events: SessionEvent[], cards?: ReadonlySet<string>): Pr
           if (!r) list.push((r = { emoji: d.emoji, who: [] }));
           if (!r.who.includes(who)) r.who.push(who);
         }
+        break;
+      }
+      case "message/pin": {
+        const n = Number(d.target);
+        if (!n) break;
+        pins = pins.filter((x) => x !== n);
+        if (!d.remove) pins.unshift(n);
         break;
       }
       case "message/user":
@@ -635,7 +645,7 @@ export function project(events: SessionEvent[], cards?: ReadonlySet<string>): Pr
         break;
     }
   }
-  return { items, context, lastModel, openTurns, subruns, compactedUpto, lastTurn, reactions };
+  return { items, context, lastModel, openTurns, subruns, compactedUpto, lastTurn, reactions, pins };
 }
 
 /** Last text message in the log (for list snippets). */

@@ -32,6 +32,7 @@ const (
 	TypeAssistantMessage = "message/assistant"
 	TypeInject           = "agent/inject"
 	TypeReaction         = "message/reaction" // an emoji on a message (features/reactions)
+	TypePin              = "message/pin"      // a message pinned to the top (features/reactions)
 	TypeToolCall         = "tool/call"
 	TypeToolResult       = "tool/result"
 	TypeToolPruned       = "tool/pruned"

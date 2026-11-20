@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useRef, useState } from "react";
-import { CornerUpLeft, Reply, SmilePlus, X } from "lucide-react";
+import { Copy, CornerUpLeft, Pin, PinOff, Reply, SmilePlus, X } from "lucide-react";
 import { API, type AgentView, type Quote } from "../api";
 import type { Reactions as ReactionMap } from "../projection";
 import { t } from "../i18n";
@@ -9,7 +9,7 @@ import { Popover, useMenu } from "./Popover";
 /* Reactions (emoji on a message) and replies (回复, a quoted message),
  * features/reactions and UserMessage.reply. */
 
-export const FeedCtx = createContext<{ session: string; reactions: ReactionMap } | null>(null);
+export const FeedCtx = createContext<{ session: string; reactions: ReactionMap; pins: number[] } | null>(null);
 
 const QUICK = ["👍", "❤️", "😂", "🎉", "🤔", "👀", "✅", "🙏"];
 
@@ -151,6 +151,111 @@ export function ReplyChip({ session }: { session: string }) {
       </button>
       <button type="button" className="ix" aria-label={t("rx.cancel")} title={t("rx.cancel")} onClick={() => setReply(session, null)}>
         <X size={13} />
+      </button>
+    </div>
+  );
+}
+
+/** 置顶 / 取消置顶 */
+export function PinBtn({ target }: { target: number }) {
+  const ctx = useContext(FeedCtx);
+  if (!ctx) return null;
+  const on = ctx.pins.includes(target);
+  return (
+    <button
+      type="button"
+      className={"ix mact" + (on ? " on" : "")}
+      aria-label={t(on ? "pin.off" : "pin.on")}
+      title={t(on ? "pin.off" : "pin.on")}
+      aria-pressed={on}
+      onClick={() => void API.pin(ctx.session, target, on).then(() => toast(t(on ? "pin.offDone" : "pin.onDone")), (e) => toast(e?.message ?? String(e)))}
+    >
+      {on ? <PinOff size={14} /> : <Pin size={14} />}
+    </button>
+  );
+}
+
+/** At the top of the conversation: the pinned messages, the newest shown,
+ *  the others one click away. */
+export function PinnedBar({ items }: { items: { seq: number; who: string; text: string }[] }) {
+  const ctx = useContext(FeedCtx);
+  const [i, setI] = useState(0);
+  if (!ctx || items.length === 0) return null;
+  const k = Math.min(i, items.length - 1);
+  const p = items[k];
+  return (
+    <div className="pinbar" key={items.length}>
+      <Pin size={13} className="pinic" aria-hidden />
+      <button type="button" className="pinmain" onClick={() => jumpTo(p.seq)} title={t("rx.jump")}>
+        <b>{p.who}</b>
+        <span>{p.text}</span>
+      </button>
+      {items.length > 1 && (
+        <button type="button" className="pinn" onClick={() => setI((k + 1) % items.length)} title={t("pin.next")}>
+          {k + 1}/{items.length}
+        </button>
+      )}
+      <button type="button" className="ix" aria-label={t("pin.off")} title={t("pin.off")} onClick={() => void API.pin(ctx.session, p.seq, true)}>
+        <X size={13} />
+      </button>
+    </div>
+  );
+}
+
+/** Text selected in a reply: quote it in a reply, or copy it. */
+export function SelectionActions() {
+  const ctx = useContext(FeedCtx);
+  const [at, setAt] = useState<{ x: number; y: number; text: string; seq: number; who: string } | null>(null);
+  useEffect(() => {
+    const feed = document.querySelector(".feed");
+    if (!feed) return;
+    const check = () => {
+      const sel = window.getSelection();
+      const text = sel?.toString().trim() ?? "";
+      if (!sel || sel.rangeCount === 0 || !text) return setAt(null);
+      const range = sel.getRangeAt(0);
+      const host = (range.commonAncestorContainer instanceof Element ? range.commonAncestorContainer : range.commonAncestorContainer.parentElement)?.closest<HTMLElement>("[data-seq]");
+      if (!host || !feed.contains(host)) return setAt(null);
+      const r = range.getBoundingClientRect();
+      const who = host.querySelector(".mh b")?.textContent || host.closest(".turn")?.querySelector(".mh b")?.textContent || (host.classList.contains("m-user") ? t("rx.you") : "");
+      setAt({ x: r.left + r.width / 2, y: r.top, text, seq: Number(host.dataset.seq), who });
+    };
+    const up = () => setTimeout(check, 0);
+    const change = () => {
+      if (!window.getSelection()?.toString().trim()) setAt(null);
+    };
+    const scroll = () => setAt(null);
+    feed.addEventListener("mouseup", up);
+    document.addEventListener("selectionchange", change);
+    feed.addEventListener("scroll", scroll, { passive: true });
+    return () => {
+      feed.removeEventListener("mouseup", up);
+      document.removeEventListener("selectionchange", change);
+      feed.removeEventListener("scroll", scroll);
+    };
+  }, [ctx?.session]);
+  if (!ctx || !at) return null;
+  const quote = () => {
+    setReply(ctx.session, { seq: at.seq, who: at.who, text: excerpt(at.text, 200) });
+    window.getSelection()?.removeAllRanges();
+    setAt(null);
+    document.querySelector<HTMLTextAreaElement>(".composer textarea")?.focus();
+  };
+  return (
+    <div className="selacts ui-pop" style={{ left: at.x, top: at.y }} onMouseDown={(e) => e.preventDefault()}>
+      <button type="button" onClick={quote}>
+        <Reply size={13} />
+        {t("sel.quote")}
+      </button>
+      <button
+        type="button"
+        onClick={() => {
+          void navigator.clipboard?.writeText(at.text).then(() => toast(t("msg.copied")));
+          setAt(null);
+        }}
+      >
+        <Copy size={13} />
+        {t("msg.copy")}
       </button>
     </div>
   );

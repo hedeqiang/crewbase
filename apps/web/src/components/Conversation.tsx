@@ -1,6 +1,6 @@
 import { TurnFiles } from "./TurnFiles";
 import { WaitingFor } from "./WaitingFor";
-import { FeedCtx, QuoteLine, ReactBtn, Reactions, ReplyBtn, ReplyChip, jumpTo } from "./MsgExtras";
+import { FeedCtx, PinBtn, PinnedBar, QuoteLine, ReactBtn, Reactions, ReplyBtn, ReplyChip, SelectionActions, excerpt, jumpTo } from "./MsgExtras";
 import { Skeleton } from "./Skeleton";
 import { markEntering } from "../lib/motion";
 import { PageCard } from "./PageCard";
@@ -150,12 +150,23 @@ function ConversationView({ sessionId, agent, channel }: { sessionId: string; ag
         : null,
     [oneToOne, agent, idle, proj, sessionId, override],
   );
-  const feedCtx = useMemo(() => ({ session: sessionId, reactions: proj.reactions }), [sessionId, proj.reactions]);
+  const feedCtx = useMemo(() => ({ session: sessionId, reactions: proj.reactions, pins: proj.pins }), [sessionId, proj.reactions, proj.pins]);
+  // the pinned messages, as they read
+  const pinned = useMemo(() => {
+    const out: { seq: number; who: string; text: string }[] = [];
+    for (const n of proj.pins) {
+      const it = findMsg(proj.items, n);
+      if (it) out.push(it);
+    }
+    return out;
+  }, [proj.pins, proj.items]);
   return (
     <section className="main">
       <MsgCtx.Provider value={actions}>
         <FeedCtx.Provider value={feedCtx}>
+          <PinnedBar items={pinned} />
           <Feed sessionId={sessionId} agent={agent} channel={channel} items={proj.items} working={proj.openTurns} loading={!events} error={err} />
+          <SelectionActions />
         </FeedCtx.Provider>
       </MsgCtx.Provider>
       <WaitingFor runs={proj.subruns} />
@@ -370,6 +381,7 @@ function UserMsg({ it }: { it: Extract<FeedItem, { k: "user" }> }) {
         <div className="msgacts">
           <ReactBtn target={String(it.seq)} />
           <ReplyBtn q={{ seq: it.seq, who: it.from || t("rx.you"), text: it.text }} />
+          <PinBtn target={it.seq} />
           {editable && (
             <button
               type="button"
@@ -442,6 +454,18 @@ function Rows({ items, agents, firstNew }: { items: FeedItem[]; agents: Record<s
       )}
     </>
   );
+}
+
+/** A message by its seq, for the pinned bar: who and an excerpt. */
+function findMsg(items: FeedItem[], seq: number): { seq: number; who: string; text: string } | null {
+  const agents = getState().agents;
+  for (const it of items) {
+    if (it.k === "user" && it.seq === seq) return { seq, who: it.from || t("rx.you"), text: excerpt(it.text, 120) };
+    if (it.k === "agent" && Number(it.id) === seq) return { seq, who: agents[it.agent]?.name ?? it.agent, text: excerpt(it.text, 120) };
+    if (it.k === "turn")
+      for (const p of it.parts) if (p.k === "msg" && Number(p.it.id) === seq) return { seq, who: agents[it.agent]?.name ?? it.agent, text: excerpt(p.it.text, 120) };
+  }
+  return null;
 }
 
 /** 新消息: the first reply the person has not seen yet. The first time
@@ -1071,6 +1095,7 @@ function AgentMsg({ it, agent, showModel, bare, opened, extra }: { it: AgentItem
             {it.text && <CopyBtn text={it.text} />}
             {it.text && <ReactBtn target={it.id} />}
             {it.text && <ReplyBtn q={{ seq: Number(it.id), who: agent?.name ?? it.agent, text: it.text }} />}
+            {it.text && <PinBtn target={Number(it.id)} />}
             {canRegen && (
               <button
                 type="button"

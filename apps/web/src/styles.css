@@ -3007,3 +3007,22 @@ b > .mkver, .g b .mkver { margin: 0 0 0 6px; }
 .plist .pi .g.msg > span { margin-left: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pi mark { background: color-mix(in srgb, var(--amber) 32%, transparent); color: inherit; border-radius: 3px; padding: 0 1px; }
 @media (prefers-reduced-motion: reduce) { .palette { animation: none !important; } }
+
+/* pinned messages (MsgExtras PinnedBar) */
+.pinbar { display: flex; align-items: center; gap: 8px; margin: 0; padding: 7px max(24px, calc((100% - 760px) / 2)); border-bottom: 1px solid var(--border); background: var(--raised); font-size: 12.5px; animation: pin-in var(--dur-dialog) var(--ease-out) both; }
+.pinbar[data-exit] { animation: fade-out var(--dur-fast) both; }
+@keyframes pin-in { from { opacity: 0; translate: 0 -6px; } }
+.pinic { color: var(--accent-text); flex: none; rotate: 30deg; }
+.pinmain { flex: 1; min-width: 0; display: flex; gap: 6px; text-align: left; color: var(--text2); }
+.pinmain b { flex: none; font-weight: 600; color: var(--text); }
+.pinmain span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pinmain:hover span { color: var(--text); }
+.pinn { flex: none; font-size: 11px; color: var(--muted); padding: 1px 7px; border-radius: 8px; background: var(--sunken); font-variant-numeric: tabular-nums; }
+@media (max-width: 700px) { .pinbar { padding: 7px 12px; } }
+
+/* selected text in a reply (SelectionActions) */
+.selacts { position: fixed; z-index: 60; translate: -50% calc(-100% - 8px); display: flex; gap: 2px; padding: 3px; border-radius: 10px; background: var(--action); color: var(--on-action); box-shadow: var(--menu-shadow); animation: sel-in var(--dur-normal) var(--ease-spring) both; }
+.selacts[data-exit] { animation: fade-out var(--dur-fast) both; }
+.selacts button { display: inline-flex; align-items: center; gap: 5px; height: 26px; padding: 0 9px; border-radius: 7px; font-size: 12px; color: inherit; }
+.selacts button:hover { background: rgb(255 255 255 / .14); }
+@keyframes sel-in { from { opacity: 0; scale: .9; } }
