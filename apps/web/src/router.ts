@@ -176,8 +176,9 @@ export function apply(l: Loc) {
         view: "chat",
         current: known ? session : s.current,
         palette: false,
-        // on a phone the list gives way to the conversation, as a tap on it does
-        ...(session && sheetPanel() ? { listOpen: false } : {}),
+        // on a phone the list gives way to the conversation, as a tap on it
+        // does, and comes back when there is no conversation (back to #/)
+        ...(sheetPanel() ? { listOpen: !session } : {}),
         panelOpen: !!l.panel,
         ...(l.panel ? { panelTab: l.panel } : {}),
         fileOpen: l.file ?? null,
