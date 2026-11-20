@@ -47,6 +47,10 @@ var snapSkip = map[string]bool{
 // Crewbase writes them, and undoing a turn's work leaves them alone
 var snapOwn = map[string]bool{"INSTRUCTIONS.md": true, "MEMORY.md": true}
 
+// folders at the workspace root that are Crewbase's (the agent's browser
+// profile, uploads stay: the person sent them)
+var snapOwnDir = map[string]bool{"browser": true}
+
 type snapFile struct {
 	Size  int64  `json:"size"`
 	MTime int64  `json:"mtime"` // ns
@@ -113,7 +117,7 @@ func (s *snapshots) take(agentID, session, turn, ws string) error {
 		}
 		name := d.Name()
 		if d.IsDir() {
-			if p != ws && (snapSkip[name] || strings.HasPrefix(name, ".crewbase")) {
+			if p != ws && (snapSkip[name] || strings.HasPrefix(name, ".crewbase") || filepath.Dir(p) == ws && snapOwnDir[name]) {
 				return filepath.SkipDir
 			}
 			return nil
@@ -285,7 +289,7 @@ func (s *snapshots) now(sn Snapshot, keep bool) (map[string]snapFile, error) {
 			return nil
 		}
 		if d.IsDir() {
-			if p != sn.Workspace && (snapSkip[d.Name()] || strings.HasPrefix(d.Name(), ".crewbase")) {
+			if p != sn.Workspace && (snapSkip[d.Name()] || strings.HasPrefix(d.Name(), ".crewbase") || filepath.Dir(p) == sn.Workspace && snapOwnDir[d.Name()]) {
 				return filepath.SkipDir
 			}
 			return nil

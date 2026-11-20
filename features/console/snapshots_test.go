@@ -22,6 +22,7 @@ func TestTurnSnapshots(t *testing.T) {
 	write("gone.txt", "bye\n")
 	write("node_modules/x.js", "skipped\n")
 	write("MEMORY.md", "# Memory\n")
+	write("browser/Default/Cookies", "profile")
 
 	if err := s.take("a1", "s1", "t1", ws); err != nil {
 		t.Fatal(err)
@@ -33,6 +34,7 @@ func TestTurnSnapshots(t *testing.T) {
 	write("sub/new.txt", "hello\n")
 	write("node_modules/x.js", "changed but skipped\n")
 	write("MEMORY.md", "# Memory\n\nlearned\n")
+	write("browser/Default/Cookies", "profile changed")
 	if err := s.finish("a1", "t1"); err != nil {
 		t.Fatal(err)
 	}
