@@ -2280,4 +2280,8 @@ export const en: Partial<Record<Key, string>> = {
   "adx.openInPanel": "Open the doc on the right",
   "adx.notHere": "This docs server is not on this computer, so it cannot open inside Crewbase; open it in your browser.",
   "adx.notConnected": "Open Agent Docs is not connected yet. Connect it or start it in Plugins & skills › Apps.",
+  "mmd.diagram": "Diagram",
+  "mmd.source": "Source",
+  "mmd.full": "View larger",
+  "mmd.error": "This Mermaid could not be drawn: {error}",
 };

@@ -1,6 +1,7 @@
 import { Fragment, type ReactNode } from "react";
 import { AppWindow, Check, Copy } from "lucide-react";
 import { previewSnippet } from "./Preview";
+import { MermaidBlock } from "./Mermaid";
 import { useCopy } from "../clipboard";
 import { t } from "../i18n";
 import { toast } from "../store";
@@ -111,7 +112,9 @@ export function Markdown({ text }: { text: string }) {
         body.push(indent && l.slice(0, indent).trim() === "" ? l.slice(indent) : l);
       }
       i++;
-      blocks.push(<CodeBlock key={key} code={body.join("\n")} lang={fence[3] || undefined} />);
+      blocks.push(
+        /^mermaid$/i.test(fence[3]) ? <MermaidBlock key={key} code={body.join("\n")} /> : <CodeBlock key={key} code={body.join("\n")} lang={fence[3] || undefined} />,
+      );
       continue;
     }
     if (/^\s{0,3}([-*_])(\s*\1){2,}\s*$/.test(line)) {

@@ -2323,6 +2323,10 @@ const zh = {
   "adx.openInPanel": "在右侧打开文档",
   "adx.notHere": "这个文档服务器不在这台电脑上，不能在 Crewbase 里直接打开，请在浏览器里打开。",
   "adx.notConnected": "还没有连接 Open Agent Docs。在「插件与技能 › 应用」里连接或一键启动。",
+  "mmd.diagram": "图",
+  "mmd.source": "源码",
+  "mmd.full": "放大查看",
+  "mmd.error": "这段 Mermaid 画不出来：{error}",
 } as const;
 
 export type Key = keyof typeof zh;
