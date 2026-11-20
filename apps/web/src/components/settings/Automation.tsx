@@ -54,7 +54,7 @@ export function scheduleLabel(s: string): string {
 }
 
 const RUN_TONE: Record<string, string> = { running: "blue", quiet: "", attention: "amber", failed: "red", completed: "ok", waiting: "amber", rejected: "red", cancelled: "" };
-function runPill(status: string) {
+export function runPill(status: string) {
   const k = `auto.st.${status}` as Key;
   return <span className={"pill " + (RUN_TONE[status] ?? "")}>{t(k) === k ? status : t(k)}</span>;
 }
@@ -216,7 +216,7 @@ function Routines() {
   );
 }
 
-function RoutineForm({ init, onCancel, onSaved }: { init: Partial<Routine>; onCancel: () => void; onSaved: (r: Routine, created: boolean) => void }) {
+export function RoutineForm({ init, onCancel, onSaved }: { init: Partial<Routine>; onCancel: () => void; onSaved: (r: Routine, created: boolean) => void }) {
   const [f, setF] = useState<Partial<Routine>>(init);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -246,7 +246,7 @@ function RoutineForm({ init, onCancel, onSaved }: { init: Partial<Routine>; onCa
         <label className="fl">{t("auto.name")}</label>
         <input className="fi sm" value={f.name ?? ""} placeholder={t("auto.namePh")} onChange={(e) => set({ name: e.target.value })} />
         <label className="fl">{t("auto.agent")}</label>
-        {isNew ? <AgentSelect value={f.agent ?? ""} onChange={(v) => set({ agent: v })} /> : <AgentName id={f.agent ?? ""} />}
+        {isNew && !init.agent ? <AgentSelect value={f.agent ?? ""} onChange={(v) => set({ agent: v })} /> : <AgentName id={f.agent ?? ""} />}
         <label className="fl">{t("auto.prompt")}</label>
         <textarea className="fi sm" rows={3} value={f.prompt ?? ""} placeholder={t("auto.promptPh")} onChange={(e) => set({ prompt: e.target.value })} />
         <label className="fl">{t("auto.schedule")}</label>
@@ -292,7 +292,7 @@ function AgentName({ id }: { id: string }) {
   );
 }
 
-function RoutineRuns({ r }: { r: Routine }) {
+export function RoutineRuns({ r }: { r: Routine }) {
   const [runs, setRuns] = useState<RoutineRun[] | null>(null);
   useEffect(() => {
     let stop = false;

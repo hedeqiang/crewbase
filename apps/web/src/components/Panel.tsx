@@ -1,14 +1,15 @@
 import { TaskBoard } from "./TaskBoard";
 import { WorkNotes, WorkTasks } from "./Working";
 import { useEffect, useMemo, useState } from "react";
-import { AlarmClock, Archive, ArrowDown, ArrowUp, Check, ChevronLeft, ChevronRight, CircleMinus, CircleX, Globe, GripVertical, Link2, Minimize2, Pause, Play, Plus, Shuffle, Square, Trash, UserPlus, X } from "lucide-react";
-import { API, refString, type Followup, type AgentView, type ChannelView, type ContextBreakdown, type ModelRef } from "../api";
+import { Archive, ArrowDown, ArrowUp, Check, ChevronLeft, ChevronRight, CircleMinus, CircleX, Globe, GripVertical, Link2, Minimize2, Pause, Play, Plus, Shuffle, Square, Trash, UserPlus, X } from "lucide-react";
+import { API, refString, type AgentView, type ChannelView, type ContextBreakdown, type ModelRef } from "../api";
 import { t, type Key } from "../i18n";
 import { activeModel, allModels, detailLabel, effortLabel, exhaustedHint, exhaustedLabel, hhmm, isExhausted, kfmt, modeLabel, modelLabel, modelMeta, modelOff, pillTone, sameRef, statusLabel, until } from "../format";
 import { project, type SubRun } from "../projection";
 import { openSubRun, refreshChannel, setState, toast, useStore, sessionAgent } from "../store";
 import { FilesTab } from "./Files";
 import { LibraryTab } from "./Library";
+import { ScheduleTab, scheduleCount, useSchedule } from "./Schedule";
 import { PreviewTab } from "./Preview";
 import { Avatar, LookPicker } from "./Avatar";
 import { Popover, useMenu } from "./Popover";
@@ -28,12 +29,15 @@ export function Panel() {
   const channel = current ? channels[current] : undefined;
   const pluginTabs = useSlot("sidebar-right.tab");
   const subView = useStore((s) => s.subView);
+  const sched = useSchedule(agent);
+  const nSched = scheduleCount(sched);
   if (!agent) return null;
   const chat = agent.kind === "chat";
-  const view: typeof tab = chat && (tab === "files" || tab === "library") ? "task" : tab;
+  const view: typeof tab = chat && (tab === "files" || tab === "library" || tab === "schedule") ? "task" : tab;
   // a plain chat has no workspace to browse (an HTML answer can still be previewed)
   const tabs: [typeof tab, string][] = [
     ["task", t("panel.task")],
+    ...(chat ? [] : ([["schedule", t("sched.tab")]] as [typeof tab, string][])),
     ...(chat ? [] : ([["files", t("panel.files")]] as [typeof tab, string][])),
     ["preview", t("panel.preview")],
     ...(chat ? [] : ([["library", t("lib.title")]] as [typeof tab, string][])),
@@ -47,6 +51,7 @@ export function Panel() {
         {tabs.map(([k, l]) => (
           <button key={k} className="ptab" type="button" role="tab" aria-selected={view === k} onClick={() => setState({ panelTab: k })}>
             {l}
+            {k === "schedule" && nSched > 0 && <span className="ptabn">{nSched}</span>}
           </button>
         ))}
         <span style={{ flex: 1 }} />
@@ -66,6 +71,7 @@ export function Panel() {
         )}
         {view === "files" && <FilesTab agent={agent} />}
         {view === "library" && <LibraryTab />}
+        {view === "schedule" && <ScheduleTab key={agent.id} agent={agent} data={sched} />}
         {view === "preview" && <PreviewTab key={current ?? agent.session} session={current ?? agent.session} />}
         {view === "agent" && <AgentTab key={agent.id} agent={agent} sessionId={current ?? agent.session} />}
         {pluginTab && (
@@ -428,65 +434,9 @@ function TaskTab({ agent }: { agent: AgentView }) {
           </div>
         ))
       )}
-      {!chat && <Followups agent={agent} />}
       {!chat && <WorkTasks agent={agent} />}
     </>
   );
-}
-
-/** Follow-ups the agent set for itself (followup_set): when each comes back. */
-function Followups({ agent }: { agent: AgentView }) {
-  const [list, setList] = useState<Followup[] | null>(null);
-  const load = () =>
-    API.followups(agent.id).then(
-      (r) => setList(r.followups),
-      () => setList(null),
-    );
-  // turns are when follow-ups are set or come back
-  useEffect(() => {
-    void load();
-  }, [agent.id, agent.status]);
-  if (!list || list.length === 0) return null;
-  const cancel = async (f: Followup) => {
-    try {
-      await API.cancelFollowup(agent.id, f.id);
-      await load();
-    } catch (e: any) {
-      toast(e?.message ?? String(e));
-    }
-  };
-  return (
-    <>
-      <div className="psec">{t("fu.title", { n: list.length })}</div>
-      {list.map((f) => (
-        <div className="qi" key={f.id}>
-          <span className="n">
-            <AlarmClock size={12} />
-          </span>
-          <span className="g">
-            <span className="qt">{f.note}</span>
-            <span className="small" style={{ display: "block" }}>
-              {dueLabel(f.due)}
-            </span>
-          </span>
-          <button className="ix" type="button" aria-label={t("fu.cancel")} title={t("fu.cancel")} onClick={() => void cancel(f)}>
-            <X size={13} />
-          </button>
-        </div>
-      ))}
-    </>
-  );
-}
-
-function dueLabel(iso: string): string {
-  const d = new Date(iso);
-  const now = new Date();
-  const hm = d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false });
-  const day = (x: Date) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
-  const diff = Math.round((day(d) - day(now)) / 86400000);
-  if (diff === 0) return t("fu.today", { time: hm });
-  if (diff === 1) return t("fu.tomorrow", { time: hm });
-  return t("fu.on", { date: d.toLocaleDateString([], { month: "numeric", day: "numeric" }), time: hm });
 }
 
 /** Models that can use provider-hosted web search / URL reading. */

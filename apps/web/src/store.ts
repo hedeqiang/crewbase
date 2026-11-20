@@ -33,7 +33,7 @@ import { modelKind, setUserProviders } from "./format";
 
 export type View = "chat" | "newAgent" | "settings" | "library";
 /** Built-in tabs, or `ui:<key>` for a plugin's sidebar-right.tab. */
-export type PanelTab = "task" | "files" | "preview" | "library" | "agent" | `ui:${string}`;
+export type PanelTab = "task" | "schedule" | "files" | "preview" | "library" | "agent" | `ui:${string}`;
 export type Theme = "system" | "light" | "dark";
 export type SettingsSection =
   | "general"

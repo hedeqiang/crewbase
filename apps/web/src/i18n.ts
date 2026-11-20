@@ -2221,6 +2221,13 @@ const zh = {
   "lib.source.person": "我添加的",
   "lib.source.agent": "助理保存",
   "lib.source.generated": "AI 生成",
+  // 定时
+  "sched.tab": "定时",
+  "sched.new": "新建巡检",
+  "sched.followups": "跟进提醒",
+  "sched.noRoutines": "还没有给 {name} 排定时任务。比如每天早上让它检查一遍、整理日报。",
+  "sched.noFollowups": "{name} 没有给自己设跟进。它在对话里说「过会儿再看」时，会出现在这里。",
+  "sched.all": "在设置里管理所有助理的定时任务",
 } as const;
 
 export type Key = keyof typeof zh;

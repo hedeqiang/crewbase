@@ -2178,4 +2178,11 @@ export const en: Partial<Record<Key, string>> = {
   "lib.source.person": "Added by me",
   "lib.source.agent": "Saved by agents",
   "lib.source.generated": "AI generated",
+  // 定时
+  "sched.tab": "Schedule",
+  "sched.new": "New routine",
+  "sched.followups": "Follow-ups",
+  "sched.noRoutines": "Nothing is scheduled for {name} yet, e.g. a check or a daily summary every morning.",
+  "sched.noFollowups": "{name} has set no follow-ups. When it says it will check back later, they show here.",
+  "sched.all": "Manage every agent's schedules in Settings",
 };
