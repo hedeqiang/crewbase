@@ -1115,6 +1115,8 @@ export interface AgentDocsStatus {
   identities: { agent: string; id: string; name: string; after?: number }[];
   error?: string;
   woken: number;
+  /** the server Crewbase runs (一键启动) */
+  local: { supported: boolean; release: string; running: boolean; url?: string; email?: string; version?: string; step?: string; error?: string };
 }
 
 export interface DeviceView {
@@ -1234,6 +1236,7 @@ export const API = {
   connectAgentDocs: (b: { url: string; token: string; workspace?: string; agents?: string[]; wake?: boolean }) => api<AgentDocsStatus>("POST", "/api/agentdocs", b),
   patchAgentDocs: (b: { agents?: string[]; wake?: boolean }) => api<AgentDocsStatus>("PATCH", "/api/agentdocs", b),
   syncAgentDocs: () => api<AgentDocsStatus>("POST", "/api/agentdocs/sync"),
+  startAgentDocs: (b: { email: string; password: string }) => api<AgentDocsStatus>("POST", "/api/agentdocs/local", b),
   disconnectAgentDocs: () => api<AgentDocsStatus>("DELETE", "/api/agentdocs"),
   library: (team: string, q: LibQuery = {}) => api<{ items: LibItem[]; stats?: LibStats }>("GET", `/api/library?${libQS(team, q as Record<string, string | number | undefined>)}`),
   libraryItem: (team: string, id: number) => api<{ item: LibItem; versions: LibVersion[] }>("GET", `/api/library/${id}?${libQS(team)}`),

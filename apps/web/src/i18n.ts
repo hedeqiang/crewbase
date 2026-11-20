@@ -2267,6 +2267,18 @@ const zh = {
   "set.kw.library": "文档,文件,资料,上传,知识库,pdf,图片,library,docs",
   "lib.sub": "对话里上传的文件、助理生成和保存的文档，团队里的每个助理都能搜到。",
   "lib.subTeam": "「{team}」团队的文件：对话里上传的、助理生成和保存的，团队里的每个助理都能搜到。",
+  "ad.modeLocal": "一键启动",
+  "ad.modeRemote": "连接已有服务器",
+  "ad.localDesc": "Crewbase 会下载 Open Agent Docs {v}（校验官方发布的哈希），在本机 127.0.0.1 上运行，数据放在 Crewbase 的数据目录里，然后自动连接。",
+  "ad.email": "登录邮箱",
+  "ad.password": "登录密码",
+  "ad.passwordPh": "至少 8 位",
+  "ad.localNote": "这是你在浏览器里打开文档时用的账号。密码只用来完成这一次设置，Crewbase 不保存。",
+  "ad.starting": "正在下载并启动，第一次大约需要一分钟…",
+  "ad.start": "一键启动",
+  "ad.started": "Open Agent Docs 已启动并连接",
+  "ad.runByCrewbase": "由 Crewbase 运行",
+  "ad.signInAs": "在浏览器里用 {email} 登录。",
 } as const;
 
 export type Key = keyof typeof zh;

@@ -2,9 +2,26 @@
 
 [Open Agent Docs](https://github.com/kadaliao/open-agent-docs) is a self-hosted document server where people and agents
 write pages together: block-level edits, comments, databases, version history, and an MCP endpoint. Crewbase connects to
-it as an app (`features/agentdocs`); it does not run the server.
+it as an app (`features/agentdocs`), and can run it for you.
 
-## Connecting
+## 一键启动 (Crewbase runs it)
+
+On macOS and Linux (the platforms upstream publishes builds for) the dialog's 一键启动 asks for the email and password the
+person will sign in to the docs with, then:
+
+1. downloads the pinned release (`agentdocs.Release`, v0.2.0) from GitHub and checks it against the SHA-256 written in
+   `local.go` (taken from the release's SHA256SUMS when it was pinned); a different file is refused and nothing is installed;
+2. unpacks only the server binary to `<root>/apps/open-agent-docs/<version>/` and runs it on `127.0.0.1` (port 8848, or a
+   free one) with its data in `<root>/apps/open-agent-docs/data` and its log in `server.log` there; the first start creates
+   the person's account;
+3. signs in once with that account to create Crewbase's admin agent (`Crewbase`, or `Crewbase-2` … when an earlier one
+   exists), then connects as below. The password is not kept; the admin token is in the vault.
+
+Crewbase restarts the server if it exits, starts it again when Crewbase starts, and stops it on quit. Disconnecting stops it
+too; its data stays, so starting again asks for the account used before. Upgrading means pinning a new release (version
+and hashes) in a Crewbase release.
+
+## Connecting an existing server
 
 设置 › 插件与技能 › 应用 › Open Agent Docs. The person gives:
 

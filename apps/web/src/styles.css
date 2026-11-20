@@ -2644,3 +2644,6 @@ a.lcard:hover, .lvideo .ltext:hover { background: var(--hover); }
 .lib.embedded .libdetail { grid-row: 2; }
 .lib.embedded .libmain { grid-row: 2; }
 @media (max-width: 1100px) { .lib.embedded .libdetail { top: 0; } }
+.admode { align-self: flex-start; margin: 2px 0 6px; }
+.adstep { display: flex; align-items: center; gap: 8px; margin: 4px 0 0; }
+.adurl { display: inline-flex; align-items: center; gap: 4px; min-width: 0; }

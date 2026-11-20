@@ -36,6 +36,9 @@ export function AgentDocsDialog({ st, onClose, onChanged }: { st: AgentDocsStatu
   const [url, setUrl] = useState(st?.settings.url || "http://127.0.0.1:8848");
   const [token, setToken] = useState("");
   const [busy, setBusy] = useState(false);
+  const [mode, setMode] = useState<"local" | "remote">(st?.local?.supported === false ? "remote" : "local");
+  const [email, setEmail] = useState(st?.local?.email || "");
+  const [password, setPassword] = useState("");
   const [err, setErr] = useState<string | null>(null);
   useEffect(() => {
     const k = (e: KeyboardEvent) => e.key === "Escape" && onClose();
@@ -74,30 +77,61 @@ export function AgentDocsDialog({ st, onClose, onChanged }: { st: AgentDocsStatu
           <p className="small addesc">{t("ad.desc")}</p>
           {!connected ? (
             <>
-              <ol className="adsteps small">
-                <li>
-                  {t("ad.step1")}{" "}
-                  <button className="linkbtn" type="button" onClick={() => openExternal(REPO + "#run-it")}>
-                    {t("ad.howToRun")}
-                  </button>
-                </li>
-                <li>{t("ad.step2")}</li>
-                <li>{t("ad.step3")}</li>
-              </ol>
-              <label className="fl">{t("ad.url")}</label>
-              <input className="fi sm mono" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="http://127.0.0.1:8848" />
-              <label className="fl">{t("ad.token")}</label>
-              <input className="fi sm mono" type="password" value={token} onChange={(e) => setToken(e.target.value)} placeholder="oad_…" autoComplete="off" />
-              <p className="small muted">{t("ad.tokenNote")}</p>
-              {err && <div className="ferr">{err}</div>}
-              <div className="acts">
-                <button className="btn pri" type="button" disabled={busy || !url.trim() || !token.trim()} onClick={() => run(() => API.connectAgentDocs({ url, token }), t("ad.connected"))}>
-                  {busy ? t("ad.connecting") : t("mk2.connect")}
+              <div className="seg admode">
+                <button type="button" aria-pressed={mode === "local"} disabled={st?.local?.supported === false} onClick={() => setMode("local")}>
+                  {t("ad.modeLocal")}
                 </button>
-                <button className="btn ghost" type="button" onClick={onClose}>
-                  {t("common.cancel")}
+                <button type="button" aria-pressed={mode === "remote"} onClick={() => setMode("remote")}>
+                  {t("ad.modeRemote")}
                 </button>
               </div>
+              {mode === "local" ? (
+                <>
+                  <p className="small muted">{t("ad.localDesc", { v: st?.local?.release ?? "" })}</p>
+                  <label className="fl">{t("ad.email")}</label>
+                  <input className="fi sm" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" autoComplete="username" />
+                  <label className="fl">{t("ad.password")}</label>
+                  <input className="fi sm" type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder={t("ad.passwordPh")} autoComplete="new-password" />
+                  <p className="small muted">{t("ad.localNote")}</p>
+                  {busy && <p className="small adstep"><span className="spin sm" /> {t("ad.starting")}</p>}
+                  {err && <div className="ferr">{err}</div>}
+                  <div className="acts">
+                    <button className="btn pri" type="button" disabled={busy || !email.includes("@") || password.length < 8} onClick={() => run(() => API.startAgentDocs({ email, password }), t("ad.started"))}>
+                      {busy ? t("ad.connecting") : t("ad.start")}
+                    </button>
+                    <button className="btn ghost" type="button" onClick={onClose}>
+                      {t("common.cancel")}
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <ol className="adsteps small">
+                    <li>
+                      {t("ad.step1")}{" "}
+                      <button className="linkbtn" type="button" onClick={() => openExternal(REPO + "#run-it")}>
+                        {t("ad.howToRun")}
+                      </button>
+                    </li>
+                    <li>{t("ad.step2")}</li>
+                    <li>{t("ad.step3")}</li>
+                  </ol>
+                  <label className="fl">{t("ad.url")}</label>
+                  <input className="fi sm mono" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="http://127.0.0.1:8848" />
+                  <label className="fl">{t("ad.token")}</label>
+                  <input className="fi sm mono" type="password" value={token} onChange={(e) => setToken(e.target.value)} placeholder="oad_…" autoComplete="off" />
+                  <p className="small muted">{t("ad.tokenNote")}</p>
+                  {err && <div className="ferr">{err}</div>}
+                  <div className="acts">
+                    <button className="btn pri" type="button" disabled={busy || !url.trim() || !token.trim()} onClick={() => run(() => API.connectAgentDocs({ url, token }), t("ad.connected"))}>
+                      {busy ? t("ad.connecting") : t("mk2.connect")}
+                    </button>
+                    <button className="btn ghost" type="button" onClick={onClose}>
+                      {t("common.cancel")}
+                    </button>
+                  </div>
+                </>
+              )}
             </>
           ) : (
             <>
@@ -106,14 +140,18 @@ export function AgentDocsDialog({ st, onClose, onChanged }: { st: AgentDocsStatu
                   <Check size={11} />
                   {t("ad.connectedTo", { ws: st!.settings.workspaceName || st!.settings.workspace })}
                 </span>
-                <span className="mono small muted">{docsURL}</span>
-                {docsURL && (
-                  <button className="ix" type="button" title={t("ad.open")} aria-label={t("ad.open")} onClick={() => openExternal(docsURL)}>
-                    <ExternalLink size={13} />
-                  </button>
-                )}
+                <span className="adurl">
+                  <span className="mono small muted">{docsURL}</span>
+                  {docsURL && (
+                    <button className="ix" type="button" title={t("ad.open")} aria-label={t("ad.open")} onClick={() => openExternal(docsURL)}>
+                      <ExternalLink size={13} />
+                    </button>
+                  )}
+                </span>
+                {st!.local?.running && <span className="pill sm">{t("ad.runByCrewbase")}</span>}
               </div>
-              {st!.error && <div className="ferr">{st!.error}</div>}
+              {st!.local?.email && <p className="small muted" style={{ margin: "4px 0 0" }}>{t("ad.signInAs", { email: st!.local.email })}</p>}
+              {(st!.error || st!.local?.error) && <div className="ferr">{st!.error || st!.local?.error}</div>}
               <div className="psec2 psec2r">
                 <span>{t("ad.identities", { n: st!.identities.length })}</span>
                 <button className="ix" type="button" title={t("ad.sync")} aria-label={t("ad.sync")} disabled={busy} onClick={() => run(() => API.syncAgentDocs())}>

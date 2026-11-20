@@ -77,14 +77,17 @@ type Identity struct {
 type state struct {
 	Settings   Settings            `json:"settings"`
 	Identities map[string]Identity `json:"identities,omitempty"` // by Crewbase agent id
+	// Managed: Crewbase runs the server (一键启动, local.go).
+	Managed *Managed `json:"managed,omitempty"`
 }
 
 // Status is the API view.
 type Status struct {
-	Connected  bool       `json:"connected"`
-	Settings   Settings   `json:"settings"`
-	Identities []Identity `json:"identities"`
-	Error      string     `json:"error,omitempty"`
+	Connected  bool        `json:"connected"`
+	Settings   Settings    `json:"settings"`
+	Identities []Identity  `json:"identities"`
+	Error      string      `json:"error,omitempty"`
+	Local      LocalStatus `json:"local"`
 	// Woken counts comments turned into tasks since start.
 	Woken int `json:"woken"`
 }
@@ -102,6 +105,7 @@ type Service struct {
 	woken   int
 	cancel  context.CancelFunc // the listeners
 	syncing sync.Mutex
+	lc      local
 }
 
 func (s *Service) creds() *credentials.Service {
@@ -136,8 +140,7 @@ func (s *Service) saveLocked() error {
 	return os.Rename(tmp, s.path())
 }
 
-// Status reports the connection.
-func (s *Service) Status() Status {
+func (s *Service) status() Status {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	st := Status{Connected: s.st.Settings.URL != "", Settings: s.st.Settings, Identities: []Identity{}, Error: s.err, Woken: s.woken}
@@ -145,6 +148,13 @@ func (s *Service) Status() Status {
 		st.Identities = append(st.Identities, id)
 	}
 	sort.Slice(st.Identities, func(i, j int) bool { return st.Identities[i].Name < st.Identities[j].Name })
+	return st
+}
+
+// Status reports the connection and the server Crewbase runs.
+func (s *Service) Status() Status {
+	st := s.status()
+	st.Local = s.Local()
 	return st
 }
 
@@ -339,6 +349,7 @@ func (s *Service) Disconnect(ctx context.Context) error {
 	if cs := s.creds(); cs != nil {
 		_ = cs.Delete(adminRef)
 	}
+	s.removeLocal(false)
 	return err
 }
 

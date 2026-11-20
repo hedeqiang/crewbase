@@ -30,6 +30,7 @@ var Plugin = kernel.Register(kernel.Spec{
 		s := &Service{c: c, dir: cfg.Dir, agents: kernel.Use[*agent.Registry](c, agent.ServiceKey), client: &http.Client{Timeout: 70 * time.Second}}
 		s.load()
 		c.Defer(s.stopListeners)
+		c.Defer(s.stopLocal)
 		// new agents get their identity; deleted ones lose it
 		resync := func() {
 			go func() {
@@ -50,6 +51,7 @@ var Plugin = kernel.Register(kernel.Spec{
 				return
 			case <-time.After(2 * time.Second):
 			}
+			s.resumeLocal(ctx)
 			s.Sync(ctx)
 		})
 		return c.Provide(ServiceKey, s)
@@ -62,7 +64,8 @@ var Plugin = kernel.Register(kernel.Spec{
 //	POST   /api/agentdocs            {url, token, workspace?, agents?, wake?} connect
 //	PATCH  /api/agentdocs            {agents?, wake?}
 //	POST   /api/agentdocs/sync       set agents up again
-//	DELETE /api/agentdocs            disconnect (identities revoked)
+//	POST   /api/agentdocs/local      {email, password} 一键启动: install, run and connect a local server
+//	DELETE /api/agentdocs            disconnect (identities revoked; a local server stops, its data stays)
 var APIPlugin = kernel.Register(kernel.Spec{
 	Name:        "@crewbase/agentdocs-api",
 	Inject:      []string{gateway.ServiceKey, ServiceKey},
@@ -94,6 +97,20 @@ var APIPlugin = kernel.Register(kernel.Spec{
 					return nil, gateway.BadRequest("%v", err)
 				}
 				st, err := s.UpdateSettings(ctx, b.Agents, b.Wake)
+				if err != nil {
+					return nil, gateway.BadRequest("%v", err)
+				}
+				return st, nil
+			}})
+		g.Handle(c, gateway.Route{Method: "POST", Path: "/api/agentdocs/local",
+			Handle: func(ctx context.Context, r *gateway.Request) (any, error) {
+				var b StartLocalRequest
+				if err := r.Decode(&b); err != nil {
+					return nil, gateway.BadRequest("%v", err)
+				}
+				ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 6*time.Minute)
+				defer cancel()
+				st, err := s.StartLocal(ctx, b)
 				if err != nil {
 					return nil, gateway.BadRequest("%v", err)
 				}
