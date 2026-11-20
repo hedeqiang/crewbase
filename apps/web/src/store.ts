@@ -675,6 +675,16 @@ export function openNewChannel(folder = "") {
   setState({ newChannel: true, palette: false, createIn: folder });
 }
 
+let readTimer: number | undefined;
+/** The person has seen session up to seq: the list's badge goes at once,
+ *  the daemon hears it a moment later (any device then shows it read). */
+export function markRead(session: string, seq: number) {
+  const sm = state.summaries[session];
+  if (sm && (sm.unread || (sm.read ?? 0) < seq)) setState((s) => ({ summaries: { ...s.summaries, [session]: { ...sm, unread: 0, read: Math.max(sm.read ?? 0, seq) } } }));
+  window.clearTimeout(readTimer);
+  readTimer = window.setTimeout(() => void API.markRead(session, seq).catch(() => {}), 500);
+}
+
 let sumTimer: number | undefined;
 /** Debounced summary refresh (snippets, order, topics). */
 export function scheduleSummaries(ms = 600) {

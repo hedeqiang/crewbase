@@ -8,7 +8,7 @@ import { runShortcut } from "../actions";
 import { keyLabel } from "../shortcuts";
 import { catLabel } from "./Settings";
 import type { Draft } from "./NewAgent";
-import { createContext, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { Fragment, createContext, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { useCopy } from "../clipboard";
 import {
   ArrowUp,
@@ -57,7 +57,7 @@ import { API, desktop, parseRef, refString, useRawURL, type AgentView, type Appr
 import { scheduleLabel } from "./settings/Automation";
 import { t, type Key } from "../i18n";
 import { argsFull, argsPreview, project, type AgentItem, type Decision, type FeedItem, type Rewind, type Step, type TurnPart, type TurnStats } from "../projection";
-import { hasModels, loadSession, setModelOverride, openConnect, openSubRun, setState, toast, useStore, sessionAgent, getState, setReply } from "../store";
+import { hasModels, loadSession, setModelOverride, openConnect, openSubRun, setState, toast, useStore, sessionAgent, getState, setReply, markRead } from "../store";
 import { TakeoverCard, takeoverReason } from "./Browser";
 import { cloudVoice, dictate, dictationSupported, primeVoice, speak, speaking, speakSupported } from "../voice";
 import { addFiles, addLibraryFile, clearFiles, filesFrom, LIB_DRAG, libraryFrom, MsgAttachments, PendingChips } from "./Attachments";
@@ -417,11 +417,18 @@ function Superseded({ rw, rows, agents }: { rw: Rewind; rows: FeedItem[]; agents
 }
 
 /** Rows of one feed run, grouped as the feed renders them. */
-function Rows({ items, agents }: { items: FeedItem[]; agents: Record<string, AgentView> }) {
+function Rows({ items, agents, firstNew }: { items: FeedItem[]; agents: Record<string, AgentView>; firstNew?: string | null }) {
   return (
     <>
       {groupFeed(items).map((g) =>
-        g.sys ? (
+        firstNew && !g.sys && g.items.some((x) => x.it.id === firstNew) ? (
+          g.items.map((x) => (
+            <Fragment key={x.it.id}>
+              {x.it.id === firstNew && <NewDivider />}
+              <FeedRow it={x.it} agents={agents} showModel={x.showModel} />
+            </Fragment>
+          ))
+        ) : g.sys ? (
           <div className="sysgrp" key={g.items[0].it.id}>
             {g.items.map((x) => (
               <FeedRow key={x.it.id} it={x.it} agents={agents} />
@@ -432,6 +439,24 @@ function Rows({ items, agents }: { items: FeedItem[]; agents: Record<string, Age
         ),
       )}
     </>
+  );
+}
+
+/** 新消息: the first reply the person has not seen yet. The first time
+ *  the conversation opens on it, it is scrolled into view. */
+function NewDivider() {
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = ref.current;
+    const feed = el?.closest(".feed");
+    if (!el || !feed) return;
+    // only when the new replies start above what is shown
+    if (el.getBoundingClientRect().top < feed.getBoundingClientRect().top + 40 || feed.scrollHeight - feed.clientHeight - feed.scrollTop < 4) el.scrollIntoView({ block: "start" });
+  }, []);
+  return (
+    <div className="newdiv" ref={ref} role="separator">
+      <span>{t("unread.new")}</span>
+    </div>
   );
 }
 
@@ -549,6 +574,10 @@ function Feed({
   // coming back to a conversation read further up: where it was left
   const restore = useRef<number | null>(scrollMemo.get(sessionId) ?? null);
   const stick = useRef(restore.current === null);
+  // 新消息: where the person stopped reading, as it was when they opened it
+  const readAtOpen = useRef<number | null>(null);
+  const summary = useStore((s) => s.summaries[sessionId]);
+  if (readAtOpen.current === null && summary) readAtOpen.current = summary.unread ? summary.read ?? 0 : Infinity;
   const streams = useStore((s) => s.streams);
   const agents = useStore((s) => s.agents);
   const bubbles = useStore((s) => s.bubbles);
@@ -593,6 +622,32 @@ function Feed({
     return { cut: 0, hidden: 0 };
   }, [items, shownN]);
   const all = useMemo(() => blocks(cut ? items.slice(cut) : items), [items, cut]);
+  // the first reply after the read position gets the divider
+  const firstNew = useMemo(() => {
+    const r = readAtOpen.current;
+    if (r === null || r === Infinity) return null;
+    const it = items.find((i) => (i.k === "turn" || i.k === "agent") && Number(i.id) > r);
+    return it ? it.id : null;
+  }, [items, summary !== undefined]);
+  // reading: at the end of the conversation, with the window in front
+  const lastSeq = useStore((s) => {
+    const ev = s.events[sessionId];
+    return ev && ev.length ? ev[ev.length - 1].seq : 0;
+  });
+  useEffect(() => {
+    if (!lastSeq || loading) return;
+    const tick = () => {
+      if (document.visibilityState === "visible" && stick.current && getState().current === sessionId && getState().view === "chat") markRead(sessionId, lastSeq);
+    };
+    tick();
+    document.addEventListener("visibilitychange", tick);
+    const el = ref.current;
+    el?.addEventListener("scroll", tick, { passive: true });
+    return () => {
+      document.removeEventListener("visibilitychange", tick);
+      el?.removeEventListener("scroll", tick);
+    };
+  }, [sessionId, lastSeq, loading]);
   const anchor = useRef<number | null>(null);
   const showOlder = () => {
     const el = ref.current;
@@ -688,7 +743,7 @@ function Feed({
         ) : b.kind === "versions" ? (
           <Versions key={"v" + b.older[0][0].id} older={b.older} current={b.current} agents={agents} />
         ) : (
-          <Rows key={"r" + b.items[0].id} items={b.items} agents={agents} />
+          <Rows key={"r" + b.items[0].id} items={b.items} agents={agents} firstNew={firstNew} />
         ),
       )}
       </SessionCtx.Provider>

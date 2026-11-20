@@ -2943,3 +2943,31 @@ b > .mkver, .g b .mkver { margin: 0 0 0 6px; }
 .feed .flash { animation: msg-flash 1.5s var(--ease-out); border-radius: 12px; }
 @keyframes msg-flash { 0%, 30% { background: var(--accent-soft); box-shadow: 0 0 0 6px var(--accent-soft); } 100% { background: transparent; box-shadow: 0 0 0 6px transparent; } }
 @media (prefers-reduced-motion: reduce) { .rx.pop, .replychip, .feed .flash { animation: none !important; } }
+
+/* 新消息 (Conversation NewDivider) */
+.newdiv { display: flex; align-items: center; gap: 10px; color: var(--danger-text); font-size: 11.5px; font-weight: 600; margin: 2px 0; }
+.newdiv::before, .newdiv::after { content: ""; flex: 1; height: 1px; background: color-mix(in srgb, var(--danger) 40%, transparent); transform-origin: center; animation: line-in var(--dur-slow) var(--ease-out) both; }
+.newdiv span { padding: 1px 8px; border-radius: 9px; background: var(--danger-soft); animation: chip-in var(--dur-dialog) var(--ease-spring) 80ms both; }
+@keyframes line-in { from { scale: 0 1; opacity: 0; } }
+
+/* unread rows (SessionList) */
+.ci .l2 { display: flex; align-items: center; gap: 6px; }
+.ci .l2 .l2t { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ci.unread .l1 b { font-weight: 650; }
+.ci.unread .l2 .l2t { color: var(--text2); }
+.ucnt { flex: none; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; background: var(--danger); color: #fff; font-size: 10.5px; font-weight: 700; line-height: 18px; text-align: center; font-variant-numeric: tabular-nums; animation: rx-pop var(--dur-slow) var(--ease-spring) both; }
+.lsec .cnt.red { background: var(--danger-soft); color: var(--danger-text); }
+.lunread { margin-bottom: 4px; }
+.lunread .ci { animation: rise-in var(--dur-slow) var(--ease-out) both; }
+@media (prefers-reduced-motion: reduce) { .ucnt, .lunread .ci { animation: none; } }
+
+/* unread rows (SessionList) */
+.ci .l2 { display: flex; align-items: center; gap: 6px; }
+.ci .l2 .l2t { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ci.unread .l1 b { font-weight: 650; }
+.ci.unread .l2 .l2t { color: var(--text2); }
+.ucnt { flex: none; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; background: var(--danger); color: #fff; font-size: 10.5px; font-weight: 700; line-height: 18px; text-align: center; font-variant-numeric: tabular-nums; animation: rx-pop var(--dur-slow) var(--ease-spring) both; }
+.lsec .cnt.red { background: var(--danger-soft); color: var(--danger-text); }
+.lunread { margin-bottom: 4px; }
+.lunread .ci { animation: rise-in var(--dur-slow) var(--ease-out) both; }
+@media (prefers-reduced-motion: reduce) { .ucnt, .lunread .ci { animation: none; } }

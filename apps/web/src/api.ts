@@ -121,6 +121,10 @@ export interface SessionSummary extends SessionMeta {
   updated: string;
   last?: LastLine;
   events: number;
+  /** the last event the person has seen (any device) */
+  read?: number;
+  /** replies after it */
+  unread?: number;
 }
 
 export interface ChannelView extends SessionMeta {
@@ -1461,6 +1465,8 @@ export const API = {
   patchChannel: (id: string, b: { handoverConfirm: boolean }) => api<ChannelView>("PATCH", `/api/channels/${enc(id)}`, b),
   postChannel: (id: string, text: string, reply?: Quote) =>
     api<{ agent: string; input: string; position: number }>("POST", `/api/channels/${enc(id)}/messages`, { text, reply }),
+  /** the person has seen session up to seq (0: all of it) */
+  markRead: (session: string, seq: number) => api<{ read: number }>("POST", `/api/sessions/${enc(session)}/read`, { seq }),
   /** an emoji on a message (features/reactions); remove takes yours back */
   react: (session: string, target: number, emoji: string, remove?: boolean) =>
     api<null>("POST", `/api/sessions/${enc(session)}/reactions`, { target, emoji, remove: remove || undefined }),

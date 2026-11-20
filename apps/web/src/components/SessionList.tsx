@@ -38,6 +38,16 @@ import { UpdatePill } from "./Update";
 
 const ISSUES_URL = "https://github.com/hedeqiang/crewbase/issues";
 
+/** the count on a row with replies not seen yet */
+function UnreadCount({ n }: { n: number }) {
+  if (!n) return null;
+  return (
+    <span className="ucnt" aria-label={t("unread.n", { n })}>
+      {n > 99 ? "99+" : n}
+    </span>
+  );
+}
+
 export function SessionList() {
   const agents = useStore((s) => s.agents);
   const sessions = useStore((s) => s.sessions);
@@ -100,6 +110,32 @@ export function SessionList() {
     return m;
   }, [approvals]);
 
+  // 未读: conversations with replies not seen yet, gathered at the top. A
+  // row stays there while it is open (it does not jump away under the
+  // click), and goes back to its place once another one is opened.
+  const unreadN = (sid: string) => (view === "chat" && current === sid ? 0 : summaries[sid]?.unread ?? 0);
+  const kept = useRef<Set<string>>(new Set());
+  const unreadSet = useMemo(() => {
+    const out = new Set<string>();
+    if (q.trim()) return out;
+    for (const [, g] of groups) {
+      for (const a of g.agents) if (unreadN(a.session) > 0 || (current === a.session && kept.current.has(a.session))) out.add(a.session);
+      for (const m of g.channels) if (unreadN(m.id) > 0 || (current === m.id && kept.current.has(m.id))) out.add(m.id);
+    }
+    return out;
+  }, [groups, summaries, current, view, q]);
+  kept.current = unreadSet;
+  const unreadRows = useMemo(() => {
+    const rows: ({ a: AgentView } | { m: SessionMeta })[] = [];
+    for (const [, g] of groups) {
+      for (const a of g.agents) if (unreadSet.has(a.session)) rows.push({ a });
+      for (const m of g.channels) if (unreadSet.has(m.id)) rows.push({ m });
+    }
+    const upd = (r: { a: AgentView } | { m: SessionMeta }) => ("a" in r ? summaries[r.a.session]?.updated : summaries[r.m.id]?.updated) ?? "";
+    return rows.sort((x, y) => upd(y).localeCompare(upd(x)));
+  }, [groups, unreadSet, summaries]);
+  const totalUnread = unreadRows.reduce((n, r) => n + unreadN("a" in r ? r.a.session : r.m.id), 0);
+
   const empty = Object.keys(agents).length === 0;
   const noMatch = !empty && groups.length === 0;
   const needs = approvals.length + takeovers.length;
@@ -113,7 +149,7 @@ export function SessionList() {
     // the 需要你 section already lists what it waits for: no second chip here
     const waiting = needs === 0 && ((pendingBy[a.id] ?? 0) > 0 || !!takeoverReason(a));
     return (
-      <button key={a.id} className="ci" data-session={a.session} type="button" aria-current={sel(a.session)} onClick={() => openSession(a.session)} onContextMenu={(e) => openRowMenu(e, { kind: "agent", agent: a })}>
+      <button key={a.id} className={"ci" + (unreadN(a.session) ? " unread" : "")} data-session={a.session} type="button" aria-current={sel(a.session)} onClick={() => openSession(a.session)} onContextMenu={(e) => openRowMenu(e, { kind: "agent", agent: a })}>
         <Avatar agent={a} size={32} status={!isChat(a)} />
         <span className="ct">
           <span className="l1">
@@ -121,7 +157,10 @@ export function SessionList() {
             {waiting && <span className="wchip">{t("list.wait")}</span>}
             <span className="tm">{snip?.time ? listTime(snip.time) : ""}</span>
           </span>
-          <span className="l2">{(isChat(a) ? snip?.text : topic || snip?.text || a.role) || " "}</span>
+          <span className="l2">
+            <span className="l2t">{(isChat(a) ? snip?.text : topic || snip?.text || a.role) || " "}</span>
+            <UnreadCount n={unreadN(a.session)} />
+          </span>
         </span>
         <RowMenuButton target={{ kind: "agent", agent: a }} />
       </button>
@@ -135,7 +174,7 @@ export function SessionList() {
     const who = snip?.agent ? agents[snip.agent]?.name : undefined;
     const topic = summaries[m.id]?.topic;
     return (
-      <button key={m.id} className={"ci" + (ch?.state === "archived" ? " arch" : "")} data-session={m.id} type="button" aria-current={sel(m.id)} onClick={() => openSession(m.id)} onContextMenu={(e) => openRowMenu(e, { kind: "channel", meta: m })}>
+      <button key={m.id} className={"ci" + (ch?.state === "archived" ? " arch" : "") + (unreadN(m.id) ? " unread" : "")} data-session={m.id} type="button" aria-current={sel(m.id)} onClick={() => openSession(m.id)} onContextMenu={(e) => openRowMenu(e, { kind: "channel", meta: m })}>
         <span className="chav tint" style={{ ["--c" as string]: channelColor(m.id) } as CSSProperties}>
           <Hash size={16} strokeWidth={2.4} />
           {owner && (
@@ -152,14 +191,17 @@ export function SessionList() {
             <span className="tm">{snip?.time ? listTime(snip.time) : ""}</span>
           </span>
           <span className="l2">
-            {topic ? (
-              topic
-            ) : (
-              <>
-                {who && snip?.text ? <span className="who">{who}：</span> : null}
-                {snip?.text || (owner ? t("ch.ownerIs", { name: owner.name }) : " ")}
-              </>
-            )}
+            <span className="l2t">
+              {topic ? (
+                topic
+              ) : (
+                <>
+                  {who && snip?.text ? <span className="who">{who}：</span> : null}
+                  {snip?.text || (owner ? t("ch.ownerIs", { name: owner.name }) : " ")}
+                </>
+              )}
+            </span>
+            <UnreadCount n={unreadN(m.id)} />
           </span>
         </span>
         <RowMenuButton target={{ kind: "channel", meta: m }} />
@@ -233,7 +275,19 @@ export function SessionList() {
             })}
           </>
         )}
-        {groups.map(([folder, g]) => {
+        {unreadRows.length > 0 && (
+          <div className="lgrp lunread">
+            <div className="lsec">
+              <span>{t("unread.section")}</span>
+              {totalUnread > 0 && <span className="cnt red">{totalUnread}</span>}
+            </div>
+            {unreadRows.map((r) => ("a" in r ? agentRow(r.a) : channelRow(r.m)))}
+          </div>
+        )}
+        {groups.map(([folder, g0]) => {
+          // rows in 未读 are shown there, not twice
+          const g = unreadSet.size ? { agents: g0.agents.filter((a) => !unreadSet.has(a.session)), channels: g0.channels.filter((m) => !unreadSet.has(m.id)) } : g0;
+          if (unreadSet.size && !folder && g.agents.length + g.channels.length === 0) return null;
           // blank chats are conversations, not team members: their own section
           const crew = g.agents.filter((a) => !isChat(a));
           const chats = g.agents.filter((a) => isChat(a));

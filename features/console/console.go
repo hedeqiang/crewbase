@@ -40,6 +40,9 @@ type SessionSummary struct {
 	Updated time.Time `json:"updated"`
 	Last    *LastLine `json:"last,omitempty"`
 	Events  int64     `json:"events"`
+	// Read: the last event seen; Unread: replies after it (unread.go).
+	Read   int64 `json:"read"`
+	Unread int   `json:"unread,omitempty"`
 }
 
 // LastLine is the latest visible line of a session.
@@ -512,7 +515,8 @@ var Plugin = kernel.Register(kernel.Spec{
 						}
 					}
 					evs := ss.Events()
-					sum := SessionSummary{Meta: m, Updated: m.Created, Last: lastLine(ss), Events: int64(len(evs))}
+					sum := SessionSummary{Meta: m, Updated: m.Created, Last: lastLine(ss), Events: int64(len(evs)), Read: readSeq(ss)}
+					sum.Unread = unread(ss, sum.Read)
 					if n := len(evs); n > 0 {
 						sum.Updated = evs[n-1].Time
 					}
@@ -520,6 +524,24 @@ var Plugin = kernel.Register(kernel.Spec{
 				}
 				sort.Slice(out, func(i, j int) bool { return out[i].Updated.After(out[j].Updated) })
 				return map[string]any{"sessions": out}, nil
+			}})
+
+		g.Handle(c, gateway.Route{Method: "POST", Path: "/api/sessions/{id}/read", Devices: mobile,
+			Handle: func(_ context.Context, r *gateway.Request) (any, error) {
+				ss, err := sessions.Get(r.Params["id"])
+				if err != nil {
+					return nil, gateway.NotFound()
+				}
+				var b struct {
+					Seq int64 `json:"seq"`
+				}
+				if err := r.Decode(&b); err != nil {
+					return nil, gateway.BadRequest("%v", err)
+				}
+				if b.Seq <= 0 {
+					b.Seq = int64(len(ss.Events()))
+				}
+				return map[string]int64{"read": markRead(ss, b.Seq)}, nil
 			}})
 
 		// ---- context / compaction / new conversation
