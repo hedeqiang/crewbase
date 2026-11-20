@@ -31,6 +31,7 @@ import (
 	"path"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -381,9 +382,7 @@ func scanItem(sc interface{ Scan(...any) error }) (Item, error) {
 		&tags, &private, &it.Note, &created, &updated, &state, &it.Versions); err != nil {
 		return Item{}, err
 	}
-	if tags != "" {
-		it.Tags = strings.Split(tags, ",")
-	}
+	it.Tags = splitTags(tags)
 	it.Private = private != 0
 	it.Created, _ = time.Parse(time.RFC3339Nano, created)
 	it.Updated, _ = time.Parse(time.RFC3339Nano, updated)
@@ -527,9 +526,7 @@ func (s *Service) Search(ctx context.Context, v Viewer, q string, limit int) ([]
 				&tags, &private, &h.Note, &created, &updated, &state, &h.Versions, &h.Snippet); err != nil {
 				return nil, err
 			}
-			if tags != "" {
-				h.Tags = strings.Split(tags, ",")
-			}
+			h.Tags = splitTags(tags)
 			h.Private = private != 0
 			h.Created, _ = time.Parse(time.RFC3339Nano, created)
 			h.Updated, _ = time.Parse(time.RFC3339Nano, updated)
@@ -964,3 +961,59 @@ var Plugin = kernel.Register(kernel.Spec{
 		return c.Provide(ServiceKey, s)
 	},
 })
+
+// Stats counts what v sees, for the library page's filters.
+type Stats struct {
+	Total   int            `json:"total"`
+	Folders map[string]int `json:"folders"`
+	Sources map[string]int `json:"sources"`
+	Tags    []TagCount     `json:"tags"`
+}
+
+// TagCount is a tag and how many items carry it.
+type TagCount struct {
+	Tag string `json:"tag"`
+	N   int    `json:"n"`
+}
+
+// Stats counts v's items by folder, source and tag.
+func (s *Service) Stats(v Viewer) (Stats, error) {
+	where, args := s.scope(v, "")
+	rows, err := s.db.Query(`SELECT folder, source, tags FROM items WHERE `+where, args...)
+	if err != nil {
+		return Stats{}, err
+	}
+	defer rows.Close()
+	st := Stats{Folders: map[string]int{}, Sources: map[string]int{}, Tags: []TagCount{}}
+	tags := map[string]int{}
+	for rows.Next() {
+		var folder, source, tg string
+		if err := rows.Scan(&folder, &source, &tg); err != nil {
+			return Stats{}, err
+		}
+		st.Total++
+		st.Folders[folder]++
+		st.Sources[source]++
+		for _, t := range splitTags(tg) {
+			tags[t]++
+		}
+	}
+	for t, n := range tags {
+		st.Tags = append(st.Tags, TagCount{t, n})
+	}
+	slices.SortFunc(st.Tags, func(a, b TagCount) int {
+		if a.N != b.N {
+			return b.N - a.N
+		}
+		return strings.Compare(a.Tag, b.Tag)
+	})
+	return st, rows.Err()
+}
+
+// splitTags reads the stored tags column.
+func splitTags(s string) []string {
+	if s == "" {
+		return nil
+	}
+	return strings.Split(s, ",")
+}

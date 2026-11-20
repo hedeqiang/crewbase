@@ -220,6 +220,15 @@ func (s *Service) guard(r *gateway.Request, route string) error {
 				}
 			}
 		}
+	case strings.HasPrefix(route, "/api/library"):
+		// the 文档库 of the team in ?team=
+		team := r.HTTP.URL.Query().Get("team")
+		if !s.TeamVisible(w, team) {
+			return errHidden
+		}
+		if write && !s.CanAct(w, team) {
+			return errRead
+		}
 	case strings.HasPrefix(route, "/api/teams/{id}"):
 		id := r.Params["id"]
 		if !s.TeamVisible(w, id) {

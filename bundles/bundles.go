@@ -206,6 +206,7 @@ var Desktop = kernel.Bundle{Name: "desktop", Entries: []kernel.Entry{
 	{ID: "roles", Name: "@crewbase/roles"},
 	{ID: "ui-api", Name: "@crewbase/ui-api"},
 	{ID: "attachments-api", Name: "@crewbase/attachments-api"},
+	{ID: "library-api", Name: "@crewbase/library-api"},
 	// Link cards (docs/previews.md): GET /api/unfurl, public addresses only.
 	{ID: "linkpreview", Name: "@crewbase/linkpreview"},
 	// 预览: preview_open and the right panel's preview tab (docs/previews.md).
