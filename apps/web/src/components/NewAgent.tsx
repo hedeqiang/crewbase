@@ -212,9 +212,10 @@ export function NewAgent({ draft: f, setDraft }: { draft: Draft; setDraft: (d: D
   const create = async () => {
     const name = f.name.trim();
     if (!name) {
+      // said once, at the field (no toast on top of it)
       setErr(true);
-      toast(t("na.needName"));
-      nameRef.current?.focus();
+      nameRef.current?.scrollIntoView({ block: "center", behavior: "smooth" });
+      nameRef.current?.focus({ preventScroll: true });
       return;
     }
     setBusy(true);

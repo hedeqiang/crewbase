@@ -96,7 +96,7 @@ export function Settings() {
           <p className="small muted snomatch">{t("set.searchNone")}</p>
         )}
       </nav>
-      <div className="vw">
+      <div className="vw" data-sec={sec} data-width={FULL_SECTIONS.has(sec) ? "full" : WIDE_SECTIONS.has(sec) ? "wide" : undefined}>
         {!manage && <p className="tiernote">{t("tier.mobileNote")}</p>}
         {(sec === "general" || (!manage && !MOBILE_SECTIONS.has(sec))) && <General />}
         {manage && sec === "models" && <Models />}
@@ -119,6 +119,12 @@ export function Settings() {
     </div>
   );
 }
+
+/** pages laid out wider (tables, grids, a file browser); the others read
+ *  in one column of about 760px */
+const WIDE_SECTIONS = new Set<string>(["market", "auto", "profile"]);
+/** pages with their own panes (a list beside details, a file browser) */
+const FULL_SECTIONS = new Set<string>(["models", "library", "docs"]);
 
 const GROUPS: { id: Shortcut["group"]; title: Key }[] = [
   { id: "general", title: "keys.general" },

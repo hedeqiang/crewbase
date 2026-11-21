@@ -486,10 +486,16 @@ export function project(events: SessionEvent[], cards?: ReadonlySet<string>): Pr
         }
         break;
       }
-      case "model/chosen":
+      case "model/chosen": {
+        // choices in a row (nothing said in between): only the last counts
+        let k = items.length - 1;
+        while (k >= 0 && items[k].k === "time") k--;
+        const prev = items[k];
+        if (prev?.k === "sys" && prev.key === "chat.modelChosen" && prev.vars?.agent === (e.agent ?? "")) items.splice(k, 1);
         push({ k: "sys", id, tone: "muted", text: "", key: "chat.modelChosen", vars: { agent: e.agent ?? "", to: d.to ? `${d.to.provider}/${d.to.model}` : "" } }, e.time);
         if (d.to) lastModel[e.agent ?? ""] = d.to;
         break;
+      }
       case "model/switched":
         push({ k: "switch", id, agent: e.agent ?? "", from: d.from, to: d.to, reason: d.reason ?? "", detail: d.detail }, e.time);
         if (d.to) lastModel[e.agent ?? ""] = d.to;

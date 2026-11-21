@@ -1,4 +1,4 @@
-import { MessagesSquare, Moon } from "lucide-react";
+import { MessagesSquare, Moon, Send } from "lucide-react";
 import { useEffect, useState } from "react";
 import { API, type ImGateway, type ImPlatform, type NotifyPrefs, type NotifyState, type QuietHours } from "../../api";
 import { hhmm, nextMorning } from "../../format";
@@ -6,6 +6,7 @@ import { t, type Key } from "../../i18n";
 import { dndActive, patchProfile, setState, toast, useStore } from "../../store";
 import { Head, Row } from "../Settings";
 import { imGatewayName } from "./Im";
+import { Skeleton } from "../Skeleton";
 
 const DEFAULT_QUIET: QuietHours = { on: false, start: "22:00", end: "08:00" };
 
@@ -94,19 +95,18 @@ export function Notify() {
 
         <div className="vsec">{t("nt.what")}</div>
         {!st ? (
-          <div className="sbox">
-            <div className="srow">
-              <span className="small">{t("common.loading")}</span>
-            </div>
-          </div>
+          <Skeleton kind="rows" n={5} />
         ) : (
           <div className="sbox ntbl" style={{ ["--n" as any]: channels.length }}>
             <div className="ntr nth">
-              <span className="g" />
+              <span className="g">
+                <b>{t("nt.event")}</b>
+              </span>
               {channels.map((ch) => (
                 <span key={ch} className="ntc">
                   <b>{channelName(ch, im)}</b>
-                  <button type="button" className="btn sm ghost" disabled={testing !== ""} onClick={() => void test(ch)}>
+                  <button type="button" className="btn sm" disabled={testing !== ""} onClick={() => void test(ch)} title={t("nt.testTitle", { channel: channelName(ch, im) })}>
+                    <Send size={11} />
                     {testing === ch ? t("nt.testing") : t("nt.test")}
                   </button>
                 </span>

@@ -103,9 +103,32 @@ export function ReplyBtn({ q }: { q: Quote }) {
   );
 }
 
-/** a message's text as a one-line excerpt */
-export function excerpt(text: string, n = 140) {
-  const one = text.replace(/```[\s\S]*?```/g, " … ").replace(/[#>*_`]+/g, "").replace(/\s+/g, " ").trim();
+/** a message's text as one plain line: no Markdown (tables, code blocks,
+ *  lists, headings, emphasis, links), its first sentence or so */
+export function excerpt(text: string, n = 60) {
+  const lines = text
+    .replace(/```[\s\S]*?(```|$)/g, "\n")
+    .split("\n")
+    .map((l) => l.trim())
+    .filter((l) => l && !/^\|/.test(l) && !/^[-=*_]{3,}$/.test(l));
+  // a message that opens with a heading is summed up by it
+  if (lines.length > 1 && /^#{1,6}\s+/.test(lines[0])) lines.splice(1);
+  let one = lines
+    .map((l) =>
+      l
+        .replace(/^#{1,6}\s+/, "")
+        .replace(/^>\s?/, "")
+        .replace(/^(?:[-*+]|\d+[.)])\s+/, "")
+        .replace(/!?\[([^\]]*)\]\([^)]*\)/g, "$1")
+        .replace(/(\*\*|__|~~|`)/g, "")
+        .replace(/(^|\s)[*_]([^*_]+)[*_](?=\s|$)/g, "$1$2"),
+    )
+    .join(" ")
+    .replace(/\s+/g, " ")
+    .trim();
+  // the first sentence when it is long enough to stand alone
+  const m = /^(.{12,}?[。！？!?])\s?/.exec(one);
+  if (m && m[1].length <= n) one = m[1];
   return one.length > n ? one.slice(0, n) + "…" : one;
 }
 

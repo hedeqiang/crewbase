@@ -297,7 +297,9 @@ let state: State = {
   events: {},
   loadErr: {},
   streams: {},
-  view: "chat",
+  // the address says where a reload lands: settings shows its own page
+  // (and loading) at once, not a conversation's
+  view: typeof location !== "undefined" && location.hash.startsWith("#/settings") ? "settings" : typeof location !== "undefined" && location.hash.startsWith("#/new-agent") ? "newAgent" : "chat",
   current: LS.get("current"),
   hist: LS.get("current") ? [LS.get("current")!] : [],
   histPos: LS.get("current") ? 0 : -1,
@@ -306,7 +308,7 @@ let state: State = {
   teams: [],
   team: loadTeam(),
   ui: [],
-  settings: "general",
+  settings: ((typeof location !== "undefined" && /^#\/settings\/([\w-]+)/.exec(location.hash)?.[1]) || "general") as SettingsSection,
   listOpen: !narrow() || !LS.get("current"),
   panelOpen: !midWidth() && LS.get("panel") !== "0",
   panelTab: "task",

@@ -473,10 +473,10 @@ function Rows({ items, agents, firstNew }: { items: FeedItem[]; agents: Record<s
 function findMsg(items: FeedItem[], seq: number): { seq: number; who: string; text: string } | null {
   const agents = getState().agents;
   for (const it of items) {
-    if (it.k === "user" && it.seq === seq) return { seq, who: it.from || t("rx.you"), text: excerpt(it.text, 120) };
-    if (it.k === "agent" && Number(it.id) === seq) return { seq, who: agents[it.agent]?.name ?? it.agent, text: excerpt(it.text, 120) };
+    if (it.k === "user" && it.seq === seq) return { seq, who: it.from || t("rx.you"), text: excerpt(it.text, 80) };
+    if (it.k === "agent" && Number(it.id) === seq) return { seq, who: agents[it.agent]?.name ?? it.agent, text: excerpt(it.text, 80) };
     if (it.k === "turn")
-      for (const p of it.parts) if (p.k === "msg" && Number(p.it.id) === seq) return { seq, who: agents[it.agent]?.name ?? it.agent, text: excerpt(p.it.text, 120) };
+      for (const p of it.parts) if (p.k === "msg" && Number(p.it.id) === seq) return { seq, who: agents[it.agent]?.name ?? it.agent, text: excerpt(p.it.text, 80) };
   }
   return null;
 }
@@ -629,7 +629,7 @@ function Feed({
   const typingIds = (channel ? channel.members.filter((m) => working?.has(m) || (m === agent.id && agent.status === "running")) : agent.status === "running" ? [agent.id] : [])
     .filter((id) => agents[id]?.status === "running" || id === agent.id)
     .filter((id) => !approvals.some((a) => a.agent === id && a.session === sessionId))
-    .filter((id) => !live.some(([k, v]) => k.endsWith("|" + id) && v.text))
+    .filter((id) => !live.some(([k, v]) => k.endsWith("|" + id) && (v.text || v.thinking)))
     .filter((id) => !openTurns.has(id));
   // Agents in this conversation that wait for a person to take over their browser.
   const takeovers = useMemo(() => {
@@ -2310,21 +2310,30 @@ function Composer({
             </button>
           ) : (
             <>
-              {busy && canSend && (
-                <button className="cbtn qbtn" type="button" disabled={sending} onClick={() => void send(true)} title={t("steer.queueTitle", { key: display("alt+enter").join("") })}>
-                  <ListPlus size={14} />
-                  <span className="lbl">{t("steer.queue")}</span>
+              {busy && canSend ? (
+                // while it works: two labelled choices, each with its key
+                <span className="steerpair">
+                  <button className="cbtn qbtn" type="button" disabled={sending} onClick={() => void send(true)} title={t("steer.queueTitle", { key: display("alt+enter").join("") })}>
+                    <ListPlus size={14} />
+                    <span className="lbl">{t("steer.queue")}</span>
+                    <kbd>{display("alt+enter").join("")}</kbd>
+                  </button>
+                  <button className="send on steerbtn" type="submit" disabled={sending} aria-label={t("steer.send")} title={t("steer.sendTitle", { key: sendKey })}>
+                    <span>{t("steer.now")}</span>
+                    <kbd>{sendKey}</kbd>
+                  </button>
+                </span>
+              ) : (
+                <button
+                  className={"send" + (canSend ? " on" : "")}
+                  type="submit"
+                  disabled={!canSend || sending}
+                  aria-label={t("chat.send", { key: sendKey })}
+                  title={t("chat.send", { key: sendKey })}
+                >
+                  <ArrowUp size={16} />
                 </button>
               )}
-              <button
-                className={"send" + (canSend ? " on" : "")}
-                type="submit"
-                disabled={!canSend || sending}
-                aria-label={busy ? t("steer.send") : t("chat.send", { key: sendKey })}
-                title={busy ? t("steer.sendTitle", { key: sendKey }) : t("chat.send", { key: sendKey })}
-              >
-                <ArrowUp size={16} />
-              </button>
             </>
           )}
         </div>

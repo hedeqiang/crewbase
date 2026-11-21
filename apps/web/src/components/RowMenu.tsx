@@ -1,4 +1,4 @@
-import { Archive, Bot, Check, FolderInput, FolderMinus, Hash, MessageSquare, MoreHorizontal, Pencil, Trash2 } from "lucide-react";
+import { Archive, ArrowUpToLine, Bot, Check, Folder, FolderInput, FolderMinus, FolderPlus, Hash, MessageSquare, MoreHorizontal, Pencil, Trash2 } from "lucide-react";
 import { useEffect, useRef, useState, type MouseEvent, type ReactNode } from "react";
 import { API, type AgentView, type SessionMeta } from "../api";
 import { t } from "../i18n";
@@ -252,10 +252,18 @@ function RowDialog({ d, folders, onClose }: { d: { kind: DialogKind; target: Tar
   const current = tg.kind === "agent" ? tg.agent.folder ?? "" : tg.kind === "channel" ? tg.meta.folder ?? "" : tg.name;
   const [val, setVal] = useState(d.kind === "move" ? current : d.kind === "create" ? "" : nameOf(tg));
   const [busy, setBusy] = useState(false);
+  // 移到: a folder from the list (or a new one), never typed blind
+  const NEW = "\u0000new";
+  const [dest, setDest] = useState<string>(current);
   const input = useRef<HTMLInputElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    input.current?.select();
+    if (d.kind === "move") listRef.current?.querySelector<HTMLElement>('[aria-checked="true"]')?.focus();
+    else input.current?.select();
   }, []);
+  useEffect(() => {
+    if (dest === NEW) setTimeout(() => input.current?.focus(), 0);
+  }, [dest]);
 
   const submit = async () => {
     setBusy(true);
@@ -275,6 +283,8 @@ function RowDialog({ d, folders, onClose }: { d: { kind: DialogKind; target: Tar
         return t("rm.renamed", { name: v });
       }
       if (d.kind === "move") {
+        const v = dest === NEW ? val.trim() : dest;
+        if (dest === NEW && !v) throw new Error(t("rm.needName"));
         if (tg.kind === "agent") await API.patchAgent(tg.agent.id, { folder: v });
         else if (tg.kind === "channel") await API.updateChannel(tg.meta.id, { folder: v });
         return v ? t("rm.moved", { folder: v }) : t("rm.movedTop");
@@ -347,14 +357,60 @@ function RowDialog({ d, folders, onClose }: { d: { kind: DialogKind; target: Tar
         </div>
         <div className="mbd">
         {note && <p className="small rmnote">{note}</p>}
-        {d.kind !== "delete" && (
+        {d.kind === "move" && (
+          <div
+            className="fpick"
+            role="radiogroup"
+            aria-label={title}
+            ref={listRef}
+            onKeyDown={(e) => {
+              const opts = ["", ...folders, NEW];
+              const i = opts.indexOf(dest);
+              if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+                e.preventDefault();
+                const n = opts[(i + (e.key === "ArrowDown" ? 1 : opts.length - 1)) % opts.length];
+                setDest(n);
+                setTimeout(() => listRef.current?.querySelector<HTMLElement>('[aria-checked="true"]')?.focus(), 0);
+              } else if (e.key === "Enter" && dest !== NEW) {
+                e.preventDefault();
+                void submit();
+              }
+            }}
+          >
+            {["", ...folders].map((f) => (
+              <button key={f || "_top"} type="button" role="radio" aria-checked={dest === f} tabIndex={dest === f ? 0 : -1} className="fpo" onClick={() => setDest(f)} onDoubleClick={() => void submit()}>
+                {f ? <Folder size={14} /> : <ArrowUpToLine size={14} />}
+                <span className="g">{f || t("rm.top")}</span>
+                {f === current && <span className="small muted">{t("rm.here")}</span>}
+                {dest === f && <Check size={14} className="ck" />}
+              </button>
+            ))}
+            <button type="button" role="radio" aria-checked={dest === NEW} tabIndex={dest === NEW ? 0 : -1} className="fpo" onClick={() => setDest(NEW)}>
+              <FolderPlus size={14} />
+              <span className="g">{t("list.newFolder")}…</span>
+              {dest === NEW && <Check size={14} className="ck" />}
+            </button>
+            {dest === NEW && (
+              <input
+                ref={input}
+                className="fi"
+                value={val === current ? "" : val}
+                placeholder={t("rm.newFolderPh")}
+                onChange={(e) => setVal(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") void submit();
+                }}
+              />
+            )}
+          </div>
+        )}
+        {d.kind !== "delete" && d.kind !== "move" && (
           <>
             <input
               ref={input}
               className="fi"
               value={val}
-              list={d.kind === "move" ? "rmFolders" : undefined}
-              placeholder={d.kind === "move" ? t("rm.folderPh") : d.kind === "create" ? t("rm.newFolderPh") : ""}
+              placeholder={d.kind === "create" ? t("rm.newFolderPh") : ""}
               onChange={(e) => setVal(e.target.value)}
               onKeyDown={(e) => {
                 if (e.key === "Enter") void submit();
@@ -364,13 +420,6 @@ function RowDialog({ d, folders, onClose }: { d: { kind: DialogKind; target: Tar
                 }
               }}
             />
-            {d.kind === "move" && (
-              <datalist id="rmFolders">
-                {folders.map((f) => (
-                  <option key={f} value={f} />
-                ))}
-              </datalist>
-            )}
           </>
         )}
         <div className="mft">
