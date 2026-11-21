@@ -186,13 +186,15 @@ function Shell() {
 
   // Close overlays when shrinking into the overlay breakpoints.
   useEffect(() => {
-    const mq = window.matchMedia("(max-width: 1100px)");
+    const mq = window.matchMedia("(max-width: 960px)");
     const on = () => mq.matches && setState({ panelOpen: false });
     mq.addEventListener("change", on);
     return () => mq.removeEventListener("change", on);
   }, []);
 
-  const cls = ["inner", showList ? "" : "nolist", showPanel ? "" : "nopanel"].filter(Boolean).join(" ");
+  // on a phone with no conversation open the list is the page, not a drawer
+  const listHome = showList && view === "chat" && !current;
+  const cls = ["inner", showList ? "" : "nolist", showPanel ? "" : "nopanel", listHome ? "listhome" : ""].filter(Boolean).join(" ");
   return (
     <div className="app">
       {!connected && <div className="offline">{t("conn.offline")}</div>}

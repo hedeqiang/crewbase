@@ -1,3 +1,4 @@
+import { EmptyState } from "../EmptyState";
 import { Skeleton } from "../Skeleton";
 import { Fragment, useEffect, useState } from "react";
 import { Copy, KeyRound, Plus } from "lucide-react";
@@ -50,10 +51,7 @@ export function Vault() {
         {err && <p className="small errt">{err}</p>}
         {!items && !err && <Skeleton />}
         {items && items.length === 0 && (
-          <div className="vltempty">
-            <KeyRound size={20} />
-            <p className="small">{t("vlt.empty")}</p>
-          </div>
+          <EmptyState icon={<KeyRound size={22} />} title={t("es.vault")} desc={t("vlt.empty")} />
         )}
         {items &&
           groups.map((g) => {

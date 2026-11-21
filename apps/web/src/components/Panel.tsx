@@ -20,6 +20,14 @@ import { PanelView, useSlot } from "./UISlots";
 import { confirmDialog } from "./Confirm";
 import { AgentConnectors } from "./AgentConnectors";
 
+/** /tmp/uiaudit/root/workspaces/kai → /tmp/…/workspaces/kai: the start and
+ *  the end, which say where it is and what it is */
+function midPath(p: string) {
+  const parts = p.split("/");
+  if (p.length <= 34 || parts.length <= 4) return p;
+  return [parts[0], parts[1], "…", ...parts.slice(-2)].join("/");
+}
+
 export function Panel() {
   const current = useStore((s) => s.current);
   const tab = useStore((s) => s.panelTab);
@@ -397,32 +405,41 @@ function TaskTab({ agent }: { agent: AgentView }) {
                 {agent.effectiveMode === "host" && agent.modeUntil && <span className="small">{t("chat.modeUntil", { time: until(agent.modeUntil) }).replace(/^，/, "")}</span>}
               </dd>
               <dt>{t("panel.dir")}</dt>
-              <dd className="mono" style={{ fontSize: 12 }}>
-                {shortPath(agent.workspace)}
+              <dd className="mono ddpath" style={{ fontSize: 12 }} title={agent.workspace}>
+                {midPath(shortPath(agent.workspace))}
               </dd>
             </>
           )}
         </dl>
-        {/* a plain chat has no queue to pause: just Stop, while it answers */}
-        {(!chat || agent.status === "running" || agent.status === "waiting") && (
-        <div className="acts">
-          <button className="btn" type="button" disabled={agent.status !== "running" && agent.status !== "waiting"} onClick={() => act("stop")}>
-            <Square size={12} />
-            {t("panel.stop")}
-          </button>
-          {chat ? null : agent.paused ? (
-            <button className="btn" type="button" onClick={() => act("resume")}>
-              <Play size={12} />
-              {t("panel.resume")}
-            </button>
-          ) : (
-            <button className="btn" type="button" onClick={() => act("pause")}>
-              <Pause size={12} />
-              {t("panel.pause")}
-            </button>
-          )}
-        </div>
-        )}
+        {/* only what applies now: Stop while it works; pause when work waits
+            in the queue (resume while paused) */}
+        {(() => {
+          const busy = agent.status === "running" || agent.status === "waiting";
+          const pause = !chat && (agent.paused || agent.queue.length > 0 || busy);
+          if (!busy && !pause) return null;
+          return (
+            <div className="acts">
+              {busy && (
+                <button className="btn" type="button" onClick={() => act("stop")}>
+                  <Square size={12} />
+                  {t("panel.stop")}
+                </button>
+              )}
+              {pause &&
+                (agent.paused ? (
+                  <button className="btn" type="button" onClick={() => act("resume")}>
+                    <Play size={12} />
+                    {t("panel.resume")}
+                  </button>
+                ) : (
+                  <button className="btn" type="button" onClick={() => act("pause")}>
+                    <Pause size={12} />
+                    {t("panel.pause")}
+                  </button>
+                ))}
+            </div>
+          );
+        })()}
       </div>
       {(!chat || agent.queue.length > 0) && (
         <div className="psec">{chat ? t("chat.queue", { n: agent.queue.length }) : t("panel.queue", { name: agent.name, n: agent.queue.length })}</div>

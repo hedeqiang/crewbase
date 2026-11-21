@@ -345,8 +345,23 @@ export function subscribe(f: () => void): () => void {
   return () => subs.delete(f);
 }
 
+/** a laptop beside something else (960–1100px): the side panel sits next to
+ *  the conversation, and the list folds away while it is open */
+const besideWidth = () => window.matchMedia("(min-width: 961px) and (max-width: 1100px)").matches;
+let listFoldedForPanel = false;
+
 export function setState(patch: Partial<State> | ((s: State) => Partial<State>)) {
-  const p = typeof patch === "function" ? patch(state) : patch;
+  let p = typeof patch === "function" ? patch(state) : patch;
+  if ("panelOpen" in p && p.panelOpen !== state.panelOpen && typeof window !== "undefined" && besideWidth()) {
+    if (p.panelOpen && state.listOpen && !("listOpen" in p)) {
+      p = { ...p, listOpen: false };
+      listFoldedForPanel = true;
+    } else if (!p.panelOpen && listFoldedForPanel && !("listOpen" in p)) {
+      p = { ...p, listOpen: true };
+      listFoldedForPanel = false;
+    }
+  }
+  if ("listOpen" in p && p.listOpen) listFoldedForPanel = false;
   state = { ...state, ...p };
   if ("current" in p) LS.set("current", state.current);
   if ("drafts" in p) saveDrafts();

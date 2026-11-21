@@ -1,3 +1,4 @@
+import { EmptyState } from "../EmptyState";
 import { AlertTriangle, Cloud, Copy, Laptop, Loader2, Pencil, RefreshCw, ShieldCheck, Smartphone, Trash2, Wifi, X } from "lucide-react";
 import qrcode from "qrcode-generator";
 import { useEffect, useMemo, useState } from "react";
@@ -211,7 +212,7 @@ export function Hosts() {
           </button>
         </div>
         {err && <p className="small errt">{err}</p>}
-        {devices && devices.length === 0 && !err && <p className="small devempty">{t("dev.none")}</p>}
+        {devices && devices.length === 0 && !err && <EmptyState compact icon={<Smartphone size={22} />} title={t("es.devices")} desc={t("dev.none")} />}
         {devices && devices.length > 0 && (
           <div className="htable">
             {devices.map((d) => (

@@ -1,6 +1,7 @@
+import { EmptyState } from "../EmptyState";
 import { Skeleton } from "../Skeleton";
 import { useEffect, useState } from "react";
-import { ArrowDown, ArrowUp, ChevronRight, Hand, Pencil, Play, Plus, RotateCcw, Square, Sunrise, Trash, Users, X } from "lucide-react";
+import { CalendarClock, ArrowDown, ArrowUp, ChevronRight, Hand, Pencil, Play, Plus, RotateCcw, Square, Sunrise, Trash, Users, X } from "lucide-react";
 import { API, type AgentView, type Brief, type Routine, type RoutineRun, type WfRun, type WfStep, type Workflow } from "../../api";
 import { t, type Key } from "../../i18n";
 import { ago, hhmm, modeLabel, until } from "../../format";
@@ -170,7 +171,7 @@ function Routines() {
       )}
       {edit && <RoutineForm init={edit} onCancel={() => setEdit(null)} onSaved={saved} />}
       {err && <p className="small errt">{err}</p>}
-      {list && list.length === 0 && !edit && <div className="empty">{t("auto.noRoutines")}</div>}
+      {list && list.length === 0 && !edit && <EmptyState icon={<CalendarClock size={22} />} title={t("auto.noRoutines")} desc={t("es.routinesDesc")} />}
       <div className="cards">
         {list?.map((r) => {
           const a = agents[r.agent];

@@ -1,8 +1,9 @@
+import { EmptyState } from "./EmptyState";
 import { Skeleton } from "./Skeleton";
 import { AddProviderDialog } from "./settings/AddProvider";
 import { MagpieModelsDialog, ModelCatalog } from "./settings/ModelSources";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { ChevronLeft, Info, ListChecks, Pencil, Plus, Search, Workflow } from "lucide-react";
+import { CheckCheck, ChevronLeft, Info, ListChecks, Pencil, Plus, Search, Workflow } from "lucide-react";
 import { NAV, SECTION_ICONS } from "./settings/nav";
 import { API, desktop, type DesktopPermission, type DesktopUpdateState, type UpdateInfo, type ApprovalHistoryItem, type ModelInfo, type ProviderView, type RememberedChoice, type Settings as SettingsData, type UserProvider } from "../api";
 import { getLang, t, type Key, type Lang } from "../i18n";
@@ -1126,7 +1127,7 @@ function Approvals() {
       <Head title={t("set.approvals")} />
       <div className="vb">
         <div className="vsec">{t("set.pending", { n: approvals.length })}</div>
-        {approvals.length === 0 && <p className="small">{t("appr.none")}</p>}
+        {approvals.length === 0 && <EmptyState icon={<CheckCheck size={22} />} title={t("appr.none")} desc={t("es.approvalsDesc")} />}
         {approvals.map((r) => {
           const a = agents[r.agent];
           return (
