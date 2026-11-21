@@ -134,6 +134,21 @@ export function ContextMap({
   const [bd, setBd] = useState<ContextBreakdown | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState<"" | "compact" | "new">("");
+  // the map and its parts: for whoever wants to look closer
+  const [detail, setDetail] = useState(() => {
+    try {
+      return localStorage.getItem("crewbase.ctxDetail") === "1";
+    } catch {
+      return false;
+    }
+  });
+  useEffect(() => {
+    try {
+      localStorage.setItem("crewbase.ctxDetail", detail ? "1" : "0");
+    } catch {
+      /* private mode */
+    }
+  }, [detail]);
   const [view, setView] = useState<"map" | "list">(() => {
     try {
       return localStorage.getItem("crewbase.ctxView") === "list" ? "list" : "map";
@@ -218,7 +233,7 @@ export function ContextMap({
   return createPortal(
     <>
       <div className="scrim" onClick={onClose} />
-      <div className="modal ctxmap" role="dialog" aria-modal="true" aria-labelledby="cmapTitle">
+      <div className={"modal ctxmap" + (detail ? "" : " brief")} role="dialog" aria-modal="true" aria-labelledby="cmapTitle">
         <div className="mhd">
           <h3 id="cmapTitle">{t("cmap.title")}</h3>
           <button className="ix" type="button" aria-label={t("common.close")} onClick={onClose}>
@@ -248,7 +263,7 @@ export function ContextMap({
                     {bd.headroom ? " · " + t("cmap.headroom", { n: bd.headroom }) : ""}
                   </div>
                 </div>
-                {bd.cache && (
+                {bd.cache && detail && (
                   <div className="cxcache">
                     <div className="cxeyebrow">{t("cmap.cache")}</div>
                     <div className="cxbig sm">
@@ -266,7 +281,7 @@ export function ContextMap({
                     </div>
                   </div>
                 )}
-                <div className="cxmodel">
+                <div className="cxmodel" hidden={!detail}>
                   {model && (
                     <span className="cxmname">
                       <ProviderMark provider={model.provider} model={model.model} size={14} />
@@ -279,6 +294,14 @@ export function ContextMap({
                 </div>
               </div>
 
+              {/* in plain words first; the map is the detail, on request */}
+              <p className="cxplain">{t(st === "over" ? "cmap.plainOver" : st === "near" ? "cmap.plainNear" : "cmap.plainOk", { name: agent.name })}</p>
+              {!detail && (
+                <button type="button" className="linkbtn cxmore" onClick={() => setDetail(true)}>
+                  {t("cmap.showDetail")}
+                </button>
+              )}
+              {detail && (<>
               <div className="cxbar">
                 <div className="cxlegend" role="group" aria-label={t("cmap.legend")}>
                   {KINDS.filter((k) => totals.has(k)).map((k) =>
@@ -334,12 +357,13 @@ export function ContextMap({
                 {sel && <Detail agent={agent} sessionId={sessionId} bd={bd} block={sel} onPick={setSel} onClose={() => setSel(null)} />}
               </div>
 
-              {bd.overThreshold && <p className="small warnline cxnote">{t("ctx.over")}</p>}
               {bd.recorded && <p className="small cxnote">{t("cmap.recorded")}</p>}
               <p className="small cxnote">
                 {t("ctx.note")}
                 {bd.compactions > 0 ? " " + t("ctx.compactions", { n: bd.compactions }) : ""}
               </p>
+              </>)}
+              {bd.overThreshold && <p className="small warnline cxnote">{t("ctx.over")}</p>}
             </>
           )}
         </div>

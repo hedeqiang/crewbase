@@ -1036,6 +1036,15 @@ function Models() {
   );
 }
 
+const capName = (c: string) => (t(`set.cap.${c}` as Key) === `set.cap.${c}` ? c : t(`set.cap.${c}` as Key));
+
+/** capabilities at least 80% of the models share */
+function commonCaps(list: ModelInfo[]): string[] {
+  const n: Record<string, number> = {};
+  for (const m of list) for (const c of m.capabilities ?? []) n[c] = (n[c] ?? 0) + 1;
+  return Object.keys(n).filter((c) => n[c] >= Math.ceil(list.length * 0.8));
+}
+
 /** A provider's models, grouped by what they produce (chat / image / video)
  *  when it serves more than one kind, each with its on/off switch. */
 function ModelTable({ provider, models, busy, onFlip, switches = true }: { provider: ProviderView; models: ModelInfo[]; busy: string | null; onFlip: (m: ModelInfo) => void; switches?: boolean }) {
@@ -1044,8 +1053,21 @@ function ModelTable({ provider, models, busy, onFlip, switches = true }: { provi
     <>
       {kinds.map((kind) => {
         const list = models.filter((m) => modelKind(m) === kind);
+        // what nearly every model here can do is said once above the list;
+        // a row shows only what sets it apart
+        const common = commonCaps(list);
         return (
           <div key={kind} className="mkgroup">
+            {common.length > 0 && list.length > 3 && (
+              <div className="mcommon small">
+                {t("set.capsAll")}
+                {common.map((c) => (
+                  <span key={c} className={"cap c-" + c.split("-")[0]}>
+                    {capName(c)}
+                  </span>
+                ))}
+              </div>
+            )}
             {kinds.length > 1 && (
               <div className="mkh">
                 <span className={"mkind k-" + kind}>{t(`set.kind.${kind}`)}</span>
@@ -1066,11 +1088,22 @@ function ModelTable({ provider, models, busy, onFlip, switches = true }: { provi
                       <span className="mono">{m.id}</span>
                     </span>
                     <span className="caps">
-                      {(m.capabilities ?? []).map((c) => (
-                        <span key={c} className={"cap c-" + c.split("-")[0]}>
-                          {t(`set.cap.${c}` as Key) === `set.cap.${c}` ? c : t(`set.cap.${c}` as Key)}
-                        </span>
-                      ))}
+                      {(m.capabilities ?? [])
+                        .filter((c) => list.length <= 3 || !common.includes(c))
+                        .map((c) => (
+                          <span key={c} className={"cap c-" + c.split("-")[0]}>
+                            {capName(c)}
+                          </span>
+                        ))}
+                      {/* models without something most have: say what is missing */}
+                      {list.length > 3 &&
+                        common
+                          .filter((c) => !(m.capabilities ?? []).includes(c))
+                          .map((c) => (
+                            <span key={"no" + c} className="cap c-none" title={t("set.capMissing", { cap: capName(c) })}>
+                              {t("set.capNo", { cap: capName(c) })}
+                            </span>
+                          ))}
                       {levels > 1 && (
                         <span className="cap c-reasoning" title={(m.efforts ?? []).join(" · ")}>
                           {t("set.capLevels", { n: levels })}

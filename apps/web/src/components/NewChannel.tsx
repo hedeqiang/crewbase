@@ -117,7 +117,28 @@ function Dialog() {
                     <span>{a.role || a.id}</span>
                   </span>
                   {i === 0 && <span className="pill blue">{t("ch.owner")}</span>}
-                  {i > 0 && <span className="pill">{t("nc.member")}</span>}
+                  {i > 0 && (
+                    <span
+                      className="pill lead"
+                      role="button"
+                      tabIndex={0}
+                      title={t("nc.makeOwner")}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setMembers((m) => [a.id, ...m.filter((x) => x !== a.id)]);
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          setMembers((m) => [a.id, ...m.filter((x) => x !== a.id)]);
+                        }
+                      }}
+                    >
+                      <span className="pl1">{t("nc.member")}</span>
+                      <span className="pl2">{t("nc.makeOwner")}</span>
+                    </span>
+                  )}
                 </button>
               );
             })}

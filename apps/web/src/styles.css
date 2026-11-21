@@ -3179,3 +3179,20 @@ input.fi { resize: none; }
 .schedhint .g { display: flex; gap: 8px; align-items: flex-start; }
 .schedex { display: flex; flex-wrap: wrap; gap: 6px; }
 .schedex .chipbtn { white-space: normal; text-align: left; height: auto; min-height: 28px; padding: 5px 10px; line-height: 1.4; }
+/* keyboard: a list row in focus is outlined as a whole row */
+.lscroll .ci:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; border-radius: 10px; }
+.rowmore:focus-visible { outline-offset: -2px; }
+.mcommon { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin: 0 0 8px; color: var(--muted); }
+.cap.c-none { background: var(--sunken); color: var(--muted); text-decoration: line-through; text-decoration-color: color-mix(in srgb, var(--muted) 60%, transparent); }
+/* 新建频道: a member can be made the lead (hover shows how) */
+.pill.lead { cursor: pointer; }
+.pill.lead .pl2 { display: none; }
+.mopt:hover .pill.lead .pl1, .pill.lead:focus-visible .pl1 { display: none; }
+.mopt:hover .pill.lead .pl2, .pill.lead:focus-visible .pl2 { display: inline; color: var(--accent-text); }
+@media (hover: none) { .pill.lead .pl1 { display: none; } .pill.lead .pl2 { display: inline; color: var(--accent-text); } }
+.cxplain { margin: 2px 0 0; font-size: 14px; line-height: 1.6; color: var(--text2); }
+.cxmore { align-self: flex-start; font-size: 13px; }
+/* the context window, briefly: a dialog its own size */
+.modal.ctxmap.brief { width: min(560px, calc(100vw - 32px)); height: auto; }
+.modal.ctxmap.brief .cxbody { flex: none; }
+.modal.ctxmap.brief .cxhead { flex-wrap: wrap; }

@@ -264,7 +264,18 @@ export function SessionList() {
           </button>
         )}
       </div>
-      <div className="lscroll">
+      <div
+        className="lscroll"
+        onKeyDown={(e) => {
+          // ↑ ↓ move between rows, as in a native list (Enter opens)
+          if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
+          const rows = Array.from(e.currentTarget.querySelectorAll<HTMLElement>("button.ci"));
+          const i = rows.indexOf(document.activeElement as HTMLElement);
+          if (i < 0) return;
+          e.preventDefault();
+          rows[Math.max(0, Math.min(rows.length - 1, i + (e.key === "ArrowDown" ? 1 : -1)))]?.focus();
+        }}
+      >
         {needs > 0 && !q && (
           <>
             <div className="lsec">
