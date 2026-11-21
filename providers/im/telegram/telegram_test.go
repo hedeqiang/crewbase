@@ -266,9 +266,8 @@ func TestApprovalAllowedFromTelegram(t *testing.T) {
 		ed := bot.Edits()
 		return len(ed) == 1 && strings.Contains(ed[0]["text"].(string), "已批准") && len(keyboard(ed[0])) == 0
 	})
-	if len(e.Inbox.Pending()) != 0 {
-		t.Fatal("desktop card must be withdrawn")
-	}
+	// the desktop card is withdrawn once the decision has gone through
+	imtest.Eventually(t, func() bool { return len(e.Inbox.Pending()) == 0 })
 	// a second press is told it was already handled
 	bot.press(7, 101, allow)
 	imtest.Eventually(t, func() bool { return len(bot.Answers()) == 3 })
