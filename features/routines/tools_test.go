@@ -109,7 +109,7 @@ func TestAgentSetsUpRoutines(t *testing.T) {
 	call(kai, routines.ToolCreate, map[string]any{"name": "竞品定价巡检", "prompt": "看三家竞品的定价页", "schedule": "daily 08:30"})
 	req := approve(true)
 	agentloop.WaitIdle(kai, 3*time.Second)
-	if !strings.Contains(req.Summary, "竞品定价巡检") || !strings.Contains(req.Summary, "每天 08:30") || !strings.Contains(req.Preview, "看三家竞品的定价页") {
+	if !strings.Contains(req.Summary, "竞品定价巡检") || !strings.Contains(req.Summary, "every day at 08:30") || !strings.Contains(req.Preview, "看三家竞品的定价页") {
 		t.Fatalf("card: %q / %q", req.Summary, req.Preview)
 	}
 	list := svc.List()
@@ -151,7 +151,7 @@ func TestAgentSetsUpRoutines(t *testing.T) {
 	call(kai, routines.ToolUpdate, map[string]any{"id": id, "schedule": "weekly fri 17:00", "enabled": true})
 	req = approve(true)
 	agentloop.WaitIdle(kai, 3*time.Second)
-	if got, _ := svc.Get(id); got.Schedule != "weekly fri 17:00" || !got.Enabled || got.By != "agent" || !strings.Contains(req.Summary, "每周五 17:00") {
+	if got, _ := svc.Get(id); got.Schedule != "weekly fri 17:00" || !got.Enabled || got.By != "agent" || !strings.Contains(req.Summary, "every Friday at 17:00") {
 		t.Fatalf("update: %+v %q", got, req.Summary)
 	}
 

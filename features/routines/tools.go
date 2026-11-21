@@ -102,27 +102,27 @@ func clipRunes(s string, n int) string {
 	return string(r[:n]) + "…"
 }
 
-// scheduleWords is a schedule in plain Chinese for the approval card.
+// scheduleWords is a schedule in plain words for the approval card.
 func scheduleWords(spec string) string {
 	f := strings.Fields(strings.ToLower(strings.TrimSpace(spec)))
-	days := map[string]string{"mon": "周一", "tue": "周二", "wed": "周三", "thu": "周四", "fri": "周五", "sat": "周六", "sun": "周日"}
+	days := map[string]string{"mon": "Monday", "tue": "Tuesday", "wed": "Wednesday", "thu": "Thursday", "fri": "Friday", "sat": "Saturday", "sun": "Sunday"}
 	switch {
 	case len(f) == 2 && f[0] == "daily":
-		return "每天 " + f[1]
+		return "every day at " + f[1]
 	case len(f) == 3 && f[0] == "weekly" && days[f[1][:min(3, len(f[1]))]] != "":
-		return "每" + days[f[1][:3]] + " " + f[2]
+		return "every " + days[f[1][:3]] + " at " + f[2]
 	case len(f) == 2 && f[0] == "every":
-		d := strings.NewReplacer("h", " 小时", "m", " 分钟").Replace(f[1])
-		return "每 " + d
+		d := strings.NewReplacer("h", " h", "m", " min").Replace(f[1])
+		return "every " + d
 	}
 	return spec
 }
 
 func modeWords(m string) string {
 	if m == agent.ModeSandbox {
-		return "沙箱"
+		return "sandbox"
 	}
-	return "只读"
+	return "read-only"
 }
 
 func (s *Service) registerTools(c *kernel.Context) {
@@ -177,7 +177,7 @@ func (s *Service) registerTools(c *kernel.Context) {
 			if err != nil {
 				return tools.Errorf("%v", err), nil
 			}
-			return tools.Text(fmt.Sprintf("Routine %s created: %s, %s. Next run %s. The person can see, edit and turn it off in the 定时 tab.",
+			return tools.Text(fmt.Sprintf("Routine %s created: %s, %s. Next run %s. The person can see, edit and turn it off in Settings › Automation.",
 				r.ID, r.Name, r.Schedule, r.NextRun.Local().Format("Mon 2006-01-02 15:04"))), nil
 		},
 	})
@@ -323,16 +323,16 @@ func (s *Service) registerTools(c *kernel.Context) {
 			if a.Mode != "" {
 				merged.Mode = a.Mode
 			}
-			out.Summary = fmt.Sprintf("修改例行巡检「%s」：%s · %s", merged.Name, scheduleWords(merged.Schedule), modeWords(merged.Mode))
-			out.Preview = "**要做什么**\n\n" + merged.Prompt
+			out.Summary = fmt.Sprintf("Change routine “%s”: %s · %s", merged.Name, scheduleWords(merged.Schedule), modeWords(merged.Mode))
+			out.Preview = "**What it does**\n\n" + merged.Prompt
 		} else {
 			// what the tool would refuse anyway is not asked about
 			mode, err := modeOf(a.Mode)
 			if err != nil || strings.TrimSpace(a.Name) == "" || strings.TrimSpace(a.Prompt) == "" || checkAgentSchedule(a.Schedule) != nil {
 				return out, nil
 			}
-			out.Summary = fmt.Sprintf("新建例行巡检「%s」：%s · %s", strings.TrimSpace(a.Name), scheduleWords(a.Schedule), modeWords(mode))
-			out.Preview = "**每次运行要做什么**\n\n" + strings.TrimSpace(a.Prompt)
+			out.Summary = fmt.Sprintf("Set up routine “%s”: %s · %s", strings.TrimSpace(a.Name), scheduleWords(a.Schedule), modeWords(mode))
+			out.Preview = "**What each run does**\n\n" + strings.TrimSpace(a.Prompt)
 		}
 		out.RequireApproval("routines: the person confirms every routine an agent sets up or changes")
 		out.Rememberable, out.ConfirmRemember = false, false
