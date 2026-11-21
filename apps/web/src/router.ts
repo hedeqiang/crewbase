@@ -20,7 +20,8 @@
 // Older links keep working: #/session/<id>, #/settings/<section>[/<tab>],
 // #/library.
 
-import { getState, loadSession, setState, subscribe, type PanelTab, type SettingsSection, type State } from "./store";
+import { getState, loadSession, setState, subscribe, toast, type PanelTab, type SettingsSection, type State } from "./store";
+import { t } from "./i18n";
 
 export interface Loc {
   view: "chat" | "settings" | "newAgent";
@@ -186,6 +187,8 @@ export function apply(l: Loc) {
         subView: l.sub ?? null,
       });
       if (session && known && session !== s.current) void loadSession(session);
+      // an old link or a deleted conversation: say so instead of a blank page
+      if (session && !known && s.sessionsLoaded) toast(t("route.gone"));
     }
   } finally {
     applying = false;

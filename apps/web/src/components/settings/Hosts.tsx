@@ -1,4 +1,4 @@
-import { Cloud, Copy, Laptop, Loader2, Pencil, RefreshCw, ShieldCheck, Smartphone, Trash2, Wifi, X } from "lucide-react";
+import { AlertTriangle, Cloud, Copy, Laptop, Loader2, Pencil, RefreshCw, ShieldCheck, Smartphone, Trash2, Wifi, X } from "lucide-react";
 import qrcode from "qrcode-generator";
 import { useEffect, useMemo, useState } from "react";
 import { API, type DeviceView, type MemberView, type PairingCode, type RelayStatus } from "../../api";
@@ -37,6 +37,11 @@ function useNow(ms = 1000) {
     return () => window.clearInterval(i);
   }, [ms]);
   return now;
+}
+
+/** darwin → macOS: the system as people call it (details on hover) */
+function osName(os?: string) {
+  return os === "darwin" ? "macOS" : os === "windows" ? "Windows" : os === "linux" ? "Linux" : os ?? "";
 }
 
 /** 设置 › 主机与设备: pair phones and computers, see the relay link. */
@@ -150,7 +155,7 @@ export function Hosts() {
           <span className="g">
             <b>{sys?.hostname || t("dev.thisComputer")}</b>
             <span className="small">
-              {sys ? `${sys.os ?? ""} ${sys.arch ?? ""}`.trim() : ""} · {t("dev.zeroInbound")}
+              <span title={sys ? `${sys.os ?? ""} ${sys.arch ?? ""}`.trim() : undefined}>{osName(sys?.os)}</span> · {t("dev.zeroInbound")}
             </span>
           </span>
           <span className="pill ok">{t("dev.online")}</span>
@@ -260,10 +265,27 @@ export function Hosts() {
                 <X size={16} />
               </button>
             </div>
+            {local && !relay?.configured && (
+              // the first thing to know: a phone cannot open this address
+              <div className="pairwarn">
+                <AlertTriangle size={14} />
+                <span>{t("dev.localWarnLong")}</span>
+                <button
+                  type="button"
+                  className="btn sm"
+                  onClick={() => {
+                    void close();
+                    setTimeout(() => document.querySelector(".relaybox")?.scrollIntoView({ block: "center", behavior: "smooth" }), 50);
+                  }}
+                >
+                  {t("dev.toRelay")}
+                </button>
+              </div>
+            )}
             <div className="mbd pairbody">
               <QR text={open.link} />
               <div className="pairinfo">
-                <p className="small">{relay?.configured ? t("dev.scanRelay") : local ? t("dev.scanLocal") : t("dev.scanLan")}</p>
+                {(relay?.configured || !local) && <p className="small">{relay?.configured ? t("dev.scanRelay") : t("dev.scanLan")}</p>}
                 <div className="paircodebig mono">{open.p.code}</div>
                 <p className="small">
                   {t("dev.expires", { s: `${Math.floor(left / 60)}:${String(left % 60).padStart(2, "0")}` })}
@@ -277,7 +299,6 @@ export function Hosts() {
                 >
                   <Copy size={13} /> {t("dev.copyLink")}
                 </button>
-                {local && !relay?.configured && <p className="small amt">{t("dev.localWarn")}</p>}
                 <p className="small waitpair">
                   <RefreshCw size={12} className="spin" /> {t("dev.waiting")}
                 </p>

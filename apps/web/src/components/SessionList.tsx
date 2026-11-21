@@ -565,11 +565,11 @@ function MeMenu({ close, profile }: { close: () => void; profile: Profile }) {
         </span>
         <span className="st">
           <b>{usage ? usage.switches : "—"}</b>
-          <span>{t("me.todaySwitches")}</span>
+          <span>{t("me.totalSwitches")}</span>
         </span>
         <span className="st">
           <b>{usage ? usd(usage.spentUsd) : "—"}</b>
-          <span>{t("me.todaySpent")}</span>
+          <span>{t("me.totalSpent")}</span>
         </span>
       </button>
 
