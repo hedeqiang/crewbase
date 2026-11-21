@@ -681,11 +681,13 @@ export function argsPreview(args: any): string {
     }
   }
   if (typeof args !== "object") return String(args);
-  for (const k of ["command", "cmd", "task", "prompt", "path", "url", "query", "file", "pattern", "text", "note"]) {
+  for (const k of ["command", "cmd", "task", "prompt", "path", "url", "query", "queries", "file", "pattern", "title", "name", "emoji", "text", "note", "id"]) {
     if (typeof args[k] === "string") return args[k];
     if (Array.isArray(args[k])) return args[k].join(" ");
   }
-  return JSON.stringify(args);
+  // never the raw object: its first short text value, or nothing
+  for (const v of Object.values(args)) if (typeof v === "string" && v.length <= 120 && !/[<{]/.test(v)) return v;
+  return "";
 }
 
 export function argsFull(args: any): string {

@@ -1207,7 +1207,7 @@ function TurnMsg({ it, agent }: { it: Extract<FeedItem, { k: "turn" }>; agent?: 
             )}
           </>
         )}
-        {it.parts.map((p) =>
+        {mergeSteps(it.parts, !!it.open).map((p) =>
           p.k === "steps" ? (
             <Steps key={p.id} steps={p.steps} agent={it.agent} />
           ) : p.k === "preview" ? (
@@ -1432,7 +1432,7 @@ function Steps({ steps, agent }: { steps: Step[]; agent?: string }) {
     <div className="stepsw">
       <button className="row-btn" type="button" aria-expanded={open} onClick={() => setOpen(!open)}>
         {running ? <span className="spin" /> : <Wrench size={14} className="muted" />}
-        {running ? t("chat.stepsRunning", { n: steps.length }) : t("chat.steps", { n: steps.length })}
+        {running ? t("chat.stepsRunning", { n: steps.length }) : workSummary(steps)}
         {awaiting && <span className="pill amber">{t("appr.waiting")}</span>}
         {declined > 0 && <span className="pill">{t("chat.toolDeclined")}</span>}
         {errors > 0 && <span className="pill red">{t("chat.toolError")} {errors}</span>}
@@ -1449,10 +1449,76 @@ function Steps({ steps, agent }: { steps: Step[]; agent?: string }) {
   );
 }
 
+/** A finished turn's steps in one group: step runs separated only by short
+ *  narration ("先看看文件…") become one line; the narration stays above it.
+ *  A running turn keeps them apart, so what happens now is visible. */
+function mergeSteps(parts: TurnPart[], open: boolean): TurnPart[] {
+  if (open) return parts;
+  const runs = parts.filter((p) => p.k === "steps").length;
+  if (runs < 2) return parts;
+  const out: TurnPart[] = [];
+  type StepsPart = Extract<TurnPart, { k: "steps" }>;
+  const g: { cur: StepsPart | null } = { cur: null };
+  const narr: TurnPart[] = [];
+  const flush = () => {
+    out.push(...narr);
+    narr.length = 0;
+    if (g.cur) out.push(g.cur);
+    g.cur = null;
+  };
+  for (const p of parts) {
+    if (p.k === "steps") {
+      g.cur = g.cur ? { k: "steps", id: g.cur.id, steps: [...g.cur.steps, ...p.steps] } : { k: "steps", id: p.id, steps: p.steps };
+      continue;
+    }
+    // short narration between steps rides above the merged group
+    if (g.cur && p.k === "msg" && p.narration && (p.it.text ?? "").length < 240) {
+      narr.push(p);
+      continue;
+    }
+    flush();
+    out.push(p);
+  }
+  flush();
+  return out;
+}
+
+/** What a run of steps did, in words: 写了 3 个文件 · 跑了 2 条命令 · 搜了 1 次
+ *  (the kinds that happened, most first; the step count when nothing fits). */
+const WORK_KINDS: { key: Key; tools: string[] }[] = [
+  { key: "work.wrote", tools: ["write_file", "edit_file", "library_save", "memory_add"] },
+  { key: "work.ran", tools: ["bash", "computer_script", "computer_shortcut"] },
+  { key: "work.read", tools: ["read_file", "list_dir", "library_read", "note_read"] },
+  { key: "work.searched", tools: ["web_search", "library_search", "search_tools"] },
+  { key: "work.opened", tools: ["web_fetch", "browser_open", "browser_navigate"] },
+  { key: "work.made", tools: ["show_page", "image_generate", "video_generate", "preview_open"] },
+  { key: "work.handed", tools: ["delegate"] },
+];
+function workSummary(steps: Step[]): string {
+  const counts: { key: Key; n: number }[] = [];
+  let other = 0;
+  for (const st of steps) {
+    const k = WORK_KINDS.find((w) => w.tools.includes(st.call.name) || (w.key === "work.opened" && st.call.name.startsWith("browser_")) || (w.key === "work.ran" && st.call.name.startsWith("computer_")));
+    if (!k) {
+      other++;
+      continue;
+    }
+    const c = counts.find((x) => x.key === k.key);
+    if (c) c.n++;
+    else counts.push({ key: k.key, n: 1 });
+  }
+  if (!counts.length) return t("chat.steps", { n: steps.length });
+  counts.sort((a, b) => b.n - a.n);
+  const parts = counts.slice(0, 3).map((c) => t(c.key, { n: c.n }));
+  if (counts.length > 3 || other > 0) parts.push(t("work.more", { n: steps.length }));
+  return parts.join(" · ");
+}
+
 function StepRow({ s, agent }: { s: Step; agent?: string }) {
   const [open, setOpen] = useState(false);
   const cu = computerLabel(s);
-  const pv = cu ? "" : argsPreview(s.call.args);
+  // a command that starts by going to the agent's own folder: that part says nothing
+  const pv = cu ? "" : argsPreview(s.call.args).replace(/^cd\s+\S*\/workspaces\/[^/\s]+\/?\s*&&\s*/, "");
   const shots = (s.computer ?? []).filter((c) => c.screenshot).map((c) => c.screenshot!);
   return (
     <div className="step">
@@ -1639,6 +1705,11 @@ const TOOL_LABELS: Record<string, Key> = {
   delegate: "tool.delegate",
   bash: "tool.bash",
   show_page: "tool.page",
+  library_save: "tool.libSave",
+  library_search: "tool.libSearch",
+  library_read: "tool.libRead",
+  react: "tool.react",
+  search_tools: "tool.findTools",
   read_file: "tool.read",
   write_file: "tool.write",
   edit_file: "tool.edit",
