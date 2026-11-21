@@ -44,7 +44,7 @@ export function Reactions({ target }: { target: string }) {
             onClick={() => void API.react(ctx.session, Number(target), r.emoji, mine).catch((e) => toast(e?.message ?? String(e)))}
           >
             <span className="e">{r.emoji}</span>
-            {r.who.length > 1 && <span className="n">{r.who.length}</span>}
+            <span className="n">{r.who.length}</span>
           </button>
         );
       })}

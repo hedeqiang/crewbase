@@ -1063,7 +1063,7 @@ function AgentMsg({ it, agent, showModel, bare, opened, extra }: { it: AgentItem
         </div>}
         {!bare && it.thinking && (
           <button className="row-btn think" type="button" aria-expanded={showThink} onClick={() => setShowThink(!showThink)}>
-            {t("chat.thoughts")}
+            {thinkLabel([it.tookMs])}
             <ChevronRight size={14} className="ch" />
           </button>
         )}
@@ -1196,8 +1196,7 @@ function TurnMsg({ it, agent }: { it: Extract<FeedItem, { k: "turn" }>; agent?: 
         {thoughts.length > 0 && (
           <>
             <button className="row-btn think" type="button" aria-expanded={showThink} onClick={() => setShowThink(!showThink)}>
-              {t("chat.thoughts")}
-              {thoughts.length > 1 && <span className="muted"> · {thoughts.length}</span>}
+              {thinkLabel(msgs.filter((p) => p.it.thinking).map((p) => p.it.tookMs))}
               <ChevronRight size={14} className="ch" />
             </button>
             {showThink && (
@@ -2679,6 +2678,16 @@ function DirMenu({ agent, onDone }: { agent: AgentView; onDone: () => void }) {
 /** A run mode's icon: look (只读), shield (沙箱), shield with a mark (完全访问). */
 function ModeIcon({ mode, size }: { mode: string; size: number }) {
   return mode === "read-only" ? <Eye size={size} /> : mode === "host" ? <ShieldAlert size={size} /> : <Shield size={size} />;
+}
+
+/** 思考了 6 秒 / 思考了 3 次 · 共 1 分 10 秒: how long it thought, when the
+ *  log knows (the model calls that thought), else 思考过程. */
+function thinkLabel(ms: (number | undefined)[]): string {
+  const known = ms.filter((x): x is number => typeof x === "number" && x > 0);
+  if (!known.length) return ms.length > 1 ? t("chat.thoughtsN", { n: ms.length }) : t("chat.thoughts");
+  const s = Math.max(1, Math.round(known.reduce((a, b) => a + b, 0) / 1000));
+  const dur = s < 60 ? t("dur.s", { n: s }) : t("dur.ms", { m: Math.floor(s / 60), s: s % 60 });
+  return ms.length > 1 ? t("chat.thoughtTimes", { n: ms.length, dur }) : t("chat.thoughtFor", { dur });
 }
 
 /** A greeting's example requests: its lines starting with "> " (they show

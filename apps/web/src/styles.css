@@ -3168,3 +3168,14 @@ input.fi { resize: none; }
   .setwrap.spage .snav { display: none; }
   .setwrap.spage .sback { display: flex; align-items: center; gap: 4px; padding: 10px 12px; font-size: 14px; color: var(--accent-text); border-bottom: 1px solid var(--border); background: var(--page); }
 }
+/* switches and segmented controls move between states */
+.tg { transition: background-color var(--dur-normal) var(--ease-out); }
+.tg::after { transition: transform var(--dur-normal) var(--ease-spring); }
+.seg button { transition: background-color var(--dur-hover) ease, color var(--dur-hover) ease, box-shadow var(--dur-hover) ease; }
+.tg:active::after { width: 19px; }
+.tg[aria-checked="true"]:active::after { transform: translateX(11px); }
+/* 定时 with nothing yet: a solid card with examples to tap (Schedule) */
+.schedhint { flex-direction: column; gap: 10px; border-style: solid; border-color: var(--border); }
+.schedhint .g { display: flex; gap: 8px; align-items: flex-start; }
+.schedex { display: flex; flex-wrap: wrap; gap: 6px; }
+.schedex .chipbtn { white-space: normal; text-align: left; height: auto; min-height: 28px; padding: 5px 10px; line-height: 1.4; }
