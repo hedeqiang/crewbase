@@ -682,7 +682,8 @@ kbd { font-family: var(--font); font-size: 11px; min-width: 22px; height: 20px; 
   .qcard { margin-left: 0; }
   .hst { display: none; }
   .cfoot .quota { display: none; }
-  .cbtn:not(.cmodel) .lbl { display: none; }
+  .cbtn:not(.cmodel):not(.envchip) .lbl { display: none; }
+  .envchip .envdir { display: none; }
   .cmodel .lbl { max-width: 110px; }
   .cmodel { max-width: 150px; }
   .cmodel .eff { display: none; }
@@ -2212,9 +2213,11 @@ a.lcard:hover, .lvideo .ltext:hover { background: var(--hover); }
    just their icon so the model name stays readable */
 .composer { container: comp / inline-size; }
 @container comp (max-width: 520px) {
-  .crow .cbtn:not(.cmodel):not(.round) { width: 28px; padding: 0; justify-content: center; flex: none; }
-  .crow .cbtn:not(.cmodel):not(.round) .lbl,
-  .crow .cbtn:not(.cmodel):not(.round) > svg.lucide:last-child:not(:first-child) { display: none; }
+  .crow .cbtn:not(.cmodel):not(.round):not(.envchip) { width: 28px; padding: 0; justify-content: center; flex: none; }
+  .crow .cbtn:not(.cmodel):not(.round):not(.envchip) .lbl,
+  .crow .cbtn:not(.cmodel):not(.round):not(.envchip) > svg.lucide:last-child:not(:first-child) { display: none; }
+  /* the environment keeps its word (沙箱, 只读…): an icon alone says nothing */
+  .crow .envchip .envdir, .crow .envchip > svg.lucide:last-child { display: none; }
   .crow .cmodel { flex-shrink: 0; max-width: 180px; }
 }
 /* a phone: the model button gives way so the send button is never cut off */
@@ -3098,3 +3101,20 @@ input.fi { resize: none; }
   .qline, .pinmain { min-height: 32px; }
 }
 .ddpath { overflow-wrap: anywhere; }
+/* the composer's model menu: one panel (ModelPicker) */
+.menu.mpickpop { padding: 0; display: flex; flex-direction: column; overflow: hidden; }
+.mpick { display: flex; flex-direction: column; min-height: 0; max-height: inherit; }
+.mpeff { display: flex; align-items: center; gap: 10px; padding: 10px 12px 8px; border-bottom: 1px solid var(--border); }
+.mpeff .mpl { font-size: 12px; color: var(--text2); flex: none; }
+.mpseg { flex: 1; display: flex; }
+.mpseg button { flex: 1; justify-content: center; padding: 4px 6px; }
+.mpseg button.on { background: var(--surface); color: var(--text); box-shadow: 0 1px 2px rgba(0, 0, 0, .1); }
+.mpick .flsearch { margin: 8px 8px 2px; }
+.mplist { overflow: auto; padding: 4px 6px 6px; min-height: 0; }
+/* one environment chip: permission · folder (Composer) */
+.envchip .lbl { max-width: 240px; overflow: hidden; text-overflow: ellipsis; }
+.envchip .envdir { color: var(--muted); }
+.menu .mi.static { cursor: default; }
+.menu .mi.static:hover { background: none; }
+.menu .mi.envhost svg.lucide:first-child { color: var(--amber-text); }
+@media (max-width: 700px) { .envchip .envdir { display: none; } }

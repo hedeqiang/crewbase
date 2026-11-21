@@ -34,6 +34,8 @@ import {
   Plus,
   Shield,
   ShieldCheck,
+  ShieldAlert,
+  Eye,
   ShieldX,
   Wrench,
   ArrowRightLeft,
@@ -1919,11 +1921,11 @@ function Composer({
   const [dragging, setDragging] = useState(false);
   const fileIn = useRef<HTMLInputElement>(null);
   const ta = useRef<HTMLTextAreaElement>(null);
-  const hostM = useMenu();
   const permM = useMenu();
+  // the environment panel's folder page
+  const [envDir, setEnvDir] = useState(false);
   const modelM = useMenu();
   const ctxM = useMenu();
-  const dirM = useMenu();
 
   useLayoutEffect(() => {
     const el = ta.current;
@@ -2310,31 +2312,23 @@ function Composer({
           />
           {/* a blank chat runs nothing: no host, run mode or folder to choose */}
           {!plain && (<>
-          <button className="cbtn" type="button" ref={hostM.ref} onClick={hostM.toggle} title={t("comp.host", { name: agent.name })} aria-haspopup="menu" hidden={!manage}>
-            <Monitor size={15} />
-            <span className="lbl">{t("comp.hostLocal")}</span>
+          {/* where and how it runs, in one chip: permission · folder */}
+          <button
+            className={"cbtn envchip" + (mode === "host" ? " danger" : "")}
+            type="button"
+            ref={permM.ref}
+            onClick={permM.toggle}
+            aria-haspopup="dialog"
+            disabled={!manage}
+            title={manage ? t("env.title", { name: agent.name }) : t("tier.mobileMode")}
+          >
+            <ModeIcon mode={mode} size={15} />
+            <span className="lbl">
+              {modeLabel(mode)}
+              {!channel && <span className="envdir"> · {dirName(agent.workspace, !!agent.sharedWorkspace)}</span>}
+            </span>
             <ChevronDown size={14} />
           </button>
-          <button className={"cbtn" + (mode === "host" ? " danger" : "")} type="button" ref={permM.ref} onClick={permM.toggle} aria-haspopup="menu" disabled={!manage} title={manage ? modeLabel(mode) : t("tier.mobileMode")}>
-            {mode === "host" ? <Monitor size={15} /> : <Hand size={15} />}
-            <span className="lbl">{modeLabel(mode)}</span>
-            <ChevronDown size={14} />
-          </button>
-          {!channel && (
-            <button
-              className={"cbtn cdir" + (agent.sharedWorkspace ? " on" : "")}
-              type="button"
-              ref={dirM.ref}
-              onClick={dirM.toggle}
-              aria-haspopup="menu"
-              disabled={!manage}
-              title={t("comp.workdir", { dir: agent.workspace })}
-            >
-              <Folder size={15} />
-              <span className="lbl">{dirName(agent.workspace, !!agent.sharedWorkspace)}</span>
-              <ChevronDown size={14} />
-            </button>
-          )}
           </>)}
           {composerActions.map((c) => (
             <button key={c.key} className="cbtn" type="button" title={c.desc || c.title} onClick={() => void runCommand(c, sessionId)}>
@@ -2432,54 +2426,62 @@ function Composer({
         </button>
       </div>
 
-      <Popover anchor={hostM.anchor} open={hostM.open} onClose={hostM.close} placement="top">
-        <div className="mlbl">{t("comp.host", { name: agent.name })}</div>
-        <button className="mi" type="button" onClick={hostM.close}>
-          <Monitor size={16} />
-          <span className="g">
-            {t("comp.hostLocal")}
-            <span>
-              <i className="hdot on" />
-              {t("comp.hostLocalDesc")}
-            </span>
-          </span>
-          <span className="ck">
-            <Check size={14} />
-          </span>
-        </button>
-        <hr />
-        <button className="mi" type="button" disabled>
-          <Plus size={16} />
-          <span className="g">
-            {t("comp.hostAdd")}
-            <span>{t("common.soon")}</span>
-          </span>
-        </button>
+      <Popover anchor={permM.anchor} open={permM.open} onClose={() => (permM.close(), setEnvDir(false))} placement="top" width={340}>
+        {envDir ? (
+          <>
+            <button className="mi flback" type="button" onClick={() => setEnvDir(false)}>
+              <ChevronLeft size={14} />
+              <span className="g">{t("env.title", { name: agent.name })}</span>
+            </button>
+            <DirMenu agent={agent} onDone={() => (permM.close(), setEnvDir(false))} />
+          </>
+        ) : (
+          <>
+            <div className="mlbl">{t("env.where")}</div>
+            <div className="mi static">
+              <Monitor size={16} />
+              <span className="g">
+                {t("comp.hostLocal")}
+                <span>
+                  <i className="hdot on" />
+                  {t("comp.hostLocalDesc")}
+                </span>
+              </span>
+            </div>
+            <hr />
+            <div className="mlbl">{t("env.perm")}</div>
+            {(["read-only", "sandbox", "host"] as const).map((m) => (
+              <button key={m} className={"mi" + (m === "host" ? " envhost" : "")} type="button" onClick={() => setMode(m)}>
+                <ModeIcon mode={m} size={16} />
+                <span className="g">
+                  {modeLabel(m)}
+                  <span>{t(`mode.${m}.desc` as Key)}</span>
+                </span>
+                <span className="ck">{mode === m && <Check size={14} />}</span>
+              </button>
+            ))}
+            {!channel && (
+              <>
+                <hr />
+                <div className="mlbl">{t("env.folder")}</div>
+                <button className="mi" type="button" onClick={() => setEnvDir(true)}>
+                  <Folder size={16} />
+                  <span className="g">
+                    {dirName(agent.workspace, !!agent.sharedWorkspace)}
+                    <span className="mono">{shortPath(agent.workspace)}</span>
+                  </span>
+                  <ChevronRight size={14} className="muted" />
+                </button>
+              </>
+            )}
+            <p className="small" style={{ margin: "6px 9px 6px" }}>
+              {t("comp.permRules")}
+            </p>
+          </>
+        )}
       </Popover>
 
-      <Popover anchor={dirM.anchor} open={dirM.open} onClose={dirM.close} placement="top" width={340}>
-        <DirMenu agent={agent} onDone={dirM.close} />
-      </Popover>
-
-      <Popover anchor={permM.anchor} open={permM.open} onClose={permM.close} placement="top" width={300}>
-        <div className="mlbl">{t("comp.permTitle", { name: agent.name, host: t("comp.hostLocal") })}</div>
-        {(["read-only", "sandbox", "host"] as const).map((m) => (
-          <button key={m} className="mi" type="button" onClick={() => setMode(m)}>
-            {m === "host" ? <Monitor size={16} /> : <Shield size={16} />}
-            <span className="g">
-              {modeLabel(m)}
-              <span>{t(`mode.${m}.desc` as Key)}</span>
-            </span>
-            <span className="ck">{mode === m && <Check size={14} />}</span>
-          </button>
-        ))}
-        <hr />
-        <p className="small" style={{ margin: "4px 9px 6px" }}>
-          {t("comp.permRules")}
-        </p>
-      </Popover>
-
-      <Popover anchor={modelM.anchor} open={modelM.open} onClose={modelM.close} placement="top" align="end" width={260}>
+      <Popover anchor={modelM.anchor} open={modelM.open} onClose={modelM.close} placement="top" align="end" width={320} className="mpickpop">
         <ModelPicker models={models} agent={target} override={overrideRef} shown={shown} setOverride={setOverride} close={modelM.close} />
       </Popover>
 
@@ -2673,6 +2675,11 @@ function DirMenu({ agent, onDone }: { agent: AgentView; onDone: () => void }) {
   );
 }
 
+
+/** A run mode's icon: look (只读), shield (沙箱), shield with a mark (完全访问). */
+function ModeIcon({ mode, size }: { mode: string; size: number }) {
+  return mode === "read-only" ? <Eye size={size} /> : mode === "host" ? <ShieldAlert size={size} /> : <Shield size={size} />;
+}
 
 /** A greeting's example requests: its lines starting with "> " (they show
  *  as buttons, not in the text). */
