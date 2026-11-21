@@ -1,4 +1,4 @@
-/* Crewbase desktop UI. Tokens follow docs/03 §2 and crewbase-prototype.html:
+/* Crewbase desktop UI. Tokens follow docs/03 §2:
    neutral grey canvas, white surfaces, hairline borders, a single blue accent,
    pill buttons; follows the system light/dark scheme unless [data-theme]. */
 :root {

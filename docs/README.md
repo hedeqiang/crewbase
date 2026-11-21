@@ -23,8 +23,6 @@ Crewbase（暂定名）是一个 Local-First、模型无关、插件优先的开
 | [电脑操作](computer-use.md) | macOS 上操作应用：权限、确认、动作 | 工程 |
 | [Open Agent Docs](agentdocs.md) | 连接自托管文档服务器：每个 Agent 一个身份，评论 @ 它就成为它的任务 | 工程 |
 
-交互原型：仓库根目录 [`crewbase-prototype.html`](../crewbase-prototype.html)，浏览器直接打开。
-
 ## 建议阅读顺序
 
 - **第一次了解项目**：01 → 03（配合原型）→ 07
