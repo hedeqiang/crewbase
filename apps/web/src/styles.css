@@ -3136,3 +3136,7 @@ input.fi { resize: none; }
 .ciapr { position: relative; }
 .ciapr .ci { padding-bottom: 38px; }
 .ciapr .aprq { position: absolute; left: 50px; bottom: 9px; display: flex; gap: 6px; }
+.hst.idle { color: var(--muted); font-weight: 400; } .hst.idle i { background: var(--ok); opacity: .7; }
+.hst.muted { color: var(--muted); } .hst.red { color: var(--danger-text); }
+.ptabgear { flex: none; color: var(--text2); }
+.ptabgear.on { background: var(--active); color: var(--text); }

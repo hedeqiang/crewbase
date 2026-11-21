@@ -62,6 +62,9 @@ export function ConvHeader({ draftColor, draftShape, draftFace }: { draftColor: 
     if (pend) state = { cls: "amber", text: t("hd.waitApprove") };
     else if (tk) state = { cls: "amber", text: t("hd.waitTakeover") };
     else if (agent.status === "running") state = { cls: "blue", text: t("hd.running") };
+    else if (agent.paused) state = { cls: "muted", text: t("hd.paused") };
+    else if (agent.status === "failed") state = { cls: "red", text: t("hd.failed") };
+    else if (!isChat(agent)) state = { cls: "idle", text: t("status.idle") };
   }
 
   return (

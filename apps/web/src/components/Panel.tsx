@@ -1,7 +1,7 @@
 import { TaskBoard } from "./TaskBoard";
 import { WorkNotes, WorkTasks } from "./Working";
 import { useEffect, useMemo, useState, useRef } from "react";
-import { Archive, ArrowDown, ArrowUp, Check, ChevronLeft, ChevronRight, CircleMinus, CircleX, Globe, GripVertical, Link2, Minimize2, Pause, Play, Plus, Shuffle, Square, Trash, UserPlus, X, CornerDownRight } from "lucide-react";
+import { Settings2, Archive, ArrowDown, ArrowUp, Check, ChevronLeft, ChevronRight, CircleMinus, CircleX, Globe, GripVertical, Link2, Minimize2, Pause, Play, Plus, Shuffle, Square, Trash, UserPlus, X, CornerDownRight } from "lucide-react";
 import { API, refString, type AgentView, type ChannelView, type ContextBreakdown, type ModelRef } from "../api";
 import { t, type Key } from "../i18n";
 import { activeModel, allModels, detailLabel, effortLabel, exhaustedHint, exhaustedLabel, hhmm, isExhausted, kfmt, modeLabel, modelLabel, modelMeta, modelOff, pillTone, sameRef, statusLabel, until } from "../format";
@@ -59,9 +59,10 @@ export function Panel() {
     ["preview", t("panel.preview")],
     ...(chat ? [] : ([["library", t("lib.title")]] as [typeof tab, string][])),
     ...(!chat && docsOn ? ([["docs", t("adx.tab")]] as [typeof tab, string][]) : []),
-    ["agent", agent.kind === "chat" ? t("chat.settingsTab") : agent.name || t("panel.agent")],
     ...pluginTabs.map((c): [typeof tab, string] => [`ui:${c.key}`, c.title || c.key]),
   ];
+  // the agent's own settings: a gear at the end, not a tab named after it
+  const agentTab = agent.kind === "chat" ? t("chat.settingsTab") : t("panel.agentOf", { name: agent.name || t("panel.agent") });
   const pluginTab = view.startsWith("ui:") ? pluginTabs.find((c) => "ui:" + c.key === view) : undefined;
   return (
     <aside className={"panel" + (view === "preview" || view === "docs" ? " wide" : view === "files" ? " files-wide" : "")}>
@@ -75,6 +76,9 @@ export function Panel() {
             </button>
           ))}
         </div>
+        <button className={"ix ptabgear" + (view === "agent" ? " on" : "")} type="button" role="tab" aria-selected={view === "agent"} data-tab="agent" aria-label={agentTab} title={agentTab} onClick={() => setState({ panelTab: "agent" })}>
+          <Settings2 size={14} />
+        </button>
         <button className="ix" type="button" aria-label={t("common.close")} onClick={() => setState({ panelOpen: false })}>
           <X size={13} />
         </button>
