@@ -1126,6 +1126,7 @@ export const en: Partial<Record<Key, string>> = {
   "cmap.plainNear": "Nearly full. When it is full, the earlier part is compacted into a summary and details may be lost. Compact now or start a new conversation.",
   "cmap.plainOver": "Full. Compact it, or start a new conversation ({name} brings its memory along).",
   "cmap.showDetail": "Show details",
+  "rt.pickToSave": "Saved once a model is picked",
   "rx.you": "You",
   "rx.by": "{names} reacted {emoji}",
   "rx.add": "Add reaction",

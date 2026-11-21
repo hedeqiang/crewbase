@@ -792,6 +792,7 @@ const zh = {
   "cmap.plainNear": "快满了。满了以后会自动压缩：早先的内容变成一段摘要，细节可能丢失。现在压缩或开个新对话都可以。",
   "cmap.plainOver": "已经满了。压缩一下，或开个新对话（{name} 会带着记忆过去）。",
   "cmap.showDetail": "查看明细",
+  "rt.pickToSave": "选好模型后自动保存",
   "rx.you": "你",
   "rx.by": "{names} 回应了 {emoji}",
   "rx.add": "添加回应",

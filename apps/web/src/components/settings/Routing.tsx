@@ -79,6 +79,9 @@ function Background() {
   const load = () => API.routes().then((r) => setData({ routes: r.routes ?? [], inUse: r.inUse ?? {} }), () => setData({ routes: [], inUse: {} }));
   useEffect(() => {
     void load();
+    const on = () => void load();
+    window.addEventListener("crewbase:task-routes", on);
+    return () => window.removeEventListener("crewbase:task-routes", on);
   }, []);
   if (!data) return null;
   const set = async (task: string, model: string) => {
@@ -90,7 +93,7 @@ function Background() {
       await API.setRoutes(next);
       await load();
       toast(t("panel.saved"));
-      window.dispatchEvent(new Event("crewbase:routes"));
+      window.dispatchEvent(new Event("crewbase:task-routes"));
     } catch (e: any) {
       toast(e?.message ?? String(e));
     }
@@ -281,17 +284,22 @@ function Routes() {
     window.addEventListener("crewbase:routes", load);
     return () => window.removeEventListener("crewbase:routes", load);
   }, []);
+  // a change is saved as it is made (a rule without a model yet waits
+  // until one is picked); 已保存 says so
   const edit = (next: TaskRoute[]) => {
     setRoutes(next);
     setDirty(true);
+    const complete = next.filter((x) => x.task && x.model);
+    if (complete.length === next.length) void save(complete);
   };
-  const save = async () => {
-    if (!routes) return;
+  const save = async (list = routes) => {
+    if (!list) return;
     try {
-      const r = await API.setRoutes(routes.filter((x) => x.task && x.model));
+      const r = await API.setRoutes(list.filter((x) => x.task && x.model));
       setRoutes(r.routes ?? []);
       setDirty(false);
       toast(t("panel.saved"));
+      window.dispatchEvent(new Event("crewbase:routes"));
     } catch (e: any) {
       toast(e?.message ?? String(e));
     }
@@ -377,9 +385,7 @@ function Routes() {
             <Plus size={13} />
             {t("rt.addRoute")}
           </button>
-          <button className="btn pri" type="button" disabled={!dirty} onClick={save}>
-            {t("common.save")}
-          </button>
+          {dirty && <span className="small muted">{t("rt.pickToSave")}</span>}
         </div>
       )}
     </>
