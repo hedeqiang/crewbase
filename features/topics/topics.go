@@ -8,6 +8,7 @@ import (
 	"context"
 	"strings"
 	"time"
+	"unicode"
 	"unicode/utf8"
 
 	"github.com/hedeqiang/crewbase/core/agent"
@@ -20,6 +21,26 @@ import (
 
 const prompt = "You name conversations. Reply with a topic of at most 12 Chinese characters or 6 English words, " +
 	"in the language of the conversation, no quotes, no punctuation at the end, nothing else."
+
+// systemFor names the language outright: cheap models asked for "the
+// language of the conversation" often answer in Chinese anyway, because the
+// prompt mentions Chinese characters.
+func systemFor(user string) string {
+	for _, r := range user {
+		if unicode.Is(unicode.Han, r) {
+			return prompt + " Write it in Chinese."
+		}
+	}
+	if strings.IndexFunc(user, unicode.IsLetter) < 0 {
+		return prompt
+	}
+	for _, r := range user {
+		if unicode.IsLetter(r) && r > unicode.MaxASCII {
+			return prompt // another language: let the model see it
+		}
+	}
+	return prompt + " The conversation is in English: write the topic in English."
+}
 
 func clean(s string) string {
 	s = strings.TrimSpace(strings.Split(strings.TrimSpace(s), "\n")[0])
@@ -111,7 +132,7 @@ var Plugin = kernel.Register(kernel.Spec{
 						continue
 					}
 					tctx, cancel := context.WithTimeout(ctx, 30*time.Second)
-					resp, err := ad.Stream(tctx, llm.Request{Model: ref.Model, Effort: "minimal", MaxTokens: 60, System: prompt,
+					resp, err := ad.Stream(tctx, llm.Request{Model: ref.Model, Effort: "minimal", MaxTokens: 60, System: systemFor(user),
 						Messages: []llm.Message{llm.TextMessage(llm.RoleUser, "User: "+user+"\n\nAssistant: "+reply)}},
 						func(llm.Chunk) error { return nil })
 					cancel()
