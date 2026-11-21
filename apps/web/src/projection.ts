@@ -410,7 +410,8 @@ export function project(events: SessionEvent[], cards?: ReadonlySet<string>): Pr
           turn.stepAt = undefined;
         }
         if (text || thinking || citations.length || searches.length || refusal) {
-          const it: AgentItem = { k: "agent", id, agent: e.agent ?? "", text, thinking, model: d.model, time: e.time, citations, searches, refusal, tookMs: turn?.steps[turn.steps.length - 1]?.ms };
+          const it: AgentItem = { k: "agent", id, agent: e.agent ?? "", text, thinking, model: d.model, time: e.time, citations, searches, refusal, // the call's whole time: only thinking time when it wrote no reply text
+            tookMs: text ? undefined : turn?.steps[turn.steps.length - 1]?.ms };
           if (turn) turn.last = it;
           const narration = parts.some((p) => p.type === "tool_call");
           turnFor(e.agent ?? "", id, e.time).parts.push({ k: "msg", it, narration });

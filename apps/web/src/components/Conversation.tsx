@@ -2684,7 +2684,8 @@ function ModeIcon({ mode, size }: { mode: string; size: number }) {
  *  log knows (the model calls that thought), else 思考过程. */
 function thinkLabel(ms: (number | undefined)[]): string {
   const known = ms.filter((x): x is number => typeof x === "number" && x > 0);
-  if (!known.length) return ms.length > 1 ? t("chat.thoughtsN", { n: ms.length }) : t("chat.thoughts");
+  // a total that leaves some thoughts out would understate it
+  if (!known.length || known.length < ms.length) return ms.length > 1 ? t("chat.thoughtsN", { n: ms.length }) : t("chat.thoughts");
   const s = Math.max(1, Math.round(known.reduce((a, b) => a + b, 0) / 1000));
   const dur = s < 60 ? t("dur.s", { n: s }) : t("dur.ms", { m: Math.floor(s / 60), s: s % 60 });
   return ms.length > 1 ? t("chat.thoughtTimes", { n: ms.length, dur }) : t("chat.thoughtFor", { dur });

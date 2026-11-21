@@ -1,5 +1,5 @@
 import { Skeleton } from "../Skeleton";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ArrowDown, ArrowUp, Plus, RefreshCw, X } from "lucide-react";
 import { API, parseRef, refString, type ModelKind, type TaskRoute } from "../../api";
 import { t, type Key } from "../../i18n";
@@ -81,15 +81,22 @@ function Background() {
     void load();
     const on = () => void load();
     window.addEventListener("crewbase:task-routes", on);
-    return () => window.removeEventListener("crewbase:task-routes", on);
+    window.addEventListener("crewbase:routes", on);
+    return () => {
+      window.removeEventListener("crewbase:task-routes", on);
+      window.removeEventListener("crewbase:routes", on);
+    };
   }, []);
   if (!data) return null;
   const set = async (task: string, model: string) => {
-    // the chosen model becomes the task's first rule; "" removes its rules
-    const rest = data.routes.filter((r) => r.task !== task);
-    const mine = data.routes.filter((r) => r.task === task && r.model !== model);
-    const next = model ? [{ task, model }, ...mine, ...rest] : rest;
     try {
+      // the rules are replaced as a whole: build from the latest ones, not
+      // from what this screen loaded earlier (按任务分流 may have changed them)
+      const latest = (await API.routes()).routes ?? [];
+      // the chosen model becomes the task's first rule; "" removes its rules
+      const rest = latest.filter((r) => r.task !== task);
+      const mine = latest.filter((r) => r.task === task && r.model !== model);
+      const next = model ? [{ task, model }, ...mine, ...rest] : rest;
       await API.setRoutes(next);
       await load();
       toast(t("panel.saved"));
@@ -270,38 +277,55 @@ function Routes() {
   const [tasks, setTasks] = useState<string[]>([]);
   const [err, setErr] = useState<string | null>(null);
   const [dirty, setDirty] = useState(false);
+  // every edit takes a number; a save's answer is only shown if no newer
+  // edit was made meanwhile, and saves go one after another
+  const edits = useRef(0);
+  const queue = useRef<Promise<void>>(Promise.resolve());
+  const load = () =>
+    API.routes().then(
+      (r) => {
+        setRoutes(r.routes ?? []);
+        setTasks(r.tasks ?? []);
+        setDirty(false);
+      },
+      (e) => setErr(e?.message ?? String(e)),
+    );
+  const pending = useRef(false);
+  pending.current = dirty;
   useEffect(() => {
-    const load = () =>
-      API.routes().then(
-        (r) => {
-          setRoutes(r.routes ?? []);
-          setTasks(r.tasks ?? []);
-          setDirty(false);
-        },
-        (e) => setErr(e?.message ?? String(e)),
-      );
-    load();
-    window.addEventListener("crewbase:routes", load);
-    return () => window.removeEventListener("crewbase:routes", load);
+    void load();
+    const on = () => {
+      // another screen changed the rules: take them, unless a row here is still being filled in
+      if (!pending.current) void load();
+    };
+    window.addEventListener("crewbase:task-routes", on);
+    return () => window.removeEventListener("crewbase:task-routes", on);
   }, []);
   // a change is saved as it is made (a rule without a model yet waits
   // until one is picked); 已保存 says so
   const edit = (next: TaskRoute[]) => {
+    const n = ++edits.current;
     setRoutes(next);
     setDirty(true);
     const complete = next.filter((x) => x.task && x.model);
-    if (complete.length === next.length) void save(complete);
+    if (complete.length === next.length) queue.current = queue.current.then(() => save(complete, n));
   };
-  const save = async (list = routes) => {
-    if (!list) return;
+  const save = async (list: TaskRoute[], n: number) => {
     try {
-      const r = await API.setRoutes(list.filter((x) => x.task && x.model));
-      setRoutes(r.routes ?? []);
-      setDirty(false);
+      // the background tasks' rules belong to another section and may have
+      // changed since this one loaded: keep the latest ones
+      const latest = (await API.routes()).routes ?? [];
+      const r = await API.setRoutes([...latest.filter((x) => isBackground(x.task)), ...list.filter((x) => !isBackground(x.task))]);
+      if (n === edits.current) {
+        setRoutes(r.routes ?? []);
+        setDirty(false);
+      }
       toast(t("panel.saved"));
       window.dispatchEvent(new Event("crewbase:routes"));
     } catch (e: any) {
       toast(e?.message ?? String(e));
+      // what is on screen was not saved: show what is
+      if (n === edits.current) void load();
     }
   };
   // The same model reached another way (directly vs through a gateway) is

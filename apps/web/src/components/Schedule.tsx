@@ -253,7 +253,11 @@ function SetupHint({ name, more = false }: { name: string; more?: boolean }) {
   // a tap puts the example in the composer, ready to send or edit
   const fill = (text: string) => {
     if (!session) return;
-    setState((s) => ({ drafts: { ...s.drafts, [session]: text } }));
+    // what is already typed stays: the example goes on a new line after it
+    setState((s) => {
+      const cur = s.drafts[session]?.trimEnd();
+      return { drafts: { ...s.drafts, [session]: cur ? `${cur}\n${text}` : text } };
+    });
     setTimeout(() => document.querySelector<HTMLTextAreaElement>(".composer textarea")?.focus(), 0);
   };
   return (

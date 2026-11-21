@@ -924,8 +924,8 @@ function applySessionEvent(ev: SessionEvent) {
   if (ev.agent && (ev.type === "tool/call" || ev.type === "turn/end" || ev.type === "message/assistant")) {
     const call = ev.data?.call;
     const next = ev.type === "tool/call" && call ? { tool: call.name as string, arg: argsPreview(call.args).replace(/^cd\s+\S*\/workspaces\/[^/\s]+\/?\s*&&\s*/, ""), time: ev.time } : undefined;
-    // a reply in between still counts as working; the turn's end does not
-    if (ev.type !== "message/assistant" || state.doing[ev.agent]) setState((st) => ({ doing: { ...st.doing, [ev.agent!]: next } }));
+    // a reply in between still counts as working (leave the line as it is); the turn's end does not
+    if (ev.type !== "message/assistant") setState((st) => ({ doing: { ...st.doing, [ev.agent!]: next } }));
   }
   // an agent opened a preview in the conversation on screen: show it
   if (ev.type === "preview/opened" && ev.data?.url && ev.session === state.current) openPreview(ev.session, { ...ev.data, agent: ev.data.agent || ev.agent });
