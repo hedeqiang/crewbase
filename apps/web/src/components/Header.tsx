@@ -130,7 +130,7 @@ export function ConvHeader({ draftColor, draftShape, draftFace }: { draftColor: 
               <span>{takeoverReason(a)}</span>
               <span className="acts sm">
                 <button
-                  className="btn blue"
+                  className="btn pri"
                   type="button"
                   onClick={() => {
                     inbox.close();

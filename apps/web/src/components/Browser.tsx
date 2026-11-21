@@ -142,7 +142,7 @@ export function TakeoverCard({ agent, reason }: { agent: AgentView; reason: stri
             </button>
           </>
         ) : (
-          <button className="btn blue" type="button" disabled={busy} onClick={takeover}>
+          <button className="btn pri" type="button" disabled={busy} onClick={takeover}>
             <Hand size={13} />
             {t("br.takeover")}
           </button>

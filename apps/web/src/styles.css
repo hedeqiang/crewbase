@@ -802,7 +802,7 @@ button.tg:disabled { opacity: .5; cursor: not-allowed; }
 .fprev { margin-top: 12px; border: 1px solid var(--border2); border-radius: 12px; display: flex; flex-direction: column; min-height: 220px; flex: 1; overflow: hidden; }
 .fph { display: flex; align-items: center; gap: 6px; padding: 6px 8px 6px 10px; border-bottom: 1px solid var(--border); font-size: 12px; min-width: 0; flex-wrap: wrap; }
 .fph b { font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
-.btn.sm { height: 24px; padding: 0 9px; font-size: 12px; }
+
 .fbody { padding: 10px 12px; font-size: 13px; overflow: auto; flex: 1; margin: 0; }
 .fbody.code { font-family: var(--mono); font-size: 12px; white-space: pre-wrap; overflow-wrap: anywhere; background: var(--sunken); }
 .fedit { flex: 1; min-height: 260px; border: 0; resize: none; outline: none; padding: 10px 12px; font-size: 12px; line-height: 1.55; background: var(--surface); color: var(--text); }
@@ -3119,3 +3119,13 @@ input.fi { resize: none; }
 .menu .mi.static:hover { background: none; }
 .menu .mi.envhost svg.lucide:first-child { color: var(--amber-text); }
 @media (max-width: 700px) { .envchip .envdir { display: none; } }
+
+/* buttons: four kinds (primary black/white, secondary outlined, ghost,
+   danger) in three sizes — sm 26, md 32, lg 40. Blue is for selection,
+   focus and links, not for actions. */
+.btn { height: 32px; padding: 0 14px; border-radius: 16px; }
+.btn.sm { height: 26px; padding: 0 10px; border-radius: 13px; font-size: 12px; }
+.btn.big { height: 40px; padding: 0 22px; border-radius: 20px; font-size: 14px; }
+.btn.blue { background: var(--action); color: var(--on-action); }
+.btn.warn { background: var(--surface); color: var(--amber-text); border-color: color-mix(in srgb, var(--amber) 55%, transparent); }
+.btn.warn:hover:not(:disabled) { background: var(--amber-soft); opacity: 1; }
