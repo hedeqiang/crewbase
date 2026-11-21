@@ -571,7 +571,7 @@ function MarketView({ d, q, reload, reloadMarket, onApprove, onSignIn, onManage,
     badge: { label: t("ad.badge"), tone: "" as const },
     verb: "connect",
     state: docs.st?.connected ? (docs.st.error ? "error" : "connected") : "idle",
-    error: docs.st?.connected ? docs.st.error : undefined,
+    error: docs.st?.connected ? (docs.st.needsAdmin ? t("ad.needsAdmin") : docs.st.error) : undefined,
     onAct: () => setDocsOpen(true),
     manage: true,
   };
@@ -741,10 +741,18 @@ function RowAction({ r }: { r: Row }) {
         </button>
       );
     case "error":
+      // something went wrong: say so, and offer the way to fix it
       return (
-        <span className="mkst err">
-          <i className="sdot err" />
-          {t("mk2.failed")}
+        <span className="mkerr">
+          <span className="mkst err">
+            <i className="sdot err" />
+            {t("mk2.failed")}
+          </span>
+          {r.onAct && (
+            <button className="btn sm" type="button" onClick={r.onAct}>
+              {t("mk2.fix")}
+            </button>
+          )}
         </span>
       );
     default:

@@ -963,12 +963,13 @@ function Models() {
                       {t("ap.keyStored")} <code>{up.masked || "••••"}</code>
                       {up.baseURL ? <> · <span className="mono">{up.baseURL}</span></> : null}
                     </span>
+                    <span className="upvacts">
                     <button className="btn sm" type="button" onClick={() => setEditing(up)}>
                       <Pencil size={13} />
                       {t("ap.editBtn")}
                     </button>
                     <button
-                      className="btn dng sm"
+                      className="btn dng sm ghost"
                       type="button"
                       onClick={async () => {
                         if (!(await confirmDialog(t("ap.removeQ", { name: up.name || up.id })))) return;
@@ -984,6 +985,7 @@ function Models() {
                     >
                       {t("ap.remove")}
                     </button>
+                    </span>
                   </div>
                 );
               })()}

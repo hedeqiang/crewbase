@@ -1,7 +1,8 @@
 import { EmptyState } from "../EmptyState";
 import { Skeleton } from "../Skeleton";
 import { Fragment, useEffect, useState } from "react";
-import { Copy, KeyRound, Plus } from "lucide-react";
+import { Copy, FileText, KeyRound, MessagesSquare, Plug, Plus } from "lucide-react";
+import { ProviderMark } from "../ProviderMark";
 import { API, type VaultItem } from "../../api";
 import { t, type Key } from "../../i18n";
 import { ago, providerName } from "../../format";
@@ -29,6 +30,7 @@ export function Vault() {
 
   const groups: { kind: VaultItem["kind"][]; title: Key }[] = [
     { kind: ["provider", "model"], title: "vlt.g.models" },
+    { kind: ["app"], title: "vlt.g.apps" },
     { kind: ["mcp"], title: "vlt.g.mcp" },
     { kind: ["mcp-login"], title: "vlt.g.logins" },
     { kind: ["im"], title: "vlt.g.im" },
@@ -75,6 +77,12 @@ export function Vault() {
 }
 
 function label(it: VaultItem): { name: string; what: string; sub?: string } {
+  if (it.kind === "app" && it.app === "agentdocs") {
+    const r = it.role ?? "";
+    if (r === "admin") return { name: "Open Agent Docs", what: t("vlt.ad.admin") };
+    if (r === "session") return { name: "Open Agent Docs", what: t("vlt.ad.session") };
+    if (r.startsWith("agent:")) return { name: "Open Agent Docs", what: t("vlt.ad.agent", { name: r.slice(6) }) };
+  }
   switch (it.kind) {
     case "provider":
     case "model":
@@ -110,7 +118,9 @@ function SecretRow({ it, onChange }: { it: VaultItem; onChange: () => void }) {
     }
   };
   const del = async () => {
-    if (!(await confirmDialog(t("vlt.deleteConfirm", { name: l.name, what: l.what })))) return;
+    // one in use: say what stops working
+    const text = it.inUse ? (it.kind === "app" ? t("vlt.deleteAppConfirm", { name: l.name, what: l.what }) : t("vlt.deleteInUseConfirm", { name: l.name, what: l.what })) : t("vlt.deleteConfirm", { name: l.name, what: l.what });
+    if (!(await confirmDialog({ text, danger: true, ok: t("vlt.delete") }))) return;
     try {
       await API.deleteSecret(it.id);
       toast(t("vlt.deleted", { name: l.name }));
@@ -121,10 +131,18 @@ function SecretRow({ it, onChange }: { it: VaultItem; onChange: () => void }) {
   };
   return (
     <div className="srow vltrow">
+      <span className="vlic" aria-hidden>
+        {it.kind === "provider" || it.kind === "model" ? <ProviderMark provider={it.target ?? ""} size={18} /> : it.kind === "app" ? <FileText size={16} /> : it.kind === "im" ? <MessagesSquare size={16} /> : it.kind === "secret" ? <KeyRound size={16} /> : <Plug size={16} />}
+      </span>
       <span className="g">
-        <b>{l.name}</b>
+        <b>
+          {l.name}
+          <span className="vlwhat">{l.what}</span>
+          {it.inUse && <span className="pill sm ok">{t("vlt.inUse")}</span>}
+        </b>
         <span>
-          {l.sub ?? l.what} · <span className="mono">{it.masked || "•••"}</span> · {t("vlt.updated", { when: ago(it.updated) })}
+          <span className="mono">{it.masked || "•••"}</span> · {t("vlt.updated", { when: ago(it.updated) })}
+          {l.sub && <> · <span className="mono">{l.sub}</span></>}
         </span>
       </span>
       {replacing ? (
@@ -159,9 +177,11 @@ function SecretRow({ it, onChange }: { it: VaultItem; onChange: () => void }) {
           >
             <Copy size={13} />
           </button>
-          <button className="btn sm" type="button" onClick={() => setReplacing(true)}>
-            {t("vlt.replace")}
-          </button>
+          {it.kind !== "app" && (
+            <button className="btn sm" type="button" onClick={() => setReplacing(true)}>
+              {t("vlt.replace")}
+            </button>
+          )}
           <button className="btn sm dng" type="button" onClick={() => void del()}>
             {t("vlt.delete")}
           </button>

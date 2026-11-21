@@ -11,6 +11,7 @@ package vaultapi
 
 import (
 	"context"
+	"github.com/hedeqiang/crewbase/core/llm"
 	"regexp"
 	"strings"
 	"time"
@@ -30,8 +31,13 @@ type Item struct {
 	// provider / model (a model provider's API key), mcp (an MCP server's
 	// token or variable), mcp-login (an MCP server's sign-in), im (an IM
 	// bot), secret (one the person added).
-	Kind    string    `json:"kind"`
-	Target  string    `json:"target,omitempty"`
+	Kind   string `json:"kind"`
+	Target string `json:"target,omitempty"`
+	// App and Role: an app's entry (app "agentdocs"; role admin, session or
+	// agent:<name>). InUse: deleting it breaks something that runs now.
+	App     string    `json:"app,omitempty"`
+	Role    string    `json:"role,omitempty"`
+	InUse   bool      `json:"inUse,omitempty"`
 	Key     string    `json:"key,omitempty"` // the variable, for mcp
 	Created time.Time `json:"created"`
 	Updated time.Time `json:"updated"`
@@ -118,10 +124,28 @@ var Plugin = kernel.Register(kernel.Spec{
 						servers = append(servers, v.Name)
 					}
 				}
+				// entries an app keeps (Open Agent Docs): named by it
+				apps := map[string]string{}
+				if ad, ok := kernel.Lookup[interface{ VaultLabels() map[string]string }](c, "agentdocs"); ok {
+					apps = ad.VaultLabels()
+				}
+				installed := map[string]bool{}
+				for _, sv := range servers {
+					installed[sv] = true
+				}
 				items := make([]Item, 0, len(list))
 				for _, x := range list {
 					it := Describe(x.ID, servers...)
 					it.Masked, it.Created, it.Updated = x.Masked, x.Created, x.Updated
+					if role, ok := apps[x.ID]; ok {
+						it.Kind, it.App, it.Role, it.InUse = "app", "agentdocs", role, true
+					} else if it.Kind == "mcp" || it.Kind == "mcp-login" {
+						it.InUse = installed[it.Target]
+					} else if it.Kind == "provider" || it.Kind == "model" {
+						if lr, ok := kernel.Lookup[*llm.Registry](c, llm.ServiceKey); ok {
+							_, it.InUse = lr.Get(it.Target)
+						}
+					}
 					items = append(items, it)
 				}
 				return map[string]any{"items": items}, nil

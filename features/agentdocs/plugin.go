@@ -120,6 +120,21 @@ var APIPlugin = kernel.Register(kernel.Spec{
 				}
 				return st, nil
 			}})
+		g.Handle(c, gateway.Route{Method: "POST", Path: "/api/agentdocs/repair",
+			Handle: func(ctx context.Context, r *gateway.Request) (any, error) {
+				var b struct {
+					Password string `json:"password"`
+					Token    string `json:"token"`
+				}
+				if err := r.Decode(&b); err != nil {
+					return nil, gateway.BadRequest("%v", err)
+				}
+				st, err := s.Repair(ctx, b.Password, b.Token)
+				if err != nil {
+					return nil, gateway.BadRequest("%v", err)
+				}
+				return st, nil
+			}})
 		g.Handle(c, gateway.Route{Method: "POST", Path: "/api/agentdocs/local/update",
 			Handle: func(ctx context.Context, _ *gateway.Request) (any, error) {
 				ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 6*time.Minute)

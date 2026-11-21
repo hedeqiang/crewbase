@@ -83,10 +83,13 @@ type state struct {
 
 // Status is the API view.
 type Status struct {
-	Connected  bool        `json:"connected"`
-	Settings   Settings    `json:"settings"`
-	Identities []Identity  `json:"identities"`
-	Error      string      `json:"error,omitempty"`
+	Connected  bool       `json:"connected"`
+	Settings   Settings   `json:"settings"`
+	Identities []Identity `json:"identities"`
+	Error      string     `json:"error,omitempty"`
+	// NeedsAdmin: the admin token is gone from the vault (Repair fixes it:
+	// the docs password for a server Crewbase runs, else a new token).
+	NeedsAdmin bool        `json:"needsAdmin,omitempty"`
 	Local      LocalStatus `json:"local"`
 	// Woken counts comments turned into tasks since start.
 	Woken int `json:"woken"`
@@ -155,7 +158,47 @@ func (s *Service) status() Status {
 func (s *Service) Status() Status {
 	st := s.status()
 	st.Local = s.Local()
+	st.NeedsAdmin = st.Error == errNoAdmin
 	return st
+}
+
+const errNoAdmin = "the docs admin token is missing from the vault"
+
+// Repair gets a new admin token when the vault no longer has it, keeping
+// the settings and every agent's identity: for the server Crewbase runs,
+// by signing in with the person's docs password; for one elsewhere, with
+// a pasted admin token.
+func (s *Service) Repair(ctx context.Context, password, token string) (Status, error) {
+	s.mu.Lock()
+	set := s.st.Settings
+	m := s.st.Managed
+	s.mu.Unlock()
+	if set.URL == "" {
+		return Status{}, errors.New("not connected")
+	}
+	token = strings.TrimSpace(token)
+	if token == "" {
+		if m == nil {
+			return Status{}, errors.New("paste an admin agent token (oad_…): create one under Agents in the docs web app, with scope admin")
+		}
+		if password == "" {
+			return Status{}, errors.New("give the password you sign in to the docs with")
+		}
+		t, session, err := createAdminAgent(ctx, localURL(m.Port), m.Email, password, true)
+		if err != nil {
+			return Status{}, err
+		}
+		token = t
+		if cs := s.creds(); cs != nil && session != "" {
+			_ = cs.Set(sessionRef, session)
+		}
+	}
+	wake := set.Wake
+	if _, err := s.Connect(ctx, ConnectRequest{URL: set.URL, Token: token, Workspace: set.Workspace, Agents: set.Agents, Scope: set.Scope, Wake: &wake}); err != nil {
+		return Status{}, err
+	}
+	s.setErr("")
+	return s.Status(), nil
 }
 
 // ---------------------------------------------------------------- the docs API
@@ -386,6 +429,33 @@ func (s *Service) UpdateSettings(ctx context.Context, agents *[]string, wake *bo
 
 // ---------------------------------------------------------------- identities
 
+// VaultLabels says which vault entries are the docs connection's (the
+// vault page names them, and warns before one in use is deleted): id
+// (without "vault:") → what it is.
+func (s *Service) VaultLabels() map[string]string {
+	s.mu.Lock()
+	ids := make([]string, 0, len(s.st.Identities))
+	for id := range s.st.Identities {
+		ids = append(ids, id)
+	}
+	connected := s.st.Settings.URL != ""
+	s.mu.Unlock()
+	out := map[string]string{}
+	if !connected {
+		return out
+	}
+	out[strings.TrimPrefix(adminRef, "vault:")] = "admin"
+	out[strings.TrimPrefix(sessionRef, "vault:")] = "session"
+	for _, id := range ids {
+		name := id
+		if a, ok := s.agents.Get(id); ok {
+			name = a.Spec().Name
+		}
+		out[strings.TrimPrefix(tokenRef(id), "vault:")] = "agent:" + name
+	}
+	return out
+}
+
 // ServerName is the MCP server of a Crewbase agent's docs connection.
 func ServerName(agentID string) string {
 	h := sha256.Sum256([]byte(agentID))
@@ -445,7 +515,7 @@ func (s *Service) Sync(ctx context.Context) {
 	}
 	admin, err := cs.Resolve(ctx, adminRef)
 	if err != nil || admin == "" {
-		s.setErr("the docs admin token is missing from the vault; connect again")
+		s.setErr(errNoAdmin)
 		return
 	}
 	var errs []string

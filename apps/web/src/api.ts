@@ -820,9 +820,14 @@ export interface VaultItem {
   id: string;
   ref: string;
   masked: string;
-  kind: "provider" | "model" | "mcp" | "mcp-login" | "im" | "secret";
+  kind: "provider" | "model" | "mcp" | "mcp-login" | "im" | "secret" | "app";
   target?: string;
   key?: string;
+  /** an app's entry: app "agentdocs", role admin / session / agent:<name> */
+  app?: string;
+  role?: string;
+  /** deleting it breaks something that runs now */
+  inUse?: boolean;
   created: string;
   updated: string;
 }
@@ -1187,6 +1192,8 @@ export interface AgentDocsStatus {
   settings: { url: string; workspace: string; workspaceName?: string; agents?: string[]; scope?: string; wake: boolean };
   identities: { agent: string; id: string; name: string; after?: number }[];
   error?: string;
+  /** the admin token is gone from the vault: repairAgentDocs fixes it */
+  needsAdmin?: boolean;
   woken: number;
   /** the server Crewbase runs (一键启动) */
   local: { supported: boolean; release: string; running: boolean; url?: string; email?: string; version?: string; step?: string; error?: string };
@@ -1332,6 +1339,8 @@ export const API = {
   checkAddonUpdates: () => api<AddonUpdates>("POST", "/api/addons/updates/check"),
   applyAddonUpdate: (b: { kind: string; id: string; agent?: string }) => api<{ result: any; state: AddonUpdates }>("POST", "/api/addons/update", b),
   agentDocs: () => api<AgentDocsStatus>("GET", "/api/agentdocs"),
+  /** a new admin token: the docs password (a server Crewbase runs) or a pasted one */
+  repairAgentDocs: (b: { password?: string; token?: string }) => api<AgentDocsStatus>("POST", "/api/agentdocs/repair", b),
   agentDocsPage: (url: string) => api<DocPageCard>("GET", `/api/agentdocs/page?url=${encodeURIComponent(url)}&blocks=12`),
   /** signs this browser in to the docs when Crewbase holds the session */
   embedAgentDocs: () => api<{ url: string; signedIn: boolean }>("POST", "/api/agentdocs/embed"),

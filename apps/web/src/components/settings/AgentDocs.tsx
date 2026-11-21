@@ -154,7 +154,11 @@ export function AgentDocsDialog({ st, onClose, onChanged }: { st: AgentDocsStatu
               </div>
               {st!.local?.email && <p className="small muted" style={{ margin: "4px 0 0" }}>{t("ad.signInAs", { email: st!.local.email })}</p>}
               {st!.local?.running && <p className="small muted" style={{ margin: "2px 0 0" }}>{t("ad.autoUpdate")}</p>}
-              {(st!.error || st!.local?.error) && <div className="ferr">{st!.error || st!.local?.error}</div>}
+              {st!.needsAdmin ? (
+                <Repair managed={!!st!.local?.running || !!st!.local?.email} email={st!.local?.email} busy={busy} onRepair={(b) => run(() => API.repairAgentDocs(b), t("ad.repaired"))} />
+              ) : (
+                (st!.error || st!.local?.error) && <div className="ferr">{st!.error || st!.local?.error}</div>
+              )}
               <div className="psec2 psec2r">
                 <span>{t("ad.identities", { n: st!.identities.length })}</span>
                 <button className="ix" type="button" title={t("ad.sync")} aria-label={t("ad.sync")} disabled={busy} onClick={() => run(() => API.syncAgentDocs())}>
@@ -258,6 +262,11 @@ export function DocsPage() {
   const docs = useStore((s) => s.agentDocs);
   const ad = useAgentDocs();
   const [manage, setManage] = useState(false);
+  // the credential is gone: open the way to fix it straight away
+  const broken = !!ad.st?.needsAdmin;
+  useEffect(() => {
+    if (broken) setManage(true);
+  }, [broken]);
   if (!docs)
     return (
       <>
@@ -335,5 +344,30 @@ export function DocsTab() {
       </div>
       <DocsFrame key={src} src={src} page />
     </div>
+  );
+}
+
+/** The vault lost the docs admin token: sign in again (a server Crewbase
+ *  runs) or paste a new admin token. Settings and identities stay. */
+function Repair({ managed, email, busy, onRepair }: { managed: boolean; email?: string; busy: boolean; onRepair: (b: { password?: string; token?: string }) => void }) {
+  const [v, setV] = useState("");
+  return (
+    <form
+      className="adrepair"
+      onSubmit={(e) => {
+        e.preventDefault();
+        if (v.trim()) onRepair(managed ? { password: v } : { token: v.trim() });
+      }}
+    >
+      <b>{t("ad.needsAdmin")}</b>
+      <p className="small">{managed ? t("ad.repairPw", { email: email ?? "" }) : t("ad.repairToken")}</p>
+      <div className="adrrow">
+        <input className="fi" type={managed ? "password" : "text"} autoComplete={managed ? "current-password" : "off"} value={v} placeholder={managed ? t("ad.password") : "oad_…"} onChange={(e) => setV(e.target.value)} />
+        <button className="btn pri" type="submit" disabled={busy || !v.trim()}>
+          {busy ? <span className="spin sm" /> : null}
+          {t("ad.repair")}
+        </button>
+      </div>
+    </form>
   );
 }
