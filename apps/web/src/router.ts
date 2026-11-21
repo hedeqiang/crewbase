@@ -38,8 +38,10 @@ export interface Loc {
 const PANEL_TABS = new Set(["task", "schedule", "files", "preview", "library", "docs", "agent"]);
 
 /** The place the store shows. */
+const sheetPanel = () => window.matchMedia("(max-width: 820px)").matches;
+
 export function locOf(s: State): Loc {
-  if (s.view === "settings") return { view: "settings", section: s.settings, item: s.settings === "library" && s.libOpen !== null ? s.libOpen : undefined };
+  if (s.view === "settings") return { view: "settings", section: s.settingsList && sheetPanel() ? undefined : s.settings, item: s.settings === "library" && s.libOpen !== null ? s.libOpen : undefined };
   if (s.view === "newAgent") return { view: "newAgent" };
   const l: Loc = { view: "chat", session: s.current ?? undefined };
   if (s.current && s.panelOpen) {
@@ -55,7 +57,7 @@ export function format(l: Loc): string {
   const q = new URLSearchParams();
   let path = "#/";
   if (l.view === "settings") {
-    path = "#/settings/" + encodeURIComponent(l.section ?? "general");
+    path = l.section ? "#/settings/" + encodeURIComponent(l.section) : "#/settings";
     if (l.item !== undefined) q.set("item", String(l.item));
   } else if (l.view === "newAgent") {
     path = "#/new-agent";
@@ -97,7 +99,7 @@ export function parse(hash: string): Loc | null {
     }
     case "settings": {
       const item = q.get("item");
-      return { view: "settings", section: (parts[1] || "general") as SettingsSection, tab: parts[2], item: item && /^\d+$/.test(item) ? Number(item) : undefined };
+      return { view: "settings", section: (parts[1] || undefined) as SettingsSection | undefined, tab: parts[2], item: item && /^\d+$/.test(item) ? Number(item) : undefined };
     }
     case "library": {
       const id = parts[1] && /^\d+$/.test(parts[1]) ? Number(parts[1]) : undefined;
@@ -119,7 +121,6 @@ let entries: string[] = [];
 let idx = 0;
 
 const here = () => location.pathname + location.search;
-const sheetPanel = () => window.matchMedia("(max-width: 820px)").matches;
 
 /** Whether going from a to b is a new place (a history entry) rather than
  *  the same place with the panel opened or closed. */
@@ -167,7 +168,7 @@ export function apply(l: Loc) {
   applying = true;
   try {
     if (l.view === "settings") {
-      setState({ view: "settings", settings: l.section ?? "general", palette: false, ...(l.section === "library" ? { libOpen: l.item ?? null } : {}), ...(l.tab ? { settingsTab: l.tab } : {}) });
+      setState({ view: "settings", settings: l.section ?? s.settings ?? "general", settingsList: !l.section && sheetPanel(), palette: false, ...(l.section === "library" ? { libOpen: l.item ?? null } : {}), ...(l.tab ? { settingsTab: l.tab } : {}) });
     } else if (l.view === "newAgent") {
       setState({ view: "newAgent", palette: false, ...(sheetPanel() ? { listOpen: false } : {}) });
     } else {

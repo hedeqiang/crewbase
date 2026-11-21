@@ -119,6 +119,8 @@ export interface State {
   agentsLoaded: boolean;
   /** the conversation list has arrived once */
   sessionsLoaded: boolean;
+  /** on a phone: the list of settings sections is the page (no section open) */
+  settingsList: boolean;
   /** the address has been followed (router.ts startRouter) */
   routed: boolean;
   sessions: Record<string, SessionMeta>;
@@ -278,6 +280,7 @@ let state: State = {
   agentsLoaded: false,
   sessionsLoaded: false,
   routed: false,
+  settingsList: false,
   sessions: {},
   approvals: [],
   // the last list this browser saw: the welcome page and pickers show it at
@@ -454,8 +457,10 @@ export function openAgent(agentId: string) {
   if (a?.session) openSession(a.session);
 }
 
-export function openSettings(sec: SettingsSection = "general") {
-  setState({ view: "settings", settings: sec, palette: false, listOpen: narrow() ? false : state.listOpen });
+/** Opens settings at sec; with no section, a phone shows the list of
+ *  sections first. */
+export function openSettings(sec?: SettingsSection) {
+  setState({ view: "settings", settings: sec ?? "general", settingsList: !sec && narrow(), palette: false, listOpen: narrow() ? false : state.listOpen });
 }
 
 export const isChat = (a?: AgentView) => a?.kind === "chat";

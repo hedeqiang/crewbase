@@ -433,7 +433,7 @@ export function SessionList() {
           aria-label={addonUpdates > 0 ? t("list.settings") + " · " + t("aup.dot", { n: addonUpdates }) : t("list.settings")}
           title={(addonUpdates > 0 ? t("aup.dot", { n: addonUpdates }) + " · " : "") + t("list.settings") + " (" + keyLabel("settings") + ")"}
           aria-pressed={view === "settings"}
-          onClick={() => (view === "settings" ? leaveTo("chat") : openSettings(addonUpdates > 0 ? "market" : "general"))}
+          onClick={() => (view === "settings" ? leaveTo("chat") : openSettings(addonUpdates > 0 ? "market" : undefined))}
         >
           <Settings size={16} />
           {addonUpdates > 0 && <span className="updot" title={t("aup.dot", { n: addonUpdates })} />}
@@ -673,7 +673,7 @@ function MeMenu({ close, profile }: { close: () => void; profile: Profile }) {
         type="button"
         onClick={() => {
           close();
-          openSettings("general");
+          openSettings();
         }}
       >
         <Settings size={16} />

@@ -36,7 +36,7 @@ export function runShortcut(id: ActionId) {
       openNewChannel();
       break;
     case "settings":
-      openSettings("general");
+      openSettings();
       break;
     case "shortcuts":
       openSettings("keys");

@@ -58,6 +58,7 @@ const MOBILE_SECTIONS = new Set<string>(["general", "keys", "approvals"]);
 
 export function Settings() {
   const sec = useStore((s) => s.settings);
+  const list = useStore((s) => s.settingsList);
   const n = useStore((s) => s.approvals.length);
   const nUpd = useStore((s) => s.addonUpdates);
   const docsOn = useStore((s) => !!s.agentDocs);
@@ -66,7 +67,7 @@ export function Settings() {
   const [q, setQ] = useState("");
   const ql = q.trim().toLowerCase();
   return (
-    <div className="setwrap">
+    <div className={"setwrap" + (list ? " slist" : " spage")}>
       <nav className="snav" aria-label={t("tb.settings")}>
         <button className="back" type="button" onClick={() => leaveTo("chat")}>
           <ChevronLeft size={16} />
@@ -83,7 +84,7 @@ export function Settings() {
             <div key={g.group} className="sgrp">
               <div className="sh">{t(g.group)}</div>
               {items.map((i) => (
-                <button key={i.id} type="button" aria-current={sec === i.id} onClick={() => setState({ settings: i.id })}>
+                <button key={i.id} type="button" aria-current={sec === i.id && !list} onClick={() => setState({ settings: i.id, settingsList: false })}>
                   {i.icon}
                   {t(`set.${i.id}` as Key)}
                   {i.id === "approvals" && n > 0 && <span className="sn">{n}</span>}
@@ -97,6 +98,11 @@ export function Settings() {
           <p className="small muted snomatch">{t("set.searchNone")}</p>
         )}
       </nav>
+      {/* a phone: from a section back to the list of sections */}
+      <button className="sback" type="button" onClick={() => setState({ settingsList: true })}>
+        <ChevronLeft size={16} />
+        {t("tb.settings")}
+      </button>
       <div className="vw" data-sec={sec} data-width={FULL_SECTIONS.has(sec) ? "full" : WIDE_SECTIONS.has(sec) ? "wide" : undefined}>
         {!manage && <p className="tiernote">{t("tier.mobileNote")}</p>}
         {(sec === "general" || (!manage && !MOBILE_SECTIONS.has(sec))) && <General />}
