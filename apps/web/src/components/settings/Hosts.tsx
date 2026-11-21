@@ -146,7 +146,7 @@ export function Hosts() {
 
   return (
     <>
-      <Head title={t("set.hosts")} />
+      <Head title={t("set.hosts")} sub={t("sub.hosts")} />
       <div className="vb">
         <div className="vsec">{t("dev.thisHost")}</div>
         <div className="box hostcard">
@@ -207,7 +207,7 @@ export function Hosts() {
           <button className="btn sm" type="button" disabled={busy !== "" || !!err} hidden={!!who} onClick={() => void start("desktop")}>
             <Laptop size={13} /> {t("dev.pairComputer")}
           </button>
-          <button className="btn pri sm" type="button" disabled={busy !== "" || !!err} onClick={() => void start("mobile")}>
+          <button className="btn sm" type="button" disabled={busy !== "" || !!err} onClick={() => void start("mobile")}>
             {busy === "pair" ? <Loader2 size={13} className="spin" /> : <Smartphone size={13} />} {t("dev.pairPhone")}
           </button>
         </div>

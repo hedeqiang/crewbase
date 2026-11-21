@@ -1,3 +1,4 @@
+import { EmptyState } from "../EmptyState";
 import { Check, ChevronRight, Crown, Loader2, MoreHorizontal, Smartphone, Trash2, UserPlus, Users, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { API, type MemberView } from "../../api";
@@ -105,14 +106,18 @@ export function Team() {
           ))}
         </div>
         {list && list.length === 0 && (
-          <div className="tempty-big">
-            <Users size={22} />
-            <b>{t("team.emptyTitle")}</b>
-            <span className="small muted">{t("team.empty")}</span>
-            <button className="btn sm" type="button" onClick={() => setAdding(true)}>
-              <UserPlus size={13} />
-              {t("team.add")}
-            </button>
+          <div style={{ marginTop: 12 }}>
+            <EmptyState
+              icon={<Users size={22} />}
+              title={t("team.emptyTitle")}
+              desc={t("team.empty")}
+              action={
+                <button className="btn sm" type="button" onClick={() => setAdding(true)}>
+                  <UserPlus size={13} />
+                  {t("team.add")}
+                </button>
+              }
+            />
           </div>
         )}
         <p className="small muted tnote">{t("team.note")}</p>

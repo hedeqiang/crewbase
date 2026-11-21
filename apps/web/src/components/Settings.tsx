@@ -442,7 +442,7 @@ function General() {
   const connected = useStore((s) => s.connected);
   return (
     <>
-      <Head title={t("set.general")} />
+      <Head title={t("set.general")} sub={t("sub.general")} />
       <div className="vb">
         <div className="vsec">{t("set.appearance")}</div>
         <div className="sbox">
@@ -853,6 +853,7 @@ function Models() {
     <>
       <Head
         title={t("set.models")}
+        sub={t("sub.models")}
         right={
           <>
             <div className="seg">
@@ -1165,7 +1166,7 @@ function Approvals() {
   const agents = useStore((s) => s.agents);
   return (
     <>
-      <Head title={t("set.approvals")} />
+      <Head title={t("set.approvals")} sub={t("sub.approvals")} />
       <div className="vb">
         <div className="vsec">{t("set.pending", { n: approvals.length })}</div>
         {approvals.length === 0 && <EmptyState icon={<CheckCheck size={22} />} title={t("appr.none")} desc={t("es.approvalsDesc")} />}

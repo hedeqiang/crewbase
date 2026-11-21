@@ -37,7 +37,7 @@ export function Profile() {
 
   return (
     <>
-      <Head title={t("set.profile")} />
+      <Head title={t("set.profile")} sub={t("sub.profile")} />
       <div className="vb">
         <div className="profhead">
           <MeAvatar size={44} label={Array.from(myName(profile))[0]} />

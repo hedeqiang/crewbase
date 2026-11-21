@@ -202,7 +202,7 @@ function PlatformCard({
           </span>
         </span>
         <button
-          className={"btn sm" + (connected ? "" : " pri")}
+          className="btn sm"
           type="button"
           aria-expanded={connected ? open : undefined}
           onClick={(e) => {

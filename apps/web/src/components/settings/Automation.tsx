@@ -21,6 +21,7 @@ export function Automation() {
     <>
       <Head
         title={t("set.auto")}
+        sub={t("sub.auto")}
         right={
           <div className="seg">
             <button type="button" aria-pressed={tab === "routines"} onClick={() => setTab("routines")}>
