@@ -10,6 +10,12 @@
 </p>
 
 <p align="center">
+  <a href="docs/media/crewbase-intro.mp4"><img src="docs/media/crewbase-intro.gif" width="860" alt="Crewbase：频道里的 Agent 团队与交接、流式回复、审批、定时任务、共享资料库、插件和深色模式"></a>
+  <br>
+  <sub><a href="docs/media/crewbase-intro.mp4">▶ 观看 70 秒介绍视频（MP4）</a></sub>
+</p>
+
+<p align="center">
   <a href="https://github.com/hedeqiang/crewbase/releases/latest"><img alt="Release" src="https://img.shields.io/github/v/release/hedeqiang/crewbase?include_prereleases&sort=semver"></a>
   <a href="https://github.com/hedeqiang/crewbase/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/hedeqiang/crewbase/actions/workflows/ci.yml/badge.svg"></a>
   <a href="LICENSE"><img alt="License" src="https://img.shields.io/badge/license-MIT-blue"></a>

@@ -10,6 +10,12 @@
 </p>
 
 <p align="center">
+  <a href="docs/media/crewbase-intro.mp4"><img src="docs/media/crewbase-intro.gif" width="860" alt="Crewbase: a crew of agents in a channel with handover, a streamed reply, an approval, schedules, the shared library, plugins and dark mode"></a>
+  <br>
+  <sub><a href="docs/media/crewbase-intro.mp4">▶ Watch the 70-second intro (MP4)</a></sub>
+</p>
+
+<p align="center">
   <a href="https://github.com/hedeqiang/crewbase/releases/latest"><img alt="Release" src="https://img.shields.io/github/v/release/hedeqiang/crewbase?include_prereleases&sort=semver"></a>
   <a href="https://github.com/hedeqiang/crewbase/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/hedeqiang/crewbase/actions/workflows/ci.yml/badge.svg"></a>
   <a href="LICENSE"><img alt="License" src="https://img.shields.io/badge/license-MIT-blue"></a>
