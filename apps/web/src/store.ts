@@ -31,6 +31,7 @@ import { tunnelEvents, viaRelay } from "./tunnel";
 import { notifyApprovals } from "./companion";
 import { getLang, loadLang, setLang as setLangRaw, t, type Lang } from "./i18n";
 import { modelKind, setUserProviders } from "./format";
+import { argsPreview } from "./projection";
 
 export type View = "chat" | "newAgent" | "settings";
 /** Built-in tabs, or `ui:<key>` for a plugin's sidebar-right.tab. */
@@ -149,6 +150,9 @@ export interface State {
   /** the docs page shown in the right panel's 文档 tab (null: the docs home) */
   docsOpen: string | null;
   events: Record<string, SessionEvent[]>;
+  /** agent → what it is doing now (its latest tool call while a turn is
+   *  open, from any conversation; the list shows it) */
+  doing: Record<string, { tool: string; arg: string; time: string } | undefined>;
   loadErr: Record<string, string>;
   streams: Record<string, StreamBuf>; // key `${session}|${agent}`
   view: View;
@@ -328,6 +332,7 @@ let state: State = {
   drafts: loadDrafts(),
   attach: {},
   replyTo: {},
+  doing: {},
   jump: null,
   hostConfirm: null,
   toasts: [],
@@ -911,6 +916,12 @@ function applySessionEvent(ev: SessionEvent) {
   if (ev.type === "session/meta") void refreshSessions();
   if (ev.type === "message/assistant" || ev.type === "turn/end") clearStream(ev.session, ev.agent);
   if (ev.type === "tool/call" && ev.agent) clearStream(ev.session, ev.agent);
+  if (ev.agent && (ev.type === "tool/call" || ev.type === "turn/end" || ev.type === "message/assistant")) {
+    const call = ev.data?.call;
+    const next = ev.type === "tool/call" && call ? { tool: call.name as string, arg: argsPreview(call.args).replace(/^cd\s+\S*\/workspaces\/[^/\s]+\/?\s*&&\s*/, ""), time: ev.time } : undefined;
+    // a reply in between still counts as working; the turn's end does not
+    if (ev.type !== "message/assistant" || state.doing[ev.agent]) setState((st) => ({ doing: { ...st.doing, [ev.agent!]: next } }));
+  }
   // an agent opened a preview in the conversation on screen: show it
   if (ev.type === "preview/opened" && ev.data?.url && ev.session === state.current) openPreview(ev.session, { ...ev.data, agent: ev.data.agent || ev.agent });
   const cur = state.events[ev.session];

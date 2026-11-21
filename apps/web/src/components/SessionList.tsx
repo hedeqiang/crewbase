@@ -1,15 +1,18 @@
+import { toolLabel } from "./Conversation";
 import { Skeleton } from "./Skeleton";
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { Bot, Check, ChevronDown, ChevronRight, FolderInput, Lock, Users, Workflow, FolderPlus, Hash, LifeBuoy, LogOut, Moon, Plus, Power, Search, Settings, Keyboard, MessageSquare } from "lucide-react";
 import type { AgentView, SessionMeta, UsageStats } from "../api";
 import { API, desktop, openExternal, setToken, teamOf, type TeamView } from "../api";
-import { t } from "../i18n";
+import { t, type Key } from "../i18n";
 import { hhmm, kfmt, listTime, nextMorning, plainPreview, sinceLabel } from "../format";
 import { takeoverReason } from "./Browser";
 import { lastSnippet } from "../projection";
 import { leaveTo } from "../router";
 import {
   disconnectEvents,
+  canApprove,
+  refreshApprovals,
   dndActive,
   myName,
   openNewAgent,
@@ -39,6 +42,13 @@ import { UpdatePill } from "./Update";
 
 const ISSUES_URL = "https://github.com/hedeqiang/crewbase/issues";
 
+/** "delete old-notes.txt" → 删除 old-notes.txt: an approval in words */
+function approvalLine(summary: string | undefined, tool: string): string {
+  const m = /^(delete|write|push|publish|run|send)\s+(.+)$/i.exec(summary ?? "");
+  if (m) return t(`apl.${m[1].toLowerCase()}` as Key, { what: m[2] });
+  return summary || toolLabel(tool) || tool;
+}
+
 /** the count on a row with replies not seen yet */
 function UnreadCount({ n }: { n: number }) {
   if (!n) return null;
@@ -52,6 +62,8 @@ function UnreadCount({ n }: { n: number }) {
 export function SessionList() {
   const agents = useStore((s) => s.agents);
   const loaded = useStore((s) => s.agentsLoaded);
+  const doing = useStore((s) => s.doing);
+  const myself = useStore((s) => s.me);
   const sessions = useStore((s) => s.sessions);
   const approvals = useStore((s) => s.approvals);
   const events = useStore((s) => s.events);
@@ -145,6 +157,25 @@ export function SessionList() {
   const dnd = dndActive(profile);
   const host = profile.system?.hostname;
 
+  // while it works: what it is doing now (写入 summary.md…), not its old topic
+  const workingLine = (a: AgentView) => {
+    if (a.status !== "running") return "";
+    const d = doing[a.id];
+    if (!d) return t("list.working");
+    const verb = toolLabel(d.tool) || t("list.working");
+    return d.arg ? `${verb} ${d.arg.split("\n")[0].slice(0, 60)}…` : `${verb}…`;
+  };
+  const quickDecide = async (r: (typeof approvals)[number], outcome: "allowed-once" | "rejected") => {
+    const name = agents[r.agent]?.name ?? r.agent;
+    try {
+      await API.decide(r.callId, { outcome });
+      toast(outcome === "rejected" ? t("appr.toastNo", { agent: name }) : t("appr.toastOk", { agent: name }));
+    } catch (e: any) {
+      toast(t("appr.failed", { error: e?.message ?? String(e) }));
+    } finally {
+      void refreshApprovals();
+    }
+  };
   const agentRow = (a: AgentView) => {
     const snip = snippet(a.session);
     const topic = summaries[a.session]?.topic;
@@ -156,11 +187,11 @@ export function SessionList() {
         <span className="ct">
           <span className="l1">
             <b>{isChat(a) ? chatTitle(a, topic) : a.name}</b>
-            {waiting && <span className="wchip">{t("list.wait")}</span>}
+            {waiting && <span className="waitchip">{t("list.wait")}</span>}
             <span className="tm">{snip?.time ? listTime(snip.time) : ""}</span>
           </span>
           <span className="l2">
-            <span className="l2t">{(isChat(a) ? snip?.text : topic || snip?.text || a.role) || " "}</span>
+            {workingLine(a) ? <span className="l2t doing">{workingLine(a)}</span> : <span className="l2t">{(isChat(a) ? snip?.text : topic || snip?.text || a.role) || " "}</span>}
             <UnreadCount n={unreadN(a.session)} />
           </span>
         </span>
@@ -246,7 +277,7 @@ export function SessionList() {
                 <span className="ct">
                   <span className="l1">
                     <b>{a.name}</b>
-                    <span className="wchip">{t("list.waitTakeover")}</span>
+                    <span className="waitchip">{t("list.waitTakeover")}</span>
                     <span className="tm" />
                   </span>
                   <span className="l2">{takeoverReason(a)}</span>
@@ -256,23 +287,37 @@ export function SessionList() {
             {approvals.map((r) => {
               const a = agents[r.agent];
               return (
-                <button key={r.callId} className="ci" type="button" aria-current={false} onClick={() => openSession(r.session)}>
-                  {a ? (
-                    <Avatar agent={a} size={32} status />
-                  ) : (
-                    <span className="chav">
-                      <Workflow size={16} />
+                <div key={r.callId} className="ciapr">
+                  <button className="ci" type="button" aria-current={false} onClick={() => openSession(r.session)}>
+                    {a ? (
+                      <Avatar agent={a} size={32} status />
+                    ) : (
+                      <span className="chav">
+                        <Workflow size={16} />
+                      </span>
+                    )}
+                    <span className="ct">
+                      <span className="l1">
+                        <b>{a?.name ?? (r.agent || t("appr.workflow"))}</b>
+                        <span className="waitchip">{t("list.waitApprove")}</span>
+                        <span className="tm">{listTime(r.asked)}</span>
+                      </span>
+                      <span className="l2">{approvalLine(r.summary, r.tool)}</span>
+                    </span>
+                  </button>
+                  {/* right here, without opening the conversation (a reason
+                      to say no is written there) */}
+                  {canApprove(myself, r.category) && (
+                    <span className="aprq">
+                      <button type="button" className="btn sm pri" onClick={() => void quickDecide(r, "allowed-once")}>
+                        {t("appr.approve")}
+                      </button>
+                      <button type="button" className="btn sm ghost" onClick={() => void quickDecide(r, "rejected")}>
+                        {t("appr.reject")}
+                      </button>
                     </span>
                   )}
-                  <span className="ct">
-                    <span className="l1">
-                      <b>{a?.name ?? (r.agent || t("appr.workflow"))}</b>
-                      <span className="wchip">{t("list.waitApprove")}</span>
-                      <span className="tm">{listTime(r.asked)}</span>
-                    </span>
-                    <span className="l2">{r.summary || r.tool}</span>
-                  </span>
-                </button>
+                </div>
               );
             })}
           </>

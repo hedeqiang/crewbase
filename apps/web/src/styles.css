@@ -161,7 +161,7 @@ a { color: var(--accent-text); }
 .ci .l1 .tm { margin-left: auto; padding-left: 6px; font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; flex: none; }
 .ci .l2 { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; line-height: 17px; }
 .ci .l2 .who { color: var(--text2); }
-.wchip { flex: none; font-size: 11px; font-weight: 600; line-height: 16px; padding: 0 6px; border-radius: 8px; background: var(--amber-soft); color: var(--amber-text); }
+.waitchip { flex: none; font-size: 11px; font-weight: 600; line-height: 16px; padding: 0 6px; border-radius: 8px; background: var(--amber-soft); color: var(--amber-text); }
 .pill.sm { line-height: 16px; font-size: 11px; padding: 0 6px; flex: none; }
 .tag { font-size: 11px; color: var(--text2); border: 1px solid var(--border2); border-radius: 4px; padding: 0 5px; line-height: 17px; white-space: nowrap; }
 .stx.blue { color: var(--accent-text); } .stx.amber { color: var(--amber-text); } .stx.red { color: var(--danger-text); }
@@ -3129,3 +3129,10 @@ input.fi { resize: none; }
 .btn.blue { background: var(--action); color: var(--on-action); }
 .btn.warn { background: var(--surface); color: var(--amber-text); border-color: color-mix(in srgb, var(--amber) 55%, transparent); }
 .btn.warn:hover:not(:disabled) { background: var(--amber-soft); opacity: 1; }
+/* a list row while its agent works: what it is doing now */
+.ci .l2 .l2t.doing { color: var(--accent-text); background: linear-gradient(90deg, var(--accent-text) 0%, var(--accent-text) 40%, var(--text) 50%, var(--accent-text) 60%, var(--accent-text) 100%); background-size: 300% 100%; -webkit-background-clip: text; background-clip: text; color: transparent; animation: shimmer 2.2s linear infinite; }
+@media (prefers-reduced-motion: reduce) { .ci .l2 .l2t.doing { animation: none; color: var(--accent-text); background: none; } }
+/* 需要你 in the list: approve right there */
+.ciapr { position: relative; }
+.ciapr .ci { padding-bottom: 38px; }
+.ciapr .aprq { position: absolute; left: 50px; bottom: 9px; display: flex; gap: 6px; }
