@@ -263,6 +263,7 @@ export function startRouter() {
     entries[idx] = shown;
     history.replaceState({ crewbase: idx }, "", here() + shown);
   }
+  setState({ routed: true });
   // the mouse's back and forward buttons (browsers that do not map them)
   window.addEventListener("mouseup", (e) => {
     if (e.button === 3 || e.button === 4) {

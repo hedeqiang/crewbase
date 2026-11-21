@@ -1,3 +1,4 @@
+import { Skeleton } from "./Skeleton";
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { Bot, Check, ChevronDown, ChevronRight, FolderInput, Lock, Users, Workflow, FolderPlus, Hash, LifeBuoy, LogOut, Moon, Plus, Power, Search, Settings, Keyboard, MessageSquare } from "lucide-react";
 import type { AgentView, SessionMeta, UsageStats } from "../api";
@@ -50,6 +51,7 @@ function UnreadCount({ n }: { n: number }) {
 
 export function SessionList() {
   const agents = useStore((s) => s.agents);
+  const loaded = useStore((s) => s.agentsLoaded);
   const sessions = useStore((s) => s.sessions);
   const approvals = useStore((s) => s.approvals);
   const events = useStore((s) => s.events);
@@ -353,7 +355,8 @@ export function SessionList() {
             </div>
           );
         })}
-        {empty && (
+        {empty && !loaded && <Skeleton kind="rows" n={6} />}
+        {empty && loaded && (
           <div className="lempty">
             <p className="small">{t("list.empty")}</p>
           </div>

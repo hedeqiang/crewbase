@@ -77,7 +77,12 @@ code { font-family: var(--mono); font-size: .9em; }
 .muted { color: var(--muted); }
 a { color: var(--accent-text); }
 
-.boot { height: 100%; background: var(--chrome); }
+.boot { height: 100%; background: var(--chrome); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px; }
+/* shown only if the check takes a moment (a fast start never flashes it) */
+.boot > * { animation: fade-in 240ms var(--ease-out, ease-out) 300ms backwards; }
+.bootbar { width: 120px; height: 3px; border-radius: 2px; background: var(--border2); overflow: hidden; position: relative; }
+.bootbar::after { content: ""; position: absolute; inset: 0; width: 40%; border-radius: 2px; background: var(--accent); animation: bootslide 1.1s ease-in-out infinite; }
+@keyframes bootslide { from { translate: -100% 0; } to { translate: 250% 0; } }
 
 /* ===== window shell =====
    The window has no separate title bar: the sidebar runs full height and its

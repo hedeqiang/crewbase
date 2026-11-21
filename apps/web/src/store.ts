@@ -114,6 +114,12 @@ export interface State {
   ui: UIContribution[];
   connected: boolean;
   agents: Record<string, AgentView>;
+  /** the agent list has arrived once (until then nothing is "empty") */
+  agentsLoaded: boolean;
+  /** the conversation list has arrived once */
+  sessionsLoaded: boolean;
+  /** the address has been followed (router.ts startRouter) */
+  routed: boolean;
   sessions: Record<string, SessionMeta>;
   approvals: ApprovalRequest[];
   models: ModelsResponse | null;
@@ -265,6 +271,9 @@ let state: State = {
   settingsTab: null,
   connected: false,
   agents: {},
+  agentsLoaded: false,
+  sessionsLoaded: false,
+  routed: false,
   sessions: {},
   approvals: [],
   // the last list this browser saw: the welcome page and pickers show it at
@@ -616,7 +625,7 @@ export async function refreshAgents() {
   const r = await API.agents();
   const agents: Record<string, AgentView> = {};
   for (const a of r.agents) agents[a.id] = a;
-  setState({ agents });
+  setState({ agents, agentsLoaded: true });
 }
 
 export async function refreshSessions() {
@@ -625,6 +634,7 @@ export async function refreshSessions() {
   for (const m of r.sessions) sessions[m.id] = m;
   setState((s) => ({
     sessions,
+    sessionsLoaded: true,
     // forget history entries for sessions that no longer exist
     hist: s.hist.filter((t) => sessions[t]),
     histPos: Math.min(s.histPos, s.hist.filter((t) => sessions[t]).length - 1),

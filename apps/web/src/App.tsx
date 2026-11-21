@@ -1,6 +1,6 @@
 import { installExitGhosts } from "./lib/motion";
 import { lazy, Suspense, useEffect, useState } from "react";
-import { API, desktop, initToken, openExternal, setUnauthorizedHandler, setToken } from "./api";
+import { API, type AgentView, desktop, initToken, openExternal, setUnauthorizedHandler, setToken } from "./api";
 import { t } from "./i18n";
 import { applyTheme, connectEvents, disconnectEvents, docsEmbeddable, getState, isDocsLink, openDocs, resync, sessionAgent, setState, useStore } from "./store";
 import { leaveTo, setOverlayCloser, startRouter } from "./router";
@@ -18,6 +18,7 @@ import { savedRelay, useRelay } from "./tunnel";
 import { NewChannel } from "./components/NewChannel";
 import { ConfirmHost } from "./components/Confirm";
 import { UpdateNotes } from "./components/Update";
+import { Logo } from "./components/Logo";
 
 // Loaded when first opened: most sessions never visit settings.
 const Settings = lazy(() => import("./components/Settings").then((m) => ({ default: m.Settings })));
@@ -45,7 +46,13 @@ export function App() {
       return;
     }
     API.agents()
-      .then(() => start())
+      .then((r) => {
+        // the list the check fetched is shown at once (no second wait)
+        const agents: Record<string, AgentView> = {};
+        for (const a of r.agents) agents[a.id] = a;
+        setState({ agents, agentsLoaded: true });
+        start();
+      })
       .catch((e) => {
         // 401 is handled above; network errors: keep trying via SSE reconnects.
         if (e?.status !== 401) start();
@@ -65,7 +72,13 @@ export function App() {
         }}
       />
     );
-  if (authed === null) return <div className="boot" />;
+  if (authed === null)
+    return (
+      <div className="boot" role="status" aria-label={t("common.loading")}>
+        <Logo size={40} />
+        <i className="bootbar" />
+      </div>
+    );
   if (!authed) return <TokenScreen key={lang} onAuthed={start} />;
   return <Shell key={lang} />;
 }

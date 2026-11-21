@@ -98,6 +98,9 @@ export function Conversation({ onTemplate }: { onTemplate?: (d: Partial<Draft>) 
   const current = useStore((s) => s.current);
   const sessions = useStore((s) => s.sessions);
   const agents = useStore((s) => s.agents);
+  const loaded = useStore((s) => s.agentsLoaded);
+  const sessionsLoaded = useStore((s) => s.sessionsLoaded);
+  const routed = useStore((s) => s.routed);
   const channels = useStore((s) => s.channels);
   useEffect(() => {
     if (current) void loadSession(current);
@@ -105,6 +108,16 @@ export function Conversation({ onTemplate }: { onTemplate?: (d: Partial<Draft>) 
   const agent = useMemo(() => sessionAgent(current), [current, sessions, agents, channels]);
   const channel = current ? channels[current] : undefined;
 
+  // until the list has arrived nothing is empty: the shape of a
+  // conversation, never the first-run page
+  if (!loaded || !sessionsLoaded || (!routed && !agent))
+    return (
+      <section className="main">
+        <div className="feed">
+          <Skeleton kind="chat" />
+        </div>
+      </section>
+    );
   if (!current || !agent)
     return (
       <section className="main">
