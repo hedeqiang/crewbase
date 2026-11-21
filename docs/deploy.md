@@ -211,7 +211,7 @@ go build -o crew-relay ./apps/relayd          # 先 make web 可内置网页应�
 # 或放在 Caddy / Nginx 后面：./crew-relay --addr 127.0.0.1:8080
 ```
 
-**让 crewd 连上中继**（`~/.crewbase/patch.yml` 或 `/etc/crewbase/crewbase.patch.yml`）：
+**让 crewd 连上中继**（`~/.crewbase/crewbase.patch.yml` 或 `/etc/crewbase/crewbase.patch.yml`）：
 
 ```yaml
 - id: relay

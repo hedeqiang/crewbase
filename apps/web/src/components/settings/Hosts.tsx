@@ -1,5 +1,5 @@
 import { EmptyState } from "../EmptyState";
-import { AlertTriangle, Cloud, Copy, Laptop, Loader2, Pencil, RefreshCw, ShieldCheck, Smartphone, Trash2, Wifi, X } from "lucide-react";
+import { Cloud, Copy, Laptop, Loader2, Pencil, RefreshCw, ShieldCheck, Smartphone, Trash2, Wifi, X } from "lucide-react";
 import qrcode from "qrcode-generator";
 import { useEffect, useMemo, useState } from "react";
 import { API, type DeviceView, type MemberView, type PairingCode, type RelayStatus } from "../../api";
@@ -40,6 +40,9 @@ function useNow(ms = 1000) {
   return now;
 }
 
+const RELAY_PATCH = "- id: relay\n  config:\n    url: https://relay.example.org";
+const RELAY_DOCS = "https://github.com/hedeqiang/crewbase/blob/main/docs/deploy.md";
+
 /** darwin → macOS: the system as people call it (details on hover) */
 function osName(os?: string) {
   return os === "darwin" ? "macOS" : os === "windows" ? "Windows" : os === "linux" ? "Linux" : os ?? "";
@@ -51,6 +54,10 @@ export function Hosts() {
   const [relay, setRelay] = useState<RelayStatus | null>(null);
   const [err, setErr] = useState("");
   const [open, setOpen] = useState<{ p: PairingCode; link: string } | null>(null);
+  // a phone cannot reach 127.0.0.1: without a relay, say how to set one up
+  // instead of showing a code nothing can use
+  const [need, setNeed] = useState<"mobile" | "desktop" | null>(null);
+  const [rechecking, setRechecking] = useState(false);
   const [busy, setBusy] = useState("");
   const [rename, setRename] = useState<{ id: string; name: string } | null>(null);
   const sys = useStore((s) => s.profile.system);
@@ -86,12 +93,19 @@ export function Hosts() {
     return () => window.clearInterval(i);
   }, []);
 
-  const start = async (tier: "mobile" | "desktop") => {
+  const local = location.hostname === "127.0.0.1" || location.hostname === "localhost";
+
+  const start = async (tier: "mobile" | "desktop", rs = relay) => {
+    if (local && !rs?.configured) {
+      setNeed(tier);
+      return;
+    }
+    setNeed(null);
     setBusy("pair");
     try {
       const p = await API.startPairing(tier, who);
       // through the relay when one is set up, else the address of this page
-      const link = relay?.configured ? (await API.relayPairLink(p.code)).url : `${location.origin}/#/pair?code=${encodeURIComponent(p.code)}`;
+      const link = rs?.configured ? (await API.relayPairLink(p.code)).url : `${location.origin}/#/pair?code=${encodeURIComponent(p.code)}`;
       setOpen({ p, link });
     } catch (e: any) {
       toast(e?.message ?? String(e));
@@ -141,7 +155,6 @@ export function Hosts() {
     }
   };
 
-  const local = location.hostname === "127.0.0.1" || location.hostname === "localhost";
   const left = open ? Math.max(0, Math.round((new Date(open.p.expires).getTime() - now) / 1000)) : 0;
 
   return (
@@ -179,8 +192,8 @@ export function Hosts() {
             <div className="relayrow">
               <Wifi size={16} />
               <span className="g">
-                <b>{t("dev.noRelay")}</b>
-                <span className="small">{t("dev.noRelayDesc")}</span>
+                <b>{t(local ? "dev.noRelayLocal" : "dev.noRelay")}</b>
+                <span className="small">{t(local ? "dev.noRelayLocalDesc" : "dev.noRelayDesc")}</span>
               </span>
             </div>
           )}
@@ -256,6 +269,69 @@ export function Hosts() {
         </p>
       </div>
 
+      {need && (
+        <>
+          <div className="ovscrim show" onMouseDown={() => setNeed(null)} />
+          <div className="modal pairdlg" role="dialog" aria-modal="true" aria-label={t("dev.pairTitle")}>
+            <div className="mhd">
+              <h3>{need === "desktop" ? t("dev.pairComputer") : t("dev.pairPhone")}</h3>
+              <button className="ib" type="button" aria-label={t("common.close")} onClick={() => setNeed(null)}>
+                <X size={16} />
+              </button>
+            </div>
+            <div className="mbd pairneed">
+              <p className="pnlead">
+                <Cloud size={16} />
+                <span>{t(need === "desktop" ? "dev.needRelayComputer" : "dev.needRelay")}</span>
+              </p>
+              <ol className="pnsteps">
+                <li>{t("dev.needStep1")}</li>
+                <li>
+                  {t("dev.needStep2")}
+                  <div className="pncode">
+                    <pre className="mono">{RELAY_PATCH}</pre>
+                    <button className="ix" type="button" aria-label={t("dev.copySnippet")} title={t("dev.copySnippet")} onClick={() => void navigator.clipboard?.writeText(RELAY_PATCH).then(() => toast(t("dev.copied")))}>
+                      <Copy size={13} />
+                    </button>
+                  </div>
+                </li>
+                <li>{t("dev.needStep3")}</li>
+              </ol>
+              <p className="small">
+                <ShieldCheck size={13} className="pnshield" /> {t("dev.e2eNote")}
+              </p>
+            </div>
+            <div className="mft">
+              <a className="btn sm" href={RELAY_DOCS} target="_blank" rel="noreferrer noopener">
+                {t("dev.needDocs")}
+              </a>
+              <span className="sp" />
+              <button
+                className="btn sm"
+                type="button"
+                disabled={rechecking}
+                onClick={async () => {
+                  setRechecking(true);
+                  try {
+                    // no relay configured: the route is not there (404)
+                    const rs = await API.relay().catch((e) => (e?.status === 404 ? null : Promise.reject(e)));
+                    setRelay(rs);
+                    if (rs?.configured) void start(need, rs);
+                    else toast(t("dev.needStill"));
+                  } catch (e: any) {
+                    toast(e?.message ?? String(e));
+                  } finally {
+                    setRechecking(false);
+                  }
+                }}
+              >
+                {rechecking ? <Loader2 size={13} className="spin" /> : <RefreshCw size={13} />} {t("dev.needRecheck")}
+              </button>
+            </div>
+          </div>
+        </>
+      )}
+
       {open && (
         <>
           <div className="ovscrim show" onMouseDown={() => void close()} />
@@ -266,27 +342,10 @@ export function Hosts() {
                 <X size={16} />
               </button>
             </div>
-            {local && !relay?.configured && (
-              // the first thing to know: a phone cannot open this address
-              <div className="pairwarn">
-                <AlertTriangle size={14} />
-                <span>{t("dev.localWarnLong")}</span>
-                <button
-                  type="button"
-                  className="btn sm"
-                  onClick={() => {
-                    void close();
-                    setTimeout(() => document.querySelector(".relaybox")?.scrollIntoView({ block: "center", behavior: "smooth" }), 50);
-                  }}
-                >
-                  {t("dev.toRelay")}
-                </button>
-              </div>
-            )}
             <div className="mbd pairbody">
               <QR text={open.link} />
               <div className="pairinfo">
-                {(relay?.configured || !local) && <p className="small">{relay?.configured ? t("dev.scanRelay") : t("dev.scanLan")}</p>}
+                <p className="small">{relay?.configured ? t("dev.scanRelay") : t("dev.scanLan")}</p>
                 <div className="paircodebig mono">{open.p.code}</div>
                 <p className="small">
                   {t("dev.expires", { s: `${Math.floor(left / 60)}:${String(left % 60).padStart(2, "0")}` })}
