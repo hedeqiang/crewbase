@@ -1110,6 +1110,7 @@ export const en: Partial<Record<Key, string>> = {
   "apl.run": "Wants to run {what}",
   "apl.send": "Wants to send {what}",
   "panel.agentOf": "{name} settings",
+  "na.changeLook": "Change its look",
   "rx.you": "You",
   "rx.by": "{names} reacted {emoji}",
   "rx.add": "Add reaction",

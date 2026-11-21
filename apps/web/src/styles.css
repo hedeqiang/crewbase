@@ -3140,3 +3140,13 @@ input.fi { resize: none; }
 .hst.muted { color: var(--muted); } .hst.red { color: var(--danger-text); }
 .ptabgear { flex: none; color: var(--text2); }
 .ptabgear.on { background: var(--active); color: var(--text); }
+/* 新建 Agent: who it is first (NewAgent) */
+.na-who { display: flex; gap: 18px; align-items: flex-start; }
+.na-who .na-two { flex: 1; min-width: 0; }
+.na-avwrap { position: relative; flex: none; }
+.na-avwrap .na-dice { position: absolute; right: -6px; bottom: -6px; width: 26px; height: 26px; padding: 0; justify-content: center; background: var(--surface); border: 1px solid var(--border2); border-radius: 13px; }
+.na-heroav { border-radius: 18px; transition: scale var(--dur-fast) var(--ease-out); }
+.na-heroav:hover { scale: 1.04; }
+.menu.na-lookpop { padding: 12px; }
+.na-lookpop .na-look .na-shapes { flex-wrap: wrap; }
+@media (max-width: 600px) { .na-who { flex-direction: column; align-items: center; } .na-who .na-two { width: 100%; } }

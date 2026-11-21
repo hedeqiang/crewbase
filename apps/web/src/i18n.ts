@@ -776,6 +776,7 @@ const zh = {
   "apl.run": "想运行 {what}",
   "apl.send": "想发送 {what}",
   "panel.agentOf": "{name} 的设置",
+  "na.changeLook": "换个形象",
   "rx.you": "你",
   "rx.by": "{names} 回应了 {emoji}",
   "rx.add": "添加回应",

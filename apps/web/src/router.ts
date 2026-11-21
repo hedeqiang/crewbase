@@ -169,7 +169,7 @@ export function apply(l: Loc) {
     if (l.view === "settings") {
       setState({ view: "settings", settings: l.section ?? "general", palette: false, ...(l.section === "library" ? { libOpen: l.item ?? null } : {}), ...(l.tab ? { settingsTab: l.tab } : {}) });
     } else if (l.view === "newAgent") {
-      setState({ view: "newAgent", palette: false });
+      setState({ view: "newAgent", palette: false, ...(sheetPanel() ? { listOpen: false } : {}) });
     } else {
       const session = l.session ?? null;
       const known = !session || !!s.sessions[session] || !!s.channels[session] || Object.values(s.agents).some((a) => a.session === session);

@@ -106,6 +106,7 @@ export function NewAgent({ draft: f, setDraft }: { draft: Draft; setDraft: (d: D
   const [err, setErr] = useState(false);
   const [busy, setBusy] = useState(false);
   const nameRef = useRef<HTMLInputElement>(null);
+  const lookM = useMenu();
   const modelM = useMenu();
   const [mq, setMq] = useState("");
   const [poke, setPoke] = useState(0);
@@ -289,17 +290,60 @@ export function NewAgent({ draft: f, setDraft }: { draft: Draft; setDraft: (d: D
 
           {/* right: the agent */}
           <div className="na-main">
-            <div className="na-card na-id">
-              <button
-                type="button"
-                className="na-heroav"
-                key={f.color + f.shape + poke}
-                title={t("na.poke")}
-                aria-label={t("na.poke")}
-                onClick={() => setPoke((n) => n + 1)}
-              >
-                <AvatarRaw color={f.color} shape={f.shape} face={f.face} size={84} name={f.name} />
-              </button>
+            {/* who it is first: the avatar (click to change its look) beside
+                its name and role; the look picker comes up only when asked */}
+            <div className="na-card na-who">
+              <div className="na-avwrap">
+                <button
+                  type="button"
+                  className="na-heroav"
+                  ref={lookM.ref}
+                  key={f.color + f.shape + poke}
+                  title={t("na.changeLook")}
+                  aria-label={t("na.changeLook")}
+                  aria-haspopup="dialog"
+                  onClick={() => {
+                    setPoke((n) => n + 1);
+                    lookM.toggle();
+                  }}
+                >
+                  <AvatarRaw color={f.color} shape={f.shape} face={f.face} size={64} name={f.name} />
+                </button>
+                <button type="button" className="btn sm ghost na-dice" onClick={randomLook} title={t("na.random")} aria-label={t("na.random")}>
+                  <Dices size={13} />
+                </button>
+              </div>
+              <div className="na-two">
+                <div>
+                  <label className="fl" htmlFor="naName">
+                    {t("na.name")} <i>*</i>
+                  </label>
+                  <input
+                    ref={nameRef}
+                    id="naName"
+                    autoFocus
+                    className={"fi" + (err ? " bad" : "")}
+                    value={f.name}
+                    maxLength={24}
+                    autoComplete="off"
+                    placeholder={t("na.namePh")}
+                    onChange={(e) => {
+                      set({ name: e.target.value });
+                      if (e.target.value.trim()) setErr(false);
+                    }}
+                    onKeyDown={(e) => e.key === "Enter" && create()}
+                  />
+                  {err && !f.name.trim() && <div className="ferr">{t("na.needName")}</div>}
+                </div>
+                <div>
+                  <label className="fl" htmlFor="naRole">
+                    {t("na.role")}
+                  </label>
+                  <input id="naRole" className="fi" value={f.role} maxLength={16} placeholder={t("na.rolePh")} onChange={(e) => set({ role: e.target.value })} />
+                </div>
+              </div>
+            </div>
+            <Popover anchor={lookM.anchor} open={lookM.open} onClose={lookM.close} width={360} className="na-lookpop">
               <div className="na-look">
                 <div className="na-lookh">
                   <span className="small muted">{t("na.look")}</span>
@@ -328,38 +372,7 @@ export function NewAgent({ draft: f, setDraft }: { draft: Draft; setDraft: (d: D
                   ))}
                 </div>
               </div>
-            </div>
-
-            <div className="na-card">
-              <div className="na-two">
-                <div>
-                  <label className="fl" htmlFor="naName">
-                    {t("na.name")} <i>*</i>
-                  </label>
-                  <input
-                    ref={nameRef}
-                    id="naName"
-                    className={"fi" + (err ? " bad" : "")}
-                    value={f.name}
-                    maxLength={24}
-                    autoComplete="off"
-                    placeholder={t("na.namePh")}
-                    onChange={(e) => {
-                      set({ name: e.target.value });
-                      if (e.target.value.trim()) setErr(false);
-                    }}
-                    onKeyDown={(e) => e.key === "Enter" && create()}
-                  />
-                  {err && !f.name.trim() && <div className="ferr">{t("na.needName")}</div>}
-                </div>
-                <div>
-                  <label className="fl" htmlFor="naRole">
-                    {t("na.role")}
-                  </label>
-                  <input id="naRole" className="fi" value={f.role} maxLength={16} placeholder={t("na.rolePh")} onChange={(e) => set({ role: e.target.value })} />
-                </div>
-              </div>
-            </div>
+            </Popover>
 
             <div className="na-card rows">
               <button type="button" className="rowsel" ref={modelM.ref} onClick={modelM.toggle} aria-haspopup="menu">
