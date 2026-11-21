@@ -8,7 +8,7 @@ import { AlarmClock, ChevronRight, MessageSquare, Pencil, Play, Trash, X } from 
 import { API, type AgentView, type Followup, type Routine } from "../api";
 import { t } from "../i18n";
 import { ago, modeLabel, until } from "../format";
-import { openSession, openSettings, setState, toast, useStore } from "../store";
+import { openSession, openSettings, toast, useStore } from "../store";
 import { confirmDialog } from "./Confirm";
 import { RoutineForm, RoutineRuns, scheduleLabel } from "./settings/Automation";
 
@@ -249,32 +249,12 @@ export function dueLabel(iso: string): string {
 
 /** Routines are set up by asking the agent; this says how. */
 function SetupHint({ name, more = false }: { name: string; more?: boolean }) {
-  const session = useStore((s) => s.current);
-  // a tap puts the example in the composer, ready to send or edit
-  const fill = (text: string) => {
-    if (!session) return;
-    // what is already typed stays: the example goes on a new line after it
-    setState((s) => {
-      const cur = s.drafts[session]?.trimEnd();
-      return { drafts: { ...s.drafts, [session]: cur ? `${cur}\n${text}` : text } };
-    });
-    setTimeout(() => document.querySelector<HTMLTextAreaElement>(".composer textarea")?.focus(), 0);
-  };
   return (
     <div className={"schedhint" + (more ? " more" : "")}>
       <span className="g">
         <MessageSquare size={14} />
         {more ? t("sched.askMore", { name }) : t("sched.ask", { name })}
       </span>
-      {!more && (
-        <span className="schedex">
-          {[t("sched.ex1"), t("sched.ex2")].map((x) => (
-            <button key={x} type="button" className="chipbtn" onClick={() => fill(x)}>
-              {x}
-            </button>
-          ))}
-        </span>
-      )}
     </div>
   );
 }

@@ -2480,7 +2480,7 @@ function Composer({
         )}
       </Popover>
 
-      <Popover anchor={modelM.anchor} open={modelM.open} onClose={modelM.close} placement="top" align="end" width={320} className="mpickpop">
+      <Popover anchor={modelM.anchor} open={modelM.open} onClose={modelM.close} placement="top" align="end" width={260}>
         <ModelPicker models={models} agent={target} override={overrideRef} shown={shown} setOverride={setOverride} close={modelM.close} />
       </Popover>
 

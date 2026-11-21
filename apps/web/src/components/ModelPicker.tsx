@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Check, Search } from "lucide-react";
+import { useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from "react";
+import { Check, ChevronLeft, ChevronRight, Search } from "lucide-react";
 import type { AgentView, ModelRef, ModelsResponse } from "../api";
 import { t } from "../i18n";
 import { allModels, effortLabel, exhaustedHint, exhaustedLabel, findModel, isExhausted, modelLabel, modelMeta, modelOff, sameRef } from "../format";
@@ -51,12 +51,11 @@ function withEffort(r: ModelRef): ModelRef {
   return { provider: r.provider, model: r.model, effort: e || undefined };
 }
 
+type Sub = "model" | "effort" | null;
 
 /**
- * The composer's model menu, one panel: the reasoning level of the model in
- * use as a segmented control at the top, then the models (自动 first,
- * showing which one it uses now, the agent's order, then all). One click
- * picks; every model keeps its own reasoning level.
+ * The composer's model menu: two rows, 模型 › and 推理强度 ›, each opening
+ * a flyout beside the menu. Every model keeps its own reasoning level.
  */
 export function ModelPicker({
   models,
@@ -73,15 +72,17 @@ export function ModelPicker({
   setOverride: (r: ModelRef | null) => void;
   close: () => void;
 }) {
+  const [sub, setSub] = useState<Sub>(null);
   const [q, setQ] = useState("");
+  const modelRow = useRef<HTMLButtonElement>(null);
+  const effortRow = useRef<HTMLButtonElement>(null);
   // models switched off in Settings › Models are not offered
   const order = (agent.models ?? []).filter((r) => !modelOff(models, r));
   const others = allModels(models).filter((m) => !order.some((r) => sameRef(r, m.ref)));
   const total = order.length + others.length;
   const needle = q.trim().toLowerCase();
   const hit = (...s: (string | undefined)[]) => !needle || s.some((x) => x?.toLowerCase().includes(needle));
-  // the level of the model in use: what is saved for it, else its own
-  const effort = shown ? (savedEffort(shown) ?? shown.effort ?? "") : "";
+  const effort = shown?.effort ?? "";
   const levels = shown ? effortsFor(findModel(models, shown)) : [];
 
   const pick = (r: ModelRef | null) => {
@@ -91,83 +92,186 @@ export function ModelPicker({
   const setEffort = (e: string) => {
     if (!shown) return;
     saveEffort(shown, e);
-    // a level belongs to a model: in 自动 this picks the model in use, at
-    // that level (the menu says so; 自动 is one click away)
     setOverride({ provider: shown.provider, model: shown.model, effort: e || undefined });
+    close();
   };
 
+  const row = (which: Exclude<Sub, null>, ref: RefObject<HTMLButtonElement | null>, label: string, value: ReactNode, disabled = false) => (
+    <button
+      ref={ref}
+      className={"mi subrow" + (sub === which ? " on" : "")}
+      type="button"
+      disabled={disabled}
+      aria-haspopup="menu"
+      aria-expanded={sub === which}
+      onMouseEnter={() => !disabled && setSub(which)}
+      onClick={() => setSub(which)}
+      onKeyDown={(e) => {
+        if (e.key === "ArrowRight" || e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          setSub(which);
+          requestAnimationFrame(() => (document.querySelector(".menu.flyout button") as HTMLElement | null)?.focus());
+        }
+      }}
+    >
+      <span className="g">{label}</span>
+      <span className="val">{value}</span>
+      <ChevronRight size={14} className="chev" />
+    </button>
+  );
+
   return (
-    <div className="mpick">
-      {levels.length > 0 && shown && (
-        <div className="mpeff" title={modelLabel(models, shown)}>
-          <span className="mpl">{t("comp.effort")}</span>
-          <div className="seg mpseg" role="radiogroup" aria-label={t("comp.effort")}>
-            {levels.map((e) => (
-              <button key={e || "_"} type="button" role="radio" aria-checked={effort === e} className={effort === e ? "on" : ""} onClick={() => setEffort(e)}>
-                {e ? effortLabel(e) : t("effort.default")}
-              </button>
-            ))}
+    <>
+      {row(
+        "model",
+        modelRow,
+        t("comp.model"),
+        override ? (
+          <>
+            <ProviderMark provider={override.provider} model={override.model} size={12} />
+            {modelLabel(models, override)}
+          </>
+        ) : (
+          t("comp.modelAuto")
+        ),
+      )}
+      {/* a model that takes no reasoning level (most media and
+          non-reasoning models) has no such choice */}
+      {levels.length > 0 && row("effort", effortRow, t("comp.effort"), effort ? effortLabel(effort) : t("effort.default"), !shown)}
+
+      {sub === "model" && (
+        <Flyout anchor={modelRow.current} onBack={() => setSub(null)} width={300}>
+          {total > 8 && (
+            <label className="flsearch">
+              <Search size={13} />
+              <input autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder={t("comp.modelSearch")} aria-label={t("comp.modelSearch")} />
+            </label>
+          )}
+          {hit(t("comp.modelAuto")) && (
+            <button className="mi" type="button" onClick={() => pick(null)}>
+              <span className="g">
+                {t("comp.modelAuto")}
+                <span>{t("comp.modelAutoDesc")}</span>
+              </span>
+              <span className="ck">{!override && <Check size={14} />}</span>
+            </button>
+          )}
+          {order.some((r) => hit(r.model, modelLabel(models, r))) && <div className="mlbl">{t("comp.modelOrder", { name: agent.name })}</div>}
+          {order
+            .filter((r) => hit(r.model, modelLabel(models, r)))
+            .map((r) => {
+              const ex = isExhausted(models, r);
+              const e = withEffort(r).effort;
+              return (
+                <button key={plain(r)} className="mi" type="button" onClick={() => pick(r)}>
+                  <ProviderMark provider={r.provider} model={r.model} size={16} />
+                  <span className="g">
+                    {modelLabel(models, r)}
+                    <span>
+                      {order[0] && sameRef(order[0], r) ? t("comp.modelPrimary") : t("comp.modelBackup")}
+                      {e ? ` · ${effortLabel(e)}` : ""}
+                      {ex ? ` · ${exhaustedLabel(ex)}${ex.until ? " · " + exhaustedHint(ex) : ""}` : ""}
+                    </span>
+                  </span>
+                  <span className="ck">{override && sameRef(override, r) && <Check size={14} />}</span>
+                </button>
+              );
+            })}
+          {others.some((m) => hit(m.info.id, m.info.name, m.provider.id)) && <div className="mlbl">{t("comp.modelAll")}</div>}
+          {others
+            .filter((m) => hit(m.info.id, m.info.name, m.provider.id))
+            .map((m) => {
+              const e = withEffort(m.ref).effort;
+              return (
+                <button key={plain(m.ref)} className="mi" type="button" onClick={() => pick(m.ref)}>
+                  <ProviderMark provider={m.ref.provider} model={m.ref.model} size={16} />
+                  <span className="g">
+                    {m.info.name || m.info.id}
+                    <span>
+                      {m.provider.id}
+                      {modelMeta(m.info) ? ` · ${modelMeta(m.info)}` : ""}
+                      {e ? ` · ${effortLabel(e)}` : ""}
+                    </span>
+                  </span>
+                  <span className="ck">{override && sameRef(override, m.ref) && <Check size={14} />}</span>
+                </button>
+              );
+            })}
+        </Flyout>
+      )}
+
+      {sub === "effort" && shown && (
+        <Flyout anchor={effortRow.current} onBack={() => setSub(null)} width={200}>
+          <div className="mlbl" title={modelLabel(models, shown)}>
+            {modelLabel(models, shown)}
           </div>
-        </div>
+          {levels.map((e) => (
+            <button key={e} className="mi" type="button" aria-pressed={effort === e} onClick={() => setEffort(e)}>
+              <span className="g">{e ? effortLabel(e) : t("effort.default")}</span>
+              <span className="ck">{effort === e && <Check size={14} />}</span>
+            </button>
+          ))}
+        </Flyout>
       )}
-      {total > 8 && (
-        <label className="flsearch">
-          <Search size={13} />
-          <input autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder={t("comp.modelSearch")} aria-label={t("comp.modelSearch")} />
-        </label>
+    </>
+  );
+}
+
+/** A submenu placed beside its row: to the right when it fits, else left. */
+function Flyout({ anchor, width, onBack, children }: { anchor: HTMLElement | null; width: number; onBack: () => void; children: ReactNode }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [pos, setPos] = useState<{ left: number; top: number; maxH: number; w: number } | null>(null);
+  const [narrow, setNarrow] = useState(false);
+  useLayoutEffect(() => {
+    const el = ref.current;
+    const menu = anchor?.closest(".menu") as HTMLElement | null;
+    if (!el || !anchor || !menu) return;
+    const place = () => {
+      const r = anchor.getBoundingClientRect();
+      const m = menu.getBoundingClientRect();
+      const vw = window.innerWidth;
+      const vh = window.innerHeight;
+      const maxH = vh - 16;
+      const h = Math.min(el.scrollHeight, maxH);
+      // beside the menu when the planned width fits on either side, else
+      // (phones) over it, as wide as it, with a back row
+      const over = m.right + 4 + width > vw - 8 && m.left - width - 4 < 8;
+      setNarrow(over);
+      const left = over ? m.left : m.right + 4 + width > vw - 8 ? m.left - width - 4 : m.right + 4;
+      // line the flyout's first item up with the row, but keep it on screen
+      let top = over ? m.bottom - h : r.top - 6;
+      if (top + h > vh - 8) top = vh - 8 - h;
+      setPos({ left, top: Math.max(8, top), maxH, w: over ? m.width : width });
+    };
+    place();
+    const ro = new ResizeObserver(place);
+    ro.observe(el);
+    window.addEventListener("resize", place);
+    return () => {
+      ro.disconnect();
+      window.removeEventListener("resize", place);
+    };
+  }, [anchor, width]);
+  return (
+    <div
+      ref={ref}
+      className="menu flyout"
+      role="menu"
+      style={{ width: pos?.w ?? width, left: pos?.left ?? -9999, top: pos?.top ?? -9999, maxHeight: pos?.maxH, visibility: pos ? "visible" : "hidden" }}
+      onKeyDown={(e) => {
+        if (e.key === "ArrowLeft") {
+          e.preventDefault();
+          onBack();
+        }
+      }}
+    >
+      {narrow && (
+        <button className="mi flback" type="button" onClick={onBack}>
+          <ChevronLeft size={14} />
+          <span className="g">{t("common.back")}</span>
+        </button>
       )}
-      <div className="mplist">
-        {hit(t("comp.modelAuto")) && (
-          <button className="mi" type="button" onClick={() => pick(null)}>
-            <span className="g">
-              {t("comp.modelAuto")}
-              <span>{!override && shown ? t("comp.modelAutoNow", { model: modelLabel(models, shown) }) : t("comp.modelAutoDesc")}</span>
-            </span>
-            <span className="ck">{!override && <Check size={14} />}</span>
-          </button>
-        )}
-        {order.some((r) => hit(r.model, modelLabel(models, r))) && <div className="mlbl">{t("comp.modelOrder", { name: agent.name })}</div>}
-        {order
-          .filter((r) => hit(r.model, modelLabel(models, r)))
-          .map((r) => {
-            const ex = isExhausted(models, r);
-            const e = withEffort(r).effort;
-            return (
-              <button key={plain(r)} className="mi" type="button" onClick={() => pick(r)}>
-                <ProviderMark provider={r.provider} model={r.model} size={16} />
-                <span className="g">
-                  {modelLabel(models, r)}
-                  <span>
-                    {order[0] && sameRef(order[0], r) ? t("comp.modelPrimary") : t("comp.modelBackup")}
-                    {e ? ` · ${effortLabel(e)}` : ""}
-                    {ex ? ` · ${exhaustedLabel(ex)}${ex.until ? " · " + exhaustedHint(ex) : ""}` : ""}
-                  </span>
-                </span>
-                <span className="ck">{override && sameRef(override, r) && <Check size={14} />}</span>
-              </button>
-            );
-          })}
-        {others.some((m) => hit(m.info.id, m.info.name, m.provider.id)) && <div className="mlbl">{t("comp.modelAll")}</div>}
-        {others
-          .filter((m) => hit(m.info.id, m.info.name, m.provider.id))
-          .map((m) => {
-            const e = withEffort(m.ref).effort;
-            return (
-              <button key={plain(m.ref)} className="mi" type="button" onClick={() => pick(m.ref)}>
-                <ProviderMark provider={m.ref.provider} model={m.ref.model} size={16} />
-                <span className="g">
-                  {m.info.name || m.info.id}
-                  <span>
-                    {m.provider.id}
-                    {modelMeta(m.info) ? ` · ${modelMeta(m.info)}` : ""}
-                    {e ? ` · ${effortLabel(e)}` : ""}
-                  </span>
-                </span>
-                <span className="ck">{override && sameRef(override, m.ref) && <Check size={14} />}</span>
-              </button>
-            );
-          })}
-      </div>
+      {children}
     </div>
   );
 }
