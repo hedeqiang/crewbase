@@ -299,7 +299,12 @@ export function project(events: SessionEvent[], cards?: ReadonlySet<string>): Pr
     let sup: Rewind | undefined;
     for (const r of rewinds) if (Number(it.id) >= r.from && Number(it.id) < r.at && (!sup || r.from < sup.from || (r.from === sup.from && r.at > sup.at))) sup = r;
     if (sup) it.superseded = sup;
-    if (!lastTime || ts - lastTime > GAP_MS) items.push({ k: "time", id: "t" + it.id, time, superseded: sup });
+    if (!lastTime || ts - lastTime > GAP_MS) {
+      // a time with nothing after it (the item that set it went away, as
+      // a superseded model choice does) gives way to this one
+      if (items[items.length - 1]?.k === "time") items.pop();
+      items.push({ k: "time", id: "t" + it.id, time, superseded: sup });
+    }
     lastTime = ts;
     items.push(it);
     // a line or card between: the agent's next output starts a new item
@@ -653,6 +658,8 @@ export function project(events: SessionEvent[], cards?: ReadonlySet<string>): Pr
         break;
     }
   }
+  // a time divider closing the conversation stands for nothing
+  while (items.length && items[items.length - 1].k === "time") items.pop();
   return { items, context, lastModel, openTurns, subruns, compactedUpto, lastTurn, reactions, pins };
 }
 
