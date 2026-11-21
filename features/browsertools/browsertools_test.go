@@ -80,6 +80,16 @@ type env struct {
 	stats []agent.StatusEvent
 }
 
+// withActionTimeout gives each browser action time for Chrome to start
+// on a slow machine (the test's own value wins).
+func withActionTimeout(cfg map[string]any) map[string]any {
+	out := map[string]any{"actionTimeout": "120s"}
+	for k, v := range cfg {
+		out[k] = v
+	}
+	return out
+}
+
 func setup(t *testing.T, toolCfg map[string]any) *env {
 	t.Helper()
 	if chrome.FindExecutable() == "" {
@@ -97,7 +107,9 @@ func setup(t *testing.T, toolCfg map[string]any) *env {
 		{session.Plugin, nil}, {prompt.Plugin, nil}, {tools.Plugin, nil},
 		{agent.Plugin, map[string]any{"root": root}}, {notify.Plugin, nil},
 		{gateway.Plugin, map[string]any{"addr": "127.0.0.1:0", "token": token}},
-		{chrome.Plugin, nil}, {browsertools.Plugin, toolCfg}, {browsertools.APIPlugin, nil},
+		// a loaded CI machine (go test -race runs packages side by side)
+		// starts Chrome slowly: the first action includes that start
+		{chrome.Plugin, map[string]any{"startTimeout": "90s"}}, {browsertools.Plugin, withActionTimeout(toolCfg)}, {browsertools.APIPlugin, nil},
 	} {
 		if _, err := e.h.Load(x.s, kernel.LoadOptions{Config: x.cfg}); err != nil {
 			t.Fatal(err)
