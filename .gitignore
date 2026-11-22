@@ -21,3 +21,6 @@ apps/desktop/.mygo/
 
 # a leftover Google OAuth client secret from the removed Google connector; never commit
 features/google/
+
+# local scratch space for Claude Code sessions
+.claude-scratch/
