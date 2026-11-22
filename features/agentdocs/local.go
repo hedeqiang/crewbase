@@ -247,7 +247,7 @@ func (s *Service) StartLocal(ctx context.Context, r StartLocalRequest) (Status, 
 	if err != nil {
 		return fail("download", err)
 	}
-	port, err := freePort(8848)
+	port, err := freePort(docsPorts...)
 	if err != nil {
 		return fail("start", err)
 	}
@@ -446,8 +446,18 @@ func (s *Service) killStale(m *Managed) {
 	}
 	// only our own binary: the pid may have been reused
 	if out, err := exec.Command("ps", "-o", "comm=", "-p", strconv.Itoa(m.PID)).Output(); err == nil && strings.Contains(string(out), "open-agent-docs") {
+		// until it is gone: a new server cannot open the same data meanwhile
 		_ = p.Signal(syscall.SIGTERM)
-		time.Sleep(500 * time.Millisecond)
+		deadline := time.Now().Add(5 * time.Second)
+		for alive(m.PID) && time.Now().Before(deadline) {
+			time.Sleep(50 * time.Millisecond)
+		}
+		if alive(m.PID) {
+			_ = p.Kill()
+			for i := 0; i < 40 && alive(m.PID); i++ {
+				time.Sleep(50 * time.Millisecond)
+			}
+		}
 	}
 }
 
@@ -489,12 +499,16 @@ func (s *Service) resumeLocal(ctx context.Context) {
 		s.setStep("", "the Open Agent Docs server is missing; disconnect and start it again")
 		return
 	}
+	s.killStale(m)
+	s.movePort(m)
 	if err := s.run(bin, m, nil); err != nil {
 		s.setStep("", err.Error())
 		return
 	}
 	if err := waitUp(ctx, localURL(m.Port), 30*time.Second); err != nil {
 		s.setStep("", err.Error())
+	} else {
+		s.setStep("", "")
 	}
 	if _, err := s.latest(ctx, false); err != nil { // so an update shows
 		s.c.Log().Warn("agentdocs: could not check for a newer Open Agent Docs", "err", err)
@@ -602,34 +616,95 @@ func (s *Service) removeLocal(wipe bool) {
 	}
 }
 
-func freePort(prefer int) (int, error) {
-	for _, p := range []int{prefer, 0} {
+// freePort returns the first of prefer that nothing listens on, else any
+// free port. Free means on every address: a program listening on all of
+// them (Nacos also uses 8848) still gets the connections that reach the
+// port while the docs server is not up, such as right after a restart.
+func freePort(prefer ...int) (int, error) {
+	for _, p := range append(prefer, 0) {
 		l, err := net.Listen("tcp", "127.0.0.1:"+strconv.Itoa(p))
 		if err != nil {
 			continue
 		}
 		port := l.Addr().(*net.TCPAddr).Port
 		l.Close()
+		if !portFree(port) {
+			continue
+		}
 		return port, nil
 	}
 	return 0, errors.New("no free port on 127.0.0.1")
 }
 
+// portFree: nothing listens on port, on any address. Binding is not
+// enough to tell (macOS lets a second program bind the same port next to
+// one listening on every address); a connection is: while the docs server
+// is not running, nothing should answer on 127.0.0.1:port.
+func portFree(port int) bool {
+	l, err := net.Listen("tcp", "127.0.0.1:"+strconv.Itoa(port))
+	if err != nil {
+		return false
+	}
+	l.Close()
+	c, err := net.DialTimeout("tcp", "127.0.0.1:"+strconv.Itoa(port), 300*time.Millisecond)
+	if err != nil {
+		return true
+	}
+	c.Close()
+	return false
+}
+
+// docsPorts are the ports the managed server prefers, in order.
+var docsPorts = []int{8848, 18848, 28848}
+
+// movePort moves the managed server off a port another program also
+// listens on, and points the connection (and so every agent's MCP
+// server, on the next Sync) at the new address. Its data stays.
+func (s *Service) movePort(m *Managed) {
+	if portFree(m.Port) {
+		return
+	}
+	port, err := freePort(docsPorts...)
+	if err != nil || port == m.Port {
+		return
+	}
+	old := localURL(m.Port)
+	if s.c != nil {
+		s.c.Log().Warn("agentdocs: another program listens on the docs port; moving the docs server", "from", m.Port, "to", port)
+	}
+	s.mu.Lock()
+	m.Port = port
+	if strings.TrimSuffix(s.st.Settings.URL, "/") == old {
+		s.st.Settings.URL = localURL(port)
+	}
+	_ = s.saveLocked()
+	s.mu.Unlock()
+}
+
 func waitUp(ctx context.Context, base string, d time.Duration) error {
 	deadline := time.Now().Add(d)
-	c := &http.Client{Timeout: 2 * time.Second}
+	// a new connection each time: one kept alive from before the docs
+	// server was up may lead to another program on the same port
+	c := &http.Client{Timeout: 2 * time.Second, Transport: &http.Transport{DisableKeepAlives: true, Proxy: nil}}
+	other := 0 // the status another program answered with
 	for time.Now().Before(deadline) {
 		req, _ := http.NewRequestWithContext(ctx, "GET", base+"/api/v1/auth/config", nil)
 		if resp, err := c.Do(req); err == nil {
+			var cfg map[string]any
+			ok := resp.StatusCode == 200 && json.NewDecoder(io.LimitReader(resp.Body, 64<<10)).Decode(&cfg) == nil
 			resp.Body.Close()
-			if resp.StatusCode == 200 {
+			if ok {
 				return nil
 			}
+			other = resp.StatusCode
 		}
 		if ctx.Err() != nil {
 			return ctx.Err()
 		}
 		time.Sleep(200 * time.Millisecond)
+	}
+	if other != 0 {
+		return fmt.Errorf("Open Agent Docs did not start in time: another program answers on %s (HTTP %d); Crewbase moves the docs server to a free port when it starts next", base, other)
 	}
 	return errors.New("Open Agent Docs did not start in time (see apps/open-agent-docs/server.log in the data folder)")
 }
