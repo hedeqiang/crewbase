@@ -23,6 +23,7 @@ import (
 	"github.com/hedeqiang/crewbase/core/prompt"
 	"github.com/hedeqiang/crewbase/core/tools"
 	"github.com/hedeqiang/crewbase/features/gateway"
+	"github.com/hedeqiang/crewbase/bridge/process"
 	"github.com/hedeqiang/crewbase/features/plugins"
 	"github.com/hedeqiang/crewbase/kernel"
 )
@@ -596,5 +597,24 @@ func TestVersionNewer(t *testing.T) {
 		if got := plugins.VersionNewer(c.a, c.b); got != c.want {
 			t.Errorf("%s > %s = %v", c.a, c.b, got)
 		}
+	}
+}
+
+// An approval vouches for a package from where it came: the same name and
+// version from another source is asked about again.
+func TestAnotherSourceNeedsReapproval(t *testing.T) {
+	approved := &plugins.Grant{Version: "1.0.0", Origin: "publisher:acme"}
+	man := process.Manifest{Name: "foo", Version: "1.0.0"}
+	ok, needs := plugins.ApprovalFor(man, plugins.Record{Publisher: "acme"}, approved)
+	if !ok {
+		t.Fatalf("same publisher: %v", needs)
+	}
+	ok, needs = plugins.ApprovalFor(man, plugins.Record{SourceKind: "tarball", Source: "https://example.com/foo.tgz"}, approved)
+	if ok || len(needs) == 0 {
+		t.Fatal("an unsigned package from elsewhere kept the publisher's approval")
+	}
+	// approvals made before origins were recorded still hold
+	if ok, _ := plugins.ApprovalFor(man, plugins.Record{SourceKind: "local", Source: "/x"}, &plugins.Grant{Version: "1.0.0"}); !ok {
+		t.Fatal("an older approval was dropped")
 	}
 }

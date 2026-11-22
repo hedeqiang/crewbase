@@ -87,6 +87,22 @@ type Grant struct {
 	Permissions         process.Permissions `json:"permissions"`
 	TrustFutureVersions bool                `json:"trustFutureVersions"`
 	ApprovedAt          time.Time           `json:"approvedAt"`
+	// Origin is where the approved package came from (its signed
+	// publisher, marketplace entry or source): a package of the same name
+	// from elsewhere is asked about again. "" = approved before this was
+	// recorded.
+	Origin string `json:"origin,omitempty"`
+}
+
+// origin is what an approval of the package in rec vouches for.
+func origin(rec record) string {
+	switch {
+	case rec.Publisher != "":
+		return "publisher:" + rec.Publisher
+	case rec.Market != "":
+		return "market:" + rec.Market
+	}
+	return rec.SourceKind + ":" + rec.Source
 }
 
 type record struct {
@@ -223,8 +239,14 @@ func (m *Manager) read(name string) (installed, error) {
 	return in, nil
 }
 
+// Record is what is known of an installed package (for ApprovalFor).
+type Record = record
+
+// ApprovalFor is approval, for tests and tools outside the package.
+func ApprovalFor(man process.Manifest, rec Record, g *Grant) (bool, []string) { return approval(man, rec, g) }
+
 // approval decides whether grant covers the manifest; needs lists the gaps.
-func approval(man process.Manifest, g *Grant) (bool, []string) {
+func approval(man process.Manifest, rec record, g *Grant) (bool, []string) {
 	req := man.Requested()
 	if g == nil {
 		needs := req.Strings()
@@ -234,6 +256,9 @@ func approval(man process.Manifest, g *Grant) (bool, []string) {
 		return false, needs
 	}
 	needs := g.Permissions.Missing(req)
+	if g.Origin != "" && g.Origin != origin(rec) {
+		needs = append(needs, "source changed ("+origin(rec)+", approved "+g.Origin+")")
+	}
 	if g.Version != man.Version && !g.TrustFutureVersions {
 		needs = append(needs, fmt.Sprintf("version %s (approved %s)", man.Version, g.Version))
 	}
@@ -241,7 +266,7 @@ func approval(man process.Manifest, g *Grant) (bool, []string) {
 }
 
 func (m *Manager) view(in installed, enabled bool) Installed {
-	ok, needs := approval(in.man, in.grant)
+	ok, needs := approval(in.man, in.rec, in.grant)
 	v := Installed{Name: in.man.Name, Version: in.man.Version, Description: in.man.Description, Author: in.man.Author,
 		Repo: in.man.Repo, Source: in.rec.Source, SourceKind: in.rec.SourceKind, Market: in.rec.Market, InstalledAt: in.rec.InstalledAt, Integrity: in.rec.Integrity,
 		Dir: in.dir, Sandbox: in.man.Sandbox, Requested: in.man.Requested(), Grant: in.grant, Approved: ok,
@@ -327,7 +352,7 @@ func (m *Manager) syncLocked(name string, restart bool) error {
 		m.unloadLocked(name)
 		return err
 	}
-	ok, _ := approval(in.man, in.grant)
+	ok, _ := approval(in.man, in.rec, in.grant)
 	if !m.enabledSet()[name] || !ok {
 		m.unloadLocked(name)
 		return nil
@@ -511,7 +536,7 @@ func (m *Manager) Approve(name string, perms *process.Permissions, trustFutureVe
 	if err != nil {
 		return Installed{}, err
 	}
-	g := Grant{Version: in.man.Version, Permissions: in.man.Requested(), TrustFutureVersions: trustFutureVersions, ApprovedAt: time.Now().UTC()}
+	g := Grant{Version: in.man.Version, Permissions: in.man.Requested(), TrustFutureVersions: trustFutureVersions, ApprovedAt: time.Now().UTC(), Origin: origin(in.rec)}
 	if perms != nil {
 		g.Permissions = perms.Normalize()
 	}
@@ -572,7 +597,8 @@ func (m *Manager) Reload(ctx context.Context, name string) (Installed, error) {
 	}
 	if in.rec.SourceKind == "local" {
 		if st, err := os.Stat(in.rec.Source); err == nil && st.IsDir() {
-			return m.installLocked(ctx, in.rec.Source, false, true, verifyOpts{})
+			// the same package from the same place: it keeps where it came from
+			return m.installLocked(ctx, in.rec.Source, false, true, verifyOpts{name: in.rec.Market})
 		}
 	}
 	serr := m.syncLocked(name, true)
