@@ -118,6 +118,9 @@ type Tool struct {
 	// Agents with a connector list see only the listed sources' tools
 	// (connectors.go); tools without a Source are never filtered by it.
 	Source string
+	// Plugin is the installed plugin package the tool comes from ("" = built
+	// in or a connector); its tools are a family named after it.
+	Plugin string
 	// Unconfined marks tools whose work happens outside Crewbase's sandbox
 	// (e.g. a host-trusted MCP server's process): in read-only mode only
 	// their read / none categories may run, whatever sandbox is loaded.

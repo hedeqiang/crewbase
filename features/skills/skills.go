@@ -425,6 +425,16 @@ var slashRe = regexp.MustCompile(`^/([A-Za-z0-9][A-Za-z0-9._-]{0,127})(?:\s+|$)`
 // a message that opens with "/<skill>" into that pick. A skill the agent
 // cannot see is an error: the person asked for it by name.
 func (s *Service) Resolve(in *agent.Input, agentID string) error {
+	r := &agentloop.UseRequest{Agent: agentID, Text: in.Text, Use: in.Use}
+	if err := s.resolve(r); err != nil {
+		return err
+	}
+	in.Text, in.Use = r.Text, r.Use
+	return nil
+}
+
+func (s *Service) resolve(in *agentloop.UseRequest) error {
+	agentID := in.Agent
 	if len(in.Use) == 0 {
 		if m := slashRe.FindStringSubmatch(in.Text); m != nil {
 			for _, sk := range s.List(agentID) {
@@ -480,13 +490,11 @@ var Plugin = kernel.Register(kernel.Spec{
 		})
 		// a skill picked with / is loaded when its turn starts (and recorded
 		// with the message, see session.Invoke)
-		agentloop.PreStep.Use(c, func(ctx context.Context, in *agent.Input, next kernel.Next[*agent.Input, *agent.Input]) (*agent.Input, error) {
-			if in != nil && !in.Logged && !in.Resumed {
-				if err := s.Resolve(in, in.Agent); err != nil {
-					return nil, err
-				}
+		agentloop.ResolveUse.Use(c, func(ctx context.Context, r *agentloop.UseRequest, next kernel.Next[*agentloop.UseRequest, *agentloop.UseRequest]) (*agentloop.UseRequest, error) {
+			if err := s.resolve(r); err != nil {
+				return nil, err
 			}
-			return next(ctx, in)
+			return next(ctx, r)
 		})
 		kernel.Use[*tools.Registry](c, tools.ServiceKey).Register(c, &tools.Tool{
 			Name:        "skill_load",

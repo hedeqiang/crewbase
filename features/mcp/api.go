@@ -194,6 +194,15 @@ var APIPlugin = kernel.Register(kernel.Spec{
 				}
 				return map[string]any{"ok": true, "tools": list}, nil
 			}})
+		// the prompt templates an agent can use: the composer's / menu
+		g.Handle(c, gateway.Route{Method: "GET", Path: "/api/agents/{id}/prompts", Devices: []string{"mobile"},
+			Handle: func(ctx context.Context, r *gateway.Request) (any, error) {
+				list := s.AgentPrompts(ctx, r.Params["id"])
+				if list == nil {
+					list = []PromptInfo{}
+				}
+				return map[string]any{"prompts": list}, nil
+			}})
 		g.Handle(c, gateway.Route{Method: "GET", Path: "/api/mcp/{name}/tools",
 			Handle: func(_ context.Context, r *gateway.Request) (any, error) {
 				list, ok := s.Tools(r.Params["name"])

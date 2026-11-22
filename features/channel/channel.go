@@ -15,6 +15,7 @@ import (
 
 	"github.com/hedeqiang/crewbase/capabilities/approval"
 	"github.com/hedeqiang/crewbase/core/agent"
+	"github.com/hedeqiang/crewbase/core/agentloop"
 	"github.com/hedeqiang/crewbase/core/session"
 	"github.com/hedeqiang/crewbase/core/tools"
 	"github.com/hedeqiang/crewbase/kernel"
@@ -317,8 +318,9 @@ func (s *Service) Post(id, text, from string) (PostResult, error) {
 	return s.PostReply(id, text, from, nil)
 }
 
-// PostReply is Post answering an earlier message (回复), quoted.
-func (s *Service) PostReply(id, text, from string, reply *session.Quote) (PostResult, error) {
+// PostReply is Post answering an earlier message (回复), quoted, with the
+// skills / tool families / prompt templates picked with / (use).
+func (s *Service) PostReply(id, text, from string, reply *session.Quote, use ...session.Invoke) (PostResult, error) {
 	ss, err := s.channel(id)
 	if err != nil {
 		return PostResult{}, err
@@ -329,7 +331,7 @@ func (s *Service) PostReply(id, text, from string, reply *session.Quote) (PostRe
 	}
 	targets := s.resolveMentions(ss, text)
 	if len(targets) > 1 {
-		return s.postMany(ss, id, text, from, targets, reply)
+		return s.postMany(ss, id, text, from, targets, reply, use)
 	}
 	target := ""
 	if len(targets) == 1 {
@@ -345,7 +347,7 @@ func (s *Service) PostReply(id, text, from string, reply *session.Quote) (PostRe
 	if State(ss) == StatePaused {
 		_ = s.setState(ss, StateActive, from)
 	}
-	in, err := a.Enqueue(agent.Input{Session: id, Text: text, From: from, Reply: reply})
+	in, err := a.Enqueue(agent.Input{Session: id, Text: text, From: from, Reply: reply, Use: use})
 	if err != nil {
 		return PostResult{}, err
 	}
@@ -363,11 +365,23 @@ func (s *Service) PostReply(id, text, from string, reply *session.Quote) (PostRe
 
 // postMany gives one message to several mentioned members: it is recorded
 // once (addressed to all of them) and each gets it as its own task.
-func (s *Service) postMany(ss *session.Session, id, text, from string, targets []string, reply *session.Quote) (PostResult, error) {
+func (s *Service) postMany(ss *session.Session, id, text, from string, targets []string, reply *session.Quote, use []session.Invoke) (PostResult, error) {
+	// recorded once, now: what the picks stand for is filled in first (for
+	// the first member named; each sees the same message)
+	if len(use) > 0 || strings.HasPrefix(text, "/") {
+		r, err := agentloop.ResolveUse.Run(kernel.For(s.c, targets[0]), context.Background(), &agentloop.UseRequest{Agent: targets[0], Text: text, Use: use},
+			func(_ context.Context, r *agentloop.UseRequest) (*agentloop.UseRequest, error) { return r, nil })
+		if err != nil {
+			return PostResult{}, err
+		}
+		if r != nil {
+			text, use = r.Text, r.Use
+		}
+	}
 	if State(ss) == StatePaused {
 		_ = s.setState(ss, StateActive, from)
 	}
-	if _, err := ss.Append(session.TypeUserMessage, "", session.UserMessage{Text: text, From: from, To: targets[0], Also: targets[1:], Reply: reply}); err != nil {
+	if _, err := ss.Append(session.TypeUserMessage, "", session.UserMessage{Text: text, From: from, To: targets[0], Also: targets[1:], Reply: reply, Use: use}); err != nil {
 		return PostResult{}, err
 	}
 	res := PostResult{Agents: targets}

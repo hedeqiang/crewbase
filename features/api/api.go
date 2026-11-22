@@ -140,16 +140,10 @@ type sendBody struct {
 		Path string `json:"path"`
 		Name string `json:"name"`
 	} `json:"attachments,omitempty"`
-	// Use: skills / tool families picked with / (the skills plugin loads
-	// a skill's instructions when the turn starts).
-	Use []struct {
-		Kind string `json:"kind"`
-		Name string `json:"name"`
-	} `json:"use,omitempty"`
+	// Use: skills, tool families and prompt templates picked with / (what
+	// they stand for is filled in when the turn starts).
+	Use []session.Invoke `json:"use,omitempty"`
 }
-
-// maxUse is how many / picks one message may carry.
-const maxUse = 5
 
 // resendBody: POST /api/agents/{id}/resend. Seq is a user message to the
 // agent; Text unset regenerates (that message and the ones after it are
@@ -481,13 +475,8 @@ var Plugin = kernel.Register(kernel.Spec{
 				if strings.TrimSpace(b.Text) == "" && len(b.Attachments) == 0 && len(b.Use) == 0 {
 					return gateway.BadRequest("text is required")
 				}
-				if len(b.Use) > maxUse {
-					return gateway.BadRequest("at most %d picks per message", maxUse)
-				}
-				for _, u := range b.Use {
-					if (u.Kind != session.InvokeSkill && u.Kind != session.InvokeTools) || strings.TrimSpace(u.Name) == "" || len(u.Name) > 128 {
-						return gateway.BadRequest("use: kind must be skill or tools, with a name")
-					}
+				if _, err := session.CleanUse(b.Use); err != nil {
+					return gateway.BadRequest("%v", err)
 				}
 				if len(b.Attachments) > attachments.MaxPerInput {
 					return gateway.BadRequest("at most %d attachments per message", attachments.MaxPerInput)
@@ -507,9 +496,7 @@ var Plugin = kernel.Register(kernel.Spec{
 				var b sendBody
 				_ = r.Decode(&b)
 				in := agent.Input{Text: b.Text, From: b.From, Session: b.Session, Front: b.Front, Queue: b.Queue, Reply: quote(b.Reply)}
-				for _, u := range b.Use {
-					in.Use = append(in.Use, session.Invoke{Kind: u.Kind, Name: strings.TrimSpace(u.Name)})
-				}
+				in.Use, _ = session.CleanUse(b.Use)
 				// a team member's messages carry their name, whatever the client says
 				if who, ok := kernel.Lookup[Approver](c, "members"); ok && r.DeviceID != "" {
 					in.From = who.SenderName(r.DeviceID)
@@ -738,11 +725,17 @@ var Plugin = kernel.Register(kernel.Spec{
 				type group struct {
 					tools.Group
 					Deferred bool `json:"deferred"`
+					// Installed: an MCP server's or an installed plugin's tools
+					Installed bool `json:"installed,omitempty"`
 				}
 				var deferred, core []*tools.Tool
+				installed := map[string]bool{}
 				for _, t := range reg.Offerable(a.ID(), "agent") {
 					if t.Load == tools.LoadMeta {
 						continue
+					}
+					if t.Source != "" || t.Plugin != "" {
+						installed[tools.GroupOf(t)] = true
 					}
 					if t.Deferred() {
 						deferred = append(deferred, t)
@@ -752,10 +745,10 @@ var Plugin = kernel.Register(kernel.Spec{
 				}
 				var groups []group
 				for _, g := range tools.Groups(deferred) {
-					groups = append(groups, group{Group: g, Deferred: true})
+					groups = append(groups, group{Group: g, Deferred: true, Installed: installed[g.Name]})
 				}
 				for _, g := range tools.Groups(core) {
-					groups = append(groups, group{Group: g})
+					groups = append(groups, group{Group: g, Installed: installed[g.Name]})
 				}
 				return map[string]any{"tools": reg.Schemas(a.ID()), "groups": groups, "deferredTokens": tools.SchemaTokens(deferred)}, nil
 			}})

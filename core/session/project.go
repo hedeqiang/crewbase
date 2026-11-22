@@ -1,6 +1,7 @@
 package session
 
 import (
+	"fmt"
 	"github.com/hedeqiang/crewbase/core/llm"
 	"slices"
 	"strings"
@@ -26,19 +27,52 @@ type UserMessage struct {
 	Use []Invoke `json:"use,omitempty"`
 }
 
-// Invoke is one / pick: Kind "skill" (Text holds its instructions) or
-// "tools" (a tool family, by its group name).
+// Invoke is one / pick: Kind "skill" (Text holds its instructions),
+// "tools" (a tool family, by its group name) or "prompt" (an MCP prompt
+// template, Name "<server>/<prompt>", filled in with Args; Text holds it).
 type Invoke struct {
-	Kind string `json:"kind"`
-	Name string `json:"name"`
-	Text string `json:"text,omitempty"`
+	Kind string            `json:"kind"`
+	Name string            `json:"name"`
+	Args map[string]string `json:"args,omitempty"`
+	Text string            `json:"text,omitempty"`
 }
 
 // InvokeKinds are the kinds of Invoke.
 const (
-	InvokeSkill = "skill"
-	InvokeTools = "tools"
+	InvokeSkill  = "skill"
+	InvokeTools  = "tools"
+	InvokePrompt = "prompt"
 )
+
+// MaxUse is how many / picks one message may carry.
+const MaxUse = 5
+
+// CleanUse checks picks sent by a client: known kinds, a name, a few
+// short arguments. Text is never taken from a client (it is filled in when
+// the turn starts).
+func CleanUse(in []Invoke) ([]Invoke, error) {
+	if len(in) > MaxUse {
+		return nil, fmt.Errorf("at most %d picks per message", MaxUse)
+	}
+	var out []Invoke
+	for _, u := range in {
+		u.Name = strings.TrimSpace(u.Name)
+		if (u.Kind != InvokeSkill && u.Kind != InvokeTools && u.Kind != InvokePrompt) || u.Name == "" || len(u.Name) > 200 {
+			return nil, fmt.Errorf("use: kind must be skill, tools or prompt, with a name")
+		}
+		if len(u.Args) > 20 {
+			return nil, fmt.Errorf("use: at most 20 arguments")
+		}
+		for k, v := range u.Args {
+			if len(k) > 100 || len(v) > 8<<10 {
+				return nil, fmt.Errorf("use: argument %q is too long", k)
+			}
+		}
+		u.Text = ""
+		out = append(out, u)
+	}
+	return out, nil
+}
 
 // invokeNote is what the model reads for the picks of a message.
 func invokeNote(use []Invoke) string {
@@ -46,9 +80,11 @@ func invokeNote(use []Invoke) string {
 	for _, u := range use {
 		switch u.Kind {
 		case InvokeSkill:
-			b.WriteString("[The person picked the skill \"" + u.Name + "\" for this message: follow its instructions below.]\n<skill name=\"" + u.Name + "\">\n" + strings.TrimSpace(u.Text) + "\n</skill>\n")
+			b.WriteString("[The person picked the skill \"" + u.Name + "\" for this message: its instructions are below (already loaded, no need for skill_load); follow them.]\n<skill name=\"" + u.Name + "\">\n" + strings.TrimSpace(u.Text) + "\n</skill>\n")
 		case InvokeTools:
 			b.WriteString("[The person wants you to use the " + u.Name + " tools for this message; if they are not loaded yet, find them with tool_search.]\n")
+		case InvokePrompt:
+			b.WriteString("[The person picked the prompt template \"" + u.Name + "\" (from an MCP server) for this message: follow it as guidance.]\n<prompt name=\"" + u.Name + "\">\n" + strings.TrimSpace(u.Text) + "\n</prompt>\n")
 		}
 	}
 	return b.String()

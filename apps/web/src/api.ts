@@ -701,10 +701,19 @@ export interface Brief {
   folded: number;
 }
 
-/** A / pick sent with a message: a skill, or a family of tools. */
+/** A / pick sent with a message: a skill, a family of tools, or an MCP
+ *  prompt template ("<server>/<prompt>", filled in with args). */
 export interface SlashPick {
-  kind: "skill" | "tools";
+  kind: "skill" | "tools" | "prompt";
   name: string;
+  args?: Record<string, string>;
+}
+export interface PromptInfo {
+  server: string;
+  name: string;
+  title?: string;
+  description?: string;
+  args?: { name: string; description?: string; required?: boolean }[];
 }
 
 export interface WfStep {
@@ -1488,8 +1497,8 @@ export const API = {
   channel: (id: string) => api<ChannelView>("GET", `/api/channels/${enc(id)}`),
   createChannel: (b: { name: string; members: string[]; folder?: string }) => api<ChannelView>("POST", "/api/channels", b),
   patchChannel: (id: string, b: { handoverConfirm: boolean }) => api<ChannelView>("PATCH", `/api/channels/${enc(id)}`, b),
-  postChannel: (id: string, text: string, reply?: Quote) =>
-    api<{ agent: string; input: string; position: number }>("POST", `/api/channels/${enc(id)}/messages`, { text, reply }),
+  postChannel: (id: string, text: string, reply?: Quote, use?: SlashPick[]) =>
+    api<{ agent: string; input: string; position: number }>("POST", `/api/channels/${enc(id)}/messages`, { text, reply, use }),
   /** pin a message to the top of its conversation (remove: unpin) */
   pin: (session: string, target: number, remove?: boolean) => api<null>("POST", `/api/sessions/${enc(session)}/pins`, { target, remove: remove || undefined }),
   /** messages containing q in every conversation the caller sees */
@@ -1588,9 +1597,10 @@ export const API = {
   usage: () => api<UsageStats>("GET", "/api/usage"),
   workspaceDir: () => api<{ dir: string; isDefault: boolean; default: string }>("GET", "/api/settings/workspace"),
   setWorkspaceDir: (dir: string) => api<{ dir: string; isDefault: boolean; default: string }>("PUT", "/api/settings/workspace", { dir }),
+  agentPrompts: (id: string) => api<{ prompts: PromptInfo[] }>("GET", `/api/agents/${enc(id)}/prompts`),
   agentSkills: (id: string) => api<{ skills: { name: string; description?: string; source?: string }[] }>("GET", `/api/agents/${enc(id)}/skills`),
   agentToolGroups: (id: string) =>
-    api<{ groups: { name: string; count: number; summary: string; deferred: boolean }[] | null; deferredTokens: number }>("GET", `/api/agents/${enc(id)}/tools`),
+    api<{ groups: { name: string; count: number; summary: string; deferred: boolean; installed?: boolean }[] | null; deferredTokens: number }>("GET", `/api/agents/${enc(id)}/tools`),
   vault: () => api<{ items: VaultItem[] }>("GET", "/api/vault"),
   addSecret: (name: string, value: string) => api<VaultItem>("POST", "/api/vault", { name, value }),
   replaceSecret: (id: string, value: string) => api<VaultItem>("PUT", "/api/vault", { id, value }),

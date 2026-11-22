@@ -59,7 +59,7 @@ import {
 } from "lucide-react";
 import { display, enterSends, MAC } from "../shortcuts";
 import { API, desktop, parseRef, refString, useRawURL, type AgentView, type ApprovalRequest, type ChannelView, type ModelRef, type SlashPick } from "../api";
-import { filterSlash, PickChips, skillItems, slashAt, SlashMenu, toolItems, UsedChips, useSlashSources, type SlashItem } from "./SlashMenu";
+import { filterSlash, PickChips, pickOf, promptItems, shownOrder, skillItems, slashAt, SlashMenu, toolItems, UsedChips, useSlashSources, type SlashItem } from "./SlashMenu";
 import { scheduleLabel } from "./settings/Automation";
 import { t, type Key } from "../i18n";
 import { argsFull, argsPreview, project, type AgentItem, type Decision, type FeedItem, type Rewind, type Step, type TurnPart, type TurnStats } from "../projection";
@@ -1916,6 +1916,10 @@ function Composer({
   const [slash, setSlash] = useState<string | null>(null);
   const [ssel, setSsel] = useState(0);
   const [picks, setPicks] = useState<SlashPick[]>([]);
+  // a picked prompt template's arguments (for the fields on its chip), and
+  // the one a send found empty
+  const argDefs = useRef(new Map<string, SlashItem["args"]>());
+  const [missing, setMissing] = useState<string | null>(null);
   const draft = useStore((s) => s.drafts[sessionId] ?? "");
   const override = useStore((s) => s.overrides[agent.id] ?? null);
   const hostConfirm = useStore((s) => s.hostConfirm === agent.id);
@@ -2051,6 +2055,15 @@ function Composer({
     const text = draft.trim();
     const ready = pending.filter((f) => f.state === "ok" && f.att);
     if ((!text && !ready.length && !picks.length) || sending || archived) return;
+    for (const p of picks) {
+      const need = p.kind === "prompt" ? (argDefs.current.get(p.name) ?? []).find((a) => a.required && !p.args?.[a.name]?.trim()) : undefined;
+      if (need) {
+        setMissing(p.name + "/" + need.name);
+        toast(t("slash.needArg", { arg: need.name, name: p.name.slice(p.name.indexOf("/") + 1) }));
+        return;
+      }
+    }
+    setMissing(null);
     if (pending.some((f) => f.state === "up")) {
       toast(t("att.waitUpload"));
       return;
@@ -2058,10 +2071,11 @@ function Composer({
     setSending(true);
     if (channel) {
       try {
-        const r = await API.postChannel(sessionId, text, getState().replyTo[sessionId]);
+        const r = await API.postChannel(sessionId, text, getState().replyTo[sessionId], picks.length ? picks : undefined);
         setDraft("");
         setReply(sessionId, null);
         setMention(null);
+        setPicks([]);
         const who = agents[r.agent]?.name ?? r.agent;
         toast(r.position > 0 ? t("ch.queued", { name: who, n: r.position }) : t("ch.sentTo", { name: who }));
       } catch (e: any) {
@@ -2138,20 +2152,21 @@ function Composer({
   const mode = agent.effectiveMode || agent.mode || "sandbox";
 
   // ---- the / menu
-  const slashOpen = slash !== null && !channel && !archived;
-  const sources = useSlashSources(agent.id, slashOpen);
+  const slashOpen = slash !== null && !archived;
+  // in a channel: what the agent the message goes to can use
+  const sources = useSlashSources(target.id, slashOpen);
   const commands: SlashItem[] = slashOpen
     ? [
         { key: "cmd:new", kind: "cmd", name: "new", desc: t("slash.cmd.new"), icon: <Plus size={14} />, run: () => void newChat() },
         { key: "cmd:model", kind: "cmd", name: "model", desc: t("slash.cmd.model"), icon: <Sparkles size={14} />, run: () => setTimeout(() => modelM.setOpen(true), 0) },
-        ...(!plain && manage ? [{ key: "cmd:mode", kind: "cmd" as const, name: "mode", desc: t("slash.cmd.mode"), icon: <ModeIcon mode={mode} size={14} />, run: () => setTimeout(() => permM.setOpen(true), 0) }] : []),
-        { key: "cmd:attach", kind: "cmd", name: "attach", desc: t("slash.cmd.attach"), icon: <Paperclip size={14} />, run: () => fileIn.current?.click() },
-        ...(ctx && ctx.tokens > 0 ? [{ key: "cmd:compact", kind: "cmd" as const, name: "compact", desc: t("slash.cmd.compact"), icon: <Minimize2 size={14} />, run: () => void API.compact(agent.id, sessionId).then(() => toast(t("ctx.compacted", { name: agent.name })), (e) => toast(e?.message ?? String(e))) }] : []),
+        ...(!plain && !channel && manage ? [{ key: "cmd:mode", kind: "cmd" as const, name: "mode", desc: t("slash.cmd.mode"), icon: <ModeIcon mode={mode} size={14} />, run: () => setTimeout(() => permM.setOpen(true), 0) }] : []),
+        ...(channel ? [] : [{ key: "cmd:attach", kind: "cmd" as const, name: "attach", desc: t("slash.cmd.attach"), icon: <Paperclip size={14} />, run: () => fileIn.current?.click() }]),
+        ...(!channel && ctx && ctx.tokens > 0 ? [{ key: "cmd:compact", kind: "cmd" as const, name: "compact", desc: t("slash.cmd.compact"), icon: <Minimize2 size={14} />, run: () => void API.compact(agent.id, sessionId).then(() => toast(t("ctx.compacted", { name: agent.name })), (e) => toast(e?.message ?? String(e))) }] : []),
         ...(busy ? [{ key: "cmd:stop", kind: "cmd" as const, name: "stop", desc: t("slash.cmd.stop"), icon: <Square size={14} />, run: () => void API.action(agent.id, "stop").catch((e) => toast(e?.message ?? String(e))) }] : []),
         ...composerActions.map((c) => ({ key: "slot:" + c.key, kind: "cmd" as const, name: c.key.replace(/^.*[/:]/, ""), desc: c.desc || c.title, icon: <SlotIcon name={c.icon} />, run: () => void runCommand(c, sessionId) })),
       ]
     : [];
-  const slashItems = slashOpen ? filterSlash([...skillItems(sources), ...commands, ...toolItems(sources)], slash ?? "").filter((it) => !picks.some((p) => it.key === p.kind + ":" + p.name)).slice(0, 40) : [];
+  const slashItems = slashOpen ? shownOrder(filterSlash([...skillItems(sources), ...promptItems(sources), ...commands, ...toolItems(sources)], slash ?? "").filter((it) => !picks.some((p) => it.key === p.kind + ":" + p.name)).slice(0, 40)) : [];
   const pickSlash = (it: SlashItem) => {
     const el = ta.current;
     const caret = el?.selectionStart ?? draft.length;
@@ -2161,7 +2176,14 @@ function Composer({
     setSlash(null);
     caretAfter.current = 0;
     if (it.kind === "cmd") it.run?.();
-    else setPicks((l) => (l.some((p) => p.kind === it.kind && p.name === it.name) ? l : [...l, { kind: it.kind as SlashPick["kind"], name: it.name }]));
+    else {
+      const p = pickOf(it);
+      if (!p) return;
+      if (it.kind === "prompt") argDefs.current.set(p.name, it.args);
+      setPicks((l) => (l.some((x) => x.kind === p.kind && x.name === p.name) ? l : [...l, p]));
+      // a template with arguments: its first field
+      if (it.args?.length) setTimeout(() => document.querySelector<HTMLInputElement>(".pickchip.withargs:last-child .pkarg input")?.focus(), 30);
+    }
   };
 
   if (viewer)
@@ -2228,10 +2250,20 @@ function Composer({
         {dragging && <div className="dropmask">{t("att.drop")}</div>}
         <ReplyChip session={sessionId} />
         <PendingChips session={sessionId} files={pending} />
-        <PickChips picks={picks} onRemove={(p) => setPicks((l) => l.filter((x) => x !== p))} />
+        <PickChips
+          picks={picks}
+          missing={missing}
+          argsOf={(p) => argDefs.current.get(p.name)}
+          onRemove={(p) => setPicks((l) => l.filter((x) => x !== p))}
+          onArgs={(p, args) => {
+            setMissing(null);
+            setPicks((l) => l.map((x) => (x === p ? { ...x, args } : x)));
+          }}
+        />
         {slashOpen && (
           <SlashMenu
             items={slashItems}
+            forWho={channel ? target.name : undefined}
             sel={slashItems.length ? ssel % slashItems.length : 0}
             loading={!sources}
             onHover={setSsel}
@@ -2283,7 +2315,7 @@ function Composer({
           aria-label={channel ? t("chat.placeholderChannel", { name: channel.title || channel.id }) : agent.kind === "chat" ? t("chat.chatPh") : t("chat.placeholder", { name: agent.name })}
           onChange={(e) => {
             setDraft(e.target.value);
-            if (!channel) {
+            {
               const q = slashAt(e.target.value, e.target.selectionStart ?? e.target.value.length);
               setSlash(q);
               if (q !== slash) setSsel(0);

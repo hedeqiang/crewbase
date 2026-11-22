@@ -111,6 +111,11 @@ type RequestArgs struct {
 var (
 	// PreStep can accept, rewrite or reject the claimed input.
 	PreStep = kernel.NewWaterfall[*agent.Input, *agent.Input]("agent/pre-step")
+	// ResolveUse fills in what a message's / picks stand for (a skill's
+	// instructions, an MCP prompt) before the message is recorded, and may
+	// turn "/name" typed at its start into a pick. An error refuses the
+	// message: the person asked for something by name.
+	ResolveUse = kernel.NewWaterfall[*UseRequest, *UseRequest]("agent/resolve-use")
 	// Request adjusts request parameters (not the model choice).
 	Request = kernel.NewWaterfall[RequestArgs, *llm.Request]("agent/request")
 	// Response may rewrite a complete model response before it is logged
@@ -285,6 +290,14 @@ func (l *loop) turn(parent context.Context, a *agent.Agent, in agent.Input) {
 		return
 	}
 	in = *inp
+	if !in.Resumed && !in.Logged {
+		if err := ResolveInput(d, ctx, &in); err != nil {
+			_, _ = ss.Append(session.TypeNotice, a.ID(), map[string]string{"text": fmt.Sprintf("input rejected: %v", err)})
+			a.SetStatus(agent.StatusIdle, "")
+			TurnEnded.Emit(d, TurnEndEvent{Agent: a.ID(), Session: ss.ID(), Input: in, TurnEnd: TurnEnd{Status: "rejected", Error: err.Error()}})
+			return
+		}
+	}
 	if in.Resumed {
 		// the message is already in the log; say what happened
 		_, _ = ss.Append(session.TypeInject, a.ID(), session.InjectData{Source: "restart", Text: ResumeNote})
@@ -403,6 +416,12 @@ func (l *loop) join(ctx context.Context, a *agent.Agent, ss *session.Session, in
 		if err != nil || xp == nil {
 			_, _ = ss.Append(session.TypeNotice, a.ID(), map[string]string{"text": fmt.Sprintf("input rejected: %v", err)})
 			continue
+		}
+		if !xp.Logged {
+			if err := ResolveInput(d, ctx, xp); err != nil {
+				_, _ = ss.Append(session.TypeNotice, a.ID(), map[string]string{"text": fmt.Sprintf("input rejected: %v", err)})
+				continue
+			}
 		}
 		if xp.Logged {
 			n++
@@ -769,3 +788,25 @@ const ResumeNote = "[Crewbase restarted] Your previous turn was cut off in the m
 // RejectForReply is the rejection a pending approval gets when the person
 // writes instead of answering it.
 const RejectForReply = "The user sent a new message instead of approving this. Do not retry it; read their message and follow it."
+
+// UseRequest is a message's text and / picks, for the agent it goes to.
+type UseRequest struct {
+	Agent string
+	Text  string
+	Use   []session.Invoke
+}
+
+// ResolveInput runs ResolveUse on in.
+func ResolveInput(d kernel.Dispatcher, ctx context.Context, in *agent.Input) error {
+	if len(in.Use) == 0 && !strings.HasPrefix(in.Text, "/") {
+		return nil
+	}
+	r, err := ResolveUse.Run(d, ctx, &UseRequest{Agent: in.Agent, Text: in.Text, Use: in.Use}, func(_ context.Context, r *UseRequest) (*UseRequest, error) { return r, nil })
+	if err != nil {
+		return err
+	}
+	if r != nil {
+		in.Text, in.Use = r.Text, r.Use
+	}
+	return nil
+}

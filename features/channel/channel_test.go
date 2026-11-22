@@ -21,6 +21,11 @@ import (
 )
 
 func setup(t *testing.T) (*channel.Service, *agent.Registry) {
+	s, agents, _ := setupHost(t)
+	return s, agents
+}
+
+func setupHost(t *testing.T) (*channel.Service, *agent.Registry, *kernel.Host) {
 	t.Helper()
 	h := kernel.NewHost(nil)
 	t.Cleanup(h.Close)
@@ -36,7 +41,7 @@ func setup(t *testing.T) (*channel.Service, *agent.Registry) {
 	} {
 		h.Load(x.s, kernel.LoadOptions{Config: x.cfg})
 	}
-	return kernel.Use[*channel.Service](h.Root(), channel.ServiceKey), kernel.Use[*agent.Registry](h.Root(), agent.ServiceKey)
+	return kernel.Use[*channel.Service](h.Root(), channel.ServiceKey), kernel.Use[*agent.Registry](h.Root(), agent.ServiceKey), h
 }
 
 // handoverCmd builds a message whose last paragraph makes the mock model

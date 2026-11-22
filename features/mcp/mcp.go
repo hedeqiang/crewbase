@@ -46,6 +46,7 @@ import (
 	"github.com/hedeqiang/crewbase/capabilities/credentials"
 	"github.com/hedeqiang/crewbase/capabilities/sandbox"
 	"github.com/hedeqiang/crewbase/core/agent"
+	"github.com/hedeqiang/crewbase/core/agentloop"
 	"github.com/hedeqiang/crewbase/core/tools"
 	"github.com/hedeqiang/crewbase/kernel"
 )
@@ -1081,6 +1082,7 @@ var Plugin = kernel.Register(kernel.Spec{
 			return err
 		}
 		s.tools.AddConnectors(c, s.connectorInfos)
+		agentloop.ResolveUse.Use(c, s.resolvePrompts)
 		s.op.Lock()
 		s.mu.Lock()
 		es := make([]*entry, 0, len(s.entries))

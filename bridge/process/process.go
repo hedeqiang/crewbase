@@ -815,7 +815,7 @@ func (g *generation) register(reg Registrations) error {
 		if params == nil {
 			params = tools.Schema(map[string]any{})
 		}
-		treg.Register(g.ctx, &tools.Tool{Name: tt.Name, Description: tt.Description, Params: params, Category: tt.Category,
+		treg.Register(g.ctx, &tools.Tool{Name: tt.Name, Description: tt.Description, Params: params, Category: tt.Category, Group: p.m.Name, Plugin: p.m.Name,
 			Execute: func(ctx context.Context, call tools.Call) (tools.Result, error) {
 				return g.executeTool(ctx, tt.Name, tt.TimeoutMs, call)
 			}})

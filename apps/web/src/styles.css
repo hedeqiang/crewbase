@@ -3379,9 +3379,20 @@ input.fi { resize: none; }
 .pickchips, .usedchips { display: flex; flex-wrap: wrap; gap: 6px; }
 .pickchips { padding: 6px 0 2px; }
 .usedchips { justify-content: flex-end; margin-bottom: 4px; }
-.pickchip { display: inline-flex; align-items: center; gap: 5px; height: 26px; padding: 0 4px 0 9px; border-radius: 8px; font-size: 12px; font-weight: 500; background: var(--accent-soft); color: var(--accent-text); animation: rise-in var(--dur-fast) var(--ease-out) backwards; }
+.pickchip { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 4px 8px; min-height: 26px; padding: 0 4px 0 9px; border-radius: 8px; font-size: 12px; font-weight: 500; background: var(--accent-soft); color: var(--accent-text); animation: rise-in var(--dur-fast) var(--ease-out) backwards; max-width: 100%; }
+.pickchip .pkh { display: inline-flex; align-items: center; gap: 5px; height: 26px; }
 .pickchip.tools { background: var(--amber-soft); color: var(--amber-text); }
-.pickchip button { width: 18px; height: 18px; border-radius: 5px; display: grid; place-items: center; color: inherit; opacity: .7; }
-.pickchip button:hover { opacity: 1; background: color-mix(in srgb, currentColor 14%, transparent); }
-.pickchip.sm { height: 22px; padding: 0 8px; font-size: 11px; }
+.pickchip.prompt { background: var(--ok-soft); color: var(--ok-text); }
+.pickchip .pkh button { width: 18px; height: 18px; border-radius: 5px; display: grid; place-items: center; color: inherit; opacity: .7; }
+.pickchip .pkh button:hover { opacity: 1; background: color-mix(in srgb, currentColor 14%, transparent); }
+.pickchip.sm { min-height: 22px; padding: 0 8px; font-size: 11px; }
+.pickchip.sm .pkh { height: 22px; }
+.pickchip.withargs { padding: 2px 6px 6px 9px; flex-basis: 100%; }
+.pkarg { display: flex; align-items: center; gap: 6px; flex: 1 1 180px; min-width: 0; font-weight: 500; }
+.pkarg span { flex: none; font-family: var(--mono); font-size: 11px; }
+.pkarg input { flex: 1; min-width: 0; height: 24px; border: 1px solid color-mix(in srgb, currentColor 25%, transparent); border-radius: 6px; background: var(--surface); color: var(--text); font: inherit; font-weight: 400; font-size: 12px; padding: 0 8px; outline: none; }
+.pkarg input:focus { border-color: currentColor; }
+.pkarg.bad input { border-color: var(--danger); box-shadow: 0 0 0 2px var(--danger-soft); }
+.mi.prompt .slashic { background: var(--ok-soft); color: var(--ok-text); }
+.slashfor { padding: 2px 8px 6px; font-size: 11px; }
 @media (prefers-reduced-motion: reduce) { .mention.slash, .pickchip { animation: none; } }

@@ -71,12 +71,13 @@ var APIPlugin = kernel.Register(kernel.Spec{
 		g.Handle(c, gateway.Route{Method: "POST", Path: "/api/channels/{id}/messages", Devices: mobile,
 			Validate: func(r *gateway.Request) error {
 				var b struct {
-					Text string `json:"text"`
+					Text string           `json:"text"`
+					Use  []session.Invoke `json:"use"`
 				}
 				if err := r.Decode(&b); err != nil {
 					return err
 				}
-				if strings.TrimSpace(b.Text) == "" {
+				if strings.TrimSpace(b.Text) == "" && len(b.Use) == 0 {
 					return gateway.BadRequest("text is required")
 				}
 				return nil
@@ -86,9 +87,10 @@ var APIPlugin = kernel.Register(kernel.Spec{
 					return nil, err
 				}
 				var b struct {
-					Text  string         `json:"text"`
-					From  string         `json:"from"`
-					Reply *session.Quote `json:"reply"`
+					Text  string           `json:"text"`
+					From  string           `json:"from"`
+					Reply *session.Quote   `json:"reply"`
+					Use   []session.Invoke `json:"use"`
 				}
 				_ = r.Decode(&b)
 				if q := b.Reply; q != nil {
@@ -102,7 +104,11 @@ var APIPlugin = kernel.Register(kernel.Spec{
 				if who, ok := kernel.Lookup[interface{ SenderName(string) string }](c, "members"); ok && r.DeviceID != "" {
 					b.From = who.SenderName(r.DeviceID)
 				}
-				res, err := s.PostReply(r.Params["id"], b.Text, b.From, b.Reply)
+				use, err := session.CleanUse(b.Use)
+				if err != nil {
+					return nil, gateway.BadRequest("%v", err)
+				}
+				res, err := s.PostReply(r.Params["id"], b.Text, b.From, b.Reply, use...)
 				if err != nil {
 					return nil, gateway.Conflict("%v", err)
 				}
