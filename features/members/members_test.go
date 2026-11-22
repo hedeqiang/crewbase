@@ -262,3 +262,30 @@ func TestAdminCannotPairOrRevokeAsOwner(t *testing.T) {
 		t.Fatalf("owner could not revoke their phone: %d", code)
 	}
 }
+
+// A workflow's approval step and a channel handover are the team's own
+// coordination: a member who approves internal steps approves them.
+func TestMembersApproveWorkflowGatesAndHandovers(t *testing.T) {
+	e := start(t)
+	code, m := e.do(t, owner, "POST", "/api/members", map[string]any{"name": "Bob", "role": "member"})
+	if code != 200 {
+		t.Fatal(code, m)
+	}
+	svc := kernel.Use[*members.Service](e.h.Root(), "members")
+	bobTok := e.pair(t, m["id"].(string))
+	var bobDev string
+	for _, d := range e.ds.List() {
+		if d.Member == m["id"] {
+			bobDev = d.ID
+		}
+	}
+	_ = bobTok
+	for _, cat := range []string{"workflow", "handover", "none"} {
+		if _, ok := svc.CanApprove(bobDev, cat); !ok {
+			t.Fatalf("a member cannot approve %s", cat)
+		}
+	}
+	if _, ok := svc.CanApprove(bobDev, "payment"); ok {
+		t.Fatal("a member approved a payment")
+	}
+}

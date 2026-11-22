@@ -342,6 +342,12 @@ func (s *Service) CanApprove(deviceID, category string) (string, bool) {
 	if p.Role == "owner" {
 		return "", true // the owner's own devices: the gateway records the device
 	}
+	// a workflow's 等你批准 step and a channel handover are the team's own
+	// coordination, not an action on the world: whoever may approve
+	// internal steps (none) may approve them; the team check comes first
+	if category == "workflow" || category == "handover" {
+		category = tools.CategoryNone
+	}
 	return p.Name, slices.Contains(p.Approve, category)
 }
 
