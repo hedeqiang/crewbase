@@ -371,19 +371,20 @@ func (s *Service) updateWorktree(id string, fn func(*Worktree)) (Worktree, error
 // WorktreeState is a worktree with how it stands now.
 type WorktreeState struct {
 	Worktree
-	Status  *vcs.Status  `json:"status,omitempty"`
-	Ahead   int          `json:"ahead"`  // commits since the base
-	Behind  int          `json:"behind"` // commits the base got since
-	Commits []vcs.Commit `json:"commits,omitempty"`
-	Review  string       `json:"review,omitempty"`  // its open review
-	Missing bool         `json:"missing,omitempty"` // the folder is gone
+	Status      *vcs.Status  `json:"status,omitempty"`
+	Ahead       int          `json:"ahead"`  // commits since the base
+	Behind      int          `json:"behind"` // commits the base got since
+	Commits     []vcs.Commit `json:"commits,omitempty"`
+	Review      string       `json:"review,omitempty"` // its open review
+	ReviewState string       `json:"reviewState,omitempty"`
+	Missing     bool         `json:"missing,omitempty"` // the folder is gone
 }
 
 // Describe is w with its status, commits and review.
 func (s *Service) Describe(ctx context.Context, w Worktree) WorktreeState {
 	out := WorktreeState{Worktree: w}
 	if r, ok := s.reviewOfBranch(w.Repo, w.Branch); ok {
-		out.Review = r.ID
+		out.Review, out.ReviewState = r.ID, r.State
 	}
 	if w.State != WTActive {
 		return out

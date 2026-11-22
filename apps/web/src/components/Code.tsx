@@ -693,6 +693,7 @@ function WtState({ w }: { w: GitWorktree }) {
   if (w.state !== "active") return <span className={"gxst wt-" + w.state}>{t(`git.wt.${w.state}` as Key)}</span>;
   if (w.missing) return <span className="gxst wt-removed">{t("git.wt.missing")}</span>;
   const dirty = (w.status?.files.length ?? 0) > 0;
+  if (!dirty && w.reviewState) return <span className={"gxst rv-" + w.reviewState}>{t(`git.rv.${w.reviewState}` as Key)}</span>;
   return <span className={"gxst " + (dirty ? "wt-dirty" : w.ahead > 0 ? "wt-ready" : "wt-idle")}>{dirty ? t("git.wt.dirty") : w.ahead > 0 ? t("git.wt.ready") : t("git.wt.idle")}</span>;
 }
 

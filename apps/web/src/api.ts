@@ -1204,6 +1204,7 @@ export interface GitWorktree {
   behind: number;
   commits?: GitCommit[];
   review?: string;
+  reviewState?: GitReviewState;
   missing?: boolean;
 }
 export type GitReviewState = "draft" | "open" | "changes_requested" | "approved" | "merged" | "closed";
