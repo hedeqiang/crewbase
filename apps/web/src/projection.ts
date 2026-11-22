@@ -214,6 +214,9 @@ export interface Projection {
   context: Record<string, { tokens: number; window: number; model?: ModelRef }>;
   /** Last model used per agent (step/start or message/assistant). */
   lastModel: Record<string, ModelRef>;
+  /** Per agent: the model this conversation fell over to and keeps until
+   *  a new task (features/router: no switching back mid-task). */
+  stuck: Record<string, ModelRef>;
   /** Agents whose turn is open (turn/start without turn/end). */
   openTurns: Set<string>;
   /** Sub-agent runs started here, oldest first. */
@@ -265,6 +268,7 @@ export function project(events: SessionEvent[], cards?: ReadonlySet<string>): Pr
   const items: FeedItem[] = [];
   const context: Projection["context"] = {};
   const lastModel: Projection["lastModel"] = {};
+  const stuck: Projection["stuck"] = {};
   const openTurns = new Set<string>();
   const steps = new Map<string, Step>();
   const calls = new Map<string, ToolCall>();
@@ -510,16 +514,21 @@ export function project(events: SessionEvent[], cards?: ReadonlySet<string>): Pr
         if (prev?.k === "sys" && prev.key === "chat.modelChosen" && prev.vars?.agent === (e.agent ?? "")) items.splice(k, 1);
         push({ k: "sys", id, tone: "muted", text: "", key: "chat.modelChosen", vars: { agent: e.agent ?? "", to: d.to ? `${d.to.provider}/${d.to.model}` : "" } }, e.time);
         if (d.to) lastModel[e.agent ?? ""] = d.to;
+        delete stuck[e.agent ?? ""];
         break;
       }
       case "model/switched":
         push({ k: "switch", id, agent: e.agent ?? "", from: d.from, to: d.to, reason: d.reason ?? "", detail: d.detail }, e.time);
         if (d.to) lastModel[e.agent ?? ""] = d.to;
+        // the conversation keeps it until a new task (features/router stuck)
+        if (d.to) stuck[e.agent ?? ""] = d.to;
         break;
       case "mode/changed":
         push({ k: "mode", id, agent: e.agent ?? "", to: d.to, until: d.until && !String(d.until).startsWith("0001") ? d.until : undefined }, e.time);
         break;
       case "compaction/summary":
+        if (e.agent) delete stuck[e.agent];
+        else for (const k of Object.keys(stuck)) delete stuck[k];
         push({ k: "compact", id, summary: d.summary ?? "", before: d.tokensBefore ?? 0, after: d.tokensAfter ?? 0 }, e.time);
         // the footer's context figure follows the compaction until the next step
         if (d.tokensAfter && context[e.agent ?? ""]) context[e.agent ?? ""] = { ...context[e.agent ?? ""], tokens: d.tokensAfter };
@@ -683,7 +692,7 @@ export function project(events: SessionEvent[], cards?: ReadonlySet<string>): Pr
   }
   // a time divider closing the conversation stands for nothing
   while (items.length && items[items.length - 1].k === "time") items.pop();
-  return { items, context, lastModel, openTurns, subruns, compactedUpto, lastTurn, reactions, pins };
+  return { items, context, lastModel, stuck, openTurns, subruns, compactedUpto, lastTurn, reactions, pins };
 }
 
 /** Last text message in the log (for list snippets). */

@@ -88,6 +88,7 @@ import {
   NO_MODEL,
   MODEL_UNAVAILABLE,
   providerName,
+  isExhausted,
 } from "../format";
 import { Avatar, channelColor, colorFor, ink } from "./Avatar";
 import { ApprovalActions } from "./Approval";
@@ -189,7 +190,7 @@ function ConversationView({ sessionId, agent, channel }: { sessionId: string; ag
         </FeedCtx.Provider>
       </MsgCtx.Provider>
       <WaitingFor runs={proj.subruns} />
-      <Composer sessionId={sessionId} agent={agent} channel={channel} ctx={ctx} lastModel={proj.lastModel[agent.id]} />
+      <Composer sessionId={sessionId} agent={agent} channel={channel} ctx={ctx} lastModel={proj.lastModel[agent.id]} stuck={proj.stuck[agent.id]} />
     </section>
   );
 }
@@ -1953,12 +1954,15 @@ function Composer({
   channel,
   ctx,
   lastModel,
+  stuck,
 }: {
   sessionId: string;
   agent: AgentView;
   channel?: ChannelView;
   ctx?: { tokens: number; window: number; model?: ModelRef };
   lastModel?: ModelRef;
+  /** the model this conversation fell over to, kept until a new task */
+  stuck?: ModelRef;
 }) {
   const agents = useStore((s) => s.agents);
   const noModels = useStore((s) => hasModels(s) === false);
@@ -2018,7 +2022,10 @@ function Composer({
     }
     return agent;
   }, [channel, draft, agents, agent]);
-  const shown = overrideRef ?? activeModel(models, target) ?? (target === agent ? lastModel : undefined) ?? null;
+  // after a failover the conversation stays on the model it switched to
+  // (while that one holds), as the router does
+  const kept = target === agent && stuck && !isExhausted(models, stuck) ? stuck : null;
+  const shown = overrideRef ?? kept ?? activeModel(models, target) ?? (target === agent ? lastModel : undefined) ?? null;
   const prov = shown ? findProvider(models, shown.provider) : undefined;
   const quota = prov?.quota?.known ? Math.round(prov.quota.remaining * 100) : null;
   const pct = ctx && ctx.window > 0 ? Math.min(100, Math.round((ctx.tokens / ctx.window) * 100)) : null;

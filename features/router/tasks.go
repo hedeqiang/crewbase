@@ -7,6 +7,8 @@ import (
 
 	"github.com/hedeqiang/crewbase/core/agent"
 	"github.com/hedeqiang/crewbase/core/llm"
+	"github.com/hedeqiang/crewbase/core/session"
+	"github.com/hedeqiang/crewbase/kernel"
 )
 
 // Task kinds used for routing by task type (M-5).
@@ -117,12 +119,85 @@ func (r *Router) allowed(a *agent.Agent, ref llm.ModelRef) bool {
 
 // SelectFor implements agentloop.InputSelector.
 func (r *Router) SelectFor(a *agent.Agent, in agent.Input) (llm.ModelRef, bool) {
-	if task := Classify(in); task != TaskDefault {
-		if ref, ok := r.RouteForAgent(task, a); ok {
-			return ref, true
+	task := Classify(in)
+	ref, ok := llm.ModelRef{}, false
+	if task != TaskDefault {
+		ref, ok = r.RouteForAgent(task, a)
+	}
+	if !ok {
+		ref, ok = r.Select(a)
+	}
+	if !ok {
+		return ref, false
+	}
+	// a task that fell over to another model finishes on it: going back
+	// mid-way would throw away the provider's prompt cache and change the
+	// voice of the work. The preferred model is used again when a new task
+	// starts (a new conversation, a routine run), when the person picks a
+	// model, or after the history was compacted (the cache is rebuilt then)
+	if x, stick := r.stuck(a, in); stick && x != ref && r.candidate(a, task, x) {
+		return x, true
+	}
+	return ref, true
+}
+
+// stuck is the model in's conversation fell over to, while it still
+// holds: the latest of the agent's switches, model choices and
+// compactions there is a switch.
+func (r *Router) stuck(a *agent.Agent, in agent.Input) (llm.ModelRef, bool) {
+	if a == nil || r.c == nil || in.Session == "" || strings.HasPrefix(in.Tag, "routine:") {
+		return llm.ModelRef{}, false // each routine run is a task of its own
+	}
+	st, ok := kernel.Lookup[*session.Store](r.c, session.ServiceKey)
+	if !ok {
+		return llm.ModelRef{}, false
+	}
+	ss, err := st.Get(in.Session)
+	if err != nil {
+		return llm.ModelRef{}, false
+	}
+	evs := ss.Events()
+	for i := len(evs) - 1; i >= 0; i-- {
+		e := evs[i]
+		switch {
+		case e.Type == session.TypeCompaction && (e.Agent == a.ID() || e.Agent == ""):
+			return llm.ModelRef{}, false
+		case e.Agent != a.ID():
+		case e.Type == session.TypeModelChosen:
+			return llm.ModelRef{}, false
+		case e.Type == session.TypeModelSwitched:
+			var d session.ModelSwitchData
+			if e.Decode(&d) != nil || d.To.Model == "" {
+				return llm.ModelRef{}, false
+			}
+			return d.To, true
 		}
 	}
-	return r.Select(a)
+	return llm.ModelRef{}, false
+}
+
+// candidate: x may serve in's task for a now (it is one of the agent's
+// models, or routed for the task, usable, allowed, of the right kind).
+func (r *Router) candidate(a *agent.Agent, task string, x llm.ModelRef) bool {
+	if !r.usable(x) || !r.allowed(a, x) {
+		return false
+	}
+	if task != TaskDefault {
+		r.mu.Lock()
+		routes := append([]Route(nil), r.routes...)
+		r.mu.Unlock()
+		for _, rt := range routes {
+			if rt.Task == task && rt.Model == x.String() {
+				return r.kindOf(x) == TaskKind(task)
+			}
+		}
+	}
+	for _, m := range a.Spec().Models {
+		if m == x {
+			return chatID(x)
+		}
+	}
+	return false
 }
 
 // RouteFor returns the first usable model routed for task.

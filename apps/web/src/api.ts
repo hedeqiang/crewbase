@@ -1497,7 +1497,7 @@ export const API = {
 
   channels: () => api<{ channels: ChannelView[] }>("GET", "/api/channels"),
   channel: (id: string) => api<ChannelView>("GET", `/api/channels/${enc(id)}`),
-  createChannel: (b: { name: string; members: string[]; folder?: string }) => api<ChannelView>("POST", "/api/channels", b),
+  createChannel: (b: { name: string; members: string[]; folder?: string; handoverConfirm?: boolean }) => api<ChannelView>("POST", "/api/channels", b),
   patchChannel: (id: string, b: { handoverConfirm: boolean }) => api<ChannelView>("PATCH", `/api/channels/${enc(id)}`, b),
   postChannel: (id: string, text: string, reply?: Quote, use?: SlashPick[]) =>
     api<{ agent: string; input: string; position: number }>("POST", `/api/channels/${enc(id)}/messages`, { text, reply, use }),

@@ -58,11 +58,20 @@ var APIPlugin = kernel.Register(kernel.Spec{
 					Name    string   `json:"name"`
 					Members []string `json:"members"`
 					Folder  string   `json:"folder"`
+					// HandoverConfirm: handovers wait for a person (default:
+					// they take effect at once)
+					HandoverConfirm bool `json:"handoverConfirm"`
 				}
 				_ = r.Decode(&b)
 				v, err := s.Create(b.Name, b.Members, b.Folder, r.Device)
 				if err != nil {
 					return nil, gateway.BadRequest("%v", err)
+				}
+				if b.HandoverConfirm {
+					if err := s.SetSettings(v.ID, Settings{HandoverConfirm: true}); err != nil {
+						return nil, err
+					}
+					v, _ = s.Get(v.ID)
 				}
 				return v, nil
 			}})

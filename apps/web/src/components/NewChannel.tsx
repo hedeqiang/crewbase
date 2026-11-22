@@ -18,6 +18,8 @@ function Dialog() {
   const [name, setName] = useState("");
   const [members, setMembers] = useState<string[]>([]);
   const [folder, setFolder] = useState(() => getState().createIn);
+  // handovers take effect at once unless this channel is one to watch
+  const [confirm, setConfirm] = useState(false);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const nameRef = useRef<HTMLInputElement>(null);
@@ -54,7 +56,7 @@ function Dialog() {
     }
     setBusy(true);
     try {
-      const ch = await API.createChannel({ name: n, members, folder: folder.trim() || undefined });
+      const ch = await API.createChannel({ name: n, members, folder: folder.trim() || undefined, handoverConfirm: confirm || undefined });
       setState((s) => ({ channels: { ...s.channels, [ch.id]: ch }, sessions: { ...s.sessions, [ch.id]: ch }, newChannel: false }));
       await Promise.allSettled([refreshSessions(), refreshChannels()]);
       openSession(ch.id);
@@ -155,6 +157,16 @@ function Dialog() {
               ))}
             </datalist>
           </label>
+          <div className="fl">{t("nc.handover")}</div>
+          <div className="seg nchand" role="radiogroup" aria-label={t("nc.handover")}>
+            <button type="button" aria-pressed={!confirm} onClick={() => setConfirm(false)}>
+              {t("nc.handoverAuto")}
+            </button>
+            <button type="button" aria-pressed={confirm} onClick={() => setConfirm(true)}>
+              {t("nc.handoverConfirm")}
+            </button>
+          </div>
+          <p className="small muted ncnote">{t(confirm ? "nc.handoverConfirmHint" : "nc.handoverAutoHint")}</p>
           {err && <div className="ferr">{err}</div>}
           <div className="mft">
             <button className="btn ghost" type="button" onClick={close}>

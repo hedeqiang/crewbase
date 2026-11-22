@@ -284,3 +284,70 @@ func TestRepeatedTimeoutsBackOffLonger(t *testing.T) {
 		t.Fatalf("after a quiet spell: %v, want 30s", got)
 	}
 }
+
+// A conversation that fell over to another model keeps it when the
+// preferred one recovers; a new task (a new conversation, a routine run,
+// a model the person picks, a compacted history) goes back to it.
+func TestRecoveredModelReturnsOnlyForANewTask(t *testing.T) {
+	h := kernel.NewHost(nil)
+	t.Cleanup(h.Close)
+	root := t.TempDir()
+	for _, x := range []struct {
+		s   kernel.Spec
+		cfg map[string]any
+	}{
+		{session.Plugin, nil}, {prompt.Plugin, nil}, {tools.Plugin, nil},
+		{llm.Plugin, nil}, {mock.Plugin, map[string]any{"ids": []string{"claude-code", "ollama"}}},
+		{agent.Plugin, map[string]any{"root": root, "defaultModels": []string{"claude-code/default", "ollama/default"}}},
+	} {
+		h.Load(x.s, kernel.LoadOptions{Config: x.cfg})
+	}
+	r := h.Root()
+	now := time.Date(2026, 11, 17, 10, 0, 0, 0, time.UTC)
+	rt := router.New(r, kernel.Use[*llm.Registry](r, llm.ServiceKey), func() time.Time { return now })
+	router.QuotaExhausted.Listen(r, func(_ context.Context, e router.Exhausted) (llm.ModelRef, bool) {
+		return llm.ModelRef{Provider: "ollama", Model: "default"}, true
+	})
+	agents := kernel.Use[*agent.Registry](r, agent.ServiceKey)
+	a, _ := agents.Create(agent.Spec{Name: "Iris"})
+	first := llm.ModelRef{Provider: "claude-code", Model: "default"}
+	spare := llm.ModelRef{Provider: "ollama", Model: "default"}
+	cause := &llm.Error{Kind: llm.ErrQuotaExhausted, Provider: "claude-code", Message: "quota", ResetsAt: now.Add(time.Hour)}
+	if next, ok := rt.Failover(context.Background(), a, first, cause); !ok || next != spare {
+		t.Fatalf("failover %v %v", next, ok)
+	}
+	ss, _ := a.Session()
+	ss.Append(session.TypeModelSwitched, a.ID(), session.ModelSwitchData{From: first, To: spare, Reason: "quota_exhausted"})
+
+	now = now.Add(2 * time.Hour) // the quota is back
+	in := agent.Input{Session: ss.ID(), Text: "and the next part"}
+	if sel, _ := rt.SelectFor(a, in); sel != spare {
+		t.Fatalf("the conversation switched back mid-task: %v", sel)
+	}
+	// a new conversation starts on the preferred model
+	other, _ := agents.Sessions().Create(session.Meta{Kind: "agent", Agents: []string{a.ID()}})
+	if sel, _ := rt.SelectFor(a, agent.Input{Session: other.ID(), Text: "new task"}); sel != first {
+		t.Fatalf("a new conversation: %v", sel)
+	}
+	// a routine run is a task of its own
+	if sel, _ := rt.SelectFor(a, agent.Input{Session: ss.ID(), Text: "check", Tag: "routine:r1:k"}); sel != first {
+		t.Fatalf("a routine run: %v", sel)
+	}
+	// compacting the history (the cache is rebuilt) lets it go back
+	ss.Append(session.TypeCompaction, a.ID(), session.CompactionData{Summary: "s", UptoSeq: 1})
+	if sel, _ := rt.SelectFor(a, in); sel != first {
+		t.Fatalf("after compaction: %v", sel)
+	}
+	// so does a model the person picks
+	ss.Append(session.TypeModelSwitched, a.ID(), session.ModelSwitchData{From: first, To: spare, Reason: "quota_exhausted"})
+	ss.Append(session.TypeModelChosen, a.ID(), session.ModelSwitchData{From: spare, To: first, Reason: "chosen"})
+	if sel, _ := rt.SelectFor(a, in); sel != first {
+		t.Fatalf("after the person chose: %v", sel)
+	}
+	// a spare that is itself exhausted is not kept
+	ss.Append(session.TypeModelSwitched, a.ID(), session.ModelSwitchData{From: first, To: spare, Reason: "quota_exhausted"})
+	rt.Failover(context.Background(), a, spare, &llm.Error{Kind: llm.ErrQuotaExhausted, Provider: "ollama", Message: "quota", ResetsAt: now.Add(time.Hour)})
+	if sel, _ := rt.SelectFor(a, in); sel != first {
+		t.Fatalf("an exhausted spare was kept: %v", sel)
+	}
+}

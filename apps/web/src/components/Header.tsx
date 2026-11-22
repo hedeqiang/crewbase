@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { PanelLeft, PanelRight } from "lucide-react";
+import { PanelLeft, PanelRight, ShieldCheck } from "lucide-react";
 import { t } from "../i18n";
 import { ago } from "../format";
 import { chatTitle, isChat, openSession, sessionAgent, setState, useStore } from "../store";
@@ -79,6 +79,12 @@ export function ConvHeader({ draftColor, draftShape, draftFace }: { draftColor: 
               <span className="ownchip">
                 <Avatar agent={owner} size={16} />
                 {t("hd.owner")} {owner.name}
+              </span>
+            )}
+            {ch?.settings?.handoverConfirm && (
+              <span className="ownchip confirm" title={t("ch.handoverConfirmDesc")}>
+                <ShieldCheck size={12} />
+                {t("ch.confirmTag")}
               </span>
             )}
           </>
