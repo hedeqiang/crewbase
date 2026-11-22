@@ -3462,7 +3462,8 @@ button.foldw:hover { background: var(--hover); color: var(--text); }
 .fxhead { gap: 10px; padding: 8px 10px 8px 12px; min-height: 48px; }
 .fxtitle { display: flex; flex-direction: column; min-width: 0; line-height: 1.3; gap: 1px; }
 .fxcrumb { display: flex; align-items: center; gap: 2px; min-width: 0; overflow: hidden; white-space: nowrap; font-size: 13px; color: var(--muted); }
-.fxcrumb span { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.fxcrumb span { flex: 0 1 auto; min-width: 2.5em; overflow: hidden; text-overflow: ellipsis; }
+.fxcrumb .fxell { min-width: 0; flex: none; }
 .fxcrumb svg { flex: none; opacity: .6; }
 .fxcrumb b { flex: 0 0 auto; max-width: 100%; color: var(--text); font-weight: 600; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 .fxtitle .fxmeta { font-size: 11px; color: var(--muted); }
@@ -3499,11 +3500,7 @@ button.foldw:hover { background: var(--hover); color: var(--text); }
 .fxcsum b { font-weight: 600; }
 .fxcsrc { font-size: 11px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .fxcfiles { flex: 1; min-height: 0; overflow: auto; padding: 4px 0 10px; }
-.fxcdir { display: flex; align-items: center; gap: 6px; padding: 8px 10px 3px 10px; font-size: 12px; color: var(--muted); min-width: 0; }
-.fxcdir span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--mono); font-size: 11.5px; }
 .fxcrow { display: flex; align-items: center; gap: 7px; width: 100%; height: 28px; padding: 0 10px; font-size: 13px; text-align: left; color: var(--text); min-width: 0; position: relative; }
-.fxcrow.in { padding-left: 26px; }
-.fxcrow.in::before { content: ""; position: absolute; left: 17px; top: 0; bottom: 0; width: 1px; background: var(--border); }
 .fxcrow:hover { background: var(--hover); }
 .fxcrow[aria-selected="true"] { background: var(--accent-soft); box-shadow: inset 2px 0 0 var(--accent); }
 .fxcrow[aria-selected="true"] .g { font-weight: 500; }
@@ -3524,3 +3521,52 @@ button.foldw:hover { background: var(--hover); color: var(--text); }
   .fxcview .fxrevert { padding: 0 6px; font-size: 0; gap: 0; }
   .fxcview .fxcrumb span, .fxcview .fxcrumb svg { display: none; }
 }
+
+/* a PDF in the 文件 panel (PdfView.tsx) */
+.pdfv { flex: 1; min-height: 0; display: flex; flex-direction: column; background: var(--sunken); }
+.pdfbar { display: flex; align-items: center; gap: 2px; padding: 4px 8px 4px 12px; border-bottom: 1px solid var(--border); background: var(--surface); flex: none; }
+.pdfbar .sp { flex: 1; }
+.pdfn { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.pdfz { min-width: 46px; height: 24px; border-radius: 6px; font-size: 12px; color: var(--text2); font-variant-numeric: tabular-nums; }
+.pdfz:hover:not(:disabled) { background: var(--hover); }
+.pdfbar .ix.on { background: var(--active); color: var(--text); }
+.pdfpages { flex: 1; min-height: 0; overflow: auto; padding: 16px; display: flex; flex-direction: column; align-items: flex-start; gap: 12px; outline: none; }
+/* centred while it fits; once wider than the panel it starts at the left edge (scrollable) */
+.pdfpages > * { margin-inline: auto; }
+.pdfpage { position: relative; flex: none; background: #fff; border-radius: 2px; box-shadow: 0 1px 3px rgba(0, 0, 0, .12), 0 4px 14px rgba(0, 0, 0, .08); overflow: hidden; }
+.pdfpage canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.pdfph { width: min(100%, 560px); aspect-ratio: 1 / 1.414; background: #fff; border-radius: 2px; opacity: .5; animation: pulse 1.4s var(--ease-out) infinite; }
+/* pdf.js text layer: invisible text over the drawing, for selecting and copying */
+.pdfpage .textLayer { position: absolute; text-align: initial; inset: 0; overflow: clip; opacity: 1; line-height: 1; letter-spacing: normal; word-spacing: normal; text-size-adjust: none; -webkit-text-size-adjust: none; forced-color-adjust: none; transform-origin: 0 0; z-index: 0; color-scheme: only light; --min-font-size: 1; --text-scale-factor: calc(var(--total-scale-factor) * var(--min-font-size)); --min-font-size-inv: calc(1 / var(--min-font-size)); }
+.pdfpage .textLayer :is(span, br) { color: transparent; position: absolute; white-space: pre; cursor: text; transform-origin: 0% 0%; user-select: text; -webkit-user-select: text; }
+.pdfpage .textLayer > :not(.markedContent), .pdfpage .textLayer .markedContent span:not(.markedContent) { z-index: 1; --font-height: 0; font-size: calc(var(--text-scale-factor) * var(--font-height)); --scale-x: 1; --rotate: 0deg; transform: rotate(var(--rotate)) scaleX(var(--scale-x)) scale(var(--min-font-size-inv)); }
+.pdfpage .textLayer .markedContent { display: contents; }
+.pdfpage .textLayer span[role="img"] { user-select: none; -webkit-user-select: none; cursor: default; }
+.pdfpage .textLayer ::selection { background: color-mix(in srgb, #0a84ff 30%, transparent); color: transparent; }
+.pdfpage .textLayer br::selection { background: transparent; }
+.pdfpage .textLayer .endOfContent { display: block; position: absolute; inset: 100% 0 0; z-index: 0; cursor: default; user-select: none; -webkit-user-select: none; }
+.pdfpage .textLayer.selecting .endOfContent { top: 0; }
+
+/* trees as in the reference: folders are a chevron and a name, files carry
+   their badge; a changed file is coloured by what happened to it, a folder
+   holding changes has a dot */
+.st-modified { color: var(--accent-text); }
+.fxst { background: none !important; min-width: 14px; font: 600 12px/1 var(--font); }
+.fxst.st-modified { color: var(--accent-text); }
+.fxst.st-added { color: var(--dfa-mark); }
+.fxst.st-deleted { color: var(--dfd-mark); }
+.fxst.st-renamed { color: var(--accent-text); }
+.fxdot { width: 6px; height: 6px; border-radius: 50%; background: color-mix(in srgb, var(--accent) 55%, transparent); margin-right: 4px; }
+.fxn2 .fxch, .fxcrow .fxch { color: var(--muted); }
+.fxcrow { position: relative; gap: 6px; height: 28px; padding-right: 10px; border-radius: 8px; margin: 0 6px; width: calc(100% - 12px); }
+.fxcrow::before { content: ""; position: absolute; top: 0; bottom: 0; left: 16px; width: calc(var(--d, 0) * 14px); background: repeating-linear-gradient(to right, var(--border) 0 1px, transparent 1px 14px); pointer-events: none; }
+.fxcrow.dir .g { color: var(--text); }
+.fxcrow.dir .fxch { flex: none; transition: transform var(--dur-fast); }
+.fxcrow.dir[aria-expanded="true"] .fxch { transform: rotate(90deg); }
+.fxcrow[aria-selected="true"] { background: var(--active); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 60%, transparent); }
+.fxcrow[aria-selected="true"] .g { font-weight: 500; }
+.fxcfiles { padding: 6px 0 10px; }
+.fxn2 { border-radius: 8px; margin: 0 6px; width: calc(100% - 12px); }
+.fxn2[aria-current="true"] { background: var(--active); color: inherit; box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 60%, transparent); }
+.fxn2::before { left: 14px; background: repeating-linear-gradient(to right, var(--border) 0 1px, transparent 1px 14px); }
+.fxn2:not(.file) { padding-left: calc(8px + var(--d, 0) * 14px) !important; }

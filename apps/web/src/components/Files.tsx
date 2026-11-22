@@ -9,6 +9,7 @@ import { t } from "../i18n";
 import { ago } from "../format";
 import { setState, toast, useStore } from "../store";
 import { Markdown } from "./Markdown";
+import { PdfView } from "./PdfView";
 import { shortPath } from "./Conversation";
 import { confirmDialog } from "./Confirm";
 import { previewPath } from "./Preview";
@@ -25,7 +26,8 @@ function sizeFmt(n: number): string {
 const HTML_RE = /\.html?$/i;
 const IMAGE_RE = /\.(png|jpe?g|gif|webp|svg|ico|bmp)$/i;
 const VIDEO_RE = /\.(mp4|webm|mov)$/i;
-const DOC_RE = /\.(pdf|docx?|xlsx?|pptx?|zip|gz|tar|heic|bmp|tiff?)$/i;
+const DOC_RE = /\.(docx?|xlsx?|pptx?|zip|gz|tar|heic|bmp|tiff?)$/i;
+const PDF_RE = /\.pdf$/i;
 
 /** A file's icon by its kind: a coloured badge for the languages. */
 function FileIcon({ name, size = 14 }: { name: string; size?: number }) {
@@ -158,8 +160,7 @@ function Dir({ agentId, path, depth, sel, onPick, changed }: { agentId: string; 
             <Fragment key={p}>
               <div className={"fxrow" + (e.index || e.project ? " pv" : "")}>
                 <button className="fxn2" type="button" style={pad(depth)} aria-expanded={!!open[p]} onClick={() => setOpen((o) => ({ ...o, [p]: !o[p] }))}>
-                  <ChevronRight size={12} className="fxch" />
-                  <FileBadge name={e.name} dir open={!!open[p]} />
+                  <ChevronRight size={13} className="fxch" />
                   <span className="g">{e.name}</span>
                   {st && <i className="fxdot" title={t("fx.hasChanges")} />}
                 </button>
@@ -172,7 +173,7 @@ function Dir({ agentId, path, depth, sel, onPick, changed }: { agentId: string; 
         const st = status.get(p);
         return (
           <div key={p} className={"fxrow" + (HTML_RE.test(e.name) ? " pv" : "")}>
-            <button className="fxn2 file" type="button" aria-current={sel === p} style={{ paddingLeft: 8 + depth * 14 + 18, "--d": depth } as CSSProperties} onClick={() => onPick(p)} title={`${p}\n${sizeFmt(e.size)} · ${ago(e.modified)}`}>
+            <button className="fxn2 file" type="button" aria-current={sel === p} style={{ paddingLeft: 8 + depth * 14, "--d": depth } as CSSProperties} onClick={() => onPick(p)} title={`${p}\n${sizeFmt(e.size)} · ${ago(e.modified)}`}>
               <FileIcon name={e.name} />
               <span className={"g" + (st ? " st-" + st : "")}>{e.name}</span>
               {st ? <span className={"fxst st-" + st} title={t(`fx.st.${st}` as any)}>{STATUS_MARK[st] ?? ""}</span> : <span className="fxsz">{sizeFmt(e.size)}</span>}
@@ -243,7 +244,8 @@ function Preview({ agentId, path, onClose, change, onDiff }: { agentId: string; 
 
   const image = IMAGE_RE.test(path) && !/\.svg$/i.test(path);
   const video = VIDEO_RE.test(path);
-  const doc = DOC_RE.test(path);
+  const pdf = PDF_RE.test(path);
+  const doc = DOC_RE.test(path) || pdf;
   const text = !!f && !f.binary && !f.tooLarge && !doc && !image && !video;
   const md = /\.md$/i.test(path);
   const dirty = edit !== null && edit !== (f?.content ?? "");
@@ -273,12 +275,7 @@ function Preview({ agentId, path, onClose, change, onDiff }: { agentId: string; 
         <FileBadge name={name} size={20} />
         <span className="fxtitle" title={path}>
           <span className="fxcrumb">
-            {dirs.map((d, i) => (
-              <Fragment key={i}>
-                <span>{d}</span>
-                <ChevronRight size={11} />
-              </Fragment>
-            ))}
+            <Crumbs dirs={dirs} />
             <b>{name}</b>
           </span>
           {f && <span className="fxmeta">{[kind, text ? t("fx.lines", { n: lines }) : "", sizeFmt(f.size)].filter(Boolean).join(" · ")}</span>}
@@ -366,6 +363,8 @@ function Preview({ agentId, path, onClose, change, onDiff }: { agentId: string; 
         <div className="fxbody fximg">
           <RawVideo agent={agentId} path={path} />
         </div>
+      ) : pdf ? (
+        <PdfView agent={agentId} path={path} />
       ) : f.tooLarge ? (
         <div className="fxmsg small">{t("files.tooLarge")}</div>
       ) : f.binary || doc ? (
@@ -458,16 +457,16 @@ function Changes({ agent, data, onChanged, onOpen }: { agent: AgentView; data: C
   const [sel, setSel] = useState<string | null>(null);
   useEffect(() => write(LAYOUT_KEY, layout), [layout]);
   // grouped by folder, folders in order, files by name within them
-  const groups = useMemo(() => {
-    const m = new Map<string, FileChange[]>();
-    for (const f of data?.files ?? []) {
-      const d = f.path.includes("/") ? f.path.slice(0, f.path.lastIndexOf("/")) : "";
-      if (!m.has(d)) m.set(d, []);
-      m.get(d)!.push(f);
-    }
-    return [...m.entries()].sort(([a], [b]) => (a === "" ? -1 : b === "" ? 1 : a.localeCompare(b))).map(([dir, fs]) => ({ dir, files: fs.sort((x, y) => x.path.localeCompare(y.path)) }));
-  }, [data]);
-  const order = useMemo(() => groups.flatMap((g) => g.files), [groups]);
+  // a tree of the changed files (a folder with one folder in it shows as "a/b")
+  const tree = useMemo(() => changeTree(data?.files ?? []), [data]);
+  const [shut, setShut] = useState<Set<string>>(new Set());
+  // the files in the order shown, skipping folded folders
+  const order = useMemo(() => {
+    const out: FileChange[] = [];
+    const walk = (ns: CNode[]) => ns.forEach((n) => (n.f ? out.push(n.f) : !shut.has(n.path) && walk(n.kids)));
+    walk(tree);
+    return out;
+  }, [tree, shut]);
   // the file shown: the one picked while it is still changed, else the first
   const cur = order.find((f) => f.path === sel) ?? order[0];
   const at = cur ? order.indexOf(cur) : -1;
@@ -537,39 +536,8 @@ function Changes({ agent, data, onChanged, onOpen }: { agent: AgentView; data: C
           </span>
         </div>
         <div className="fxcfiles" role="listbox" aria-label={t("fx.changes")}>
-          {groups.map((g) => (
-            <Fragment key={g.dir || "."}>
-              {g.dir && (
-                <div className="fxcdir" title={g.dir}>
-                  <FileBadge name={g.dir} dir open />
-                  <span>{g.dir}</span>
-                </div>
-              )}
-              {g.files.map((f) => {
-                const name = f.path.split("/").pop() ?? f.path;
-                return (
-                  <button
-                    key={f.path}
-                    type="button"
-                    role="option"
-                    aria-selected={cur?.path === f.path}
-                    className={"fxcrow" + (g.dir ? " in" : "")}
-                    onClick={() => setSel(f.path)}
-                    title={f.from ? `${f.from} → ${f.path}` : f.path}
-                  >
-                    <FileBadge name={name} />
-                    <span className={"g st-" + f.status}>{name}</span>
-                    {!f.binary && !f.large && (
-                      <span className="fxcn">
-                        {f.added > 0 && <span className="add">+{f.added}</span>}
-                        {f.removed > 0 && <span className="del">−{f.removed}</span>}
-                      </span>
-                    )}
-                    <span className={"fxst st-" + f.status} title={t(`fx.st.${f.status}` as any)}>{STATUS_MARK[f.status]}</span>
-                  </button>
-                );
-              })}
-            </Fragment>
+          {tree.map((n) => (
+            <CRow key={n.path} n={n} depth={0} cur={cur?.path} shut={shut} toggle={(p) => setShut((x) => { const y = new Set(x); y.has(p) ? y.delete(p) : y.add(p); return y; })} pick={setSel} />
           ))}
           {data.more && <p className="small muted fxload">{t("fx.more")}</p>}
         </div>
@@ -615,6 +583,79 @@ function Bar({ added, removed }: { added: number; removed: number }) {
   );
 }
 
+/** The folders above a file: the nearest two in full, the rest as "…". */
+function Crumbs({ dirs }: { dirs: string[] }) {
+  const shown = dirs.length > 2 ? ["…", ...dirs.slice(-2)] : dirs;
+  return (
+    <>
+      {shown.map((d, i) => (
+        <Fragment key={i}>
+          <span className={d === "…" ? "fxell" : undefined}>{d}</span>
+          <ChevronRight size={11} />
+        </Fragment>
+      ))}
+    </>
+  );
+}
+
+/** A node of the changed-files tree: a folder (kids) or a file (f). */
+type CNode = { name: string; path: string; kids: CNode[]; f?: FileChange };
+
+function changeTree(files: FileChange[]): CNode[] {
+  const root: CNode = { name: "", path: "", kids: [] };
+  for (const f of files) {
+    const parts = f.path.split("/");
+    let at = root;
+    parts.forEach((part, i) => {
+      const path = parts.slice(0, i + 1).join("/");
+      if (i === parts.length - 1) return void at.kids.push({ name: part, path, kids: [], f });
+      let d = at.kids.find((k) => !k.f && k.name === part);
+      if (!d) at.kids.push((d = { name: part, path, kids: [] }));
+      at = d;
+    });
+  }
+  // a folder holding just one folder reads as one row: apps/web
+  const squash = (n: CNode): CNode => {
+    let x = n;
+    while (!x.f && x.kids.length === 1 && !x.kids[0].f) x = { ...x.kids[0], name: x.name + "/" + x.kids[0].name };
+    return { ...x, kids: x.kids.map(squash).sort((a, b) => a.name.localeCompare(b.name)) };
+  };
+  return root.kids.map(squash).sort((a, b) => a.name.localeCompare(b.name));
+}
+
+function CRow({ n, depth, cur, shut, toggle, pick }: { n: CNode; depth: number; cur?: string; shut: Set<string>; toggle: (p: string) => void; pick: (p: string) => void }) {
+  const pad = { paddingLeft: 10 + depth * 14, "--d": depth } as CSSProperties;
+  if (n.f) {
+    const f = n.f;
+    return (
+      <button type="button" role="option" aria-selected={cur === f.path} className="fxcrow" style={pad} onClick={() => pick(f.path)} title={f.from ? `${f.from} → ${f.path}` : f.path}>
+        <FileBadge name={n.name} />
+        <span className={"g st-" + f.status}>{n.name}</span>
+        {!f.binary && !f.large && (
+          <span className="fxcn">
+            {f.added > 0 && <span className="add">+{f.added}</span>}
+            {f.removed > 0 && <span className="del">−{f.removed}</span>}
+          </span>
+        )}
+        <span className={"fxst st-" + f.status} title={t(`fx.st.${f.status}` as any)}>
+          {STATUS_MARK[f.status]}
+        </span>
+      </button>
+    );
+  }
+  const open = !shut.has(n.path);
+  return (
+    <>
+      <button type="button" className="fxcrow dir" style={pad} aria-expanded={open} onClick={() => toggle(n.path)} title={n.path}>
+        <ChevronRight size={13} className="fxch" />
+        <span className="g">{n.name}</span>
+        <i className="fxdot" />
+      </button>
+      {open && n.kids.map((k) => <CRow key={k.path} n={k} depth={depth + 1} cur={cur} shut={shut} toggle={toggle} pick={pick} />)}
+    </>
+  );
+}
+
 /** The diff of the file picked in 改动. */
 function DiffPane({ agentId, f, n, at, step, layout, setLayout, busy, onRevert, onOpen }: {
   agentId: string; f: FileChange; n: number; at: number; step: (d: number) => void;
@@ -644,12 +685,7 @@ function DiffPane({ agentId, f, n, at, step, layout, setLayout, busy, onRevert, 
         <FileBadge name={name} size={20} />
         <span className="fxtitle" title={f.from ? `${f.from} → ${f.path}` : f.path}>
           <span className="fxcrumb">
-            {dirs.map((x, i) => (
-              <Fragment key={i}>
-                <span>{x}</span>
-                <ChevronRight size={11} />
-              </Fragment>
-            ))}
+            <Crumbs dirs={dirs} />
             <b>{name}</b>
           </span>
           <span className="fxmeta">
