@@ -1,8 +1,8 @@
 import { Skeleton } from "./Skeleton";
-import { Fragment, useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import {
-  AppWindow, ChevronDown, ChevronRight, Columns2, Download, File, FileCode2, FileImage, FileJson, FileText, Folder, FolderOpen, GitBranch,
-  Pencil, RefreshCw, Rows3, Save, Undo2, X,
+  AppWindow, ChevronDown, ChevronRight, ChevronUp, Columns2, Download, FileSearch, GitBranch,
+  Pencil, RefreshCw, Rows3, Save, Undo2, WrapText, X,
 } from "lucide-react";
 import { API, rawURL, useRawURL, type AgentView, type ChangesView, type FileChange, type FileContent, type FileDiff, type FileEntry, type Hunk } from "../api";
 import { t } from "../i18n";
@@ -13,6 +13,8 @@ import { shortPath } from "./Conversation";
 import { confirmDialog } from "./Confirm";
 import { previewPath } from "./Preview";
 import { highlightLines, langOf } from "../lib/highlight";
+import { FileBadge, kindName } from "../lib/fileicons";
+import { changedRanges, markRanges } from "../lib/worddiff";
 
 function sizeFmt(n: number): string {
   if (n < 1024) return n + " B";
@@ -25,17 +27,14 @@ const IMAGE_RE = /\.(png|jpe?g|gif|webp|svg|ico|bmp)$/i;
 const VIDEO_RE = /\.(mp4|webm|mov)$/i;
 const DOC_RE = /\.(pdf|docx?|xlsx?|pptx?|zip|gz|tar|heic|bmp|tiff?)$/i;
 
-/** A file's icon by its kind. */
+/** A file's icon by its kind: a coloured badge for the languages. */
 function FileIcon({ name, size = 14 }: { name: string; size?: number }) {
-  if (IMAGE_RE.test(name) || VIDEO_RE.test(name)) return <FileImage size={size} className="fic img" />;
-  if (/\.(json|ya?ml|toml|lock)$/i.test(name)) return <FileJson size={size} className="fic data" />;
-  if (/\.(md|txt|rst)$/i.test(name)) return <FileText size={size} className="fic doc" />;
-  if (langOf(name)) return <FileCode2 size={size} className="fic code" />;
-  return <File size={size} className="fic" />;
+  return <FileBadge name={name} size={size + 2} />;
 }
 
 type View = "files" | "changes";
 const VIEW_KEY = "crewbase.files.view";
+const WRAP_KEY = "crewbase.files.wrap";
 const LAYOUT_KEY = "crewbase.diff.layout";
 const read = (k: string, d: string) => {
   try {
@@ -145,7 +144,7 @@ function Dir({ agentId, path, depth, sel, onPick, changed }: { agentId: string; 
     }
     return m;
   }, [changed]);
-  const pad = (d: number) => ({ paddingLeft: 8 + d * 14 });
+  const pad = (d: number) => ({ paddingLeft: 8 + d * 14, "--d": d }) as CSSProperties;
   if (err) return <div className="small errt" style={pad(depth)}>{err}</div>;
   if (!entries) return <div className="small muted fxload" style={pad(depth)}>{t("common.loading")}</div>;
   if (entries.length === 0 && depth === 0) return <div className="small muted fxload">{t("files.empty")}</div>;
@@ -160,9 +159,9 @@ function Dir({ agentId, path, depth, sel, onPick, changed }: { agentId: string; 
               <div className={"fxrow" + (e.index || e.project ? " pv" : "")}>
                 <button className="fxn2" type="button" style={pad(depth)} aria-expanded={!!open[p]} onClick={() => setOpen((o) => ({ ...o, [p]: !o[p] }))}>
                   <ChevronRight size={12} className="fxch" />
-                  {open[p] ? <FolderOpen size={14} className="fic dir" /> : <Folder size={14} className="fic dir" />}
+                  <FileBadge name={e.name} dir open={!!open[p]} />
                   <span className="g">{e.name}</span>
-                  {st && <i className="fxdot" />}
+                  {st && <i className="fxdot" title={t("fx.hasChanges")} />}
                 </button>
                 {e.project ? <RunPreviewBtn agentId={agentId} path={p} /> : e.index && <PreviewBtn agentId={agentId} path={p + "/"} />}
               </div>
@@ -173,10 +172,10 @@ function Dir({ agentId, path, depth, sel, onPick, changed }: { agentId: string; 
         const st = status.get(p);
         return (
           <div key={p} className={"fxrow" + (HTML_RE.test(e.name) ? " pv" : "")}>
-            <button className="fxn2" type="button" aria-current={sel === p} style={{ paddingLeft: 8 + depth * 14 + 18 }} onClick={() => onPick(p)} title={`${sizeFmt(e.size)} · ${ago(e.modified)}`}>
+            <button className="fxn2 file" type="button" aria-current={sel === p} style={{ paddingLeft: 8 + depth * 14 + 18, "--d": depth } as CSSProperties} onClick={() => onPick(p)} title={`${p}\n${sizeFmt(e.size)} · ${ago(e.modified)}`}>
               <FileIcon name={e.name} />
               <span className={"g" + (st ? " st-" + st : "")}>{e.name}</span>
-              {st ? <span className={"fxst st-" + st}>{STATUS_MARK[st] ?? ""}</span> : <span className="fxsz">{sizeFmt(e.size)}</span>}
+              {st ? <span className={"fxst st-" + st} title={t(`fx.st.${st}` as any)}>{STATUS_MARK[st] ?? ""}</span> : <span className="fxsz">{sizeFmt(e.size)}</span>}
             </button>
             {HTML_RE.test(e.name) && <PreviewBtn agentId={agentId} path={p} />}
           </div>
@@ -227,6 +226,15 @@ function Preview({ agentId, path, onClose, change, onDiff }: { agentId: string; 
   const [edit, setEdit] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [rendered, setRendered] = useState(true); // Markdown: rendered or source
+  const [wrap, setWrap] = useState(() => read(WRAP_KEY, "0") === "1");
+  useEffect(() => write(WRAP_KEY, wrap ? "1" : "0"), [wrap]);
+  // a changed file: which lines, for the gutter
+  const [marks, setMarks] = useState<Map<number, string> | null>(null);
+  useEffect(() => {
+    setMarks(null);
+    if (!change || change.binary || change.large || change.status === "deleted") return;
+    API.fileDiff(agentId, path).then((d) => setMarks(lineMarks(d.hunks)), () => {});
+  }, [agentId, path, change?.added, change?.removed]);
   useEffect(() => {
     API.file(agentId, path)
       .then(setF)
@@ -255,17 +263,26 @@ function Preview({ agentId, path, onClose, change, onDiff }: { agentId: string; 
   };
   const creatable = !!err && !f && /^(INSTRUCTIONS|MEMORY)\.md$/.test(path);
   const name = path.split("/").pop() ?? path;
-  const dir = path.includes("/") ? path.slice(0, path.lastIndexOf("/") + 1) : "";
+  const dirs = path.includes("/") ? path.slice(0, path.lastIndexOf("/")).split("/") : [];
+  const lines = text ? (f?.content ?? "").replace(/\n$/, "").split("\n").length : 0;
+  const kind = kindName(name);
 
   return (
     <div className="fxview">
       <div className="fxhead">
-        <FileIcon name={name} />
+        <FileBadge name={name} size={20} />
         <span className="fxtitle" title={path}>
-          {dir && <span className="muted">{dir}</span>}
-          <b>{name}</b>
+          <span className="fxcrumb">
+            {dirs.map((d, i) => (
+              <Fragment key={i}>
+                <span>{d}</span>
+                <ChevronRight size={11} />
+              </Fragment>
+            ))}
+            <b>{name}</b>
+          </span>
+          {f && <span className="fxmeta">{[kind, text ? t("fx.lines", { n: lines }) : "", sizeFmt(f.size)].filter(Boolean).join(" · ")}</span>}
         </span>
-        {f && <span className="fxmeta">{sizeFmt(f.size)}</span>}
         {change && (
           <button className={"fxchip st-" + change.status} type="button" onClick={onDiff} title={t("fx.seeDiff")}>
             {t(`fx.st.${change.status}` as any)}
@@ -279,6 +296,11 @@ function Preview({ agentId, path, onClose, change, onDiff }: { agentId: string; 
         )}
         {dirty && <span className="pill amber">{t("files.unsaved")}</span>}
         <span className="sp" />
+        {edit === null && text && !(md && rendered) && (
+          <button className={"ix" + (wrap ? " on" : "")} type="button" aria-pressed={wrap} aria-label={t("fx.wrap")} title={t("fx.wrap")} onClick={() => setWrap(!wrap)}>
+            <WrapText size={13} />
+          </button>
+        )}
         {edit === null && text && md && (f?.content ?? "").trim() && (
           <span className="seg fxmini">
             <button type="button" aria-pressed={rendered} onClick={() => setRendered(true)}>
@@ -361,29 +383,61 @@ function Preview({ agentId, path, onClose, change, onDiff }: { agentId: string; 
       ) : (f.content ?? "") === "" ? (
         <div className="fxmsg small muted">{t("files.emptyFile")}</div>
       ) : (
-        <Code text={f.content ?? ""} path={path} />
+        <Code text={f.content ?? ""} path={path} wrap={wrap} marks={marks} />
       )}
     </div>
   );
 }
 
 /** A file's text, highlighted, with line numbers. */
-export function Code({ text, path }: { text: string; path: string }) {
+export function Code({ text, path, wrap = true, marks }: { text: string; path: string; wrap?: boolean; marks?: Map<number, string> | null }) {
   const lines = useMemo(() => highlightLines(text.replace(/\n$/, ""), langOf(path)), [text, path]);
   return (
-    <div className="fxbody fxcode hljs">
+    <div className={"fxbody fxcode hljs" + (wrap ? " wrap" : "")}>
       <table>
         <tbody>
-          {lines.map((html, i) => (
-            <tr key={i}>
-              <td className="ln">{i + 1}</td>
-              <td className="lc" dangerouslySetInnerHTML={{ __html: html || " " }} />
-            </tr>
-          ))}
+          {lines.map((html, i) => {
+            const m = marks?.get(i + 1);
+            return (
+              <tr key={i} className={m ? "cm-" + m : undefined}>
+                <td className="ln" title={m ? t(`fx.mark.${m}` as any) : undefined}>{i + 1}</td>
+                <td className="lc" dangerouslySetInnerHTML={{ __html: html || " " }} />
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     </div>
   );
+}
+
+/** Which lines of the new file a diff added or changed, and where lines
+ *  were removed (marked on the line after them): the code view's gutter. */
+function lineMarks(hunks: Hunk[]): Map<number, string> {
+  const m = new Map<number, string>();
+  for (const h of hunks) {
+    const ls = h.lines;
+    let i = 0;
+    while (i < ls.length) {
+      if (ls[i].t === " ") {
+        i++;
+        continue;
+      }
+      let dels = 0;
+      while (i < ls.length && ls[i].t === "-") (dels++, i++);
+      let k = 0;
+      while (i < ls.length && ls[i].t === "+") {
+        if (ls[i].n) m.set(ls[i].n!, k < dels ? "mod" : "add");
+        k++;
+        i++;
+      }
+      if (dels > k) {
+        const next = ls[i]?.n ?? (h.newStart + h.newLines);
+        if (next && !m.has(next)) m.set(next, "del");
+      }
+    }
+  }
+  return m;
 }
 
 function RawVideo({ agent, path }: { agent: string; path: string }) {
@@ -401,8 +455,38 @@ function RawImg({ agent, path }: { agent: string; path: string }) {
 function Changes({ agent, data, onChanged, onOpen }: { agent: AgentView; data: ChangesView | null; onChanged: (c: ChangesView) => void; onOpen: (p: string) => void }) {
   const [layout, setLayout] = useState<"unified" | "split">(() => (read(LAYOUT_KEY, "unified") === "split" ? "split" : "unified"));
   const [busy, setBusy] = useState(false);
-  const [focus, setFocus] = useState<string | null>(null);
+  const [sel, setSel] = useState<string | null>(null);
   useEffect(() => write(LAYOUT_KEY, layout), [layout]);
+  // grouped by folder, folders in order, files by name within them
+  const groups = useMemo(() => {
+    const m = new Map<string, FileChange[]>();
+    for (const f of data?.files ?? []) {
+      const d = f.path.includes("/") ? f.path.slice(0, f.path.lastIndexOf("/")) : "";
+      if (!m.has(d)) m.set(d, []);
+      m.get(d)!.push(f);
+    }
+    return [...m.entries()].sort(([a], [b]) => (a === "" ? -1 : b === "" ? 1 : a.localeCompare(b))).map(([dir, fs]) => ({ dir, files: fs.sort((x, y) => x.path.localeCompare(y.path)) }));
+  }, [data]);
+  const order = useMemo(() => groups.flatMap((g) => g.files), [groups]);
+  // the file shown: the one picked while it is still changed, else the first
+  const cur = order.find((f) => f.path === sel) ?? order[0];
+  const at = cur ? order.indexOf(cur) : -1;
+  const step = (d: number) => order.length && setSel(order[(at + d + order.length) % order.length].path);
+  // J / K between the files (↓ / ↑ in the list), unless typing somewhere
+  const stepRef = useRef(step);
+  stepRef.current = step;
+  useEffect(() => {
+    const on = (e: KeyboardEvent) => {
+      const el = e.target as HTMLElement | null;
+      if (e.metaKey || e.ctrlKey || e.altKey || !el || el.closest("input, textarea, select, [contenteditable=true], .menu, .modal")) return;
+      // arrows only in the list (elsewhere they scroll)
+      const inList = !!el.closest(".fxclist");
+      if (e.key === "j" || (inList && e.key === "ArrowDown")) (e.preventDefault(), stepRef.current(1));
+      else if (e.key === "k" || (inList && e.key === "ArrowUp")) (e.preventDefault(), stepRef.current(-1));
+    };
+    window.addEventListener("keydown", on);
+    return () => window.removeEventListener("keydown", on);
+  }, []);
   if (!data) return <div className="fxmsg"><Skeleton kind="code" /></div>;
   if (data.files.length === 0)
     return (
@@ -439,53 +523,79 @@ function Changes({ agent, data, onChanged, onOpen }: { agent: AgentView; data: C
     }
   };
   return (
-    <div className="fxchanges">
-      <div className="fxsum">
-        <span className="fxsumt">
-          <b>{t("fx.nFiles", { n: data.files.length })}</b>
-          <span className="add">+{data.added}</span>
-          <span className="del">−{data.removed}</span>
-          <Bar added={data.added} removed={data.removed} />
-        </span>
-        <span className="sp" />
-        <span className="seg fxmini" role="radiogroup" aria-label={t("fx.layout")}>
-          <button type="button" aria-pressed={layout === "unified"} title={t("fx.unified")} aria-label={t("fx.unified")} onClick={() => setLayout("unified")}>
-            <Rows3 size={13} />
-          </button>
-          <button type="button" aria-pressed={layout === "split"} title={t("fx.split")} aria-label={t("fx.split")} onClick={() => setLayout("split")}>
-            <Columns2 size={13} />
-          </button>
-        </span>
+    <div className="fxchg">
+      <div className="fxclist">
+        <div className="fxchead">
+          <div className="fxcsum">
+            <b>{t("fx.nFiles", { n: data.files.length })}</b>
+            <span className="add">+{data.added}</span>
+            <span className="del">−{data.removed}</span>
+            <Bar added={data.added} removed={data.removed} />
+          </div>
+          <span className="fxcsrc" title={data.source === "git" ? t("fx.srcGit", { branch: data.branch ?? "HEAD" }) : t("fx.srcTracked")}>
+            {data.source === "git" ? t("fx.vsBranch", { branch: data.branch ?? "HEAD" }) : t("fx.vsStart")}
+          </span>
+        </div>
+        <div className="fxcfiles" role="listbox" aria-label={t("fx.changes")}>
+          {groups.map((g) => (
+            <Fragment key={g.dir || "."}>
+              {g.dir && (
+                <div className="fxcdir" title={g.dir}>
+                  <FileBadge name={g.dir} dir open />
+                  <span>{g.dir}</span>
+                </div>
+              )}
+              {g.files.map((f) => {
+                const name = f.path.split("/").pop() ?? f.path;
+                return (
+                  <button
+                    key={f.path}
+                    type="button"
+                    role="option"
+                    aria-selected={cur?.path === f.path}
+                    className={"fxcrow" + (g.dir ? " in" : "")}
+                    onClick={() => setSel(f.path)}
+                    title={f.from ? `${f.from} → ${f.path}` : f.path}
+                  >
+                    <FileBadge name={name} />
+                    <span className={"g st-" + f.status}>{name}</span>
+                    {!f.binary && !f.large && (
+                      <span className="fxcn">
+                        {f.added > 0 && <span className="add">+{f.added}</span>}
+                        {f.removed > 0 && <span className="del">−{f.removed}</span>}
+                      </span>
+                    )}
+                    <span className={"fxst st-" + f.status} title={t(`fx.st.${f.status}` as any)}>{STATUS_MARK[f.status]}</span>
+                  </button>
+                );
+              })}
+            </Fragment>
+          ))}
+          {data.more && <p className="small muted fxload">{t("fx.more")}</p>}
+        </div>
         {data.source === "tracked" && (
-          <button className="btn sm" type="button" disabled={busy} onClick={() => void acceptAll()} title={t("fx.acceptHint")}>
-            {t("fx.acceptAll")}
-          </button>
+          <div className="fxcfoot">
+            <button className="btn sm" type="button" disabled={busy} onClick={() => void acceptAll()} title={t("fx.acceptHint")}>
+              {t("fx.acceptAll")}
+            </button>
+          </div>
         )}
       </div>
-      <p className="fxsrc small muted">{data.source === "git" ? t("fx.srcGit", { branch: data.branch ?? "HEAD" }) : t("fx.srcTracked")}</p>
-      <div className="fxlist">
-        {data.files.map((f) => (
-          <button key={f.path} type="button" className={"fxitem" + (focus === f.path ? " on" : "")} onClick={() => (setFocus(f.path), document.getElementById("fxd-" + f.path)?.scrollIntoView({ block: "start", behavior: "smooth" }))}>
-            <span className={"fxst st-" + f.status}>{STATUS_MARK[f.status]}</span>
-            <span className="fxip" title={f.from ? `${f.from} → ${f.path}` : f.path}>
-              {f.path.includes("/") && <span className="muted">{f.path.slice(0, f.path.lastIndexOf("/") + 1)}</span>}
-              {f.path.split("/").pop()}
-            </span>
-            {!f.binary && !f.large && (
-              <span className="fxic">
-                <span className="add">+{f.added}</span>
-                <span className="del">−{f.removed}</span>
-              </span>
-            )}
-          </button>
-        ))}
-        {data.more && <p className="small muted fxload">{t("fx.more")}</p>}
-      </div>
-      <div className="fxdiffs">
-        {data.files.map((f) => (
-          <DiffCard key={f.path + f.added + f.removed + (f.updated ?? "")} agentId={agent.id} f={f} layout={layout} busy={busy} onRevert={() => void revert(f)} onOpen={() => onOpen(f.path)} />
-        ))}
-      </div>
+      {cur && (
+        <DiffPane
+          key={cur.path + cur.added + cur.removed + (cur.updated ?? "")}
+          agentId={agent.id}
+          f={cur}
+          n={order.length}
+          at={at}
+          step={step}
+          layout={layout}
+          setLayout={setLayout}
+          busy={busy}
+          onRevert={() => void revert(cur)}
+          onOpen={() => onOpen(cur.path)}
+        />
+      )}
     </div>
   );
 }
@@ -505,47 +615,88 @@ function Bar({ added, removed }: { added: number; removed: number }) {
   );
 }
 
-function DiffCard({ agentId, f, layout, busy, onRevert, onOpen }: { agentId: string; f: FileChange; layout: "unified" | "split"; busy: boolean; onRevert: () => void; onOpen: () => void }) {
-  const [open, setOpen] = useState(f.added + f.removed < 800);
+/** The diff of the file picked in 改动. */
+function DiffPane({ agentId, f, n, at, step, layout, setLayout, busy, onRevert, onOpen }: {
+  agentId: string; f: FileChange; n: number; at: number; step: (d: number) => void;
+  layout: "unified" | "split"; setLayout: (l: "unified" | "split") => void; busy: boolean; onRevert: () => void; onOpen: () => void;
+}) {
   const [d, setD] = useState<FileDiff | null>(null);
   const [err, setErr] = useState("");
   useEffect(() => {
-    if (!open || d || f.binary || f.large) return;
+    if (f.binary || f.large) return;
     API.fileDiff(agentId, f.path).then(setD, (e) => setErr(e?.message ?? String(e)));
-  }, [open]);
+  }, []);
   const name = f.path.split("/").pop() ?? f.path;
+  const dirs = f.path.includes("/") ? f.path.slice(0, f.path.lastIndexOf("/")).split("/") : [];
+  // a narrow panel has no room for two columns: one, whatever was picked
+  const box = useRef<HTMLElement>(null);
+  const [narrow, setNarrow] = useState(false);
+  useEffect(() => {
+    const el = box.current;
+    if (!el) return;
+    const ro = new ResizeObserver(() => setNarrow(el.clientWidth < 520));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
   return (
-    <section className="fxdc" id={"fxd-" + f.path}>
-      <header className="fxdh">
-        <button className="ix" type="button" aria-expanded={open} aria-label={open ? t("fx.collapse") : t("fx.expand")} onClick={() => setOpen(!open)}>
-          {open ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-        </button>
-        <FileIcon name={name} />
-        <button className="fxdname" type="button" onClick={onOpen} title={t("fx.openFile")}>
-          {f.from && (
-            <>
-              <span className="muted">{f.from}</span>
-              <span className="muted"> → </span>
-            </>
-          )}
-          {f.path}
-        </button>
-        <span className={"fxtag st-" + f.status}>{t(`fx.st.${f.status}` as any)}</span>
-        {!f.binary && !f.large && (
-          <span className="fxic">
-            <span className="add">+{f.added}</span>
-            <span className="del">−{f.removed}</span>
-            <Bar added={f.added} removed={f.removed} />
+    <section className="fxview fxcview" ref={box}>
+      <header className="fxhead">
+        <FileBadge name={name} size={20} />
+        <span className="fxtitle" title={f.from ? `${f.from} → ${f.path}` : f.path}>
+          <span className="fxcrumb">
+            {dirs.map((x, i) => (
+              <Fragment key={i}>
+                <span>{x}</span>
+                <ChevronRight size={11} />
+              </Fragment>
+            ))}
+            <b>{name}</b>
+          </span>
+          <span className="fxmeta">
+            <span className={"st-" + f.status}>{t(`fx.st.${f.status}` as any)}</span>
+            {f.from && <> · {t("fx.from", { path: f.from })}</>}
+            {!f.binary && !f.large && (
+              <>
+                {" · "}
+                <span className="add">+{f.added}</span> <span className="del">−{f.removed}</span>
+              </>
+            )}
+          </span>
+        </span>
+        <span className="sp" />
+        {n > 1 && (
+          <span className="fxnav">
+            <button className="ix" type="button" aria-label={t("fx.prevFile")} title={t("fx.prevFile") + " (K)"} onClick={() => step(-1)}>
+              <ChevronUp size={14} />
+            </button>
+            <span className="fxnavn">
+              {at + 1}/{n}
+            </span>
+            <button className="ix" type="button" aria-label={t("fx.nextFile")} title={t("fx.nextFile") + " (J)"} onClick={() => step(1)}>
+              <ChevronDown size={14} />
+            </button>
           </span>
         )}
-        <span className="sp" />
+        <span className="seg fxmini" role="radiogroup" aria-label={t("fx.layout")}>
+          <button type="button" aria-pressed={layout === "unified"} title={t("fx.unified")} aria-label={t("fx.unified")} onClick={() => setLayout("unified")}>
+            <Rows3 size={13} />
+          </button>
+          <button type="button" aria-pressed={layout === "split"} title={t("fx.split")} aria-label={t("fx.split")} onClick={() => setLayout("split")}>
+            <Columns2 size={13} />
+          </button>
+        </span>
+        {f.status !== "deleted" && (
+          <button className="ix" type="button" aria-label={t("fx.openFile")} title={t("fx.openFile")} onClick={onOpen}>
+            <FileSearch size={13} />
+          </button>
+        )}
         <button className="btn sm ghost fxrevert" type="button" disabled={busy} onClick={onRevert} title={t("fx.revertTitle")}>
           <Undo2 size={12} />
           {t("fx.revert")}
         </button>
       </header>
-      {open &&
-        (f.binary ? (
+      <div className="fxbody">
+        {f.binary ? (
           <div className="fxmsg small muted">{t("fx.binary")}</div>
         ) : f.large ? (
           <div className="fxmsg small muted">{t("fx.large")}</div>
@@ -555,11 +706,12 @@ function DiffCard({ agentId, f, layout, busy, onRevert, onOpen }: { agentId: str
           <div className="fxmsg"><Skeleton kind="code" /></div>
         ) : d.hunks.length === 0 ? (
           <div className="fxmsg small muted">{f.status === "deleted" ? t("fx.emptyDeleted") : t("fx.emptyFile")}</div>
-        ) : layout === "split" ? (
+        ) : layout === "split" && !narrow ? (
           <SplitDiff hunks={d.hunks} path={f.path} />
         ) : (
           <UnifiedDiff hunks={d.hunks} path={f.path} />
-        ))}
+        )}
+      </div>
     </section>
   );
 }
@@ -576,7 +728,34 @@ function useHighlighted(hunks: Hunk[], path: string) {
         if (l.t !== "+") oldText.push(l.s);
         if (l.t !== "-") newText.push(l.s);
       }
-    return { o: highlightLines(oldText.join("\n"), lang), n: highlightLines(newText.join("\n"), lang) };
+    const o = highlightLines(oldText.join("\n"), lang);
+    const n = highlightLines(newText.join("\n"), lang);
+    // an edited line: mark the words that changed (a removed line paired
+    // with the added line in the same place of its run)
+    let oi = 0;
+    let ni = 0;
+    for (const h of hunks) {
+      const ls = h.lines;
+      let i = 0;
+      while (i < ls.length) {
+        if (ls[i].t === " ") {
+          i++, oi++, ni++;
+          continue;
+        }
+        const dels: { s: string; at: number }[] = [];
+        const adds: { s: string; at: number }[] = [];
+        while (i < ls.length && ls[i].t === "-") dels.push({ s: ls[i++].s, at: oi++ });
+        while (i < ls.length && ls[i].t === "+") adds.push({ s: ls[i++].s, at: ni++ });
+        if (dels.length && adds.length && dels.length <= 30 && adds.length <= 30)
+          for (let k = 0; k < Math.min(dels.length, adds.length); k++) {
+            const c = changedRanges(dels[k].s, adds[k].s);
+            if (!c) continue;
+            o[dels[k].at] = markRanges(o[dels[k].at] ?? "", c.a);
+            n[adds[k].at] = markRanges(n[adds[k].at] ?? "", c.b);
+          }
+      }
+    }
+    return { o, n };
   }, [hunks, path]);
 }
 

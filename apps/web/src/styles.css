@@ -2310,15 +2310,15 @@ a.lcard:hover, .lvideo .ltext:hover { background: var(--hover); }
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --dfa-bg: rgba(46, 160, 67, .15); --dfa-ln: rgba(63, 185, 80, .3); --dfa-mark: #3fb950;
-    --dfd-bg: rgba(248, 81, 73, .15); --dfd-ln: rgba(248, 81, 73, .3); --dfd-mark: #f85149;
+    --dfa-bg: rgba(46, 160, 67, .1); --dfa-ln: rgba(63, 185, 80, .2); --dfa-mark: #3fb950;
+    --dfd-bg: rgba(248, 81, 73, .1); --dfd-ln: rgba(248, 81, 73, .2); --dfd-mark: #f85149;
     --dfh-bg: rgba(56, 139, 253, .15); --dfh-text: #8d96a0;
     --hl-kw: #ff7b72; --hl-str: #a5d6ff; --hl-num: #79c0ff; --hl-fn: #d2a8ff; --hl-cm: #8b949e; --hl-ty: #ffa657; --hl-at: #7ee787; --hl-var: #e6edf3;
   }
 }
 :root[data-theme="dark"] {
-  --dfa-bg: rgba(46, 160, 67, .15); --dfa-ln: rgba(63, 185, 80, .3); --dfa-mark: #3fb950;
-  --dfd-bg: rgba(248, 81, 73, .15); --dfd-ln: rgba(248, 81, 73, .3); --dfd-mark: #f85149;
+  --dfa-bg: rgba(46, 160, 67, .1); --dfa-ln: rgba(63, 185, 80, .2); --dfa-mark: #3fb950;
+  --dfd-bg: rgba(248, 81, 73, .1); --dfd-ln: rgba(248, 81, 73, .2); --dfd-mark: #f85149;
   --dfh-bg: rgba(56, 139, 253, .15); --dfh-text: #8d96a0;
   --hl-kw: #ff7b72; --hl-str: #a5d6ff; --hl-num: #79c0ff; --hl-fn: #d2a8ff; --hl-cm: #8b949e; --hl-ty: #ffa657; --hl-at: #7ee787; --hl-var: #e6edf3;
 }
@@ -2384,27 +2384,15 @@ a.lcard:hover, .lvideo .ltext:hover { background: var(--hover); }
 .fxcode .lc, .fxdiff .lc { padding: 0 14px 0 8px; white-space: pre-wrap; overflow-wrap: anywhere; color: var(--hl-var); vertical-align: top; }
 .fxcode tr:hover .ln { opacity: 1; color: var(--text2); }
 /* changes */
-.fxchanges { flex: 1; overflow: auto; min-height: 0; padding: 12px 12px 24px; }
-.fxsum { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-.fxsum .sp { flex: 1; }
-.fxsumt { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; }
-.fxsrc { margin: 6px 0 10px; }
 .fxbar5 { display: inline-flex; gap: 1px; }
 .fxbar5 i { width: 7px; height: 7px; border-radius: 1.5px; background: var(--border2); }
 .fxbar5 i.a { background: var(--dfa-mark); }
 .fxbar5 i.d { background: var(--dfd-mark); }
-.fxlist { border: 1px solid var(--border); border-radius: 10px; overflow: hidden; margin-bottom: 14px; background: var(--surface); }
 .fxitem { display: flex; align-items: center; gap: 8px; width: 100%; padding: 6px 10px; font-size: 13px; text-align: left; }
 .fxitem + .fxitem { border-top: 1px solid var(--border); }
 .fxitem:hover, .fxitem.on { background: var(--hover); }
 .fxip { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--mono); font-size: 12px; }
 .fxic { flex: none; display: inline-flex; align-items: center; gap: 6px; font-size: 12px; }
-.fxdiffs { display: flex; flex-direction: column; gap: 12px; }
-.fxdc { border: 1px solid var(--border2); border-radius: 10px; overflow: hidden; background: var(--surface); scroll-margin-top: 8px; }
-.fxdh { display: flex; align-items: center; gap: 7px; padding: 6px 8px; background: var(--raised); border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 1; min-width: 0; }
-.fxdh .sp { flex: 1; }
-.fxdname { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 600 12px var(--mono); color: var(--text); text-align: left; }
-.fxdname:hover { color: var(--accent-text); text-decoration: underline; }
 .fxtag { flex: none; font-size: 11px; font-weight: 600; padding: 0 6px; line-height: 18px; border-radius: 4px; background: var(--sunken); }
 .fxrevert { flex: none; color: var(--text2); }
 .fxrevert:hover:not(:disabled) { color: var(--dfd-mark); }
@@ -3445,3 +3433,94 @@ button.foldw:hover { background: var(--hover); color: var(--text); }
 .foldbtn:hover { background: var(--hover); color: var(--text2); }
 .mimg.gone { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; cursor: default; color: var(--muted); font-size: 12px; border: 1px dashed var(--border2); background: var(--raised); min-height: 140px; }
 .mediaimgs.n1 .mimg.gone { width: min(360px, 100%); aspect-ratio: 3 / 2; }
+
+/* ---- 文件 panel, redesigned: badges, guides, a gutter that shows changes */
+.fbadge { flex: none; display: inline-grid; place-items: center; padding: 0 2px; border-radius: 4px; font-family: var(--font); font-weight: 800; letter-spacing: -.02em; line-height: 1; box-shadow: inset 0 -1px 0 rgba(0, 0, 0, .15); }
+.fbic { flex: none; color: var(--muted); }
+.fbic.dir { color: #d99a26; fill: #f5c451; fill-opacity: .35; }
+.fbic.img { color: #8b5cf6; }
+.fbic.vid { color: #e0457b; }
+:root[data-theme="dark"] .fbic.dir { color: #e8b04a; fill-opacity: .22; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .fbic.dir { color: #e8b04a; fill-opacity: .22; } }
+
+.fxtree { padding: 6px 0 12px; }
+.fxn2 { position: relative; height: 26px; border-radius: 0; }
+/* indent guides: a line under each open folder */
+.fxn2::before { content: ""; position: absolute; top: 0; bottom: 0; left: 8px; width: calc(var(--d, 0) * 14px); background: repeating-linear-gradient(to right, transparent 0 5px, var(--border) 5px 6px, transparent 6px 14px); pointer-events: none; }
+.fxn2[aria-current="true"] { background: var(--accent-soft); color: var(--accent-text); box-shadow: inset 2px 0 0 var(--accent); }
+.fxn2[aria-current="true"] .g { font-weight: 500; }
+.fxtree .fxsz { opacity: 0; transition: opacity var(--dur-fast); }
+.fxrow:hover .fxsz { opacity: 1; }
+.fxst { min-width: 16px; height: 16px; border-radius: 4px; display: inline-grid; place-items: center; font: 700 10px/1 var(--mono); }
+.fxst.st-added { background: color-mix(in srgb, var(--dfa-mark) 14%, transparent); }
+.fxst.st-modified { background: color-mix(in srgb, var(--amber) 18%, transparent); }
+.fxst.st-deleted { background: color-mix(in srgb, var(--dfd-mark) 14%, transparent); }
+.fxst.st-renamed { background: var(--accent-soft); }
+.fxdot { width: 6px; height: 6px; margin-right: 5px; }
+
+/* one file */
+.fxhead { gap: 10px; padding: 8px 10px 8px 12px; min-height: 48px; }
+.fxtitle { display: flex; flex-direction: column; min-width: 0; line-height: 1.3; gap: 1px; }
+.fxcrumb { display: flex; align-items: center; gap: 2px; min-width: 0; overflow: hidden; white-space: nowrap; font-size: 13px; color: var(--muted); }
+.fxcrumb span { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.fxcrumb svg { flex: none; opacity: .6; }
+.fxcrumb b { flex: 0 0 auto; max-width: 100%; color: var(--text); font-weight: 600; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.fxtitle .fxmeta { font-size: 11px; color: var(--muted); }
+.fxhead .ix.on { background: var(--active); color: var(--text); }
+.fxcode table { width: max-content; min-width: 100%; }
+.fxcode .lc { white-space: pre; overflow-wrap: normal; }
+.fxcode.wrap table { width: 100%; }
+.fxcode.wrap .lc { white-space: pre-wrap; overflow-wrap: anywhere; }
+.fxcode .ln { position: sticky; left: 0; z-index: 1; background: var(--surface); border-right: 1px solid var(--border); }
+.fxcode tr:hover .lc { background: var(--hover); }
+.fxcode tr:first-child td { padding-top: 8px; }
+.fxcode tr:last-child td { padding-bottom: 12px; }
+/* the gutter tells which lines changed (改动 has the full diff) */
+.fxcode tr.cm-add .ln { box-shadow: inset -3px 0 0 var(--dfa-mark); color: var(--dfa-mark); opacity: 1; }
+.fxcode tr.cm-mod .ln { box-shadow: inset -3px 0 0 var(--accent); color: var(--accent-text); opacity: 1; }
+.fxcode tr.cm-add .lc { background: color-mix(in srgb, var(--dfa-bg) 60%, transparent); }
+.fxcode tr.cm-mod .lc { background: color-mix(in srgb, var(--accent-soft) 55%, transparent); }
+.fxcode tr.cm-del .ln::after { content: ""; position: absolute; right: -1px; top: -5px; border: 5px solid transparent; border-right-color: var(--dfd-mark); }
+
+/* diffs: the words that changed in an edited line */
+.fxdiff mark.wd { color: inherit; border-radius: 3px; padding: 1px 0; }
+.fxdiff tr.rm mark.wd, .fxdiff td.rm mark.wd { background: color-mix(in srgb, var(--dfd-mark) 28%, transparent); }
+.fxdiff tr.ad mark.wd, .fxdiff td.ad mark.wd { background: color-mix(in srgb, var(--dfa-mark) 28%, transparent); }
+.fxdiff .mk { font-weight: 700; }
+.fxdiff tr.hh td { font-family: var(--mono); letter-spacing: -.01em; }
+.fxitem { gap: 9px; padding: 7px 10px; }
+.fxitem .fxst { margin-left: 2px; }
+
+/* 改动: changed files on the left, the picked one's diff on the right */
+.fxchg { display: grid; grid-template-columns: minmax(190px, 34%) minmax(0, 1fr); flex: 1; min-height: 0; outline: none; }
+.fxclist { display: flex; flex-direction: column; min-height: 0; border-right: 1px solid var(--border); background: var(--raised); }
+.fxchead { padding: 10px 12px 9px; border-bottom: 1px solid var(--border); display: flex; flex-direction: column; gap: 2px; }
+.fxcsum { display: flex; align-items: center; gap: 7px; font-size: 13px; }
+.fxcsum b { font-weight: 600; }
+.fxcsrc { font-size: 11px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fxcfiles { flex: 1; min-height: 0; overflow: auto; padding: 4px 0 10px; }
+.fxcdir { display: flex; align-items: center; gap: 6px; padding: 8px 10px 3px 10px; font-size: 12px; color: var(--muted); min-width: 0; }
+.fxcdir span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--mono); font-size: 11.5px; }
+.fxcrow { display: flex; align-items: center; gap: 7px; width: 100%; height: 28px; padding: 0 10px; font-size: 13px; text-align: left; color: var(--text); min-width: 0; position: relative; }
+.fxcrow.in { padding-left: 26px; }
+.fxcrow.in::before { content: ""; position: absolute; left: 17px; top: 0; bottom: 0; width: 1px; background: var(--border); }
+.fxcrow:hover { background: var(--hover); }
+.fxcrow[aria-selected="true"] { background: var(--accent-soft); box-shadow: inset 2px 0 0 var(--accent); }
+.fxcrow[aria-selected="true"] .g { font-weight: 500; }
+.fxcrow .g { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fxcrow .g.st-deleted { text-decoration: line-through; }
+.fxcn { flex: none; display: inline-flex; gap: 5px; font-size: 11px; }
+.fxcn .add, .fxcn .del { font-weight: 600; }
+.fxcfoot { padding: 8px 10px; border-top: 1px solid var(--border); display: flex; justify-content: flex-end; }
+.fxcview .fxbody { overflow: auto; }
+.fxcview .fxdiff { border-top: 0; }
+.fxcview .fxmeta .add, .fxcview .fxmeta .del { font-weight: 600; }
+.fxnav { display: inline-flex; align-items: center; gap: 0; }
+.fxnavn { font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; min-width: 28px; text-align: center; }
+@container (max-width: 520px) {
+  .fxchg { grid-template-columns: 1fr; grid-template-rows: minmax(110px, 34%) minmax(0, 1fr); }
+  .fxclist { border-right: 0; border-bottom: 1px solid var(--border); }
+  .fxcview .fxmini { display: none; }
+  .fxcview .fxrevert { padding: 0 6px; font-size: 0; gap: 0; }
+  .fxcview .fxcrumb span, .fxcview .fxcrumb svg { display: none; }
+}
