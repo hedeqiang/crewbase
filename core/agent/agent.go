@@ -918,6 +918,9 @@ func (r *Registry) restoreQueue(a *Agent) {
 		}
 	}
 	var pending []Input
+	// paused or not: the latest pause / resume in any of its conversations
+	// (they are written where the agent was then; map order must not decide)
+	var pausedAt time.Time
 	for id := range ids {
 		ss, err := r.sessions.Get(id)
 		if err != nil {
@@ -943,6 +946,10 @@ func (r *Registry) restoreQueue(a *Agent) {
 				var m map[string]string
 				if e.Decode(&m) == nil {
 					delete(open, m["id"])
+					// a resumed turn the person then removed is not resumed again
+					if e.Type == session.TypeInputCancelled && m["id"] == running {
+						running = ""
+					}
 				}
 			case session.TypeTurnStart:
 				var m struct {
@@ -959,10 +966,11 @@ func (r *Registry) restoreQueue(a *Agent) {
 				if e.Decode(&m) == nil && m.Status != "interrupted" {
 					running = ""
 				}
-			case session.TypeQueuePaused:
-				a.paused = true
-			case session.TypeQueueResumed:
-				a.paused = false
+			case session.TypeQueuePaused, session.TypeQueueResumed:
+				if !e.Time.Before(pausedAt) {
+					pausedAt = e.Time
+					a.paused = e.Type == session.TypeQueuePaused
+				}
 			}
 		}
 		if in, ok := all[running]; ok && running != "" && resumable(in) {

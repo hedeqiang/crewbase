@@ -284,6 +284,10 @@ func (l *loop) turn(parent context.Context, a *agent.Agent, in agent.Input) {
 	inp, err := PreStep.Run(d, ctx, &in, func(_ context.Context, x *agent.Input) (*agent.Input, error) { return x, nil })
 	if err != nil || inp == nil {
 		_, _ = ss.Append(session.TypeNotice, a.ID(), map[string]string{"text": fmt.Sprintf("input rejected: %v", err)})
+		// a resumed turn rejected now is over: not resumed on every restart
+		if in.Resumed {
+			_, _ = ss.Append(session.TypeTurnEnd, a.ID(), TurnEnd{Status: "rejected"})
+		}
 		a.SetStatus(agent.StatusIdle, "")
 		// Waiters (workflows, subagents) track inputs by turn end.
 		TurnEnded.Emit(d, TurnEndEvent{Agent: a.ID(), Session: ss.ID(), Input: in, TurnEnd: TurnEnd{Status: "rejected", Error: fmt.Sprint(err)}})
