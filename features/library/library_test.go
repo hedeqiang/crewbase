@@ -154,3 +154,42 @@ func TestHTMLText(t *testing.T) {
 		t.Fatalf("%q", got)
 	}
 }
+
+// A save that replaces by name only replaces what the saver may see, kept
+// private (or not) as asked.
+func TestReplaceRespectsPrivacy(t *testing.T) {
+	s := open(t)
+	ctx := context.Background()
+	mia, err := s.Add(ctx, AddRequest{Team: "default", Name: "plan.md", Data: []byte("A secret salary plan"), Source: SourceAgent, Agent: "mia", Private: true, Replace: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	kai, err := s.Add(ctx, AddRequest{Team: "default", Name: "plan.md", Data: []byte("B public notes"), Source: SourceAgent, Agent: "kai", Replace: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if kai.ID == mia.ID {
+		t.Fatal("kai's save overwrote mia's private document")
+	}
+	if got, err := s.Get(Viewer{Team: "default", Agent: "mia"}, mia.ID); err != nil || got.Agent != "mia" || got.Versions != 0 {
+		t.Fatalf("mia's document changed: %+v %v", got, err)
+	}
+	// a private save over a shared document does not stay shared
+	pub, _ := s.Add(ctx, AddRequest{Team: "default", Name: "pub.md", Data: []byte("x"), Source: SourceAgent, Agent: "kai", Replace: true})
+	p, err := s.Add(ctx, AddRequest{Team: "default", Name: "pub.md", Data: []byte("my private y"), Source: SourceAgent, Agent: "kai", Private: true, Replace: true})
+	if err != nil || !p.Private || p.ID == pub.ID {
+		t.Fatalf("private save: %+v %v", p, err)
+	}
+	// replacing one's own document of the same privacy still replaces it
+	again, err := s.Add(ctx, AddRequest{Team: "default", Name: "plan.md", Data: []byte("B public notes v2"), Source: SourceAgent, Agent: "kai", Replace: true})
+	if err != nil || again.ID != kai.ID || again.Versions != 1 {
+		t.Fatalf("own replace: %+v %v", again, err)
+	}
+	// the same with a Chinese name: saving again updates kai's copy
+	s.Add(ctx, AddRequest{Team: "default", Name: "薪资.md", Data: []byte("secret"), Source: SourceAgent, Agent: "mia", Private: true, Replace: true})
+	c1, _ := s.Add(ctx, AddRequest{Team: "default", Name: "薪资.md", Data: []byte("v1"), Source: SourceAgent, Agent: "kai", Replace: true})
+	c2, err := s.Add(ctx, AddRequest{Team: "default", Name: "薪资.md", Data: []byte("v2"), Source: SourceAgent, Agent: "kai", Replace: true})
+	if err != nil || c2.ID != c1.ID {
+		t.Fatalf("saving again made another copy: %v %v (%s, %s)", c1.ID, c2.ID, c1.Name, c2.Name)
+	}
+}

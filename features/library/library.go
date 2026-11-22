@@ -297,7 +297,11 @@ func (s *Service) Add(ctx context.Context, r AddRequest) (Item, error) {
 		return Item{}, err
 	}
 	if r.Replace {
-		if it, err := s.byName(r.Team, r.Folder, r.Name); err == nil {
+		// only an item the saver may see, kept as private (or not) as
+		// asked: another agent's private document is not overwritten (nor
+		// taken over), and a private save does not land in a shared one;
+		// those get a free name instead
+		if it, err := s.replaceable(r); err == nil {
 			if it.SHA256 == hash {
 				return it, nil
 			}
@@ -420,6 +424,41 @@ func (s *Service) byHash(team, hash string) (Item, error) {
 		return Item{}, ErrNotFound
 	}
 	return it, err
+}
+
+// replaceable is the item a replacing save of r updates: the one of that
+// name when the saver may see it and it is kept private (or not) as asked;
+// else the saver's own copy that an earlier save got under a free name
+// ("plan (2).md"), so saving again updates it instead of adding another.
+func (s *Service) replaceable(r AddRequest) (Item, error) {
+	v := Viewer{Team: r.Team, Agent: r.Agent}
+	if it, err := s.byName(r.Team, r.Folder, r.Name); err == nil && v.sees(it) && it.Private == r.Private {
+		return it, nil
+	}
+	ext := path.Ext(r.Name)
+	stem := strings.TrimSuffix(r.Name, ext)
+	rows, err := s.db.Query(`SELECT id, name FROM items WHERE team=? AND folder=? AND agent=? AND private=? AND substr(name, 1, ?) = ? ORDER BY updated DESC`,
+		agent.TeamOf(r.Team), r.Folder, r.Agent, boolInt(r.Private), utf8.RuneCountInString(stem)+2, stem+" (")
+	if err != nil {
+		return Item{}, err
+	}
+	var id int64 = -1
+	for rows.Next() {
+		var x int64
+		var name string
+		if rows.Scan(&x, &name) != nil {
+			continue
+		}
+		if mid, ok := strings.CutSuffix(strings.TrimPrefix(name, stem+" ("), ")"+ext); ok && mid != "" && strings.Trim(mid, "0123456789") == "" {
+			id = x
+			break
+		}
+	}
+	rows.Close()
+	if id < 0 {
+		return Item{}, ErrNotFound
+	}
+	return s.get(id)
 }
 
 func (s *Service) byName(team, folder, name string) (Item, error) {
