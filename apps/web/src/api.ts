@@ -701,6 +701,12 @@ export interface Brief {
   folded: number;
 }
 
+/** A / pick sent with a message: a skill, or a family of tools. */
+export interface SlashPick {
+  kind: "skill" | "tools";
+  name: string;
+}
+
 export interface WfStep {
   id: string;
   name?: string;
@@ -1417,7 +1423,7 @@ export const API = {
     api<{ agent: string; session: string; name: string; skills: number }>("POST", "/api/agents/import", { ...src, options }),
   patchAgent: (id: string, b: Record<string, unknown>) => api<AgentView>("PATCH", `/api/agents/${enc(id)}`, b),
   deleteAgent: (id: string) => api("DELETE", `/api/agents/${enc(id)}`),
-  send: (id: string, b: { text: string; model?: string; session?: string; front?: boolean; queue?: boolean; attachments?: { path: string; name: string }[]; reply?: Quote }) =>
+  send: (id: string, b: { text: string; model?: string; session?: string; front?: boolean; queue?: boolean; attachments?: { path: string; name: string }[]; reply?: Quote; use?: SlashPick[] }) =>
     api<Input>("POST", `/api/agents/${enc(id)}/messages`, b),
   /** Regenerate (no text: resend seq and the messages after it as they
    *  were) or edit and resend (text: only seq, edited). History from seq on
@@ -1582,6 +1588,7 @@ export const API = {
   usage: () => api<UsageStats>("GET", "/api/usage"),
   workspaceDir: () => api<{ dir: string; isDefault: boolean; default: string }>("GET", "/api/settings/workspace"),
   setWorkspaceDir: (dir: string) => api<{ dir: string; isDefault: boolean; default: string }>("PUT", "/api/settings/workspace", { dir }),
+  agentSkills: (id: string) => api<{ skills: { name: string; description?: string; source?: string }[] }>("GET", `/api/agents/${enc(id)}/skills`),
   agentToolGroups: (id: string) =>
     api<{ groups: { name: string; count: number; summary: string; deferred: boolean }[] | null; deferredTokens: number }>("GET", `/api/agents/${enc(id)}/tools`),
   vault: () => api<{ items: VaultItem[] }>("GET", "/api/vault"),

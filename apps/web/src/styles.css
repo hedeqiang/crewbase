@@ -3362,3 +3362,26 @@ input.fi { resize: none; }
 .trig .ssel.sm select, .trig .fi.sm { height: 30px; }
 .trig .ssel.sm select, .trig .fi.sm { padding-top: 0; padding-bottom: 0; line-height: 28px; }
 .trig .ssel.sm::after { right: 10px; }
+
+/* the / menu and its picks */
+.mention.slash { width: min(440px, calc(100% - 16px)); max-height: min(380px, 52vh); overflow: auto; padding: 6px 6px 0; animation: m-in var(--dur-fast) var(--ease-out) backwards; }
+.slashg + .slashg { margin-top: 4px; padding-top: 4px; border-top: 1px solid var(--border); }
+.mention.slash .mi { align-items: flex-start; padding: 7px 8px; }
+.mention.slash .mi .g span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mention.slash .mi .g b { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
+.slashic { width: 26px; height: 26px; border-radius: 8px; display: grid; place-items: center; flex: none; background: var(--sunken); color: var(--text2); }
+.mi.skill .slashic { background: var(--accent-soft); color: var(--accent-text); }
+.mi.tools .slashic { background: var(--amber-soft); color: var(--amber-text); }
+.slashn { font-family: var(--mono); font-size: 13px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.slashh { font-size: 11px !important; font-weight: 400; color: var(--muted); flex: none; }
+.slashempty { padding: 12px 10px; line-height: 1.6; }
+.slashfoot { position: sticky; bottom: 0; background: var(--surface); padding: 6px 8px 7px; margin-top: 4px; border-top: 1px solid var(--border); font-size: 11px; }
+.pickchips, .usedchips { display: flex; flex-wrap: wrap; gap: 6px; }
+.pickchips { padding: 6px 0 2px; }
+.usedchips { justify-content: flex-end; margin-bottom: 4px; }
+.pickchip { display: inline-flex; align-items: center; gap: 5px; height: 26px; padding: 0 4px 0 9px; border-radius: 8px; font-size: 12px; font-weight: 500; background: var(--accent-soft); color: var(--accent-text); animation: rise-in var(--dur-fast) var(--ease-out) backwards; }
+.pickchip.tools { background: var(--amber-soft); color: var(--amber-text); }
+.pickchip button { width: 18px; height: 18px; border-radius: 5px; display: grid; place-items: center; color: inherit; opacity: .7; }
+.pickchip button:hover { opacity: 1; background: color-mix(in srgb, currentColor 14%, transparent); }
+.pickchip.sm { height: 22px; padding: 0 8px; font-size: 11px; }
+@media (prefers-reduced-motion: reduce) { .mention.slash, .pickchip { animation: none; } }

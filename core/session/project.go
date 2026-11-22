@@ -20,6 +20,38 @@ type UserMessage struct {
 	Attachments []llm.Attachment `json:"attachments,omitempty"`
 	// Reply: the message this one answers (回复), quoted.
 	Reply *Quote `json:"reply,omitempty"`
+	// Use: what the person picked with / for this message (a skill, a
+	// family of tools). A skill's instructions are recorded in Text, so the
+	// model request can be rebuilt from the log.
+	Use []Invoke `json:"use,omitempty"`
+}
+
+// Invoke is one / pick: Kind "skill" (Text holds its instructions) or
+// "tools" (a tool family, by its group name).
+type Invoke struct {
+	Kind string `json:"kind"`
+	Name string `json:"name"`
+	Text string `json:"text,omitempty"`
+}
+
+// InvokeKinds are the kinds of Invoke.
+const (
+	InvokeSkill = "skill"
+	InvokeTools = "tools"
+)
+
+// invokeNote is what the model reads for the picks of a message.
+func invokeNote(use []Invoke) string {
+	var b strings.Builder
+	for _, u := range use {
+		switch u.Kind {
+		case InvokeSkill:
+			b.WriteString("[The person picked the skill \"" + u.Name + "\" for this message: follow its instructions below.]\n<skill name=\"" + u.Name + "\">\n" + strings.TrimSpace(u.Text) + "\n</skill>\n")
+		case InvokeTools:
+			b.WriteString("[The person wants you to use the " + u.Name + " tools for this message; if they are not loaded yet, find them with tool_search.]\n")
+		}
+	}
+	return b.String()
 }
 
 // Quote is a message replied to: its seq, who wrote it, an excerpt.
@@ -230,6 +262,9 @@ func DeriveMessages(events []Event, agent string, names map[string]string) []llm
 				continue
 			}
 			text := m.Text
+			if len(m.Use) > 0 {
+				text = invokeNote(m.Use) + text
+			}
 			if q := m.Reply; q != nil && q.Text != "" {
 				text = "[replying to " + q.Who + ": \"" + q.Text + "\"]\n" + text
 			}

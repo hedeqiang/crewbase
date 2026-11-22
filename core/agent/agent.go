@@ -121,6 +121,7 @@ const (
 // Input is one queued unit of work.
 type Input struct {
 	ID      string        `json:"id"`
+	Agent   string        `json:"agent,omitempty"` // set by Enqueue
 	Session string        `json:"session"`
 	Text    string        `json:"text"`
 	From    string        `json:"from,omitempty"`
@@ -129,7 +130,9 @@ type Input struct {
 	Attachments []llm.Attachment `json:"attachments,omitempty"`
 	// Reply quotes the message this one answers (回复).
 	Reply *session.Quote `json:"reply,omitempty"`
-	Front bool           `json:"front,omitempty"`
+	// Use: skills and tool families picked with / for this message.
+	Use   []session.Invoke `json:"use,omitempty"`
+	Front bool             `json:"front,omitempty"`
 	// Queue: wait for the turn running now to end (the person chose 排队),
 	// instead of joining it at its next step (插话, the default).
 	Queue bool `json:"queue,omitempty"`
@@ -464,6 +467,7 @@ func (a *Agent) Enqueue(in Input) (Input, error) {
 		in.Session = a.Spec().Session
 	}
 	in.Queued = time.Now().UTC()
+	in.Agent = a.id
 	ss, err := a.reg.sessions.Get(in.Session)
 	if err != nil {
 		return in, err

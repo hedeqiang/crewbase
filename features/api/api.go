@@ -140,7 +140,16 @@ type sendBody struct {
 		Path string `json:"path"`
 		Name string `json:"name"`
 	} `json:"attachments,omitempty"`
+	// Use: skills / tool families picked with / (the skills plugin loads
+	// a skill's instructions when the turn starts).
+	Use []struct {
+		Kind string `json:"kind"`
+		Name string `json:"name"`
+	} `json:"use,omitempty"`
 }
+
+// maxUse is how many / picks one message may carry.
+const maxUse = 5
 
 // resendBody: POST /api/agents/{id}/resend. Seq is a user message to the
 // agent; Text unset regenerates (that message and the ones after it are
@@ -469,8 +478,16 @@ var Plugin = kernel.Register(kernel.Spec{
 				if err := r.Decode(&b); err != nil {
 					return err
 				}
-				if strings.TrimSpace(b.Text) == "" && len(b.Attachments) == 0 {
+				if strings.TrimSpace(b.Text) == "" && len(b.Attachments) == 0 && len(b.Use) == 0 {
 					return gateway.BadRequest("text is required")
+				}
+				if len(b.Use) > maxUse {
+					return gateway.BadRequest("at most %d picks per message", maxUse)
+				}
+				for _, u := range b.Use {
+					if (u.Kind != session.InvokeSkill && u.Kind != session.InvokeTools) || strings.TrimSpace(u.Name) == "" || len(u.Name) > 128 {
+						return gateway.BadRequest("use: kind must be skill or tools, with a name")
+					}
 				}
 				if len(b.Attachments) > attachments.MaxPerInput {
 					return gateway.BadRequest("at most %d attachments per message", attachments.MaxPerInput)
@@ -490,6 +507,9 @@ var Plugin = kernel.Register(kernel.Spec{
 				var b sendBody
 				_ = r.Decode(&b)
 				in := agent.Input{Text: b.Text, From: b.From, Session: b.Session, Front: b.Front, Queue: b.Queue, Reply: quote(b.Reply)}
+				for _, u := range b.Use {
+					in.Use = append(in.Use, session.Invoke{Kind: u.Kind, Name: strings.TrimSpace(u.Name)})
+				}
 				// a team member's messages carry their name, whatever the client says
 				if who, ok := kernel.Lookup[Approver](c, "members"); ok && r.DeviceID != "" {
 					in.From = who.SenderName(r.DeviceID)
@@ -587,7 +607,7 @@ var Plugin = kernel.Register(kernel.Spec{
 					if !ok {
 						continue
 					}
-					ins = append(ins, agent.Input{Text: m.Text, From: m.From, Attachments: m.Attachments})
+					ins = append(ins, agent.Input{Text: m.Text, From: m.From, Attachments: m.Attachments, Use: m.Use})
 					if b.Text != nil {
 						break // edit: only the edited message is sent; later ones are dropped
 					}

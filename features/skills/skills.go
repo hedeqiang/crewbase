@@ -20,7 +20,9 @@ import (
 	"time"
 
 	"github.com/hedeqiang/crewbase/core/agent"
+	"github.com/hedeqiang/crewbase/core/agentloop"
 	"github.com/hedeqiang/crewbase/core/prompt"
+	"github.com/hedeqiang/crewbase/core/session"
 	"github.com/hedeqiang/crewbase/core/tools"
 	"github.com/hedeqiang/crewbase/kernel"
 	"gopkg.in/yaml.v3"
@@ -412,6 +414,48 @@ func catalog(list []Skill) string {
 	return b.String()
 }
 
+// maxInvokeBytes caps the instructions a / pick puts into one message.
+const maxInvokeBytes = 64 << 10
+
+// slashRe is "/name" opening a message (how people pick a skill where
+// there is no menu, such as Telegram or Feishu).
+var slashRe = regexp.MustCompile(`^/([A-Za-z0-9][A-Za-z0-9._-]{0,127})(?:\s+|$)`)
+
+// Resolve fills in the instructions of the skills picked for in, and turns
+// a message that opens with "/<skill>" into that pick. A skill the agent
+// cannot see is an error: the person asked for it by name.
+func (s *Service) Resolve(in *agent.Input, agentID string) error {
+	if len(in.Use) == 0 {
+		if m := slashRe.FindStringSubmatch(in.Text); m != nil {
+			for _, sk := range s.List(agentID) {
+				if sk.Name == m[1] {
+					in.Use = []session.Invoke{{Kind: session.InvokeSkill, Name: sk.Name}}
+					in.Text = strings.TrimSpace(in.Text[len(m[0]):])
+					break
+				}
+			}
+		}
+	}
+	for i, u := range in.Use {
+		if u.Kind != session.InvokeSkill || u.Text != "" {
+			continue
+		}
+		sk, body, files, err := s.Load(agentID, u.Name)
+		if err != nil {
+			return fmt.Errorf("skill %q is not available to this agent", u.Name)
+		}
+		text := fmt.Sprintf("Folder: %s\n\n%s", sk.Dir, body)
+		if len(files) > 0 {
+			text += "\n\nOther files in this skill (read them with read_file if needed):\n- " + strings.Join(files, "\n- ")
+		}
+		if len(text) > maxInvokeBytes {
+			text = text[:maxInvokeBytes] + "\n… [truncated; read SKILL.md in the folder for the rest]"
+		}
+		in.Use[i].Text = text
+	}
+	return nil
+}
+
 // Config of the skills plugin.
 type Config struct {
 	Dirs []string `json:"dirs"` // e.g. ["${root}/skills"]
@@ -433,6 +477,16 @@ var Plugin = kernel.Register(kernel.Spec{
 		s := &Service{c: c, dirs: cfg.Dirs, agents: kernel.Use[*agent.Registry](c, agent.ServiceKey), cache: map[string]cached{}}
 		kernel.Use[*prompt.Assembler](c, prompt.ServiceKey).Register(c, &prompt.Fragment{
 			Name: "skills-catalog", Order: 30, Render: func(id string) string { return catalog(s.List(id)) },
+		})
+		// a skill picked with / is loaded when its turn starts (and recorded
+		// with the message, see session.Invoke)
+		agentloop.PreStep.Use(c, func(ctx context.Context, in *agent.Input, next kernel.Next[*agent.Input, *agent.Input]) (*agent.Input, error) {
+			if in != nil && !in.Logged && !in.Resumed {
+				if err := s.Resolve(in, in.Agent); err != nil {
+					return nil, err
+				}
+			}
+			return next(ctx, in)
 		})
 		kernel.Use[*tools.Registry](c, tools.ServiceKey).Register(c, &tools.Tool{
 			Name:        "skill_load",

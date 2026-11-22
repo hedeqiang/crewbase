@@ -90,7 +90,7 @@ export interface TurnStats {
 
 export type FeedItem = (
   | { k: "time"; id: string; time: string }
-  | { k: "user"; id: string; seq: number; text: string; from?: string; time: string; to?: string; attachments?: Attachment[]; reply?: Quote }
+  | { k: "user"; id: string; seq: number; text: string; from?: string; time: string; to?: string; attachments?: Attachment[]; reply?: Quote; use?: { kind: string; name: string }[] }
   | {
       k: "agent";
       id: string;
@@ -379,7 +379,7 @@ export function project(events: SessionEvent[], cards?: ReadonlySet<string>): Pr
           push({ k: "bg", id, time: e.time, ...bg, sub: bg.kind === "delegation" ? runForTask(bg.task)?.session : undefined }, e.time);
           break;
         }
-        push({ k: "user", id, seq: e.seq, text: d.text ?? "", from: d.from, time: e.time, to: d.to, attachments: d.attachments, reply: d.reply?.seq ? d.reply : undefined }, e.time);
+        push({ k: "user", id, seq: e.seq, text: d.text ?? "", from: d.from, time: e.time, to: d.to, attachments: d.attachments, reply: d.reply?.seq ? d.reply : undefined, use: Array.isArray(d.use) && d.use.length ? d.use.map((u: any) => ({ kind: String(u.kind), name: String(u.name) })) : undefined }, e.time);
         for (const to of [d.to ?? "", ...((d.also as string[] | undefined) ?? [])]) askedBy.set(to, (askedBy.get(to) ?? "") + "\n" + (d.text ?? ""));
         break;
       case "message/assistant": {

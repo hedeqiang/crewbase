@@ -54,13 +54,16 @@ import {
   RefreshCw,
   History,
   ListPlus,
+  Sparkles,
+  Paperclip,
 } from "lucide-react";
 import { display, enterSends, MAC } from "../shortcuts";
-import { API, desktop, parseRef, refString, useRawURL, type AgentView, type ApprovalRequest, type ChannelView, type ModelRef } from "../api";
+import { API, desktop, parseRef, refString, useRawURL, type AgentView, type ApprovalRequest, type ChannelView, type ModelRef, type SlashPick } from "../api";
+import { filterSlash, PickChips, skillItems, slashAt, SlashMenu, toolItems, UsedChips, useSlashSources, type SlashItem } from "./SlashMenu";
 import { scheduleLabel } from "./settings/Automation";
 import { t, type Key } from "../i18n";
 import { argsFull, argsPreview, project, type AgentItem, type Decision, type FeedItem, type Rewind, type Step, type TurnPart, type TurnStats } from "../projection";
-import { hasModels, loadSession, setModelOverride, openConnect, openSubRun, setState, toast, useStore, sessionAgent, getState, setReply, markRead } from "../store";
+import { hasModels, loadSession, setModelOverride, openConnect, openSubRun, setState, toast, useStore, sessionAgent, getState, setReply, markRead, newChat, openSettings } from "../store";
 import { TakeoverCard, takeoverReason } from "./Browser";
 import { cloudVoice, dictate, dictationSupported, primeVoice, speak, speaking, speakSupported } from "../voice";
 import { addFiles, addLibraryFile, clearFiles, filesFrom, LIB_DRAG, libraryFrom, MsgAttachments, PendingChips } from "./Attachments";
@@ -378,8 +381,9 @@ function UserMsg({ it }: { it: Extract<FeedItem, { k: "user" }> }) {
   return (
     <div className="m-user" data-seq={it.seq}>
       {it.reply && <QuoteLine q={it.reply} mine />}
+      <UsedChips use={it.use} />
       {it.attachments?.length ? <MsgAttachments agent={it.to} items={it.attachments} /> : null}
-      {(it.text || !it.attachments?.length) && (
+      {(it.text || (!it.attachments?.length && !it.use?.length)) && (
         <div className={"bubble" + (long && !expanded ? " clipped" : "")}>
           {it.from && <span className="from">{it.from}</span>}
           <WithMentions text={long && !expanded ? it.text.slice(0, LONG_MSG) + "…" : it.text} />
@@ -1907,6 +1911,11 @@ function Composer({
   const noModels = useStore((s) => hasModels(s) === false);
   const [mention, setMention] = useState<Mention | null>(null);
   const [msel, setMsel] = useState(0);
+  // the / menu (one-to-one conversations): its query, the row chosen, and
+  // the skills / tool families picked for the next message
+  const [slash, setSlash] = useState<string | null>(null);
+  const [ssel, setSsel] = useState(0);
+  const [picks, setPicks] = useState<SlashPick[]>([]);
   const draft = useStore((s) => s.drafts[sessionId] ?? "");
   const override = useStore((s) => s.overrides[agent.id] ?? null);
   const hostConfirm = useStore((s) => s.hostConfirm === agent.id);
@@ -1935,6 +1944,8 @@ function Composer({
 
   useEffect(() => {
     ta.current?.focus();
+    setPicks([]);
+    setSlash(null);
   }, [sessionId]);
 
   const setDraft = (v: string) => setState((s) => ({ drafts: { ...s.drafts, [sessionId]: v } }));
@@ -2023,7 +2034,7 @@ function Composer({
     const d = display(enterSends() ? "enter" : "mod+enter");
     return MAC ? d.join("") : d.join("+");
   })();
-  const canSend = (!!draft.trim() || pending.some((f) => f.state === "ok")) && !pending.some((f) => f.state === "up");
+  const canSend = (!!draft.trim() || picks.length > 0 || pending.some((f) => f.state === "ok")) && !pending.some((f) => f.state === "up");
   const busy = !channel && (agent.status === "running" || agent.status === "waiting");
 
   const attach = (files: File[]) => {
@@ -2039,7 +2050,7 @@ function Composer({
   const send = async (queue = false) => {
     const text = draft.trim();
     const ready = pending.filter((f) => f.state === "ok" && f.att);
-    if ((!text && !ready.length) || sending || archived) return;
+    if ((!text && !ready.length && !picks.length) || sending || archived) return;
     if (pending.some((f) => f.state === "up")) {
       toast(t("att.waitUpload"));
       return;
@@ -2070,10 +2081,12 @@ function Composer({
         session: sessionId === agent.session ? undefined : sessionId,
         attachments: ready.length ? ready.map((f) => ({ path: f.att!.path, name: f.att!.name })) : undefined,
         reply: getState().replyTo[sessionId],
+        use: picks.length ? picks : undefined,
       });
       setDraft("");
       setReply(sessionId, null);
       clearFiles(sessionId);
+      setPicks([]);
       if (wasBusy) toast(queue && busy ? t("chat.queued", { n: agent.queue.length + 1 }) : busy ? t("steer.sent", { name: agent.name }) : t("chat.queued", { n: agent.queue.length + 1 }));
     } catch (e: any) {
       toast(t("chat.sendFailed", { error: e?.message ?? String(e) }));
@@ -2123,6 +2136,33 @@ function Composer({
   };
 
   const mode = agent.effectiveMode || agent.mode || "sandbox";
+
+  // ---- the / menu
+  const slashOpen = slash !== null && !channel && !archived;
+  const sources = useSlashSources(agent.id, slashOpen);
+  const commands: SlashItem[] = slashOpen
+    ? [
+        { key: "cmd:new", kind: "cmd", name: "new", desc: t("slash.cmd.new"), icon: <Plus size={14} />, run: () => void newChat() },
+        { key: "cmd:model", kind: "cmd", name: "model", desc: t("slash.cmd.model"), icon: <Sparkles size={14} />, run: () => setTimeout(() => modelM.setOpen(true), 0) },
+        ...(!plain && manage ? [{ key: "cmd:mode", kind: "cmd" as const, name: "mode", desc: t("slash.cmd.mode"), icon: <ModeIcon mode={mode} size={14} />, run: () => setTimeout(() => permM.setOpen(true), 0) }] : []),
+        { key: "cmd:attach", kind: "cmd", name: "attach", desc: t("slash.cmd.attach"), icon: <Paperclip size={14} />, run: () => fileIn.current?.click() },
+        ...(ctx && ctx.tokens > 0 ? [{ key: "cmd:compact", kind: "cmd" as const, name: "compact", desc: t("slash.cmd.compact"), icon: <Minimize2 size={14} />, run: () => void API.compact(agent.id, sessionId).then(() => toast(t("ctx.compacted", { name: agent.name })), (e) => toast(e?.message ?? String(e))) }] : []),
+        ...(busy ? [{ key: "cmd:stop", kind: "cmd" as const, name: "stop", desc: t("slash.cmd.stop"), icon: <Square size={14} />, run: () => void API.action(agent.id, "stop").catch((e) => toast(e?.message ?? String(e))) }] : []),
+        ...composerActions.map((c) => ({ key: "slot:" + c.key, kind: "cmd" as const, name: c.key.replace(/^.*[/:]/, ""), desc: c.desc || c.title, icon: <SlotIcon name={c.icon} />, run: () => void runCommand(c, sessionId) })),
+      ]
+    : [];
+  const slashItems = slashOpen ? filterSlash([...skillItems(sources), ...commands, ...toolItems(sources)], slash ?? "").filter((it) => !picks.some((p) => it.key === p.kind + ":" + p.name)).slice(0, 40) : [];
+  const pickSlash = (it: SlashItem) => {
+    const el = ta.current;
+    const caret = el?.selectionStart ?? draft.length;
+    // the "/query" goes; what follows it stays
+    const rest = draft.slice(caret).replace(/^\s+/, "");
+    setDraft(rest);
+    setSlash(null);
+    caretAfter.current = 0;
+    if (it.kind === "cmd") it.run?.();
+    else setPicks((l) => (l.some((p) => p.kind === it.kind && p.name === it.name) ? l : [...l, { kind: it.kind as SlashPick["kind"], name: it.name }]));
+  };
 
   if (viewer)
     return (
@@ -2188,6 +2228,24 @@ function Composer({
         {dragging && <div className="dropmask">{t("att.drop")}</div>}
         <ReplyChip session={sessionId} />
         <PendingChips session={sessionId} files={pending} />
+        <PickChips picks={picks} onRemove={(p) => setPicks((l) => l.filter((x) => x !== p))} />
+        {slashOpen && (
+          <SlashMenu
+            items={slashItems}
+            sel={slashItems.length ? ssel % slashItems.length : 0}
+            loading={!sources}
+            onHover={setSsel}
+            onPick={pickSlash}
+            empty={
+              <>
+                {t("slash.none", { q: slash ?? "" })}{" "}
+                <button type="button" className="linkbtn" onClick={() => (setSlash(null), openSettings("market"))}>
+                  {t("slash.getSkills")}
+                </button>
+              </>
+            }
+          />
+        )}
         {candidates.length > 0 && (
           <div className="mention" role="listbox" aria-label={t("ch.mention")}>
             <div className="mlbl">{t("ch.mention")}</div>
@@ -2225,13 +2283,21 @@ function Composer({
           aria-label={channel ? t("chat.placeholderChannel", { name: channel.title || channel.id }) : agent.kind === "chat" ? t("chat.chatPh") : t("chat.placeholder", { name: agent.name })}
           onChange={(e) => {
             setDraft(e.target.value);
+            if (!channel) {
+              const q = slashAt(e.target.value, e.target.selectionStart ?? e.target.value.length);
+              setSlash(q);
+              if (q !== slash) setSsel(0);
+            }
             if (channel) {
               const m = mentionAt(e.target.value, e.target.selectionStart ?? e.target.value.length);
               setMention(m);
               setMsel(0);
             }
           }}
-          onBlur={() => setMention(null)}
+          onBlur={() => {
+            setMention(null);
+            setSlash(null);
+          }}
           onPaste={(e) => {
             const files = filesFrom(e.clipboardData);
             if (files.length) {
@@ -2249,6 +2315,31 @@ function Composer({
             }
           }}
           onKeyDown={(e) => {
+            if (slashOpen) {
+              const n = slashItems.length;
+              if ((e.key === "ArrowDown" || e.key === "ArrowUp") && n > 0) {
+                e.preventDefault();
+                setSsel((i) => (i + (e.key === "ArrowDown" ? 1 : n - 1)) % n);
+                return;
+              }
+              if ((e.key === "Enter" || e.key === "Tab") && n > 0 && !e.nativeEvent.isComposing && !e.shiftKey) {
+                e.preventDefault();
+                pickSlash(slashItems[ssel % n]);
+                return;
+              }
+              if (e.key === "Escape") {
+                e.preventDefault();
+                e.stopPropagation();
+                setSlash(null);
+                return;
+              }
+            }
+            // Backspace at the very start takes back the last pick
+            if (e.key === "Backspace" && picks.length && e.currentTarget.selectionStart === 0 && e.currentTarget.selectionEnd === 0) {
+              e.preventDefault();
+              setPicks((l) => l.slice(0, -1));
+              return;
+            }
             if (candidates.length > 0) {
               if (e.key === "ArrowDown" || e.key === "ArrowUp") {
                 e.preventDefault();

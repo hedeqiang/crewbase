@@ -29,6 +29,16 @@ var APIPlugin = kernel.Register(kernel.Spec{
 				}
 				return map[string]any{"skills": list}, nil
 			}})
+		// the skills one agent sees (its workspace first): the composer's / menu
+		g.Handle(c, gateway.Route{Method: "GET", Path: "/api/agents/{id}/skills", Devices: []string{"mobile"},
+			Handle: func(_ context.Context, r *gateway.Request) (any, error) {
+				list := s.List(r.Params["id"])
+				out := make([]map[string]string, 0, len(list))
+				for _, sk := range list {
+					out = append(out, map[string]string{"name": sk.Name, "description": sk.Description, "source": sk.Source})
+				}
+				return map[string]any{"skills": out}, nil
+			}})
 		// ?agent=<id> removes from that agent's workspace; without it, from
 		// the shared skills directory.
 		g.Handle(c, gateway.Route{Method: "DELETE", Path: "/api/skills/{name}",
