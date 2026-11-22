@@ -1594,6 +1594,7 @@ const zh = {
   "media.promptN": "提示词 {i}",
   "media.moreWords": "查看说明",
   "media.lessWords": "收起说明",
+  "media.gone": "图片已不在工作区",
   "media.openInFiles": "在文件中查看",
   "set.kind.chat": "对话",
   "set.kind.image": "图片",

@@ -1872,6 +1872,7 @@ export const en: Partial<Record<Key, string>> = {
   "media.promptN": "Prompt {i}",
   "media.moreWords": "Show note",
   "media.lessWords": "Hide note",
+  "media.gone": "No longer in the workspace",
   "media.openInFiles": "Show in Files",
   "set.kind.chat": "Chat",
   "set.kind.image": "Image",

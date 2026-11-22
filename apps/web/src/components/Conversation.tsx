@@ -1491,10 +1491,9 @@ function FoldedWords({ text, children }: { text: string; children: ReactNode }) 
       </div>
     );
   return (
-    <button type="button" className="foldw" onClick={() => setOpen(true)} title={t("media.moreWords")}>
-      <Eye size={13} />
-      <span className="foldl">{excerpt(text, 80)}</span>
-      <span className="foldm">{t("media.moreWords")}</span>
+    <button type="button" className="foldw" onClick={() => setOpen(true)} title={t("media.moreWords")} aria-expanded={false}>
+      <span className="foldl">{excerpt(text, 120)}</span>
+      <ChevronDown size={13} className="foldc" />
     </button>
   );
 }

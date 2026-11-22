@@ -1210,9 +1210,12 @@ button.tg:disabled { opacity: .5; cursor: not-allowed; }
 .mediaimgs.n1 img { max-height: 520px; width: auto; max-width: 100%; }
 .mediaimgs:not(.n1) .mimg { aspect-ratio: 1; min-height: 0; }
 .mediaimgs:not(.n1) img { height: 100%; object-fit: cover; }
-.mediabar { display: flex; align-items: center; gap: 8px; }
-.mediainfo { display: inline-flex; align-items: center; gap: 5px; height: 24px; padding: 0 8px 0 6px; border-radius: 7px; font-size: 12px; color: var(--muted); }
-.mediainfo:hover, .mediainfo.on { background: var(--hover); color: var(--text2); }
+.mediabox { position: relative; }
+.mediainfo { position: absolute; top: 8px; right: 8px; width: 28px; height: 28px; border-radius: 9px; display: grid; place-items: center; color: #fff; background: rgba(0, 0, 0, .38); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); opacity: 0; transition: opacity var(--dur-fast) var(--ease-out), background var(--dur-fast); }
+.mediabox:hover .mediainfo, .mediainfo:focus-visible, .mediainfo.on { opacity: 1; }
+.mediainfo:hover, .mediainfo.on { background: rgba(0, 0, 0, .58); }
+.mediabox:has(> .mediaimgs.n1) { width: fit-content; max-width: 100%; }
+@media (hover: none) { .mediainfo { opacity: .75; } }
 .mediameta { display: flex; flex-direction: column; gap: 6px; padding: 10px 12px; border-radius: 12px; background: var(--raised); border: 1px solid var(--border); font-size: 12px; animation: rise-in var(--dur-fast) var(--ease-out) backwards; }
 .mediameta .mprompt { margin: 0; color: var(--text2); line-height: 1.6; white-space: pre-wrap; overflow-wrap: anywhere; }
 .mediameta .mprompt + .mprompt { padding-top: 6px; border-top: 1px dashed var(--border); }
@@ -3434,11 +3437,12 @@ input.fi { resize: none; }
 @media (prefers-reduced-motion: reduce) { .mention.slash, .pickchip { animation: none; } }
 
 /* an agent's words after the pictures it made: folded to one line */
-button.foldw { display: flex; align-items: center; gap: 7px; width: 100%; max-width: min(560px, 100%); margin: 6px 0 2px; padding: 6px 10px; border-radius: 10px; font-size: 13px; color: var(--muted); text-align: left; min-width: 0; }
-button.foldw:hover { background: var(--hover); color: var(--text2); }
-button.foldw svg { flex: none; }
-.foldl { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.foldm { flex: none; font-size: 12px; color: var(--accent-text); }
+button.foldw { display: flex; align-items: center; gap: 6px; width: fit-content; max-width: min(560px, 100%); margin: 4px 0 2px -8px; padding: 4px 8px; border-radius: 8px; font-size: 13px; line-height: 1.5; color: var(--text2); text-align: left; min-width: 0; }
+button.foldw:hover { background: var(--hover); color: var(--text); }
+.foldc { flex: none; color: var(--muted); }
+.foldl { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .foldw.on { display: flex; flex-direction: column; align-items: flex-start; animation: rise-in var(--dur-fast) var(--ease-out) backwards; }
 .foldbtn { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; color: var(--muted); padding: 2px 6px; border-radius: 6px; }
 .foldbtn:hover { background: var(--hover); color: var(--text2); }
+.mimg.gone { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; cursor: default; color: var(--muted); font-size: 12px; border: 1px dashed var(--border2); background: var(--raised); min-height: 140px; }
+.mediaimgs.n1 .mimg.gone { width: min(360px, 100%); aspect-ratio: 3 / 2; }

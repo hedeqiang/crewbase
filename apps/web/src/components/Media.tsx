@@ -1,11 +1,11 @@
 // Images and videos an agent generated (features/media). The pictures are
 // the answer: they are shown on their own (one large, several in a grid),
 // a click opens them full size (← → between them, Esc closes), and what
-// made them (the prompt, the model, the files) is one 👀 click away.
+// made them (the prompt, the model, the files) is behind the corner ⓘ.
 
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
-import { AlertCircle, ChevronLeft, ChevronRight, Download, Eye, FolderOpen, X } from "lucide-react";
+import { AlertCircle, ChevronLeft, ChevronRight, Download, FolderOpen, ImageOff, Info, X } from "lucide-react";
 import { useRawURL } from "../api";
 import { t } from "../i18n";
 import type { MediaFile, MediaItem } from "../projection";
@@ -48,18 +48,18 @@ export function MediaCard({ it, inTurn }: { it: MediaItem; inTurn?: boolean }) {
       ) : video ? (
         it.files.map((f) => <VideoFile key={f.path} agent={it.agent} f={f} />)
       ) : (
-        <div className={"mediaimgs n" + Math.min(n, 4) + (n > 4 ? " many" : "")}>
-          {it.files.map((f, i) => (
-            <ImageFile key={f.path} agent={it.agent} f={f} onOpen={() => setView(i)} label={n > 1 ? t("media.imageN", { i: i + 1, n }) : t("media.image")} />
-          ))}
-        </div>
-      )}
-      {it.status === "done" && n > 0 && (
-        <div className="mediabar">
-          <button type="button" className={"mediainfo" + (info ? " on" : "")} aria-expanded={info} onClick={() => setInfo(!info)} title={t("media.details")}>
-            <Eye size={13} />
-            {t("media.details")}
-          </button>
+        <div className="mediabox">
+          <div className={"mediaimgs n" + Math.min(n, 4) + (n > 4 ? " many" : "")}>
+            {it.files.map((f, i) => (
+              <ImageFile key={f.path} agent={it.agent} f={f} onOpen={() => setView(i)} label={n > 1 ? t("media.imageN", { i: i + 1, n }) : t("media.image")} />
+            ))}
+          </div>
+          {/* what made them: a corner button, not a row of its own */}
+          {it.status === "done" && n > 0 && (
+            <button type="button" className={"mediainfo" + (info ? " on" : "")} aria-expanded={info} onClick={() => setInfo(!info)} title={t("media.details")} aria-label={t("media.details")}>
+              <Info size={14} />
+            </button>
+          )}
         </div>
       )}
       {info && (
@@ -88,10 +88,18 @@ export function MediaCard({ it, inTurn }: { it: MediaItem; inTurn?: boolean }) {
 
 function ImageFile({ agent, f, onOpen, label }: { agent: string; f: MediaFile; onOpen: () => void; label: string }) {
   const src = useRawURL(agent, f.path);
-  const [ok, setOk] = useState(false);
+  const [st, setSt] = useState<"" | "ok" | "gone">("");
+  // deleted or moved since: say so instead of loading forever
+  if (st === "gone")
+    return (
+      <span className="mimg gone" title={f.path}>
+        <ImageOff size={18} />
+        <span>{t("media.gone")}</span>
+      </span>
+    );
   return (
-    <button type="button" className={"mimg" + (ok ? " ok" : "")} onClick={onOpen} aria-label={t("media.open", { what: label })}>
-      {src ? <img src={src} alt={label} loading="lazy" decoding="async" onLoad={() => setOk(true)} /> : null}
+    <button type="button" className={"mimg" + (st === "ok" ? " ok" : "")} onClick={onOpen} aria-label={t("media.open", { what: label })}>
+      {src ? <img src={src} alt={label} loading="lazy" decoding="async" onLoad={() => setSt("ok")} onError={() => setSt("gone")} /> : null}
     </button>
   );
 }
