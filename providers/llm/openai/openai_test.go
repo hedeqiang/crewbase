@@ -490,3 +490,38 @@ func TestModelEfforts(t *testing.T) {
 		t.Fatalf("openrouter: thinker %v plain %v", got["x/thinker"], got["x/plain"])
 	}
 }
+
+// OpenAI-compatible servers that vary the chunk id, or send tool calls
+// without an index, still give the whole reply (the SDK assembles it).
+func TestStreamFromLooserServers(t *testing.T) {
+	run := func(evs ...string) (llm.Response, error) {
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { sse(w, evs...) }))
+		defer srv.Close()
+		a := newAdapter(t, srv.URL, nil)
+		return a.Stream(context.Background(), llm.Request{Model: "m", Messages: []llm.Message{llm.TextMessage(llm.RoleUser, "hi")}}, func(llm.Chunk) error { return nil })
+	}
+	// a usage chunk with id "", and an id that changes mid-stream
+	for _, evs := range [][]string{
+		{`{"id":"a","choices":[{"delta":{"content":"Hel"}}]}`, `{"id":"a","choices":[{"delta":{"content":"lo"},"finish_reason":"stop"}]}`, `{"id":"","choices":[],"usage":{"prompt_tokens":11,"completion_tokens":2}}`, `[DONE]`},
+		{`{"id":"a","choices":[{"delta":{"content":"Hel"}}]}`, `{"id":"b","choices":[{"delta":{"content":"lo"},"finish_reason":"stop"}]}`, `[DONE]`},
+	} {
+		r, err := run(evs...)
+		if err != nil || r.Message.Text() != "Hello" {
+			t.Fatalf("text: %v %q", err, r.Message.Text())
+		}
+	}
+	// two whole calls without index, then one streamed in pieces without index
+	r, err := run(
+		`{"id":"a","choices":[{"delta":{"tool_calls":[{"id":"c1","type":"function","function":{"name":"x","arguments":"{}"}},{"id":"c2","type":"function","function":{"name":"y","arguments":"{}"}}]}}]}`,
+		`{"id":"a","choices":[{"delta":{"tool_calls":[{"id":"c3","type":"function","function":{"name":"z","arguments":"{\"q\":"}}]}}]}`,
+		`{"id":"a","choices":[{"delta":{"tool_calls":[{"function":{"arguments":"1}"}}]}}]}`,
+		`{"id":"a","choices":[{"delta":{},"finish_reason":"tool_calls"}]}`,
+		`[DONE]`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	calls := r.Message.ToolCalls()
+	if len(calls) != 3 || calls[0].Name != "x" || calls[1].Name != "y" || calls[2].Name != "z" || string(calls[2].Args) != `{"q":1}` {
+		t.Fatalf("calls: %+v", calls)
+	}
+}

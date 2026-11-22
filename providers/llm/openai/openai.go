@@ -597,6 +597,7 @@ func (a *Adapter) streamChat(ctx context.Context, req llm.Request, onChunk func(
 	defer stream.Close()
 
 	var acc sdk.ChatCompletionAccumulator
+	var norm chunkNorm
 	var thinking strings.Builder
 	ds := newDSCollector()
 	var serverUse map[string]int
@@ -618,6 +619,7 @@ func (a *Adapter) streamChat(ctx context.Context, req llm.Request, onChunk func(
 	}
 	for stream.Next() {
 		ch := stream.Current()
+		norm.fix(&ch)
 		if !acc.AddChunk(ch) {
 			return llm.Response{}, &llm.Error{Kind: llm.ErrUnavailable, Provider: a.id, Message: "malformed stream chunk"}
 		}
@@ -767,3 +769,48 @@ var Plugin = kernel.Register(kernel.Spec{
 		return nil
 	},
 })
+
+// chunkNorm makes chunks from OpenAI-compatible servers acceptable to the
+// SDK's accumulator, which assembles them:
+//   - every chunk carries the stream's first id (some gateways give each
+//     chunk its own, or end with a usage chunk of id ""; the accumulator
+//     refuses a stream whose id changes);
+//   - a tool call sent without an index gets one (a missing index reads as
+//     0, which merged whole calls sent one after another into one): a new
+//     id is the next call, no id continues the last.
+type chunkNorm struct {
+	id     string
+	last   int // index of the last tool call of choice 0
+	lastID string
+	next   int // the index a new call gets
+}
+
+func (n *chunkNorm) fix(ch *sdk.ChatCompletionChunk) {
+	if n.id == "" {
+		n.id = ch.ID
+	}
+	if n.id != "" {
+		ch.ID = n.id
+	}
+	for i := range ch.Choices {
+		if ch.Choices[i].Index != 0 {
+			continue
+		}
+		tcs := ch.Choices[i].Delta.ToolCalls
+		for j := range tcs {
+			tc := &tcs[j]
+			if tc.JSON.Index.Valid() {
+				n.last, n.lastID = int(tc.Index), tc.ID
+				if int(tc.Index) >= n.next {
+					n.next = int(tc.Index) + 1
+				}
+				continue
+			}
+			if tc.ID != "" && (n.next == 0 || tc.ID != n.lastID) {
+				n.last, n.lastID = n.next, tc.ID
+				n.next++
+			}
+			tc.Index = int64(n.last)
+		}
+	}
+}
