@@ -186,7 +186,10 @@ func imageResult(out ImageOutcome, edit bool) string {
 	if len(out.Revised) > 0 {
 		fmt.Fprintf(&b, "The provider drew: %s\n", short(out.Revised[0], 300))
 	}
-	b.WriteString("They are already shown to the user in the conversation. Refer to them by path (e.g. to attach, edit or publish them); do not describe pixels you have not seen.")
+	b.WriteString("They are already shown to the person in the conversation, so the pictures are your answer: " +
+		"do not describe them, list their paths or file names, or repeat the prompt; at most one short sentence (or nothing) unless they asked for more. " +
+		"Do not make them again another way (code, other tools) or inspect them unless the person asks. " +
+		"Use the paths only for what is asked next (to attach, edit or publish them).")
 	return b.String()
 }
 

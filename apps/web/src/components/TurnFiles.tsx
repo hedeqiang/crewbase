@@ -69,7 +69,8 @@ export function TurnFiles({ agent, turn, ended }: { agent: string; turn: string;
     if (!open || tc) return;
     API.turnChanges(agent, turn).then(setTc, (e) => setErr(e?.message ?? String(e)));
   }, [open, tc, agent, turn]);
-  if (!sum) return null;
+  // a turn that only made pictures shows them, not "改了 4 个文件"
+  if (!sum || sum.files - (sum.media ?? 0) <= 0) return null;
 
   const undo = async () => {
     const cur = tc ?? (await API.turnChanges(agent, turn).catch(() => null));
@@ -94,7 +95,7 @@ export function TurnFiles({ agent, turn, ended }: { agent: string; turn: string;
       <div className="tfh">
         <button type="button" className="tft" aria-expanded={open} onClick={() => setOpen(!open)}>
           <FileDiffIcon size={13} />
-          <span>{t("tf.changed", { n: sum.files })}</span>
+          <span>{t("tf.changed", { n: sum.files - (sum.media ?? 0) })}</span>
           {(sum.added > 0 || sum.removed > 0) && (
             <span className="fxic">
               <span className="add">+{sum.added}</span>

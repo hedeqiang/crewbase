@@ -56,6 +56,7 @@ import {
   ListPlus,
   Sparkles,
   Paperclip,
+  ChevronUp,
 } from "lucide-react";
 import { display, enterSends, MAC } from "../shortcuts";
 import { API, desktop, parseRef, refString, useRawURL, type AgentView, type ApprovalRequest, type ChannelView, type ModelRef, type SlashPick } from "../api";
@@ -1042,7 +1043,7 @@ const fmtKB = (text: string) => {
   return n >= 1 << 20 ? `${(n / (1 << 20)).toFixed(1)} MB` : `${Math.round(n / 1024)} KB`;
 };
 
-function AgentMsg({ it, agent, showModel, bare, opened, extra }: { it: AgentItem; agent?: AgentView; showModel: boolean; bare?: boolean; opened?: string[]; extra?: ReactNode }) {
+function AgentMsg({ it, agent, showModel, bare, opened, extra, fold }: { it: AgentItem; agent?: AgentView; showModel: boolean; bare?: boolean; opened?: string[]; extra?: ReactNode; fold?: boolean }) {
   const models = useStore((s) => s.models);
   const [showThink, setShowThink] = useState(false);
   const [reading, setReading] = useState(false);
@@ -1078,11 +1079,18 @@ function AgentMsg({ it, agent, showModel, bare, opened, extra }: { it: AgentItem
             <span>{t("chat.searched", { q })}</span>
           </div>
         ))}
-        {it.text && (
-          <div className="mt">
-            <Markdown text={it.text} />
-          </div>
-        )}
+        {it.text &&
+          (fold ? (
+            <FoldedWords text={it.text}>
+              <div className="mt">
+                <Markdown text={it.text} />
+              </div>
+            </FoldedWords>
+          ) : (
+            <div className="mt">
+              <Markdown text={it.text} />
+            </div>
+          ))}
         {it.text && <LocalPreviewCards text={it.text} opened={opened} />}
         {it.text && <DocCards text={it.text} />}
         {it.refusal && (
@@ -1212,9 +1220,20 @@ function TurnMsg({ it, agent }: { it: Extract<FeedItem, { k: "turn" }>; agent?: 
             )}
           </>
         )}
-        {mergeSteps(it.parts, !!it.open).map((p) =>
-          p.k === "steps" ? (
+        {mergeSteps(withoutMediaSteps(it.parts), !!it.open).map((p, i, all) =>
+          // after the pictures they made, the words are a click away
+          p.k === "msg" && p.narration && p.it.text && !it.open && all.slice(0, i).some((x) => x.k === "media") ? (
+            <FoldedWords key={p.it.id} text={p.it.text}>
+              <div className="narr">
+                <div className="mt">
+                  <Markdown text={p.it.text} />
+                </div>
+              </div>
+            </FoldedWords>
+          ) : p.k === "steps" ? (
             <Steps key={p.id} steps={p.steps} agent={it.agent} />
+          ) : p.k === "media" ? (
+            <MediaCard key={p.id} it={p.m} inTurn />
           ) : p.k === "preview" ? (
             <PreviewLine key={p.id} p={p.p} session={sid} />
           ) : p.k === "page" ? (
@@ -1246,7 +1265,7 @@ function TurnMsg({ it, agent }: { it: Extract<FeedItem, { k: "turn" }>; agent?: 
               extra={it.starters && !it.open && agent ? <Starters agent={agent} items={splitStarters(p.it.text).starters} /> : null}
             />
           ) : (
-            <AgentMsg key={p.it.id} it={p.it} agent={agent} showModel={false} bare opened={opened} />
+            <AgentMsg key={p.it.id} it={p.it} agent={agent} showModel={false} bare opened={opened} fold={!it.open && all.slice(0, i).some((x) => x.k === "media")} />
           ),
         )}
         {working && !live?.thinking && (
@@ -1457,6 +1476,41 @@ function Steps({ steps, agent }: { steps: Step[]; agent?: string }) {
 /** A finished turn's steps in one group: step runs separated only by short
  *  narration ("先看看文件…") become one line; the narration stays above it.
  *  A running turn keeps them apart, so what happens now is visible. */
+/** What an agent said about the pictures it made: one line, the rest a
+ *  click away (the pictures are the answer). */
+function FoldedWords({ text, children }: { text: string; children: ReactNode }) {
+  const [open, setOpen] = useState(false);
+  if (open)
+    return (
+      <div className="foldw on">
+        {children}
+        <button type="button" className="foldbtn" onClick={() => setOpen(false)}>
+          <ChevronUp size={13} />
+          {t("media.lessWords")}
+        </button>
+      </div>
+    );
+  return (
+    <button type="button" className="foldw" onClick={() => setOpen(true)} title={t("media.moreWords")}>
+      <Eye size={13} />
+      <span className="foldl">{excerpt(text, 80)}</span>
+      <span className="foldm">{t("media.moreWords")}</span>
+    </button>
+  );
+}
+
+/** The image calls whose pictures are shown in the turn need no step line
+ *  of their own (a failed one keeps its line: it says why). */
+function withoutMediaSteps(parts: TurnPart[]): TurnPart[] {
+  const shown = new Set(parts.flatMap((p) => (p.k === "media" ? [...(p.m.calls ?? []), ...(p.m.call ? [p.m.call] : [])] : [])));
+  if (!shown.size) return parts;
+  return parts.flatMap((p): TurnPart[] => {
+    if (p.k !== "steps") return [p];
+    const steps = p.steps.filter((st) => !(shown.has(st.call.id) && st.result && !st.result.isError));
+    return steps.length ? [{ ...p, steps }] : [];
+  });
+}
+
 function mergeSteps(parts: TurnPart[], open: boolean): TurnPart[] {
   if (open) return parts;
   const runs = parts.filter((p) => p.k === "steps").length;

@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"io/fs"
 	"os"
+	"path"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -535,6 +536,21 @@ type TurnSummary struct {
 	Added   int    `json:"added"`
 	Removed int    `json:"removed"`
 	Undone  bool   `json:"undone,omitempty"`
+	// Media: of Files, the images / videos the turn generated (already
+	// shown in the conversation)
+	Media int `json:"media,omitempty"`
+}
+
+// generatedMedia: a picture or video the media tools saved this turn.
+func generatedMedia(f FileChange) bool {
+	if f.Status != "added" || !strings.HasPrefix(f.Path, "generated/") {
+		return false
+	}
+	switch strings.ToLower(path.Ext(f.Path)) {
+	case ".png", ".jpg", ".jpeg", ".webp", ".gif", ".mp4", ".mov", ".webm":
+		return true
+	}
+	return false
 }
 
 // summaries are the turns of session that changed files (newest first).
@@ -548,7 +564,13 @@ func (s *snapshots) summaries(agentID, session string) []TurnSummary {
 		if err != nil || len(tc.Files) == 0 {
 			continue
 		}
-		out = append(out, TurnSummary{Turn: sn.Turn, Files: len(tc.Files), Added: tc.Added, Removed: tc.Removed, Undone: !sn.Undone.IsZero()})
+		media := 0
+		for _, f := range tc.Files {
+			if generatedMedia(f) {
+				media++
+			}
+		}
+		out = append(out, TurnSummary{Turn: sn.Turn, Files: len(tc.Files), Added: tc.Added, Removed: tc.Removed, Undone: !sn.Undone.IsZero(), Media: media})
 	}
 	return out
 }

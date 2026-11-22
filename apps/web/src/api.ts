@@ -394,6 +394,8 @@ export interface TurnSummary {
   added: number;
   removed: number;
   undone?: boolean;
+  /** of files: the images / videos it generated (shown in the conversation) */
+  media?: number;
 }
 export interface TurnChanges {
   turn: string;

@@ -80,13 +80,17 @@ export type TurnPart =
   /** preview_open showed a page in the right panel (preview/opened) */
   | { k: "preview"; id: string; p: PreviewInfo }
   /** show_page: a page as (part of) the answer (page/shown) */
-  | { k: "page"; id: string; p: PageShown };
+  | { k: "page"; id: string; p: PageShown }
+  /** images / a video it generated (features/media): the answer itself */
+  | { k: "media"; id: string; m: MediaItem };
 
 /** What a finished turn used, on the last reply of the turn. */
 export interface TurnStats {
   steps: TurnStep[];
   status: string;
 }
+
+export type MediaItem = Extract<FeedItem, { k: "media" }>;
 
 export type FeedItem = (
   | { k: "time"; id: string; time: string }
@@ -153,6 +157,8 @@ export type FeedItem = (
       prompt: string;
       model: string;
       call?: string;
+      /** every call whose images are in it (several, side by side) */
+      calls?: string[];
       job?: string;
       /** pending: a video still being made */
       status: "pending" | "done" | "failed";
@@ -181,6 +187,8 @@ export interface MediaFile {
   path: string;
   mime: string;
   size: number;
+  /** what it was made from (when the images of a reply came from several prompts) */
+  prompt?: string;
 }
 
 export interface Citation {
@@ -604,20 +612,32 @@ export function project(events: SessionEvent[], cards?: ReadonlySet<string>): Pr
         break;
       }
       case "media/generated": {
-        const f: MediaFile = { path: d.path ?? "", mime: d.mime ?? "", size: d.size ?? 0 };
+        const f: MediaFile = { path: d.path ?? "", mime: d.mime ?? "", size: d.size ?? 0, prompt: d.prompt ?? "" };
         const job = d.job ? videoJobs.get(d.job) : undefined;
         if (job) {
           job.files = [f];
           job.status = "done";
           break;
         }
-        // several images of one call show together
-        if (lastMedia && lastMedia.kind === "image" && d.kind === "image" && d.call && lastMedia.call === d.call && items[items.length - 1] === lastMedia) {
+        // the images of one call, and of the calls of one reply (four
+        // variations made side by side), show together
+        const tu0 = cur.get(e.agent ?? "");
+        const prev = tu0?.parts[tu0.parts.length - 1];
+        const joins =
+          lastMedia && lastMedia.kind === "image" && d.kind === "image" &&
+          ((d.call && lastMedia.call === d.call) || (tu0 && tu0.parts.some((p) => p.k === "media" && p.m === lastMedia) && (prev?.k === "steps" || (prev?.k === "media" && prev.m === lastMedia))));
+        if (joins && lastMedia) {
           lastMedia.files.push(f);
+          if (d.call && !lastMedia.calls?.includes(d.call)) (lastMedia.calls ??= []).push(d.call);
+          // keep the pictures where the first ones are: the steps after them stay below
           break;
         }
-        lastMedia = { k: "media", id, agent: e.agent ?? "", kind: d.kind === "video" ? "video" : "image", files: [f], prompt: d.prompt ?? "", model: d.model ?? "", call: d.call, job: d.job, status: "done", time: e.time };
-        push(lastMedia, e.time);
+        lastMedia = { k: "media", id, agent: e.agent ?? "", kind: d.kind === "video" ? "video" : "image", files: [f], prompt: d.prompt ?? "", model: d.model ?? "", call: d.call, calls: d.call ? [d.call] : [], job: d.job, status: "done", time: e.time };
+        // in the turn that made them, where the call ran (its step line is
+        // not shown: the pictures are what it did)
+        const tu = cur.get(e.agent ?? "");
+        if (tu) tu.parts.push({ k: "media", id, m: lastMedia });
+        else push(lastMedia, e.time);
         break;
       }
       case "media/video-job": {

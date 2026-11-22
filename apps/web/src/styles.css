@@ -1195,24 +1195,56 @@ button.tg:disabled { opacity: .5; cursor: not-allowed; }
 .dropmask { position: absolute; inset: 0; border-radius: 16px; display: grid; place-items: center; background: color-mix(in srgb, var(--surface) 88%, transparent); color: var(--text2); font-size: 13px; z-index: 3; pointer-events: none; border: 1.5px dashed var(--accent); }
 /* generated images / videos (Media.tsx), under the agent's steps */
 .mediaw { margin-left: 38px; display: flex; flex-direction: column; gap: 6px; max-width: min(560px, calc(100% - 38px)); }
-.mediah { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); min-width: 0; }
-.mediah .mp { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text2); }
-.mediah .mm { flex: none; font-size: 11px; padding: 0 5px; line-height: 17px; border-radius: 4px; background: var(--active); }
+.mediaw.inturn { margin: 10px 0 4px; max-width: min(560px, 100%); }
+/* the pictures: one large, two side by side, three in a row, four in a grid */
 .mediaimgs { display: grid; gap: 6px; grid-template-columns: 1fr; }
 .mediaimgs.n2, .mediaimgs.n4 { grid-template-columns: 1fr 1fr; }
-.mediaimgs.n3 { grid-template-columns: 1fr 1fr 1fr; }
-.mediaimgs a { display: block; border-radius: 12px; overflow: hidden; border: 1px solid var(--border2); background: var(--sunken); }
-.mediaimgs img { display: block; width: 100%; max-height: 420px; object-fit: contain; background: var(--sunken); }
-.mediaimgs.n1 a { justify-self: start; max-width: 100%; }
-.mediaimgs.n1 img { width: auto; max-width: 100%; }
-.mediaimgs:not(.n1) img { aspect-ratio: 1; object-fit: cover; }
+.mediaimgs.n3, .mediaimgs.many { grid-template-columns: repeat(3, 1fr); }
+.mimg { position: relative; display: block; padding: 0; border: 0; border-radius: 14px; overflow: hidden; background: var(--sunken); cursor: zoom-in; min-height: 120px; }
+.mimg:not(.ok)::after { content: ""; position: absolute; inset: 0; background: linear-gradient(100deg, transparent 30%, color-mix(in srgb, var(--surface) 60%, transparent) 50%, transparent 70%) var(--sunken); background-size: 200% 100%; animation: shimmer 1.4s linear infinite; }
+.mimg img { display: block; width: 100%; height: auto; opacity: 0; transition: opacity var(--dur-normal) var(--ease-out), transform var(--dur-normal) var(--ease-out); }
+.mimg.ok img { opacity: 1; }
+.mimg:hover img { transform: scale(1.015); }
+.mimg:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.mediaimgs.n1 .mimg { justify-self: start; max-width: 100%; }
+.mediaimgs.n1 img { max-height: 520px; width: auto; max-width: 100%; }
+.mediaimgs:not(.n1) .mimg { aspect-ratio: 1; min-height: 0; }
+.mediaimgs:not(.n1) img { height: 100%; object-fit: cover; }
+.mediabar { display: flex; align-items: center; gap: 8px; }
+.mediainfo { display: inline-flex; align-items: center; gap: 5px; height: 24px; padding: 0 8px 0 6px; border-radius: 7px; font-size: 12px; color: var(--muted); }
+.mediainfo:hover, .mediainfo.on { background: var(--hover); color: var(--text2); }
+.mediameta { display: flex; flex-direction: column; gap: 6px; padding: 10px 12px; border-radius: 12px; background: var(--raised); border: 1px solid var(--border); font-size: 12px; animation: rise-in var(--dur-fast) var(--ease-out) backwards; }
+.mediameta .mprompt { margin: 0; color: var(--text2); line-height: 1.6; white-space: pre-wrap; overflow-wrap: anywhere; }
+.mediameta .mprompt + .mprompt { padding-top: 6px; border-top: 1px dashed var(--border); }
+.mediameta { max-height: 260px; overflow: auto; }
+.mediameta .mfiles { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; }
+.mediameta .mm { font-size: 11px; padding: 0 6px; line-height: 18px; border-radius: 5px; background: var(--active); color: var(--text2); }
+.mediameta .linkbtn { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; }
+@keyframes shimmer { to { background-position: -200% 0; } }
+/* full size */
+.mviewer { position: fixed; inset: 0; z-index: 80; background: rgba(8, 8, 10, .94); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); display: flex; align-items: center; justify-content: center; padding: 56px 72px 96px; animation: fade-in var(--dur-fast) var(--ease-out) backwards; -webkit-app-region: no-drag; }
+.mvimg { max-width: 100%; max-height: 100%; object-fit: contain; border-radius: 6px; box-shadow: 0 10px 40px rgba(0, 0, 0, .45); animation: rise-in var(--dur-normal) var(--ease-out) backwards; }
+.mvbar { position: absolute; top: 0; left: 0; right: 0; display: flex; align-items: center; gap: 4px; padding: calc(var(--tbh, 0px) + 6px) 12px 6px 16px; color: #fff; }
+.mvbar .sp { flex: 1; }
+.mvn { font-size: 13px; font-variant-numeric: tabular-nums; opacity: .8; }
+.mvbtn { width: 34px; height: 34px; border-radius: 9px; display: grid; place-items: center; color: #fff; opacity: .85; }
+.mvbtn:hover { background: rgba(255, 255, 255, .12); opacity: 1; }
+.mvnav { position: absolute; top: 50%; translate: 0 -50%; width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; color: #fff; background: rgba(255, 255, 255, .1); }
+.mvnav:hover { background: rgba(255, 255, 255, .2); }
+.mvnav.prev { left: 16px; }
+.mvnav.next { right: 16px; }
+.mvthumbs { position: absolute; bottom: 18px; left: 50%; translate: -50% 0; display: flex; gap: 8px; max-width: calc(100% - 32px); overflow-x: auto; padding: 4px; }
+.mvthumb { width: 54px; height: 54px; flex: none; border-radius: 8px; overflow: hidden; padding: 0; opacity: .55; outline: 2px solid transparent; outline-offset: 1px; transition: opacity var(--dur-fast); }
+.mvthumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.mvthumb:hover { opacity: .85; }
+.mvthumb.on { opacity: 1; outline-color: #fff; }
+@media (max-width: 720px) { .mviewer { padding: 52px 8px 88px; } .mvnav { display: none; } .mediaimgs.n3, .mediaimgs.many { grid-template-columns: 1fr 1fr; } }
+@media (prefers-reduced-motion: reduce) { .mimg:not(.ok)::after, .mviewer, .mvimg { animation: none; } .mimg img { transition: none; } }
 .mediavid { display: block; width: 100%; max-height: 420px; border-radius: 12px; border: 1px solid var(--border2); background: #000; }
 span.mediavid { aspect-ratio: 16 / 9; background: var(--sunken); }
 .mediapend { display: flex; align-items: center; justify-content: center; gap: 10px; padding: 14px; border-radius: 12px; border: 1px dashed var(--border2); background: var(--sunken); aspect-ratio: 16 / 9; max-height: 220px; }
 .mediapend > span:last-child { display: flex; flex-direction: column; gap: 2px; font-size: 13px; }
 .mediafail { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--danger-text); }
-.mediaf { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 12px; }
-.mediaf .linkbtn { display: inline-flex; align-items: center; gap: 4px; }
 
 .msgatt { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; margin: 0 0 6px; max-width: min(560px, 85%); }
 .msgatt:only-child { margin-bottom: 0; }
@@ -3400,3 +3432,13 @@ input.fi { resize: none; }
 .mi.prompt .slashic { background: var(--ok-soft); color: var(--ok-text); }
 .slashfor { padding: 2px 8px 6px; font-size: 11px; }
 @media (prefers-reduced-motion: reduce) { .mention.slash, .pickchip { animation: none; } }
+
+/* an agent's words after the pictures it made: folded to one line */
+button.foldw { display: flex; align-items: center; gap: 7px; width: 100%; max-width: min(560px, 100%); margin: 6px 0 2px; padding: 6px 10px; border-radius: 10px; font-size: 13px; color: var(--muted); text-align: left; min-width: 0; }
+button.foldw:hover { background: var(--hover); color: var(--text2); }
+button.foldw svg { flex: none; }
+.foldl { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.foldm { flex: none; font-size: 12px; color: var(--accent-text); }
+.foldw.on { display: flex; flex-direction: column; align-items: flex-start; animation: rise-in var(--dur-fast) var(--ease-out) backwards; }
+.foldbtn { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; color: var(--muted); padding: 2px 6px; border-radius: 6px; }
+.foldbtn:hover { background: var(--hover); color: var(--text2); }
