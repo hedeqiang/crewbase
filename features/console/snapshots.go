@@ -382,24 +382,24 @@ func (s *snapshots) restore(agentID string, sn Snapshot) (int, error) {
 	n := 0
 	for _, f := range files {
 		p := filepath.Join(sn.Workspace, filepath.FromSlash(f.Path))
-		if rel, ok := inWorkspace(sn.Workspace, p); !ok || rel == "" {
+		rel, ok := inWorkspace(sn.Workspace, p)
+		if !ok || rel == "" {
 			continue
 		}
+		// through os.Root: a folder the turn made into a link cannot carry
+		// the undo outside the workspace
 		switch f.Status {
 		case StatusAdded:
-			if err := os.Remove(p); err != nil && !os.IsNotExist(err) {
-				return n, err
+			if err := wsRemove(sn.Workspace, rel); err != nil {
+				return n, fmt.Errorf("%s: %w", f.Path, err)
 			}
 		default:
 			b, err := s.blob(sn.Files[f.Path].Hash)
 			if err != nil {
 				return n, fmt.Errorf("%s: its copy is gone", f.Path)
 			}
-			if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
-				return n, err
-			}
-			if err := os.WriteFile(p, b, 0o644); err != nil {
-				return n, err
+			if err := wsWrite(sn.Workspace, rel, b); err != nil {
+				return n, fmt.Errorf("%s: %w", f.Path, err)
 			}
 		}
 		n++

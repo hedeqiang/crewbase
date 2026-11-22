@@ -370,18 +370,17 @@ func (r *gitRepo) old(ctx context.Context, rel string) ([]byte, error) {
 }
 
 func (r *gitRepo) revert(ctx context.Context, fc FileChange) error {
-	p := filepath.Join(r.ws, filepath.FromSlash(fc.Path))
 	switch fc.Status {
 	case StatusAdded:
 		// not in HEAD: remove it (from the index too when it was added there)
 		_, _ = git(ctx, r.ws, "rm", "--cached", "--quiet", "--ignore-unmatch", "--", fc.Path)
-		return removeFile(p)
+		return wsRemove(r.ws, fc.Path)
 	case StatusRenamed:
 		if _, err := git(ctx, r.ws, "restore", "--source=HEAD", "--staged", "--worktree", "--", fc.From); err != nil {
 			return err
 		}
 		_, _ = git(ctx, r.ws, "rm", "--cached", "--quiet", "--ignore-unmatch", "--", fc.Path)
-		return removeFile(p)
+		return wsRemove(r.ws, fc.Path)
 	default:
 		_, err := git(ctx, r.ws, "restore", "--source=HEAD", "--staged", "--worktree", "--", fc.Path)
 		return err
@@ -456,9 +455,8 @@ func (c *changes) revert(agentID, ws, rel string) error {
 	if !ok {
 		return os.ErrNotExist
 	}
-	p := filepath.Join(ws, filepath.FromSlash(rel))
 	if !kf.Existed {
-		if err := removeFile(p); err != nil {
+		if err := wsRemove(ws, rel); err != nil {
 			return err
 		}
 	} else {
@@ -469,10 +467,7 @@ func (c *changes) revert(agentID, ws, rel string) error {
 		if err != nil {
 			return err
 		}
-		if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
-			return err
-		}
-		if err := os.WriteFile(p, b, 0o644); err != nil {
+		if err := wsWrite(ws, rel, b); err != nil {
 			return err
 		}
 	}
@@ -500,6 +495,46 @@ func finish(v ChangesView) ChangesView {
 
 func removeFile(p string) error {
 	if err := os.Remove(p); err != nil && !errors.Is(err, os.ErrNotExist) {
+		return err
+	}
+	return nil
+}
+
+// Writing back and removing files inside a workspace go through os.Root:
+// it refuses any path that leaves the workspace, by ".." or by a symlink
+// (an agent can turn a folder it was given into a link to anywhere, and
+// an undo must not follow it there).
+
+// wsWrite writes data to rel inside ws, making its folders.
+func wsWrite(ws, rel string, data []byte) error {
+	root, err := os.OpenRoot(ws)
+	if err != nil {
+		return err
+	}
+	defer root.Close()
+	rel = filepath.FromSlash(rel)
+	if d := filepath.Dir(rel); d != "." {
+		if err := root.MkdirAll(d, 0o755); err != nil {
+			return err
+		}
+	}
+	// a link in the file's own place is replaced, not written through
+	if fi, err := root.Lstat(rel); err == nil && fi.Mode()&os.ModeSymlink != 0 {
+		if err := root.Remove(rel); err != nil {
+			return err
+		}
+	}
+	return root.WriteFile(rel, data, 0o644)
+}
+
+// wsRemove removes rel inside ws (gone already is fine).
+func wsRemove(ws, rel string) error {
+	root, err := os.OpenRoot(ws)
+	if err != nil {
+		return err
+	}
+	defer root.Close()
+	if err := root.Remove(filepath.FromSlash(rel)); err != nil && !errors.Is(err, os.ErrNotExist) {
 		return err
 	}
 	return nil

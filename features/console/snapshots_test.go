@@ -100,3 +100,35 @@ func TestTurnSnapshots(t *testing.T) {
 		t.Fatal("touched a skipped folder")
 	}
 }
+
+// A turn that turns a folder into a link to somewhere else cannot carry
+// an undo there: writing back and removing stay inside the workspace.
+func TestRestoreStaysInsideTheWorkspace(t *testing.T) {
+	tmp := t.TempDir()
+	ws := filepath.Join(tmp, "ws")
+	outside := filepath.Join(tmp, "outside")
+	_ = os.MkdirAll(filepath.Join(ws, "d"), 0o755)
+	_ = os.MkdirAll(outside, 0o755)
+	_ = os.WriteFile(filepath.Join(ws, "d", "authorized_keys"), []byte("KEY\n"), 0o644)
+	s := &snapshots{root: filepath.Join(tmp, "snaps")}
+	if err := s.take("a1", "s1", "t1", ws); err != nil {
+		t.Fatal(err)
+	}
+	// during the turn: d becomes a link out, and a file is added through it
+	_ = os.RemoveAll(filepath.Join(ws, "d"))
+	if err := os.Symlink(outside, filepath.Join(ws, "d")); err != nil {
+		t.Skip("no symlinks here")
+	}
+	_ = os.WriteFile(filepath.Join(outside, "keep.txt"), []byte("the person's\n"), 0o644)
+	if err := s.finish("a1", "t1"); err != nil {
+		t.Fatal(err)
+	}
+	sn, _ := s.get("a1", "t1")
+	_, _ = s.restore("a1", sn)
+	if b, err := os.ReadFile(filepath.Join(outside, "authorized_keys")); err == nil {
+		t.Fatalf("an undo wrote outside the workspace: %q", b)
+	}
+	if _, err := os.Stat(filepath.Join(outside, "keep.txt")); err != nil {
+		t.Fatalf("an undo removed a file outside the workspace: %v", err)
+	}
+}
