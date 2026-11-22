@@ -725,10 +725,11 @@ func (s *Service) listen(ctx context.Context, base string, id Identity) {
 			backoff = min(backoff*2, 2*time.Minute)
 			continue
 		}
-		backoff = time.Second
+		failed := false
 		for _, n := range out.Notifications {
 			if err := s.deliver(id, n); err != nil {
 				s.c.Log().Warn("agentdocs: could not hand a comment to the agent", "agent", id.Agent, "err", err)
+				failed = true
 				break // not acknowledged: delivered again next time
 			}
 			_ = s.call(ctx, base, tok, "POST", "/agent/notifications/ack", map[string]any{"ids": []int64{n.ID}}, nil)
@@ -741,6 +742,17 @@ func (s *Service) listen(ctx context.Context, base string, id Identity) {
 			s.woken++
 			s.mu.Unlock()
 		}
+		if !failed {
+			backoff = time.Second
+			continue
+		}
+		// the server hands the same comment back at once: wait before asking
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(backoff):
+		}
+		backoff = min(backoff*2, 2*time.Minute)
 	}
 }
 
