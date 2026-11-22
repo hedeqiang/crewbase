@@ -387,3 +387,18 @@ func TestRetryFailedTurn(t *testing.T) {
 		t.Fatalf("model sees %d copies; last %q", n, msgs[len(msgs)-1].Text())
 	}
 }
+
+// Where an agent lives is the server's to decide: a client cannot point a
+// new agent's own folder anywhere (it would read and write that folder).
+func TestCreateIgnoresHome(t *testing.T) {
+	base, _ := start(t)
+	elsewhere := t.TempDir()
+	code, out := do(t, base, tok, "POST", "/api/agents", map[string]any{"kind": "chat", "home": elsewhere})
+	if code != 200 {
+		t.Fatalf("create: %d %v", code, out)
+	}
+	real, _ := filepath.EvalSymlinks(elsewhere)
+	if ws, _ := out["workspace"].(string); ws == elsewhere || ws == real || !strings.Contains(ws, "workspaces") {
+		t.Fatalf("home taken from the client: %v", out["workspace"])
+	}
+}

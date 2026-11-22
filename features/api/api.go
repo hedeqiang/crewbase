@@ -274,6 +274,14 @@ var Plugin = kernel.Register(kernel.Spec{
 				_ = r.Decode(&b)
 				spec := b.Spec
 				spec.ID, spec.IDHint = "", b.Template
+				// what the server decides, never the client: where the agent
+				// lives, which host and conversation it has, when it was made
+				spec.Home, spec.Host, spec.Session, spec.Created = "", "", "", time.Time{}
+				// a folder on this computer to work in: only from a computer
+				// (as PATCH projectDir); a phone cannot point an agent at one
+				if r.Device != "desktop" {
+					spec.SharedWorkspace = ""
+				}
 				// a new agent starts in its team's default run mode
 				if spec.Mode == "" && spec.Kind != agent.KindChat {
 					if ts, ok := kernel.Lookup[TeamChecker](c, "teams"); ok {

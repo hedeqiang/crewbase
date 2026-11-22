@@ -805,6 +805,8 @@ func (r *Registry) Create(spec Spec) (*Agent, error) {
 	if spec.Mode == "" {
 		spec.Mode = ModeSandbox
 	}
+	// the agent's own folder is the registry's to choose
+	spec.Home = ""
 	if spec.SharedWorkspace != "" && !spec.Ephemeral {
 		dir, err := r.ProjectDir(spec.SharedWorkspace)
 		if err != nil {
