@@ -776,7 +776,45 @@ func ApprovalCard(req approval.Request, agentName, token string) Message {
 	return m
 }
 
+// approvable: req belongs in this chat, as messages do (reachable): an
+// agent of the gateway's team, not someone's personal chat. A request of
+// a sub-agent or a workflow is judged by its session's agents.
+func (g *Gateway) approvable(req approval.Request) bool {
+	r, ok := kernel.Lookup[*agent.Registry](g.c, agent.ServiceKey)
+	if !ok {
+		return g.cfg.Team == ""
+	}
+	var ids []string
+	if req.Agent != "" {
+		ids = append(ids, req.Agent)
+	}
+	if ss, err := r.Sessions().Get(req.Session); err == nil {
+		ids = append(ids, ss.Meta().Agents...)
+	}
+	seen := false
+	for _, id := range ids {
+		a, ok := r.Get(id)
+		if !ok {
+			continue
+		}
+		sp := a.Spec()
+		if sp.Ephemeral && sp.Parent != "" {
+			if p, ok := r.Get(sp.Parent); ok {
+				a = p
+			}
+		}
+		if !g.reachable(a) {
+			return false
+		}
+		seen = true
+	}
+	return seen || g.cfg.Team == ""
+}
+
 func (g *Gateway) respond(ctx context.Context, req approval.Request) (approval.Decision, bool) {
+	if !g.approvable(req) {
+		return approval.Decision{}, false
+	}
 	tok := newToken()
 	p := &pendingCard{req: req, noApprove: NoApprove(req.Category), ch: make(chan verdict, 1)}
 	g.mu.Lock()

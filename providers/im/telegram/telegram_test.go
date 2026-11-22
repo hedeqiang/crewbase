@@ -433,3 +433,45 @@ func TestUnloadDisconnects(t *testing.T) {
 		t.Fatal("gateway still provided")
 	}
 }
+
+// A chat bound to a team gets that team's approval cards only; another
+// team's (or someone's personal chat's) stay on the desktop.
+func TestApprovalCardsFollowTheBoundTeam(t *testing.T) {
+	e := imtest.New(t)
+	bot, srv := newFakeBot(t)
+	if err := e.Creds.Set("mem:telegram-bot", token); err != nil {
+		t.Fatal(err)
+	}
+	cfg := map[string]any{
+		"botTokenRef": "mem:telegram-bot", "channel": "42", "allowUsers": []string{"7"},
+		"apiBase": srv.URL, "pollTimeout": 1, "team": "ops",
+	}
+	if _, err := e.Host.Load(telegram.Plugin, kernel.LoadOptions{Config: cfg}); err != nil {
+		t.Fatal(err)
+	}
+	g, _ := kernel.Lookup[*im.Gateway](e.Host.Root(), im.ServicePrefix+"telegram")
+	imtest.Eventually(t, func() bool { return g.Status().Connected })
+
+	other, err := e.Agents.Create(agent.Spec{Name: "Elsewhere", Team: "finance"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	e.RunTool(other, "deploy")
+	e.WaitPending(1) // it is on the desktop
+	time.Sleep(300 * time.Millisecond)
+	for _, m := range bot.Sent() {
+		if s, _ := m["text"].(string); strings.Contains(s, "等你批准") {
+			t.Fatalf("another team's approval card posted in this chat: %v", m)
+		}
+	}
+
+	mine, err := e.Agents.Create(agent.Spec{Name: "Opsy", Team: "ops"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	e.RunTool(mine, "deploy")
+	card := lastSent(t, bot, 1)
+	if !strings.Contains(card["text"].(string), "Opsy 等你批准") {
+		t.Fatalf("the bound team's card: %v", card)
+	}
+}
