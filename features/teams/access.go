@@ -309,6 +309,25 @@ func (v Visible) Session(deviceID, id string) bool {
 	return v.s.SessionVisible(v.s.WhoIs(deviceID), id)
 }
 
+// Agents reports whether the person behind deviceID may see (act=false)
+// or work with (act=true) every agent of ids: what routines and workflows
+// need, since they run those agents. Unknown ids count as unreachable
+// for anyone but the owner (an item naming a deleted agent is theirs to
+// clean up).
+func (v Visible) Agents(deviceID string, ids []string, act bool) bool {
+	w := v.s.WhoIs(deviceID)
+	if w.HostRole == "owner" {
+		return true
+	}
+	for _, id := range ids {
+		a, ok := v.s.agents.Get(id)
+		if !ok || !v.s.AgentVisible(w, a) || (act && !v.s.agentAct(w, a)) {
+			return false
+		}
+	}
+	return true
+}
+
 // ChatOwner is who owns a chat started from deviceID ("" = the host owner).
 func (v Visible) ChatOwner(deviceID string) string {
 	if w := v.s.WhoIs(deviceID); w.ID != "owner" {

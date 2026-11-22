@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/hedeqiang/crewbase/capabilities/approval"
+	"github.com/hedeqiang/crewbase/capabilities/notify"
 	"github.com/hedeqiang/crewbase/core/agent"
 	"github.com/hedeqiang/crewbase/core/agentloop"
 	"github.com/hedeqiang/crewbase/core/llm"
@@ -24,7 +25,10 @@ import (
 	"github.com/hedeqiang/crewbase/features/gateway"
 	"github.com/hedeqiang/crewbase/features/members"
 	"github.com/hedeqiang/crewbase/features/router"
+	"github.com/hedeqiang/crewbase/features/routines"
+	"github.com/hedeqiang/crewbase/features/schedule"
 	"github.com/hedeqiang/crewbase/features/teams"
+	"github.com/hedeqiang/crewbase/features/workflows"
 	"github.com/hedeqiang/crewbase/kernel"
 	"github.com/hedeqiang/crewbase/providers/llm/mock"
 )
@@ -55,6 +59,9 @@ func astart(t *testing.T, root string) *aenv {
 		{devices.Plugin, map[string]any{"dir": root}},
 		{members.Plugin, map[string]any{"dir": root}},
 		{teams.Plugin, map[string]any{"dir": root}},
+		{notify.Plugin, nil}, {schedule.Plugin, map[string]any{"dir": root}},
+		{routines.Plugin, map[string]any{"dir": root, "brief": "off"}}, {routines.APIPlugin, nil},
+		{workflows.Plugin, map[string]any{"dir": root}}, {workflows.APIPlugin, nil},
 	} {
 		if _, err := h.Load(x.s, kernel.LoadOptions{Config: x.cfg}); err != nil {
 			t.Fatal(x.s.Name, err)
@@ -247,4 +254,61 @@ func catID(t *testing.T, e *aenv) string {
 	}
 	t.Fatal("no cat")
 	return ""
+}
+
+// Routines and workflows run agents: who cannot see an agent does not see
+// what runs it, and cannot start, change or cancel it.
+func TestRoutinesAndWorkflowsFollowTheirAgents(t *testing.T) {
+	root := t.TempDir()
+	e := astart(t, root)
+	_, bobTok := e.member(t, "Bob", "member")
+	_, priv := e.do(t, tok, "POST", "/api/teams", map[string]any{"name": "Secret", "visibility": "private"})
+	_, sec := e.do(t, tok, "POST", "/api/agents", map[string]any{"name": "Sec", "team": priv["id"]})
+	secID := sec["id"].(string)
+	e.do(t, tok, "POST", "/api/agents", map[string]any{"name": "Home"})
+
+	code, rt := e.do(t, tok, "POST", "/api/routines", map[string]any{"name": "salaries", "agent": secID, "prompt": "check payroll", "schedule": "daily 08:30"})
+	if code != 200 {
+		t.Fatal(code, rt)
+	}
+	code, wf := e.do(t, tok, "POST", "/api/workflows", map[string]any{"name": "Payroll", "trigger": "manual", "steps": []map[string]any{{"id": "a", "kind": "agent", "agent": secID, "prompt": "go"}}})
+	if code != 200 {
+		t.Fatal(code, wf)
+	}
+	rid, wid := rt["id"].(string), wf["id"].(string)
+
+	// Bob is not in the private team: none of it is there for him
+	if _, out := e.do(t, bobTok, "GET", "/api/routines", nil); len(out["routines"].([]any)) != 0 {
+		t.Fatalf("bob sees a private team's routine: %v", out)
+	}
+	if _, out := e.do(t, bobTok, "GET", "/api/workflows", nil); len(out["workflows"].([]any)) != 0 {
+		t.Fatalf("bob sees a private team's workflow: %v", out)
+	}
+	for _, x := range []struct{ m, p string }{
+		{"POST", "/api/routines/" + rid + "/run"}, {"GET", "/api/routines/" + rid + "/runs"},
+		{"GET", "/api/workflows/" + wid}, {"POST", "/api/workflows/" + wid + "/run"}, {"GET", "/api/workflows/" + wid + "/runs"},
+	} {
+		if code, _ := e.do(t, bobTok, x.m, x.p, map[string]any{}); code != 404 {
+			t.Fatalf("%s %s: %d", x.m, x.p, code)
+		}
+	}
+	// nor can he give the private agent a routine
+	if code, _ := e.do(t, bobTok, "POST", "/api/routines", map[string]any{"name": "x", "agent": secID, "prompt": "p", "schedule": "daily 09:00"}); code != 403 && code != 404 {
+		t.Fatalf("bob gave a private agent a routine: %d", code)
+	}
+	// a run of it is hidden too
+	code, run := e.do(t, tok, "POST", "/api/workflows/"+wid+"/run", map[string]any{})
+	if code != 200 {
+		t.Fatal(code, run)
+	}
+	if code, _ := e.do(t, bobTok, "GET", "/api/workflow-runs/"+run["id"].(string), nil); code != 404 {
+		t.Fatalf("bob read a private run: %d", code)
+	}
+	if code, _ := e.do(t, bobTok, "POST", "/api/workflow-runs/"+run["id"].(string)+"/cancel", nil); code != 404 {
+		t.Fatalf("bob cancelled a private run: %d", code)
+	}
+	// the owner still sees and runs all of it
+	if _, out := e.do(t, tok, "GET", "/api/routines", nil); len(out["routines"].([]any)) != 1 {
+		t.Fatalf("owner's routines: %v", out)
+	}
 }

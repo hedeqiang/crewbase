@@ -807,7 +807,12 @@ var Plugin = kernel.Register(kernel.Spec{
 					limit = 100
 				}
 				var items []historyItem
+				see := visibleTo(r)
 				for _, m := range sessions.List() {
+					// what this person may see (other teams' and people's chats are not)
+					if !see(m.ID) {
+						continue
+					}
 					ss, err := sessions.Get(m.ID)
 					if err != nil {
 						continue
