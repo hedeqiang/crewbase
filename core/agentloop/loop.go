@@ -440,14 +440,40 @@ func (l *loop) endTurn(a *agent.Agent, ss *session.Session, in agent.Input, te T
 	} else {
 		a.SetStatus(agent.StatusIdle, "")
 	}
-	text := ""
-	if e, ok := ss.Last(session.TypeAssistantMessage); ok && e.Agent == a.ID() {
-		var m session.AssistantMessage
-		if e.Decode(&m) == nil {
-			text = m.Message.Text()
+	TurnEnded.Emit(kernel.For(l.c, a.ID()), TurnEndEvent{Agent: a.ID(), Session: ss.ID(), Input: in, Text: turnText(ss, a.ID()), TurnEnd: te})
+}
+
+// turnText is the text of the agent's last reply in the turn that just
+// ended: none when the turn wrote no reply (stopped before the model
+// answered, failed on its first step), never an earlier turn's.
+func turnText(ss *session.Session, agentID string) string {
+	evs := ss.Events()
+	// back from the end: past this turn's own turn/end (just appended;
+	// other agents may have written after it in a channel), up to its start
+	own := false
+	for i := len(evs) - 1; i >= 0; i-- {
+		e := evs[i]
+		if e.Agent != agentID {
+			continue
+		}
+		switch e.Type {
+		case session.TypeTurnEnd:
+			if !own {
+				own = true
+				continue
+			}
+			return "" // the turn before: this one wrote nothing
+		case session.TypeTurnStart:
+			return ""
+		case session.TypeAssistantMessage:
+			var m session.AssistantMessage
+			if e.Decode(&m) == nil {
+				return m.Message.Text()
+			}
+			return ""
 		}
 	}
-	TurnEnded.Emit(kernel.For(l.c, a.ID()), TurnEndEvent{Agent: a.ID(), Session: ss.ID(), Input: in, Text: text, TurnEnd: te})
+	return ""
 }
 
 func (l *loop) router() (Router, bool) {
