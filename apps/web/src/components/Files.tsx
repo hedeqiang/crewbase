@@ -1,7 +1,7 @@
 import { Skeleton } from "./Skeleton";
 import { Fragment, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import {
-  AppWindow, ChevronDown, ChevronRight, ChevronUp, Columns2, Download, FileSearch, GitBranch,
+  AppWindow, BookCheck, ChevronDown, ChevronRight, ChevronUp, Columns2, Download, FileSearch, GitBranch,
   Pencil, RefreshCw, Rows3, Save, Undo2, WrapText, X,
 } from "lucide-react";
 import { API, rawURL, useRawURL, type AgentView, type ChangesView, type FileChange, type FileContent, type FileDiff, type FileEntry, type Hunk } from "../api";
@@ -16,6 +16,8 @@ import { previewPath } from "./Preview";
 import { highlightLines, langOf } from "../lib/highlight";
 import { FileBadge, kindName } from "../lib/fileicons";
 import { changedRanges, markRanges } from "../lib/worddiff";
+import { PublishBtn, refreshPublished, usePublished } from "./Publish";
+import type { LibFileLink } from "../api";
 
 function sizeFmt(n: number): string {
   if (n < 1024) return n + " B";
@@ -455,6 +457,7 @@ function Changes({ agent, data, onChanged, onOpen }: { agent: AgentView; data: C
   const [layout, setLayout] = useState<"unified" | "split">(() => (read(LAYOUT_KEY, "unified") === "split" ? "split" : "unified"));
   const [busy, setBusy] = useState(false);
   const [sel, setSel] = useState<string | null>(null);
+  const pub = usePublished(agent.id);
   useEffect(() => write(LAYOUT_KEY, layout), [layout]);
   // grouped by folder, folders in order, files by name within them
   // a tree of the changed files (a folder with one folder in it shows as "a/b")
@@ -537,7 +540,7 @@ function Changes({ agent, data, onChanged, onOpen }: { agent: AgentView; data: C
         </div>
         <div className="fxcfiles" role="listbox" aria-label={t("fx.changes")}>
           {tree.map((n) => (
-            <CRow key={n.path} n={n} depth={0} cur={cur?.path} shut={shut} toggle={(p) => setShut((x) => { const y = new Set(x); y.has(p) ? y.delete(p) : y.add(p); return y; })} pick={setSel} />
+            <CRow key={n.path} n={n} depth={0} cur={cur?.path} shut={shut} toggle={(p) => setShut((x) => { const y = new Set(x); y.has(p) ? y.delete(p) : y.add(p); return y; })} pick={setSel} pub={pub} />
           ))}
           {data.more && <p className="small muted fxload">{t("fx.more")}</p>}
         </div>
@@ -623,7 +626,7 @@ function changeTree(files: FileChange[]): CNode[] {
   return root.kids.map(squash).sort((a, b) => a.name.localeCompare(b.name));
 }
 
-function CRow({ n, depth, cur, shut, toggle, pick }: { n: CNode; depth: number; cur?: string; shut: Set<string>; toggle: (p: string) => void; pick: (p: string) => void }) {
+function CRow({ n, depth, cur, shut, toggle, pick, pub }: { n: CNode; depth: number; cur?: string; shut: Set<string>; toggle: (p: string) => void; pick: (p: string) => void; pub: Map<string, LibFileLink> }) {
   const pad = { paddingLeft: 10 + depth * 14, "--d": depth } as CSSProperties;
   if (n.f) {
     const f = n.f;
@@ -631,6 +634,7 @@ function CRow({ n, depth, cur, shut, toggle, pick }: { n: CNode; depth: number; 
       <button type="button" role="option" aria-selected={cur === f.path} className="fxcrow" style={pad} onClick={() => pick(f.path)} title={f.from ? `${f.from} → ${f.path}` : f.path}>
         <FileBadge name={n.name} />
         <span className={"g st-" + f.status}>{n.name}</span>
+        {pub.has(f.path) && <PubMark l={pub.get(f.path)!} />}
         {!f.binary && !f.large && (
           <span className="fxcn">
             {f.added > 0 && <span className="add">+{f.added}</span>}
@@ -651,8 +655,18 @@ function CRow({ n, depth, cur, shut, toggle, pick }: { n: CNode; depth: number; 
         <span className="g">{n.name}</span>
         <i className="fxdot" />
       </button>
-      {open && n.kids.map((k) => <CRow key={k.path} n={k} depth={depth + 1} cur={cur} shut={shut} toggle={toggle} pick={pick} />)}
+      {open && n.kids.map((k) => <CRow key={k.path} n={k} depth={depth + 1} cur={cur} shut={shut} toggle={toggle} pick={pick} pub={pub} />)}
     </>
+  );
+}
+
+/** A published file in the 改动 list: in the library, and whether a side moved on. */
+function PubMark({ l }: { l: LibFileLink }) {
+  const label = l.state === "file" ? t("pub.stFile") : l.state === "doc" ? t("pub.stDoc") : l.state === "both" ? t("pub.stBoth") : t("pub.stSame");
+  return (
+    <span className={"fxpub pub-" + (l.state || "same")} title={label} aria-label={label}>
+      <BookCheck size={11} />
+    </span>
   );
 }
 
@@ -663,10 +677,14 @@ function DiffPane({ agentId, f, n, at, step, layout, setLayout, busy, onRevert, 
 }) {
   const [d, setD] = useState<FileDiff | null>(null);
   const [err, setErr] = useState("");
+  const [rev, setRev] = useState(0);
   useEffect(() => {
     if (f.binary || f.large) return;
     API.fileDiff(agentId, f.path).then(setD, (e) => setErr(e?.message ?? String(e)));
-  }, []);
+  }, [rev]);
+  // the file changed: how it stands against its document may have too
+  useEffect(() => refreshPublished(agentId), []);
+  const session = useStore((s) => s.current) ?? undefined;
   const name = f.path.split("/").pop() ?? f.path;
   const dirs = f.path.includes("/") ? f.path.slice(0, f.path.lastIndexOf("/")).split("/") : [];
   // a narrow panel has no room for two columns: one, whatever was picked
@@ -726,6 +744,7 @@ function DiffPane({ agentId, f, n, at, step, layout, setLayout, busy, onRevert, 
             <FileSearch size={13} />
           </button>
         )}
+        {f.status !== "deleted" && <PublishBtn agent={agentId} path={f.path} from={{ session }} compact={narrow} onPulled={() => setRev((r) => r + 1)} />}
         <button className="btn sm ghost fxrevert" type="button" disabled={busy} onClick={onRevert} title={t("fx.revertTitle")}>
           <Undo2 size={12} />
           {t("fx.revert")}

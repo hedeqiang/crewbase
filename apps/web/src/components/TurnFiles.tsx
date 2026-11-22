@@ -1,12 +1,13 @@
 import { Skeleton } from "./Skeleton";
 import { useEffect, useState, useSyncExternalStore } from "react";
-import { ChevronDown, ChevronRight, FileDiff as FileDiffIcon, Undo2 } from "lucide-react";
+import { BookUp, ChevronDown, ChevronRight, FileDiff as FileDiffIcon, Undo2 } from "lucide-react";
 import { API, type FileDiff, type TurnChanges, type TurnSummary } from "../api";
 import { t } from "../i18n";
 import { toast } from "../store";
 import { confirmDialog } from "./Confirm";
 import { Popover, useMenu } from "./Popover";
 import { UnifiedDiff } from "./Files";
+import { PublishBtn, publishFile, usePublished } from "./Publish";
 
 /* 撤销这一轮的改动: in the actions of a turn's last reply, the files the
  * turn changed in the agent's workspace (features/console/snapshots.go),
@@ -63,8 +64,9 @@ function useSummary(agent: string, turn: string, ended: string): TurnSummary | u
 
 /** 撤销这一轮的改动: in a reply's actions, when its turn changed files.
  *  Opens the files it changed (each with its diff) and 撤销这一轮. */
-export function UndoTurnBtn({ agent, turn, ended }: { agent: string; turn: string; ended: string }) {
+export function UndoTurnBtn({ agent, turn, ended, session, seq }: { agent: string; turn: string; ended: string; session?: string; seq?: number }) {
   const sum = useSummary(agent, turn, ended);
+  const published = usePublished(agent, 60_000);
   const m = useMenu();
   const [tc, setTc] = useState<TurnChanges | null>(null);
   const [err, setErr] = useState("");
@@ -95,6 +97,17 @@ export function UndoTurnBtn({ agent, turn, ended }: { agent: string; turn: strin
     }
   };
 
+  // the files of the turn that are still there and not published yet
+  const from = { session, seq };
+  const unpublished = (tc?.files ?? []).filter((f) => f.status !== "deleted" && !published.has(f.path));
+  const publishAll = async () => {
+    setBusy(true);
+    let n = 0;
+    for (const f of unpublished) if (await publishFile(agent, f.path, from)) n++;
+    setBusy(false);
+    if (n) toast(t("pub.publishedN", { n }));
+  };
+
   const title = sum.undone ? t("tf.undoneTitle", { n }) : t("tf.btnTitle", { n });
   return (
     <>
@@ -121,9 +134,18 @@ export function UndoTurnBtn({ agent, turn, ended }: { agent: string; turn: strin
           ) : tc.files.length === 0 ? (
             <div className="fxmsg small muted">{t("tf.none")}</div>
           ) : (
-            tc.files.map((f) => <TurnFile key={f.path} agent={agent} turn={turn} f={f} />)
+            tc.files.map((f) => <TurnFile key={f.path} agent={agent} turn={turn} f={f} from={from} />)
           )}
         </div>
+        {!sum.undone && unpublished.length > 1 && (
+          <div className="tfpf">
+            <span className="small muted">{t("pub.publishTitle")}</span>
+            <button type="button" className="btn sm ghost" disabled={busy} onClick={() => void publishAll()}>
+              <BookUp size={12} />
+              {t("pub.publishAll")}
+            </button>
+          </div>
+        )}
         {!sum.undone && (
           <div className="tfpf">
             <span className="small muted">{t("tf.undoTitle")}</span>
@@ -138,7 +160,7 @@ export function UndoTurnBtn({ agent, turn, ended }: { agent: string; turn: strin
   );
 }
 
-function TurnFile({ agent, turn, f }: { agent: string; turn: string; f: TurnChanges["files"][number] }) {
+function TurnFile({ agent, turn, f, from }: { agent: string; turn: string; f: TurnChanges["files"][number]; from: { session?: string; seq?: number } }) {
   const [open, setOpen] = useState(false);
   const [d, setD] = useState<FileDiff | null>(null);
   const [err, setErr] = useState("");
@@ -148,6 +170,7 @@ function TurnFile({ agent, turn, f }: { agent: string; turn: string; f: TurnChan
   }, [open, d, agent, turn, f]);
   return (
     <div className="tff">
+      <div className="tffrow">
       <button type="button" className="fxitem" aria-expanded={open} onClick={() => setOpen(!open)}>
         {open ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
         <span className="fxip" title={f.path}>
@@ -161,6 +184,8 @@ function TurnFile({ agent, turn, f }: { agent: string; turn: string; f: TurnChan
           </span>
         )}
       </button>
+      {f.status !== "deleted" && <PublishBtn agent={agent} path={f.path} from={from} compact />}
+      </div>
       {open &&
         (f.binary ? (
           <div className="fxmsg small muted">{t("fx.binary")}</div>

@@ -1049,6 +1049,7 @@ function AgentMsg({ it, agent, showModel, bare, opened, extra, fold }: { it: Age
   const [showThink, setShowThink] = useState(false);
   const [reading, setReading] = useState(false);
   const acts = useContext(MsgCtx);
+  const feedSession = useContext(FeedCtx)?.session;
   const [regen, setRegen] = useState(false);
   const sm = it.model ? shortModelEffort(models, it.model) : null;
   // regenerate: the last finished turn of a one-to-one conversation
@@ -1123,7 +1124,7 @@ function AgentMsg({ it, agent, showModel, bare, opened, extra, fold }: { it: Age
             {it.text && <ReactBtn target={it.id} />}
             {it.text && <ReplyBtn q={{ seq: Number(it.id), who: agent?.name ?? it.agent, text: it.text }} />}
             {it.text && <PinBtn target={Number(it.id)} />}
-            {it.stats && it.turnInput && it.turnEnded && <UndoTurnBtn agent={it.agent} turn={it.turnInput} ended={it.turnEnded} />}
+            {it.stats && it.turnInput && it.turnEnded && <UndoTurnBtn agent={it.agent} turn={it.turnInput} ended={it.turnEnded} session={feedSession} seq={Number(it.id)} />}
             {canRegen && (
               <button
                 type="button"

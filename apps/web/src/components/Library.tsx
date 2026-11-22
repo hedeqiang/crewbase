@@ -29,17 +29,20 @@ import {
   Upload,
   User,
   X,
+  ArrowDownToLine,
+  ArrowUpFromLine,
   Film,
   Presentation,
   Tag,
 } from "lucide-react";
-import { API, libRawText, libRawURL, uploadLibrary, useLibRawURL, type LibFolder, type LibItem, type LibSource, type LibStats, type LibVersion } from "../api";
+import { API, libRawText, libRawURL, uploadLibrary, useLibRawURL, type LibFolder, type LibItem, type LibLink, type LibSource, type LibStats, type LibVersion } from "../api";
 import { t } from "../i18n";
 import { ago, modelLabel } from "../format";
 import { parseRef } from "../api";
 import { openLibrary, openSession, sessionAgent, setState, toast, useStore } from "../store";
 import { addLibraryFile, fmtSize, LIB_DRAG, type LibDrag } from "./Attachments";
 import { confirmDialog } from "./Confirm";
+import { pull as pullLink, sync as syncLink } from "./Publish";
 import { ListToggle } from "./Header";
 import { Head } from "./Settings";
 import { Markdown } from "./Markdown";
@@ -591,6 +594,7 @@ function Detail({ team, id, onChanged }: { team: string; id: number; onChanged: 
               </dd>
             </>
           )}
+          <WorkspaceLink team={team} it={it} tick={tick} agentName={agentName} onChanged={() => changed()} />
           {it.note && (
             <>
               <dt>{it.source === "generated" ? t("lib.meta.prompt") : t("lib.meta.note")}</dt>
@@ -620,6 +624,76 @@ function Detail({ team, id, onChanged }: { team: string; id: number; onChanged: 
         </div>
       </div>
     </aside>
+  );
+}
+
+/** Where a published document came from: the agent's workspace file, the
+ *  message it was published from, and how the two stand now (同步 / 取回). */
+function WorkspaceLink({ team, it, tick, agentName, onChanged }: { team: string; it: LibItem; tick: number; agentName: (id?: string) => string; onChanged: () => void }) {
+  const [l, setL] = useState<LibLink | null>(null);
+  const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    let live = true;
+    API.libraryLink(team, it.id).then(
+      (r) => live && setL(r.link),
+      () => live && setL(null),
+    );
+    return () => void (live = false);
+  }, [team, it.id, it.sha256, tick]);
+  if (!l) return null;
+  const act = async (f: () => Promise<unknown>) => {
+    setBusy(true);
+    try {
+      await f();
+    } finally {
+      setBusy(false);
+      onChanged();
+    }
+  };
+  const unlink = async () => {
+    if (!(await confirmDialog({ text: t("lib.unlinkQ"), ok: t("lib.unlink") }))) return;
+    await act(() => API.unlinkLibrary(team, it.id).catch((e) => toast(e?.message ?? String(e))));
+  };
+  const jump = () => {
+    if (!l.session) return;
+    if (l.seq) setState({ jump: { session: l.session, seq: l.seq } });
+    openSession(l.session);
+  };
+  const st = l.state;
+  return (
+    <>
+      <dt>{t("lib.meta.workspace")}</dt>
+      <dd className="liblink">
+        <span className="mono small">{t("lib.linkFrom", { agent: agentName(l.agent), path: l.path })}</span>
+        {st && (
+          <span className={"pubst small pub-" + st}>
+            {t(`pub.hint.${st}` as any)}
+          </span>
+        )}
+        <span className="liblinkacts">
+          {(st === "file" || st === "both") && (
+            <button className="btn sm" type="button" disabled={busy} onClick={() => void act(() => syncLink(team, l))}>
+              <ArrowUpFromLine size={12} />
+              {t("pub.sync")}
+            </button>
+          )}
+          {(st === "doc" || st === "both") && (
+            <button className="btn sm" type="button" disabled={busy} onClick={() => void act(() => pullLink(team, l, it.title || it.name))}>
+              <ArrowDownToLine size={12} />
+              {t("pub.pull")}
+            </button>
+          )}
+          {l.session && (!!l.seq || l.session !== it.session) && (
+            <button className="linkbtn" type="button" onClick={jump}>
+              {l.seq ? t("lib.atMessage") : t("lib.openConversation")}
+            </button>
+          )}
+          <button className="linkbtn muted" type="button" disabled={busy} onClick={() => void unlink()}>
+            {t("lib.unlink")}
+          </button>
+        </span>
+      </dd>
+    </>
   );
 }
 

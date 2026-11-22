@@ -1104,6 +1104,25 @@ export interface LibItem {
   keywords?: string[];
 }
 
+/** A document's tie to the workspace file it was published from. */
+export interface LibLink {
+  item: number;
+  agent: string;
+  path: string;
+  /** the conversation (and message) it was published from */
+  session?: string;
+  seq?: number;
+  /** when the two last matched */
+  at: string;
+  /** same | file (the workspace is newer) | doc (the library is newer) | both | file-gone; "" another member's agent */
+  state: "same" | "file" | "doc" | "both" | "file-gone" | "";
+}
+
+export interface LibFileLink extends LibLink {
+  name: string;
+  title?: string;
+}
+
 export interface LibStats {
   total: number;
   folders: Partial<Record<LibFolder, number>>;
@@ -1374,6 +1393,13 @@ export const API = {
   patchLibrary: (team: string, id: number, b: { title?: string; tags?: string[]; private?: boolean }) => api<LibItem>("PATCH", `/api/library/${id}?${libQS(team)}`, b),
   deleteLibrary: (team: string, id: number) => api("DELETE", `/api/library/${id}?${libQS(team)}`),
   restoreLibrary: (team: string, id: number, version: number) => api<LibItem>("POST", `/api/library/${id}/restore?${libQS(team)}`, { version }),
+  publishToLibrary: (team: string, b: { agent: string; path: string; session?: string; seq?: number; title?: string }) =>
+    api<{ link: LibLink; item: LibItem }>("POST", `/api/library/publish?${libQS(team)}`, b),
+  libraryLinks: (team: string, agent: string) => api<{ links: LibFileLink[] }>("GET", `/api/library/links?${libQS(team, { agent })}`),
+  libraryLink: (team: string, id: number) => api<{ link: LibLink | null }>("GET", `/api/library/${id}/link?${libQS(team)}`),
+  syncLibrary: (team: string, id: number) => api<{ link: LibLink; item: LibItem }>("POST", `/api/library/${id}/sync?${libQS(team)}`),
+  pullLibrary: (team: string, id: number) => api<{ link: LibLink }>("POST", `/api/library/${id}/pull?${libQS(team)}`),
+  unlinkLibrary: (team: string, id: number) => api("DELETE", `/api/library/${id}/link?${libQS(team)}`),
   attachLibrary: (team: string, id: number, agent: string) => api<Attachment>("POST", `/api/library/${id}/attach?${libQS(team)}`, { agent }),
   unfurl: (url: string) => api<LinkCard>("GET", `/api/unfurl?url=${enc(url)}`),
   updates: () => api<UpdateInfo>("GET", "/api/updates"),

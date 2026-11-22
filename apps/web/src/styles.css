@@ -2755,6 +2755,32 @@ b > .mkver, .g b .mkver { margin: 0 0 0 6px; }
 .tfpf .btn { flex: none; }
 .tfundone { font-size: 11px; font-weight: 600; padding: 0 6px; line-height: 18px; border-radius: 4px; background: var(--sunken); color: var(--muted); }
 .tfph:has(.tfundone) .fxic { opacity: .55; text-decoration: line-through; }
+/* 发布到文档库 (Publish.tsx): a workspace file and its library document */
+.tffrow { display: flex; align-items: center; }
+.tffrow .fxitem { flex: 1; min-width: 0; }
+.tffrow .pubb { flex: none; margin-right: 6px; }
+.pubb.ix { color: var(--muted); }
+.pubb.ix:hover:not(:disabled) { color: var(--text); }
+.pubb.pub-same { color: var(--ok-text); }
+.pubb.pub-file, .pubb.pub-both { color: var(--amber-text); }
+.pubb.pub-doc { color: var(--accent-text); }
+.btn.pubb { flex: none; gap: 5px; }
+.btn.pubb.pub-file, .btn.pubb.pub-both { background: var(--amber-soft); }
+.btn.pubb.pub-doc { background: var(--accent-soft); }
+.menu.pubpop { padding: 6px; }
+.pubh { display: flex; flex-direction: column; gap: 2px; padding: 6px 8px 4px; min-width: 0; }
+.pubh b { font-size: 13px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pubst { margin: 0 8px 6px; line-height: 1.5; color: var(--text2); }
+.pubpop .pubst { padding: 6px 8px; border-radius: 6px; background: var(--sunken); }
+.pubst.pub-file, .pubst.pub-both { color: var(--amber-text); }
+.pubst.pub-doc { color: var(--accent-text); }
+.fxpub { flex: none; display: inline-flex; color: var(--ok-text); }
+.fxpub.pub-file, .fxpub.pub-both { color: var(--amber-text); }
+.fxpub.pub-doc { color: var(--accent-text); }
+.liblink { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
+.liblink .pubst { margin: 0; }
+.liblinkacts { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.liblinkacts .btn { gap: 5px; }
 /* a visual reply (PageCard.tsx) */
 .pagecard { margin: 10px 0 6px; border: 1px solid var(--border2); border-radius: 12px; overflow: hidden; background: var(--surface); box-shadow: 0 1px 2px rgb(0 0 0 / .04); }
 .pch { display: flex; align-items: center; gap: 2px; padding: 4px 6px 4px 12px; border-bottom: 1px solid var(--border); background: var(--raised); min-width: 0; }
