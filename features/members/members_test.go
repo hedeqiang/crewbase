@@ -212,3 +212,53 @@ func TestRolesApprovalsAndRemoval(t *testing.T) {
 		t.Fatal("removed member's device still works:", code)
 	}
 }
+
+// An admin cannot make themselves the owner: a device paired for nobody in
+// particular is theirs, and the owner's devices are not theirs to remove.
+func TestAdminCannotPairOrRevokeAsOwner(t *testing.T) {
+	e := start(t)
+	code, m := e.do(t, owner, "POST", "/api/members", map[string]any{"name": "Ann", "role": "admin"})
+	if code != 200 {
+		t.Fatal(code, m)
+	}
+	ann := m["id"].(string)
+	annTok := e.pair(t, ann)
+
+	// the owner's own phone
+	code, p := e.do(t, owner, "POST", "/api/devices/pairing", map[string]any{"tier": "mobile"})
+	if code != 200 {
+		t.Fatal(code, p)
+	}
+	ownerPhone, err := e.ds.Redeem(p["code"].(string), "owner phone", "", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// the admin asks for a desktop code for nobody: it is for the admin
+	code, p = e.do(t, annTok, "POST", "/api/devices/pairing", map[string]any{"tier": "desktop"})
+	if code != 200 {
+		t.Fatal(code, p)
+	}
+	if p["member"] != ann {
+		t.Fatalf("an admin's code for nobody is the owner's: %v", p)
+	}
+	r, err := e.ds.Redeem(p["code"].(string), "ann laptop", "", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if code, me := e.do(t, r.Token, "GET", "/api/me", nil); code != 200 || me["name"] != "Ann" {
+		t.Fatalf("the new device is not Ann's: %d %v", code, me)
+	}
+
+	// the owner's devices: not the admin's to rename or revoke
+	if code, _ := e.do(t, annTok, "DELETE", "/api/devices/"+ownerPhone.Device.ID, nil); code != 403 {
+		t.Fatalf("admin revoked the owner's phone: %d", code)
+	}
+	if code, _ := e.do(t, annTok, "PATCH", "/api/devices/"+ownerPhone.Device.ID, map[string]any{"name": "x"}); code != 403 {
+		t.Fatalf("admin renamed the owner's phone: %d", code)
+	}
+	// the owner still can
+	if code, _ := e.do(t, owner, "DELETE", "/api/devices/"+ownerPhone.Device.ID, nil); code != 200 {
+		t.Fatalf("owner could not revoke their phone: %d", code)
+	}
+}

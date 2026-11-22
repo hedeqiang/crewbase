@@ -77,6 +77,20 @@ var Plugin = kernel.Register(kernel.Spec{
 			g.Hub().Publish("devices.changed", Event{Kind: kind, Device: v})
 		}
 		redeemLimit := &limiter{n: 20, window: time.Minute}
+		// who is calling: "" = the owner (the local token, or a device the
+		// owner paired for themselves), else a team member's id. Desktop-tier
+		// routes are reachable by admins too; the owner's devices are not
+		// theirs to make or remove.
+		memberOf := func(r *gateway.Request) string {
+			if r.DeviceID == "" {
+				return ""
+			}
+			if m, ok := kernel.Lookup[interface{ MemberIDOf(string) string }](c, "members"); ok {
+				return m.MemberIDOf(r.DeviceID)
+			}
+			return ""
+		}
+		ownersOnly := &gateway.Error{Status: 403, Code: "forbidden", Message: "only the owner can do this to the owner's devices"}
 		everyone := []string{TierMobile, TierViewer, "im"}
 
 		g.Handle(c, gateway.Route{Method: "POST", Path: "/api/devices/pairing",
@@ -87,6 +101,11 @@ var Plugin = kernel.Register(kernel.Spec{
 				}
 				if err := r.Decode(&b); err != nil {
 					return nil, err
+				}
+				// a device for nobody in particular is the owner's: only the
+				// owner pairs one; an admin pairing for nobody pairs their own
+				if who := memberOf(r); who != "" && b.Member == "" {
+					b.Member = who
 				}
 				p, err := s.StartPairingFor(b.Tier, b.Member)
 				if err != nil {
@@ -143,6 +162,9 @@ var Plugin = kernel.Register(kernel.Spec{
 				if err := r.Decode(&b); err != nil {
 					return nil, err
 				}
+				if d, ok := s.Get(r.Params["id"]); ok && d.Member == "" && memberOf(r) != "" {
+					return nil, ownersOnly
+				}
 				v, err := s.Rename(r.Params["id"], b.Name)
 				if err == ErrNotFound {
 					return nil, gateway.NotFound()
@@ -155,6 +177,9 @@ var Plugin = kernel.Register(kernel.Spec{
 			}})
 		g.Handle(c, gateway.Route{Method: "DELETE", Path: "/api/devices/{id}",
 			Handle: func(_ context.Context, r *gateway.Request) (any, error) {
+				if d, ok := s.Get(r.Params["id"]); ok && d.Member == "" && memberOf(r) != "" {
+					return nil, ownersOnly
+				}
 				v, err := s.Revoke(r.Params["id"])
 				if err == ErrNotFound {
 					return nil, gateway.NotFound()
