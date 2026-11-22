@@ -300,6 +300,12 @@ func (s *Service) again(ctx context.Context, o OpenRequest) (Review, error) {
 	}
 	s.changed(vcs.Event{Type: "git/review.updated", Repo: out.Repo, ID: out.ID, Actor: o.Author, Session: o.Session, Data: out})
 	if out.State == RvOpen {
+		if out.Round > out.MaxRounds && !strings.HasPrefix(o.Author, "person:") {
+			// the rounds are used up: agent reviewers are not asked again
+			// on their own; a person decides (reviews or merges)
+			s.changed(vcs.Event{Type: "git/review.rounds-exhausted", Repo: out.Repo, ID: out.ID, Data: map[string]any{"round": out.Round, "max": out.MaxRounds}})
+			return out, fail(CodeRounds, 409, "review %s has used its %d rounds: the reviewers are not asked again automatically; the person decides", out.ID, out.MaxRounds)
+		}
 		s.askReviewers(ctx, out)
 	}
 	return out, nil
@@ -754,7 +760,8 @@ func (s *Service) tellApproved(ctx context.Context, r Review) {
 	text := fmt.Sprintf("[Code review %s] “%s” was approved by %s. Merge it with git_merge(review: %q) when you are ready (merging into %s may ask the person).",
 		r.ID, r.Title, strings.Join(s.approvers(r), ", "), r.ID, r.Target)
 	if open := openComments(r); len(open) > 0 {
-		text += "\n\nComments left with the approval (not blocking):\n" + strings.Join(open, "\n") + "\n\nAll comments and verdicts: git_diff(review: \"" + r.ID + "\")."
+		text += "\n\nComments left with the approval (not blocking):\n" + strings.Join(open, "\n") + "\n\nAll comments and verdicts: git_diff(review: \"" + r.ID + "\"). " +
+			"These do not need another review: merge, or note them for later. Only ask for another round (git_review_open) if you change behaviour, and new commits make this approval stale."
 	}
 	s.hand(who, sid, text, "git-approved:"+r.ID, "code review")
 }

@@ -2,6 +2,7 @@ package git
 
 import (
 	"context"
+	"fmt"
 	"errors"
 	"os"
 	"os/exec"
@@ -435,6 +436,40 @@ func TestAgainAfterRefreshAsksReviewers(t *testing.T) {
 	lead, _ := r.agents.Get("lead")
 	if roots := lead.ExtraRoots(); len(roots) != 1 || roots[0] != w.Path {
 		t.Fatal(roots)
+	}
+}
+
+func TestRoundsBound(t *testing.T) {
+	r := setup(t)
+	ctx := context.Background()
+	w, _ := r.s.Spawn(ctx, SpawnRequest{Dir: r.repo, Holder: "lead", Parent: "lead", Origin: "tool"})
+	g, _ := r.s.vcs()
+	commit := func(n string) {
+		os.WriteFile(filepath.Join(w.Path, n), []byte(n), 0o644)
+		g.Commit(ctx, w.Path, vcs.CommitRequest{Message: n, All: true})
+	}
+	commit("a")
+	rv, _ := r.s.Open(ctx, OpenRequest{Worktree: w.ID, Reviewers: []string{"reviewer"}, Author: "agent:lead"})
+	var err error
+	for i := range 4 {
+		r.s.Submit(ctx, SubmitRequest{ID: rv.ID, Actor: "agent:reviewer", Decision: VApprove})
+		commit(fmt.Sprint("n", i))
+		if x, e := r.s.Open(ctx, OpenRequest{ID: rv.ID, Author: "agent:lead"}); e != nil {
+			err = e
+		} else {
+			rv = x
+		}
+		rv, _ = r.s.Review(rv.ID)
+	}
+	if !isCode(err, CodeRounds) || rv.Round < 4 {
+		t.Fatalf("%v round %d", err, rv.Round)
+	}
+	if n := len(r.handedTo("git-review:" + rv.ID)); n != 3 {
+		t.Fatalf("reviewer asked %d times, want 3 (the rounds)", n)
+	}
+	// a person may still ask
+	if _, err := r.s.Open(ctx, OpenRequest{ID: rv.ID, Author: PersonActor("")}); err != nil {
+		t.Fatal(err)
 	}
 }
 

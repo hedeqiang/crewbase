@@ -51,6 +51,7 @@ const (
 	CodeNotApproved  = "GIT_REVIEW_NOT_APPROVED"
 	CodeConflict     = "GIT_MERGE_CONFLICT"
 	CodeStale        = "GIT_REVIEW_STALE"
+	CodeRounds       = "GIT_REVIEW_ROUNDS_EXHAUSTED"
 )
 
 // Error is a refusal with a stable code.
