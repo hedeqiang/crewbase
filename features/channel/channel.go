@@ -497,8 +497,9 @@ func (s *Service) Reassign(id, to, by, note string) error {
 	}
 	s.mu.Lock()
 	prev := Owner(ss)
+	// the previous owner's work here stops; what it does elsewhere does not
 	if p, ok := s.agents.Get(prev); ok {
-		p.Stop()
+		p.StopIn(id)
 	}
 	if err := s.setOwner(ss, to, by, "reassigned"); err != nil {
 		s.mu.Unlock()
@@ -525,8 +526,7 @@ func (s *Service) Stop(id, by string) error {
 	if err != nil {
 		return err
 	}
-	owner := Owner(ss)
-	ids := append([]string{owner}, ss.Meta().Agents...)
+	ids := append([]string{Owner(ss)}, ss.Meta().Agents...)
 	seen := map[string]bool{}
 	for _, aid := range ids {
 		if seen[aid] {
@@ -537,9 +537,9 @@ func (s *Service) Stop(id, by string) error {
 		if !ok {
 			continue
 		}
-		if aid == owner || a.StatusSession() == id {
-			a.Stop()
-		}
+		// a turn working in this channel (the owner's, or a member's @-task),
+		// not what the same agent is doing in another conversation
+		a.StopIn(id)
 		for _, q := range a.Queue() {
 			if q.Session == id {
 				a.Cancel(q.ID)

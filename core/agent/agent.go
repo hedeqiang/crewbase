@@ -201,6 +201,7 @@ type Agent struct {
 	stopReq       string // stop requested for a claimed input not yet started
 	stopCur       func()
 	curInput      string
+	curSession    string // the session of curInput
 	detail        string
 }
 
@@ -555,7 +556,7 @@ func (a *Agent) Claim() (Input, bool) {
 	}
 	in := a.queue[0]
 	a.queue = a.queue[1:]
-	a.curInput, a.stopCur = in.ID, nil
+	a.curInput, a.curSession, a.stopCur = in.ID, in.Session, nil
 	a.mu.Unlock()
 	if ss, err := a.reg.sessions.Get(in.Session); err == nil {
 		_, _ = ss.Append(session.TypeInputClaimed, a.id, map[string]string{"id": in.ID})
@@ -653,6 +654,9 @@ func (a *Agent) SetStopper(stop func()) { a.SetCurrent("", stop) }
 func (a *Agent) SetCurrent(inputID string, stop func()) {
 	a.mu.Lock()
 	a.stopCur, a.curInput = stop, inputID
+	if inputID == "" {
+		a.curSession = ""
+	}
 	fire := stop != nil && inputID != "" && a.stopReq == inputID
 	if fire || inputID == "" {
 		a.stopReq = ""
@@ -688,6 +692,20 @@ func (a *Agent) StopInput(inputID string) bool {
 		return true
 	}
 	return a.Cancel(inputID)
+}
+
+// StopIn cancels the running turn only when it works in session id (an
+// agent working elsewhere is left alone). A turn claimed but not started
+// yet is stopped as soon as it starts.
+func (a *Agent) StopIn(id string) bool {
+	a.mu.Lock()
+	if a.curInput == "" || a.curSession != id {
+		a.mu.Unlock()
+		return false
+	}
+	in := a.curInput
+	a.mu.Unlock()
+	return a.StopInput(in)
 }
 
 // Stop cancels the running turn (the queue and workspace are kept).
