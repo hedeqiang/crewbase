@@ -486,10 +486,29 @@ func (m *Manager) installLocked(ctx context.Context, src string, enable, keepEna
 	if err := os.MkdirAll(m.pdir(name), 0o700); err != nil {
 		return Installed{}, err
 	}
-	if err := os.RemoveAll(dest); err != nil {
-		return Installed{}, err
+	// the copy in place moves aside and comes back if the new one cannot
+	// be put there or recorded: a failed reinstall leaves what was there
+	old := ""
+	if _, err := os.Stat(dest); err == nil {
+		old = filepath.Join(m.pdir(name), ".old-"+man.Version)
+		_ = os.RemoveAll(old)
+		if err := os.Rename(dest, old); err != nil {
+			return Installed{}, err
+		}
+	}
+	prevRec, _ := os.ReadFile(filepath.Join(m.pdir(name), "installed.json"))
+	rollback := func() {
+		_ = os.RemoveAll(dest)
+		if old != "" {
+			_ = os.Rename(old, dest)
+		}
+		if prevRec != nil {
+			_ = os.WriteFile(filepath.Join(m.pdir(name), "installed.json"), prevRec, 0o600)
+		}
+		_ = m.syncLocked(name, true)
 	}
 	if err := os.Rename(root, dest); err != nil {
+		rollback()
 		return Installed{}, err
 	}
 	rec := record{Name: name, Version: man.Version, Source: canon, SourceKind: kind, InstalledAt: time.Now().UTC(), Signed: vo.signed, Pinned: vo.integrity, Market: vo.name}
@@ -500,7 +519,11 @@ func (m *Manager) installLocked(ctx context.Context, src string, enable, keepEna
 		rec.Publisher = pub.ID
 	}
 	if err := writeJSON(filepath.Join(m.pdir(name), "installed.json"), rec); err != nil {
+		rollback()
 		return Installed{}, err
+	}
+	if old != "" {
+		_ = os.RemoveAll(old)
 	}
 	// keep only the current version
 	if ents, err := os.ReadDir(m.pdir(name)); err == nil {
@@ -574,8 +597,14 @@ func (m *Manager) SetEnabled(name string, on bool) (Installed, error) {
 func (m *Manager) Remove(name string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	// a damaged install (its record unreadable) can still be removed
 	if _, err := m.read(name); err != nil {
-		return err
+		if !sdk.ValidName(name) {
+			return err
+		}
+		if _, serr := os.Stat(m.pdir(name)); serr != nil {
+			return err
+		}
 	}
 	m.unloadLocked(name)
 	if err := m.setEnabled(name, false); err != nil {
