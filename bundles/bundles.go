@@ -35,6 +35,7 @@ import (
 	_ "github.com/hedeqiang/crewbase/features/devices"
 	_ "github.com/hedeqiang/crewbase/features/followups"
 	_ "github.com/hedeqiang/crewbase/features/gateway"
+	_ "github.com/hedeqiang/crewbase/features/git"
 	_ "github.com/hedeqiang/crewbase/features/goals"
 	_ "github.com/hedeqiang/crewbase/features/im"
 	_ "github.com/hedeqiang/crewbase/features/imconfig"
@@ -70,6 +71,7 @@ import (
 	_ "github.com/hedeqiang/crewbase/providers/browser/chrome"
 	_ "github.com/hedeqiang/crewbase/providers/computer/macos"
 	_ "github.com/hedeqiang/crewbase/providers/fs/local"
+	_ "github.com/hedeqiang/crewbase/providers/gitcli"
 	_ "github.com/hedeqiang/crewbase/providers/im/discord"
 	_ "github.com/hedeqiang/crewbase/providers/im/feishu"
 	_ "github.com/hedeqiang/crewbase/providers/im/slack"
@@ -166,6 +168,10 @@ var Base = kernel.Bundle{Name: "base", Entries: []kernel.Entry{
 	{ID: "memory", Name: "@crewbase/memory-markdown-sqlite", Config: map[string]any{"root": "${root}"}},
 	// 文档库: uploads, generated media and saved documents per team (<root>/library).
 	{ID: "library", Name: "@crewbase/library", Config: map[string]any{"root": "${root}"}},
+	// Git for agents side by side: a worktree per sub-agent (<root>/worktrees),
+	// freeze locks, local code review, merge previews, approved pushes.
+	{ID: "vcs", Name: "@crewbase/vcs-gitcli"},
+	{ID: "git", Name: "@crewbase/git", Config: map[string]any{"root": "${root}"}},
 	// Nightly: agents curate an overgrown MEMORY.md (backed up first).
 	{ID: "memory-tidy", Name: "@crewbase/memory-tidy"},
 	{ID: "memory-working", Name: "@crewbase/memory-working"},
@@ -216,6 +222,7 @@ var Desktop = kernel.Bundle{Name: "desktop", Entries: []kernel.Entry{
 	{ID: "ui-api", Name: "@crewbase/ui-api"},
 	{ID: "attachments-api", Name: "@crewbase/attachments-api"},
 	{ID: "library-api", Name: "@crewbase/library-api"},
+	{ID: "git-api", Name: "@crewbase/git-api"},
 	// Link cards (docs/previews.md): GET /api/unfurl, public addresses only.
 	{ID: "linkpreview", Name: "@crewbase/linkpreview"},
 	// 预览: preview_open and the right panel's preview tab (docs/previews.md).

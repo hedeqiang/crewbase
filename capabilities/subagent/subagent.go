@@ -90,6 +90,9 @@ type Request struct {
 	Mode string `json:"mode,omitempty"`
 	// Depth is the child's delegation depth (1 = direct child).
 	Depth int `json:"depth"`
+	// Worktree continues the work in an existing worktree (its id, from
+	// the git feature): the sub-agent works on that branch.
+	Worktree string `json:"worktree,omitempty"`
 }
 
 // Result is the uniform outcome of every provider.

@@ -29,6 +29,7 @@ import (
 	"time"
 
 	"github.com/hedeqiang/crewbase/capabilities/subagent"
+	"github.com/hedeqiang/crewbase/capabilities/vcs"
 	"github.com/hedeqiang/crewbase/core/agent"
 	"github.com/hedeqiang/crewbase/core/agentloop"
 	"github.com/hedeqiang/crewbase/core/llm"
@@ -181,7 +182,14 @@ func latestTurnBoundary(ss *session.Session) int64 {
 	return 0
 }
 
-func (r *runner) spawn(ctx context.Context, provName string, fork bool, req subagent.Request) (subagent.Result, error) {
+func (r *runner) spawn(ctx context.Context, provName string, fork bool, req subagent.Request) (out subagent.Result, outErr error) {
+	// released is what became of the sub-agent's worktree (told to the parent)
+	var released string
+	defer func() {
+		if released != "" && outErr == nil {
+			out.Output = strings.TrimSpace(out.Output + "\n\n" + released)
+		}
+	}()
 	var parent *agent.Agent
 	if req.Parent != "" {
 		a, ok := r.agents.Get(req.Parent)
@@ -216,6 +224,32 @@ func (r *runner) spawn(ctx context.Context, provName string, fork bool, req suba
 		}
 		child = a
 		defer r.deleteAgent(a.ID())
+		// where it works: a worktree of its own when the parent's folder
+		// is a repository (the git feature), else its own folder
+		if parent != nil {
+			al, ok := vcs.AllocateWorkspace.Run(r.c, ctx, vcs.AllocateRequest{
+				Parent: parent.ID(), ParentSession: req.ParentSession, Child: a.ID(), Workspace: parent.Workspace(),
+				Mode: a.Mode(), Task: req.Task, Worktree: req.Worktree,
+			})
+			switch {
+			case ok && al.Dir != "":
+				if err := a.Update(func(s *agent.Spec) { s.SharedWorkspace = al.Dir }); err != nil {
+					return subagent.Result{}, fmt.Errorf("sub-agent workspace: %w", err)
+				}
+				if al.Note != "" {
+					req.Task = al.Note + "\n\n" + req.Task
+				}
+				if al.Release != nil {
+					defer func() {
+						if note := al.Release(context.WithoutCancel(ctx)); note != "" {
+							released = note
+						}
+					}()
+				}
+			case req.Worktree != "":
+				return subagent.Result{}, fmt.Errorf("worktree %s is not available", req.Worktree)
+			}
+		}
 	} else {
 		a, ok := r.agents.Get(req.Agent)
 		if !ok || a.IsChat() {
@@ -455,6 +489,7 @@ type DelegateArgs struct {
 	Mode       string `json:"mode,omitempty"`
 	Provider   string `json:"provider,omitempty"`
 	Background bool   `json:"background,omitempty"`
+	Worktree   string `json:"worktree,omitempty"`
 }
 
 // formatResult renders a sub-agent's result for the model.
@@ -500,6 +535,7 @@ var DelegatePlugin = kernel.Register(kernel.Spec{
 				"mode":       tools.Prop("string", "optional run mode: read-only or sandbox (never wider than yours)"),
 				"provider":   tools.Prop("string", "local (default) or fork"),
 				"background": tools.Prop("boolean", "return at once; the result arrives later as a message (default false)"),
+				"worktree":   tools.Prop("string", "optional: continue in this git worktree (an id like wt…, from an earlier delegation or a review) instead of a new one"),
 			}, "task"),
 			Category: tools.CategoryNone,
 			Execute: func(ctx context.Context, call tools.Call) (tools.Result, error) {
@@ -530,8 +566,11 @@ var DelegatePlugin = kernel.Register(kernel.Spec{
 						}
 					}
 				}
+				if a.Worktree != "" && a.Agent != "" {
+					return tools.Errorf("worktree is for a temporary sub-agent; leave agent out"), nil
+				}
 				req := subagent.Request{
-					Parent: call.Agent, Task: a.Task, Agent: a.Agent,
+					Parent: call.Agent, Task: a.Task, Agent: a.Agent, Worktree: a.Worktree,
 					Mode: agent.Stricter(call.Mode, a.Mode), Depth: 1,
 				}
 				if call.Session != nil {
