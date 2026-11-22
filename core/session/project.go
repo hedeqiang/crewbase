@@ -203,6 +203,61 @@ func CompactedUpto(events []Event, agent string) int64 {
 	return 0
 }
 
+// greetingTag is agentloop.GreetingTag (the turn a new agent introduces
+// itself in; its instruction is an agent/inject of that source).
+const greetingTag = "greeting"
+
+// greetingSeqs are agent's greeting turns that have ended: the instruction
+// that asked for it and everything the agent did in that turn.
+func greetingSeqs(events []Event, agent string) map[int64]bool {
+	var out map[int64]bool
+	var inject int64 // the latest greeting instruction not yet answered
+	open := false
+	var turn []int64
+	for _, e := range events {
+		if e.Agent != agent {
+			continue
+		}
+		switch e.Type {
+		case TypeInject:
+			var m InjectData
+			if e.Decode(&m) == nil && m.Source == greetingTag {
+				inject = e.Seq
+			}
+			continue
+		case TypeTurnStart:
+			var m struct {
+				Tag string `json:"tag"`
+			}
+			open = e.Decode(&m) == nil && m.Tag == greetingTag
+			turn = nil
+			if open {
+				turn = append(turn, e.Seq)
+			}
+			continue
+		case TypeTurnEnd:
+			if open {
+				if out == nil {
+					out = map[int64]bool{}
+				}
+				for _, q := range turn {
+					out[q] = true
+				}
+				if inject > 0 {
+					out[inject] = true
+				}
+				inject = 0
+			}
+			open, turn = false, nil
+			continue
+		}
+		if open {
+			turn = append(turn, e.Seq)
+		}
+	}
+	return out
+}
+
 // IsolatedKinds are session kinds whose agents do not share history.
 var IsolatedKinds = map[string]bool{"workflow": true}
 
@@ -217,6 +272,17 @@ const InterruptedResult = "interrupted: the tool call did not complete (process 
 func DeriveMessages(events []Event, agent string, names map[string]string) []llm.Message {
 	// regenerated / edited history is not part of the model's view
 	events = Visible(events, agent)
+	// nor is the greeting a new agent opened with, once it is over: it was
+	// for the person to read, not context for the work that follows
+	if g := greetingSeqs(events, agent); len(g) > 0 {
+		kept := make([]Event, 0, len(events))
+		for _, e := range events {
+			if !g[e.Seq] {
+				kept = append(kept, e)
+			}
+		}
+		events = kept
+	}
 	// find the latest compaction for this agent
 	var comp *CompactionData
 	for i := len(events) - 1; i >= 0; i-- {
