@@ -125,6 +125,9 @@ type AddRequest struct {
 	// Replace: an item of the same name in the folder gets this content
 	// (its earlier content kept as a version); otherwise a new name is picked.
 	Replace bool
+	// distinct: a document of its own even when the team holds the same
+	// bytes already (a published file is linked to its own document)
+	distinct bool
 }
 
 // Errors.
@@ -162,6 +165,10 @@ func Open(root string) (*Service, error) {
 		return nil, fmt.Errorf("library index: %w", err)
 	}
 	s := &Service{root: root, db: db, pending: make(chan int64, 256), sumKick: make(chan struct{}, 1)}
+	if err := s.linksInit(); err != nil {
+		db.Close()
+		return nil, fmt.Errorf("library index: %w", err)
+	}
 	if err := s.migratePassages(); err != nil {
 		db.Close()
 		return nil, fmt.Errorf("library index: %w", err)
@@ -280,7 +287,7 @@ func (s *Service) Add(ctx context.Context, r AddRequest) (Item, error) {
 	defer s.mu.Unlock()
 	now := time.Now().UTC()
 
-	if !r.Replace {
+	if !r.Replace && !r.distinct {
 		// the same file again: one item (a private one stays its agent's)
 		if it, err := s.byHash(r.Team, hash); err == nil && (!it.Private || it.Agent == r.Agent) {
 			if len(r.Tags) > 0 {
@@ -725,7 +732,7 @@ func (s *Service) Delete(v Viewer, id int64) error {
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if _, err := s.db.Exec(`DELETE FROM items WHERE id = ?; DELETE FROM versions WHERE item = ?; DELETE FROM summaries WHERE id = ?`, id, id, id); err != nil {
+	if _, err := s.db.Exec(`DELETE FROM items WHERE id = ?; DELETE FROM versions WHERE item = ?; DELETE FROM summaries WHERE id = ?; DELETE FROM links WHERE item = ?`, id, id, id, id); err != nil {
 		return err
 	}
 	s.unindex(id)

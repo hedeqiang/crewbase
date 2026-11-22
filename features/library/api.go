@@ -27,6 +27,12 @@ import (
 //	DELETE /api/library/{id}
 //	POST   /api/library/{id}/restore                           {version}
 //	POST   /api/library/{id}/attach                            {agent} → an attachment in the agent's workspace
+//	POST   /api/library/publish                                {agent, path, session?, seq?, title?} → link (工作区 → 文档库)
+//	GET    /api/library/links?agent=                           the agent's published files and how they stand
+//	GET    /api/library/{id}/link                              {link} (null: not from a workspace file)
+//	POST   /api/library/{id}/sync                              the workspace file → a new version of the document
+//	POST   /api/library/{id}/pull                              the document → the workspace file
+//	DELETE /api/library/{id}/link                              forget the tie (both stay)
 var APIPlugin = kernel.Register(kernel.Spec{
 	Name:        "@crewbase/library-api",
 	Inject:      []string{gateway.ServiceKey, ServiceKey, agent.ServiceKey},
@@ -139,6 +145,9 @@ var APIPlugin = kernel.Register(kernel.Spec{
 				}
 				return it, nil
 			}})
+
+		// before /api/library/{id}: /api/library/links and /publish are routes of their own
+		links(c, g, s, agents, viewers, viewer, id, by)
 
 		g.Handle(c, gateway.Route{Method: "GET", Path: "/api/library/{id}", Devices: viewers,
 			Handle: func(_ context.Context, r *gateway.Request) (any, error) {
@@ -272,6 +281,156 @@ var APIPlugin = kernel.Register(kernel.Spec{
 		return nil
 	},
 })
+
+// links are the routes tying workspace files to documents. Each works
+// with an agent's workspace, so the caller must be able to work with that
+// agent (the teams access), and the agent must be of the library's team.
+func links(c *kernel.Context, g *gateway.Gateway, s *Service, agents *agent.Registry, viewers []string,
+	viewer func(*gateway.Request) Viewer, id func(*gateway.Request) (int64, error), by func(*gateway.Request) string) {
+	type access interface {
+		Agents(deviceID string, ids []string, act bool) bool
+		Session(deviceID, id string) bool
+	}
+	reach := func(r *gateway.Request, name string, act bool) (*agent.Agent, bool) {
+		a, ok := agents.Get(name)
+		if !ok || a.Spec().TeamID() != agent.TeamOf(viewer(r).Team) {
+			return nil, false
+		}
+		if acc, ok := kernel.Lookup[access](c, "access"); ok && !acc.Agents(r.DeviceID, []string{name}, act) {
+			return nil, false
+		}
+		return a, true
+	}
+	ws := func(r *gateway.Request, act bool) func(string) (string, bool) {
+		return func(name string) (string, bool) {
+			a, ok := reach(r, name, act)
+			if !ok {
+				return "", false
+			}
+			return a.Workspace(), true
+		}
+	}
+	// the link of {id}, when the caller may reach its agent
+	linked := func(r *gateway.Request, act bool) (int64, error) {
+		n, err := id(r)
+		if err != nil {
+			return 0, err
+		}
+		l, err := s.LinkOf(viewer(r), n, func(string) (string, bool) { return "", false })
+		if err != nil {
+			return 0, notFound(err)
+		}
+		if _, ok := reach(r, l.Agent, act); !ok {
+			return 0, gateway.NotFound()
+		}
+		return n, nil
+	}
+
+	g.Handle(c, gateway.Route{Method: "POST", Path: "/api/library/publish", Devices: viewers,
+		Handle: func(ctx context.Context, r *gateway.Request) (any, error) {
+			var b struct {
+				Agent   string `json:"agent"`
+				Path    string `json:"path"`
+				Session string `json:"session"`
+				Seq     int64  `json:"seq"`
+				Title   string `json:"title"`
+			}
+			if err := r.Decode(&b); err != nil {
+				return nil, gateway.BadRequest("%v", err)
+			}
+			a, ok := reach(r, b.Agent, true)
+			if !ok {
+				return nil, gateway.NotFound()
+			}
+			if b.Session != "" {
+				// a conversation the agent is in, that the caller sees (a link back to it)
+				sess, err := agents.Sessions().Get(b.Session)
+				acc, guarded := kernel.Lookup[access](c, "access")
+				if err != nil || !slices.Contains(sess.Meta().Agents, a.ID()) || guarded && !acc.Session(r.DeviceID, b.Session) {
+					b.Session, b.Seq = "", 0
+				}
+			}
+			lv, err := s.Publish(ctx, PublishRequest{Team: a.Spec().TeamID(), Agent: a.ID(), Dir: a.Workspace(), Path: b.Path,
+				Session: b.Session, Seq: b.Seq, Title: b.Title, By: by(r)})
+			if err != nil {
+				return nil, notFound(err)
+			}
+			it, _ := s.Get(viewer(r), lv.Item)
+			return map[string]any{"link": lv, "item": it}, nil
+		}})
+
+	g.Handle(c, gateway.Route{Method: "GET", Path: "/api/library/links", Devices: viewers,
+		Handle: func(_ context.Context, r *gateway.Request) (any, error) {
+			a, ok := reach(r, r.HTTP.URL.Query().Get("agent"), false)
+			if !ok {
+				return nil, gateway.NotFound()
+			}
+			ls, err := s.AgentLinks(viewer(r), a.ID(), a.Workspace())
+			if err != nil {
+				return nil, err
+			}
+			return map[string]any{"links": ls}, nil
+		}})
+
+	g.Handle(c, gateway.Route{Method: "GET", Path: "/api/library/{id}/link", Devices: viewers,
+		Handle: func(_ context.Context, r *gateway.Request) (any, error) {
+			n, err := id(r)
+			if err != nil {
+				return nil, err
+			}
+			lv, err := s.LinkOf(viewer(r), n, ws(r, false))
+			if errors.Is(err, ErrNoLink) {
+				return map[string]any{"link": nil}, nil
+			}
+			if err != nil {
+				return nil, notFound(err)
+			}
+			if _, ok := reach(r, lv.Agent, false); !ok {
+				// another member's agent: where it came from, not its state
+				lv.State = ""
+			}
+			return map[string]any{"link": lv}, nil
+		}})
+
+	g.Handle(c, gateway.Route{Method: "POST", Path: "/api/library/{id}/sync", Devices: viewers,
+		Handle: func(_ context.Context, r *gateway.Request) (any, error) {
+			n, err := linked(r, true)
+			if err != nil {
+				return nil, err
+			}
+			it, err := s.Push(viewer(r), n, ws(r, true), by(r))
+			if err != nil {
+				return nil, notFound(err)
+			}
+			lv, _ := s.LinkOf(viewer(r), n, ws(r, false))
+			return map[string]any{"link": lv, "item": it}, nil
+		}})
+
+	g.Handle(c, gateway.Route{Method: "POST", Path: "/api/library/{id}/pull", Devices: viewers,
+		Handle: func(_ context.Context, r *gateway.Request) (any, error) {
+			n, err := linked(r, true)
+			if err != nil {
+				return nil, err
+			}
+			if _, err := s.Pull(viewer(r), n, ws(r, true)); err != nil {
+				return nil, notFound(err)
+			}
+			lv, _ := s.LinkOf(viewer(r), n, ws(r, false))
+			return map[string]any{"link": lv}, nil
+		}})
+
+	g.Handle(c, gateway.Route{Method: "DELETE", Path: "/api/library/{id}/link", Devices: viewers,
+		Handle: func(_ context.Context, r *gateway.Request) (any, error) {
+			n, err := id(r)
+			if err != nil {
+				return nil, err
+			}
+			if err := s.Unlink(viewer(r), n); err != nil {
+				return nil, notFound(err)
+			}
+			return map[string]any{"ok": true}, nil
+		}})
+}
 
 func notFound(err error) error {
 	var ge *gateway.Error

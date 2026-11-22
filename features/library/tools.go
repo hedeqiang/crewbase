@@ -250,6 +250,7 @@ func registerTools(c *kernel.Context, s *Service, agents *agent.Registry) {
 				return tools.Errorf("%v", err), nil
 			}
 			var data []byte
+			linked := "" // the workspace file it came from
 			name := strings.TrimSpace(args.Name)
 			switch {
 			case args.Path != "" && args.Content != nil:
@@ -261,6 +262,9 @@ func registerTools(c *kernel.Context, s *Service, agents *agent.Registry) {
 				}
 				if data, err = os.ReadFile(p); err != nil {
 					return tools.Errorf("library_save: %v", err), nil
+				}
+				if rel, err := filepath.Rel(call.Workspace, p); err == nil {
+					linked = rel
 				}
 				if name == "" {
 					name = filepath.Base(p)
@@ -287,6 +291,10 @@ func registerTools(c *kernel.Context, s *Service, agents *agent.Registry) {
 				Session: sid, Tags: args.Tags, Private: args.Private, Replace: true})
 			if err != nil {
 				return tools.Errorf("library_save: %v", err), nil
+			}
+			if linked != "" && it.SHA256 == shaOf(data) {
+				// the document follows the file: 同步 / 取回 on both sides
+				_ = s.SetLink(it, v.Agent, linked, sid, 0, data)
 			}
 			msg := fmt.Sprintf("Saved to the library: %s", describe(it))
 			if it.Versions > 0 {
