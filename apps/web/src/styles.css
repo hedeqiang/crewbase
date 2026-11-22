@@ -3150,9 +3150,13 @@ input.fi { resize: none; }
 /* settings menu: 返回对话 and search stay at the top while the sections
    scroll (scrolled up, they went under the window's buttons, out of reach) */
 .snav { padding-top: 0; }
-.snav .back { position: sticky; top: 0; z-index: 2; margin-top: 0; padding-top: calc(var(--tbh) + 7px); background: var(--page); border-radius: 0; }
+/* 返回对话 stays at the top; only its own row is the button. The title
+   bar strip above it is covered by its shadow (not part of the button,
+   so the window still drags there) */
+.snav .back { position: sticky; top: var(--tbh); z-index: 2; margin-top: var(--tbh); flex: none; background: var(--page); box-shadow: 0 calc(var(--tbh) / -2) 0 calc(var(--tbh) / 2) var(--page); }
+.snav .back:hover { background: linear-gradient(var(--hover), var(--hover)) var(--page); }
 .snav .sset { position: sticky; top: calc(var(--tbh) + 41px); z-index: 2; box-shadow: 0 -6px 0 var(--page), 0 6px 0 var(--page); background: var(--page); }
-@media (max-width: 820px) { .snav .back { padding-top: 7px; } .snav .sset { top: 41px; } }
+@media (max-width: 820px) { .snav .back { top: 0; margin-top: 0; box-shadow: none; } .snav .sset { top: 41px; } }
 .upv .small { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .upvacts { display: inline-flex; gap: 6px; flex: none; }
 
