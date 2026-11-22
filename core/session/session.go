@@ -427,6 +427,16 @@ func (s *Store) Fork(src *Session, uptoSeq int64, meta Meta) (*Session, error) {
 	if err != nil {
 		return nil, err
 	}
+	// events are numbered afresh in the fork (meta events are not copied):
+	// what points at another event by its seq is pointed at its new one
+	var olds, news []int64
+	at := func(old int64) int64 { // the new seq of the last copied event at or before old
+		i := sort.Search(len(olds), func(i int) bool { return olds[i] > old })
+		if i == 0 {
+			return 0
+		}
+		return news[i-1]
+	}
 	for _, e := range src.Events() {
 		if e.Seq > uptoSeq {
 			break
@@ -434,11 +444,54 @@ func (s *Store) Fork(src *Session, uptoSeq int64, meta Meta) (*Session, error) {
 		if e.Type == TypeCreated || e.Type == "session/meta" {
 			continue
 		}
-		if _, err := ns.Append(e.Type, e.Agent, e.Data); err != nil {
+		data := renumber(e, at)
+		ne, err := ns.Append(e.Type, e.Agent, data)
+		if err != nil {
 			return nil, err
 		}
+		olds, news = append(olds, e.Seq), append(news, ne.Seq)
 	}
 	return ns, nil
+}
+
+// renumber returns e's data with the seqs it refers to mapped by at:
+// a compaction's cut, a rewind's start, a reply's quoted message.
+func renumber(e Event, at func(int64) int64) any {
+	switch e.Type {
+	case TypeCompaction:
+		var c CompactionData
+		if e.Decode(&c) == nil {
+			c.UptoSeq = at(c.UptoSeq)
+			return keepOthers(e.Data, map[string]any{"uptoSeq": c.UptoSeq})
+		}
+	case TypeRewind:
+		var r RewindData
+		if e.Decode(&r) == nil && r.From > 0 {
+			// the first copied event at or after From starts the span
+			return keepOthers(e.Data, map[string]any{"from": at(r.From-1) + 1})
+		}
+	case TypeUserMessage:
+		var m UserMessage
+		if e.Decode(&m) == nil && m.Reply != nil && m.Reply.Seq > 0 {
+			q := *m.Reply
+			q.Seq = at(q.Seq)
+			return keepOthers(e.Data, map[string]any{"reply": q})
+		}
+	}
+	return e.Data
+}
+
+// keepOthers is raw with the fields of set replaced (fields it does not
+// name are kept as they were).
+func keepOthers(raw json.RawMessage, set map[string]any) any {
+	m := map[string]any{}
+	if json.Unmarshal(raw, &m) != nil {
+		return raw
+	}
+	for k, v := range set {
+		m[k] = v
+	}
+	return m
 }
 
 // Close closes all open files.
