@@ -189,12 +189,14 @@ func PolicyFor(runMode, workspace string, allowHosts []string) Policy {
 	case agent.ModeSandbox:
 		// The coding CLIs' project config in the workspace stays read-only:
 		// a command must not hand the next CLI turn hooks, MCP servers or
-		// an allow-list (agent.CLIConfigNames).
+		// an allow-list (agent.CLIConfigNames), and git's control files
+		// stay read-only too: Crewbase's own git calls read them
+		// (agent.GitControlNames).
 		// The network is open: inside the sandbox the agent installs
 		// dependencies, clones and fetches like on any dev box. What
 		// leaves the machine on purpose (push, publish, POST) is still
 		// asked by the rules engine.
-		p = Policy{Mode: ModeWorkspaceWrite, WritableRoots: []string{workspace}, ProtectedRoots: agent.CLIConfigPaths(workspace), Network: NetworkOpen}
+		p = Policy{Mode: ModeWorkspaceWrite, WritableRoots: []string{workspace}, ProtectedRoots: agent.ProtectedPaths(workspace), Network: NetworkOpen}
 	default: // read-only and anything unknown
 		p = Policy{Mode: ModeReadOnly, Network: NetworkNone}
 		if workspace != "" {

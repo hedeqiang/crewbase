@@ -305,7 +305,13 @@ func (l *Local) Write(ctx context.Context, a fs.Access, p string, content []byte
 			return fs.WriteResult{}, err
 		}
 	}
-	if err := l.intent(ctx, &fs.Intent{Agent: a.Agent, Op: fs.OpWrite, Path: real, Exists: exists, Size: len(content)}); err != nil {
+	in := &fs.Intent{Agent: a.Agent, Op: fs.OpWrite, Path: real, Exists: exists, Size: len(content)}
+	if exists && st.Size() <= l.maxRead {
+		if old, err := os.ReadFile(real); err == nil {
+			in.Lines = fs.ChangedLines(old, content)
+		}
+	}
+	if err := l.intent(ctx, in); err != nil {
 		return fs.WriteResult{}, err
 	}
 	var prev iofs.FileInfo
@@ -361,7 +367,8 @@ func (l *Local) Edit(ctx context.Context, a fs.Access, p, old, new string) (fs.W
 		return fs.WriteResult{}, fmt.Errorf("%w (%d matches in %s)", fs.ErrNotUnique, n, p)
 	}
 	out := bytes.Replace(b, []byte(old), []byte(new), 1)
-	if err := l.intent(ctx, &fs.Intent{Agent: a.Agent, Op: fs.OpEdit, Path: real, Exists: true, Size: len(out)}); err != nil {
+	in := &fs.Intent{Agent: a.Agent, Op: fs.OpEdit, Path: real, Exists: true, Size: len(out), Lines: fs.EditLines(b, bytes.Index(b, []byte(old)), len(old))}
+	if err := l.intent(ctx, in); err != nil {
 		return fs.WriteResult{}, err
 	}
 	if err := writeFile(real, out, st); err != nil {

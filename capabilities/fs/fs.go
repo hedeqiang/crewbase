@@ -106,7 +106,82 @@ type Intent struct {
 	Path   string `json:"path"` // resolved absolute path
 	Exists bool   `json:"exists"`
 	Size   int    `json:"size"` // new content size (write/edit)
-	Deny   string `json:"deny,omitempty"`
+	// Lines are the lines of the existing file the change touches
+	// (1-based, inclusive, in the file as it is now), when known: an edit's
+	// replaced text, a rewrite's first to last changed line. An insertion
+	// between two lines is [n+1, n]. Empty for a new file, a delete, or a
+	// write whose change was not worked out (then: the whole file).
+	Lines [][2]int `json:"lines,omitempty"`
+	Deny  string   `json:"deny,omitempty"`
+}
+
+// ChangedLines is the range of old's lines that new changes (see
+// Intent.Lines): the lines between the common start and the common end.
+func ChangedLines(old, new []byte) [][2]int {
+	a, b := splitLines(old), splitLines(new)
+	p := 0
+	for p < len(a) && p < len(b) && a[p] == b[p] {
+		p++
+	}
+	if p == len(a) && p == len(b) {
+		return nil
+	}
+	q := 0
+	for q < len(a)-p && q < len(b)-p && a[len(a)-1-q] == b[len(b)-1-q] {
+		q++
+	}
+	return [][2]int{{p + 1, len(a) - q}}
+}
+
+// EditLines is the range of lines the text at byte offset off (n bytes
+// long) occupies in b.
+func EditLines(b []byte, off, n int) [][2]int {
+	if off < 0 || off > len(b) {
+		return nil
+	}
+	start := 1 + bytesCount(b[:off], '\n')
+	end := start + bytesCount(b[off:min(off+n, len(b))], '\n')
+	if n > 0 && off+n <= len(b) && b[off+n-1] == '\n' {
+		end-- // the text ends with its line's newline
+	}
+	return [][2]int{{start, max(end, start)}}
+}
+
+func splitLines(b []byte) []string {
+	if len(b) == 0 {
+		return nil
+	}
+	s := string(b)
+	out := []string{}
+	for len(s) > 0 {
+		i := indexByte(s, '\n')
+		if i < 0 {
+			out = append(out, s)
+			break
+		}
+		out = append(out, s[:i])
+		s = s[i+1:]
+	}
+	return out
+}
+
+func indexByte(s string, c byte) int {
+	for i := 0; i < len(s); i++ {
+		if s[i] == c {
+			return i
+		}
+	}
+	return -1
+}
+
+func bytesCount(b []byte, c byte) int {
+	n := 0
+	for _, x := range b {
+		if x == c {
+			n++
+		}
+	}
+	return n
 }
 
 // WriteIntent runs before every write, edit and delete (Waterfall). The

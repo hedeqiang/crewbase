@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"os"
 	"path/filepath"
 	"strings"
 )
@@ -49,6 +50,51 @@ func CLIConfigPaths(dir string) []string {
 		out = append(out, filepath.Join(dir, n))
 	}
 	return out
+}
+
+// GitControlNames are the parts of a repository from which git itself
+// runs programs or takes settings that do: .git/config (filter, merge and
+// diff drivers, fsmonitor, sshCommand, include.path), hooks, the per-worktree
+// configs and gitdir pointers under .git/worktrees, and .gitmodules. In a
+// linked worktree .git is a file pointing at the repository; rewriting it
+// would point git elsewhere. Crewbase runs git in its own process for the
+// git tools, so an agent must not be able to change these.
+var GitControlNames = []string{".git/config", ".git/config.worktree", ".git/hooks", ".git/worktrees", ".git/info", ".gitmodules"}
+
+// GitControlPaths returns dir's GitControlNames entries that exist (only
+// those: a sandbox that makes placeholders for missing protected paths
+// must not create a .git where there is none), and dir/.git itself when it
+// is a file (a linked worktree).
+func GitControlPaths(dir string) []string {
+	if dir == "" || !filepath.IsAbs(dir) {
+		return nil
+	}
+	dir = filepath.Clean(dir)
+	st, err := os.Lstat(filepath.Join(dir, ".git"))
+	if err != nil {
+		return nil
+	}
+	if !st.IsDir() {
+		out := []string{filepath.Join(dir, ".git")}
+		if _, err := os.Lstat(filepath.Join(dir, ".gitmodules")); err == nil {
+			out = append(out, filepath.Join(dir, ".gitmodules"))
+		}
+		return out
+	}
+	var out []string
+	for _, n := range GitControlNames {
+		p := filepath.Join(dir, filepath.FromSlash(n))
+		if _, err := os.Lstat(p); err == nil {
+			out = append(out, p)
+		}
+	}
+	return out
+}
+
+// ProtectedPaths are the paths in dir an agent in sandbox mode may read but
+// not write: the coding CLIs' config and git's control files.
+func ProtectedPaths(dir string) []string {
+	return append(CLIConfigPaths(dir), GitControlPaths(dir)...)
 }
 
 // UnderFold reports whether path is root or lies inside it, comparing

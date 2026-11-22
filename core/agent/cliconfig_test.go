@@ -47,3 +47,24 @@ func TestIsCLIConfigPath(t *testing.T) {
 		t.Error("link to .cursor not detected")
 	}
 }
+
+func TestGitControlPaths(t *testing.T) {
+	dir := t.TempDir()
+	if GitControlPaths(dir) != nil {
+		t.Fatal("no .git: nothing (no placeholders for a repository that is not there)")
+	}
+	os.MkdirAll(filepath.Join(dir, ".git", "hooks"), 0o755)
+	os.WriteFile(filepath.Join(dir, ".git", "config"), []byte("[core]\n"), 0o644)
+	got := GitControlPaths(dir)
+	if len(got) != 2 || got[0] != filepath.Join(dir, ".git/config") || got[1] != filepath.Join(dir, ".git/hooks") {
+		t.Fatal(got)
+	}
+	wt := t.TempDir()
+	os.WriteFile(filepath.Join(wt, ".git"), []byte("gitdir: /x\n"), 0o644)
+	if got := GitControlPaths(wt); len(got) != 1 || got[0] != filepath.Join(wt, ".git") {
+		t.Fatal(got)
+	}
+	if n := len(ProtectedPaths(dir)); n != len(CLIConfigNames)+2 {
+		t.Fatal(n)
+	}
+}

@@ -98,7 +98,7 @@ func AccessFor(call tools.Call) (fs.Access, error) {
 		return a, errors.New("no workspace is set for this agent; file access is not allowed in this mode")
 	}
 	a.Roots = []string{call.Workspace}
-	a.Protected = agent.CLIConfigPaths(call.Workspace)
+	a.Protected = agent.ProtectedPaths(call.Workspace)
 	return a, nil
 }
 
