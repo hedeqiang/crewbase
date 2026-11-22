@@ -388,3 +388,59 @@ func isCode(err error, code string) bool {
 	var ge *Error
 	return errors.As(err, &ge) && ge.Code == code
 }
+
+// The panel refreshes reviews as it shows them; asking for another round
+// afterwards must still go to the reviewers (and be a new round).
+func TestAgainAfterRefreshAsksReviewers(t *testing.T) {
+	r := setup(t)
+	ctx := context.Background()
+	w, err := r.s.Spawn(ctx, SpawnRequest{Dir: r.repo, Holder: "lead", Parent: "lead", Origin: "tool"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	g, _ := r.s.vcs()
+	os.WriteFile(filepath.Join(w.Path, "a.txt"), []byte("a\n"), 0o644)
+	g.Commit(ctx, w.Path, vcs.CommitRequest{Message: "a", All: true})
+	rv, err := r.s.Open(ctx, OpenRequest{Worktree: w.ID, Reviewers: []string{"reviewer"}, Author: "agent:lead"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	r.s.Submit(ctx, SubmitRequest{ID: rv.ID, Actor: "agent:reviewer", Decision: VApprove, Comments: []CommentInput{{Path: "a.txt", Line: 1, Severity: SevMinor, Body: "name it better"}}})
+	if got := r.handedTo("git-approved:" + rv.ID); len(got) != 1 || !strings.Contains(got[0].Text, "name it better") {
+		t.Fatalf("the approval does not carry its comments: %+v", got)
+	}
+	os.WriteFile(filepath.Join(w.Path, "b.txt"), []byte("b\n"), 0o644)
+	g.Commit(ctx, w.Path, vcs.CommitRequest{Message: "b", All: true})
+	if x, _ := r.s.refresh(ctx, rv.ID); x.State != RvOpen {
+		t.Fatalf("a stale approval still counts: %s", x.State)
+	}
+	rv, err = r.s.Open(ctx, OpenRequest{ID: rv.ID, Author: "agent:lead"})
+	if err != nil || rv.Round != 2 {
+		t.Fatalf("%v round %d", err, rv.Round)
+	}
+	if n := len(r.handedTo("git-review:" + rv.ID)); n != 2 {
+		t.Fatalf("reviewer asked %d time(s), want 2", n)
+	}
+	// asking again with nothing new: not again
+	r.s.Open(ctx, OpenRequest{ID: rv.ID, Author: "agent:lead"})
+	if n := len(r.handedTo("git-review:" + rv.ID)); n != 2 {
+		t.Fatalf("reviewer asked %d time(s) for nothing new", n)
+	}
+	// the review as a model reads it: verdicts and the comment under its line
+	text := r.s.renderReview(rv) + RenderDiffWith(must(r.s.ReviewDiff(ctx, rv, nil)), 10000, rv.Comments, r.s.name)
+	if !strings.Contains(text, "↳ comment") || !strings.Contains(text, "name it better") || !strings.Contains(text, "approve, round 1 (at an older commit)") {
+		t.Fatal(text)
+	}
+	// the holder works in its worktree like in its folder
+	lead, _ := r.agents.Get("lead")
+	if roots := lead.ExtraRoots(); len(roots) != 1 || roots[0] != w.Path {
+		t.Fatal(roots)
+	}
+}
+
+func must[T any](v T, err error) T {
+	if err != nil {
+		panic(err)
+	}
+	return v
+}

@@ -139,9 +139,9 @@ func (g *Guard) Check(ctx context.Context, d *tools.Decision) (string, bool) {
 			return reason, true
 		}
 	}
-	var extra []string
+	extra := append([]string(nil), call.Roots...)
 	if d.Tool != nil {
-		extra = d.Tool.AllowedRoots
+		extra = append(extra, d.Tool.AllowedRoots...)
 	}
 	return checkPaths(call, argNames(d.Tool), extra...)
 }

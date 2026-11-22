@@ -54,6 +54,9 @@ type Call struct {
 	Mode string `json:"mode,omitempty"`
 	// Workspace is the agent's working directory.
 	Workspace string `json:"workspace,omitempty"`
+	// Roots are further folders the call may work in like its workspace
+	// (agent.Registry.ExtraRoots: e.g. the git worktrees the agent holds).
+	Roots []string `json:"roots,omitempty"`
 }
 
 // Decode unmarshals args into v.

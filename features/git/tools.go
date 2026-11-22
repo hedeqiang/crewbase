@@ -110,7 +110,7 @@ func (s *Service) registerTools(c *kernel.Context, reg *tools.Registry) {
 	add(&tools.Tool{
 		Name: "git_diff",
 		Description: "Show a diff with stable hunk ids ([h…]) for git_hunk_apply. side: work (unstaged, default), staged, head (all uncommitted), range (what the branch adds since base). " +
-			"With review: the change under review.",
+			"With review: the review's state, verdicts and every comment, with the change under review (comments under their lines).",
 		Params: tools.Schema(map[string]any{
 			"worktree": wtProp,
 			"review":   str("string", "a review id (rv…): its change"),
@@ -135,6 +135,7 @@ func (s *Service) registerTools(c *kernel.Context, reg *tools.Registry) {
 				if fs, err = s.ReviewDiff(ctx, r, a.Paths); err != nil {
 					return errText("git_diff", err), nil
 				}
+				return tools.Result{Content: s.renderReview(r) + "\n\n" + RenderDiffWith(fs, maxDiffChars, r.Comments, s.name)}, nil
 			} else {
 				d, w, err := dir(ctx, call, a.Worktree)
 				if err != nil {
@@ -626,6 +627,84 @@ func firstLine(s string) string {
 		s = s[:i]
 	}
 	return trunc(s, 120)
+}
+
+// renderReview is a review's state, verdicts and comments not on a line.
+func (s *Service) renderReview(r Review) string {
+	var b strings.Builder
+	fmt.Fprintf(&b, "Review %s: “%s” — %s → %s, %s, round %d of %d, by %s.", r.ID, r.Title, r.Source, r.Target, r.State, r.Round, r.MaxRounds, s.name(r.Author))
+	for _, v := range r.Verdicts {
+		stale := ""
+		if v.Decision == VApprove && v.Commit != r.Head {
+			stale = " (at an older commit)"
+		}
+		fmt.Fprintf(&b, "\n- %s: %s, round %d%s", s.name(v.Reviewer), v.Decision, v.Round, stale)
+		if v.Body != "" {
+			fmt.Fprintf(&b, ": %s", trunc(v.Body, 3000))
+		}
+	}
+	for _, c := range r.Comments {
+		if c.Path == "" {
+			fmt.Fprintf(&b, "\n- comment %s [%s] by %s%s: %s", c.ID, c.Severity, s.name(c.Author), resolvedMark(c), c.Body)
+		}
+	}
+	return b.String()
+}
+
+func resolvedMark(c Comment) string {
+	if c.Resolved {
+		return " (resolved)"
+	}
+	return ""
+}
+
+// RenderDiffWith is RenderDiff with line comments under their lines.
+func RenderDiffWith(fs []vcs.FileDiff, limit int, cs []Comment, name func(string) string) string {
+	if len(cs) == 0 {
+		return RenderDiff(fs, limit)
+	}
+	at := map[string][]Comment{}
+	for _, c := range cs {
+		if c.Path != "" {
+			side := c.Side
+			if side == "" {
+				side = "new"
+			}
+			k := fmt.Sprintf("%s:%s:%d", c.Path, side, c.Line)
+			at[k] = append(at[k], c)
+		}
+	}
+	var b strings.Builder
+	shown := map[string]bool{}
+	for _, f := range fs {
+		fmt.Fprintf(&b, "=== %s (%s, +%d −%d)\n", f.Path, f.Status, f.Added, f.Removed)
+		for _, h := range f.Hunks {
+			fmt.Fprintf(&b, "%s [%s]\n", h.Header, h.ID)
+			for _, l := range h.Lines {
+				b.WriteString(l.Kind + l.Text + "\n")
+				side, n := "new", l.New
+				if l.Kind == "-" {
+					side, n = "old", l.Old
+				}
+				k := fmt.Sprintf("%s:%s:%d", f.Path, side, n)
+				for _, c := range at[k] {
+					shown[c.ID] = true
+					fmt.Fprintf(&b, "    ↳ comment %s [%s] %s%s: %s\n", c.ID, c.Severity, name(c.Author), resolvedMark(c), strings.ReplaceAll(trunc(c.Body, 2000), "\n", "\n      "))
+				}
+			}
+		}
+		if b.Len() > limit {
+			b.WriteString("\n… (cut; ask for fewer paths)")
+			break
+		}
+	}
+	// comments on lines the diff no longer shows
+	for _, c := range cs {
+		if c.Path != "" && !shown[c.ID] {
+			fmt.Fprintf(&b, "\n(outdated) %s:%d comment %s [%s] %s%s: %s", c.Path, c.Line, c.ID, c.Severity, name(c.Author), resolvedMark(c), trunc(c.Body, 1000))
+		}
+	}
+	return b.String()
 }
 
 // RenderDiff is a diff for a model: files, hunks with their ids, lines.

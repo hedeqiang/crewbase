@@ -124,7 +124,7 @@ func untrackedDiff(dir, p string) vcs.FileDiff {
 
 // ParseDiff reads a unified git diff (--no-renames, a/ b/ prefixes).
 func ParseDiff(b []byte) []vcs.FileDiff {
-	var out []vcs.FileDiff
+	out := []vcs.FileDiff{}
 	var f *vcs.FileDiff
 	var h *vcs.Hunk
 	var head strings.Builder

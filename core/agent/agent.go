@@ -757,6 +757,23 @@ type Registry struct {
 	// fallback caches availableDefaults until the adapter set changes.
 	fallback   []llm.ModelRef
 	fallbackAt time.Time
+	// roots gives the folders besides its workspace an agent works in.
+	roots atomic.Pointer[func(agent string) []string]
+}
+
+// SetExtraRoots names the folders, besides its workspace, an agent may work
+// in like its workspace (the git feature: the worktrees an agent holds).
+func (r *Registry) SetExtraRoots(fn func(agent string) []string) { r.roots.Store(&fn) }
+
+// ExtraRoots are the folders besides its workspace the agent works in.
+func (a *Agent) ExtraRoots() []string {
+	if a.reg == nil {
+		return nil
+	}
+	if fn := a.reg.roots.Load(); fn != nil {
+		return (*fn)(a.id)
+	}
+	return nil
 }
 
 var (

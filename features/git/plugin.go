@@ -54,6 +54,8 @@ var Plugin = kernel.Register(kernel.Spec{
 		}
 		s.registerTools(c, kernel.Use[*tools.Registry](c, tools.ServiceKey))
 		vcs.AllocateWorkspace.Listen(c, s.allocate)
+		// an agent works in the worktrees it holds as in its own folder
+		s.agents.SetExtraRoots(s.heldBy)
 		fs.WriteIntent.Use(c, s.writeIntent)
 		vcs.PreMerge.Use(c, s.preMerge)
 		// a worktree whose folder vanished (deleted by hand) is forgotten
@@ -72,6 +74,19 @@ var Plugin = kernel.Register(kernel.Spec{
 		return nil
 	},
 })
+
+// heldBy are the folders of the active worktrees agent holds.
+func (s *Service) heldBy(agent string) []string {
+	s.st.mu.Lock()
+	defer s.st.mu.Unlock()
+	var out []string
+	for _, w := range s.st.st.Worktrees {
+		if w.State == WTActive && w.Holder == agent {
+			out = append(out, w.Path)
+		}
+	}
+	return out
+}
 
 // sweep forgets worktrees whose folder is gone.
 func (s *Service) sweep(ctx context.Context) {

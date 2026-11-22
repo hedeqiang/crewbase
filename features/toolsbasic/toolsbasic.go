@@ -80,7 +80,18 @@ func cacheEnv(mode, workspace string) []string {
 
 // PolicyFor maps a call to its sandbox policy.
 func PolicyFor(call tools.Call, allowHosts []string) sandbox.Policy {
-	return sandbox.PolicyFor(EffectiveMode(call.Mode), call.Workspace, allowHosts)
+	p := sandbox.PolicyFor(EffectiveMode(call.Mode), call.Workspace, allowHosts)
+	// the call's further roots (worktrees it holds) are writable like the
+	// workspace, with their protected paths read-only
+	if p.Mode == sandbox.ModeWorkspaceWrite && len(p.WritableRoots) > 0 {
+		for _, r := range call.Roots {
+			if filepath.IsAbs(r) && filepath.Clean(r) != "/" {
+				p.WritableRoots = append(p.WritableRoots, r)
+				p.ProtectedRoots = append(p.ProtectedRoots, agent.ProtectedPaths(r)...)
+			}
+		}
+	}
+	return p
 }
 
 // AccessFor maps a call to its fs access: host mode is unconfined, the
@@ -99,6 +110,12 @@ func AccessFor(call tools.Call) (fs.Access, error) {
 	}
 	a.Roots = []string{call.Workspace}
 	a.Protected = agent.ProtectedPaths(call.Workspace)
+	for _, r := range call.Roots {
+		if filepath.IsAbs(r) {
+			a.Roots = append(a.Roots, r)
+			a.Protected = append(a.Protected, agent.ProtectedPaths(r)...)
+		}
+	}
 	return a, nil
 }
 

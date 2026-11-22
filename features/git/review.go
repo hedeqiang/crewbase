@@ -214,6 +214,8 @@ func (s *Service) Open(ctx context.Context, o OpenRequest) (Review, error) {
 		Comments: []Comment{}, Verdicts: []Verdict{}, Session: o.Session, Created: now, Updated: now}
 	if o.Draft {
 		r.State = RvDraft
+	} else {
+		r.Asked = p.SourceHead
 	}
 	s.st.mu.Lock()
 	s.st.st.Reviews = append(s.st.st.Reviews, r)
@@ -264,11 +266,16 @@ func (s *Service) again(ctx context.Context, o OpenRequest) (Review, error) {
 		return Review{}, err
 	}
 	wasDraft := r.State == RvDraft
-	if !wasDraft && head == r.Head && r.State != RvChangesRequested {
+	asked := r.Asked
+	if asked == "" {
+		asked = r.Head
+	}
+	if !wasDraft && head == asked && r.State != RvChangesRequested {
 		return r, nil // nothing new: the reviewers already have it
 	}
 	out, err := s.mutate(r.ID, func(x *Review) error {
-		if x.State == RvChangesRequested && head != x.Head {
+		// the reviewers judged this round and there is something new: next round
+		if head != asked && judged(x) {
 			x.Round++
 		}
 		x.Head = head
@@ -280,8 +287,11 @@ func (s *Service) again(ctx context.Context, o OpenRequest) (Review, error) {
 		}
 		x.State = RvOpen
 		s.recompute(x)
-		if x.State == RvChangesRequested && head != r.Head {
+		if x.State == RvChangesRequested && head != asked {
 			x.State = RvOpen // new commits answer the old verdicts
+		}
+		if x.State == RvOpen || x.State == RvApproved {
+			x.Asked = head
 		}
 		return nil
 	})
@@ -293,6 +303,16 @@ func (s *Service) again(ctx context.Context, o OpenRequest) (Review, error) {
 		s.askReviewers(ctx, out)
 	}
 	return out, nil
+}
+
+// judged: a reviewer gave a verdict (not just comments) this round.
+func judged(r *Review) bool {
+	for _, v := range r.Verdicts {
+		if v.Round == r.Round && v.Decision != VComment {
+			return true
+		}
+	}
+	return false
 }
 
 func (s *Service) sourceHead(ctx context.Context, r Review) (string, error) {
@@ -733,7 +753,30 @@ func (s *Service) tellApproved(ctx context.Context, r Review) {
 	}
 	text := fmt.Sprintf("[Code review %s] “%s” was approved by %s. Merge it with git_merge(review: %q) when you are ready (merging into %s may ask the person).",
 		r.ID, r.Title, strings.Join(s.approvers(r), ", "), r.ID, r.Target)
+	if open := openComments(r); len(open) > 0 {
+		text += "\n\nComments left with the approval (not blocking):\n" + strings.Join(open, "\n") + "\n\nAll comments and verdicts: git_diff(review: \"" + r.ID + "\")."
+	}
 	s.hand(who, sid, text, "git-approved:"+r.ID, "code review")
+}
+
+// openComments are the review's unresolved comments, one line each.
+func openComments(r Review) []string {
+	var out []string
+	for _, c := range r.Comments {
+		if c.Resolved {
+			continue
+		}
+		at := ""
+		if c.Path != "" {
+			at = c.Path
+			if c.Line > 0 {
+				at += fmt.Sprintf(":%d", c.Line)
+			}
+			at += " — "
+		}
+		out = append(out, fmt.Sprintf("- [%s] %s%s", c.Severity, at, trunc(strings.ReplaceAll(c.Body, "\n", " "), 400)))
+	}
+	return out
 }
 
 func (s *Service) hand(a *agent.Agent, session, text, tag, from string) {

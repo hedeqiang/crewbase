@@ -364,7 +364,7 @@ func (l *loop) turn(parent context.Context, a *agent.Agent, in agent.Input) {
 			name, args, _ := unwrapCall(tc.Name, tc.Args)
 			exe := l.toolsReg.Run(ctx, l.c, tools.Call{
 				ID: tc.ID, Name: name, Args: args, Agent: a.ID(), Session: ss,
-				Mode: agent.Stricter(a.Mode(), in.Mode), Workspace: a.Workspace(),
+				Mode: agent.Stricter(a.Mode(), in.Mode), Workspace: a.Workspace(), Roots: a.ExtraRoots(),
 			})
 			stop = stop || exe.Result.StopTurn
 			if exe.Parked {

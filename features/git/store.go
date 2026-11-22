@@ -99,8 +99,9 @@ type Review struct {
 	Origin    string     `json:"origin"` // the author's origin (who it works for)
 	Reviewers []string   `json:"reviewers"`
 	State     string     `json:"state"`
-	Head      string     `json:"head"` // the source commit under review now
-	Base      string     `json:"base"` // the merge base then
+	Head      string     `json:"head"`            // the source commit under review now
+	Asked     string     `json:"asked,omitempty"` // the commit the reviewers were last asked about
+	Base      string     `json:"base"`            // the merge base then
 	Round     int        `json:"round"`
 	MaxRounds int        `json:"maxRounds"`
 	Comments  []Comment  `json:"comments"`
