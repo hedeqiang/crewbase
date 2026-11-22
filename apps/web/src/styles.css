@@ -2755,19 +2755,18 @@ b > .mkver, .g b .mkver { margin: 0 0 0 6px; }
 .lsumrow .g span { font-size: 12px; color: var(--muted); line-height: 1.5; }
 .lsumnote { margin: 0; color: var(--amber-text); line-height: 1.5; }
 .cbtn.qbtn { flex: none; }
-/* 这一轮改了哪些文件 (TurnFiles.tsx) */
-.turnfiles { margin-top: 8px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); overflow: hidden; max-width: 640px; }
-.turnfiles:not(.on) { display: inline-block; }
-.tfh { display: flex; align-items: center; gap: 6px; padding: 2px 4px 2px 2px; }
-.tfh .sp { flex: 1; }
-.tft { display: inline-flex; align-items: center; gap: 6px; padding: 4px 8px; font-size: 12px; color: var(--text2); border-radius: 6px; }
-.tft:hover { color: var(--text); background: var(--hover); }
-.turnfiles.on .tfh { border-bottom: 1px solid var(--border); background: var(--raised); }
-.tfl { max-height: 420px; overflow: auto; }
+/* 撤销这一轮的改动 (TurnFiles.tsx): a reply action's panel */
+.menu.tfpop { padding: 0; overflow: hidden; display: flex; flex-direction: column; max-height: min(520px, 70vh); }
+.tfph { display: flex; align-items: center; gap: 7px; padding: 10px 12px; border-bottom: 1px solid var(--border); font-size: 13px; }
+.tfph b { font-weight: 600; }
+.tfl { flex: 1; min-height: 0; overflow: auto; }
 .tff + .tff { border-top: 1px solid var(--border); }
 .tff .fxdiff { border-top: 1px solid var(--border); }
+.tfpf { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-top: 1px solid var(--border); background: var(--raised); }
+.tfpf .small { flex: 1; min-width: 0; line-height: 1.45; }
+.tfpf .btn { flex: none; }
 .tfundone { font-size: 11px; font-weight: 600; padding: 0 6px; line-height: 18px; border-radius: 4px; background: var(--sunken); color: var(--muted); }
-.turnfiles .tft:has(.tfundone) .fxic { opacity: .55; text-decoration: line-through; }
+.tfph:has(.tfundone) .fxic { opacity: .55; text-decoration: line-through; }
 /* a visual reply (PageCard.tsx) */
 .pagecard { margin: 10px 0 6px; border: 1px solid var(--border2); border-radius: 12px; overflow: hidden; background: var(--surface); box-shadow: 0 1px 2px rgb(0 0 0 / .04); }
 .pch { display: flex; align-items: center; gap: 2px; padding: 4px 6px 4px 12px; border-bottom: 1px solid var(--border); background: var(--raised); min-width: 0; }

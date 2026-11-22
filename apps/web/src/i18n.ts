@@ -1812,6 +1812,8 @@ const zh = {
   "fx.revertOne": "撤销对 {name} 的改动？\n文件会恢复成改动前的样子，现在的内容会丢失。",
   "fx.revertAdded": "撤销新增的 {name}？\n这个文件会被删除。",
   "fx.reverted": "已撤销 {name}",
+  "tf.btnTitle": "撤销这一轮的改动（{n} 个文件）",
+  "tf.undoneTitle": "这一轮的改动已撤销（{n} 个文件）",
   "tf.changed": "这一轮改了 {n} 个文件",
   "tf.none": "这一轮没有改动文件。",
   "tf.undo": "撤销这一轮",

@@ -1585,6 +1585,8 @@ export const en: Partial<Record<Key, string>> = {
   "fx.revertOne": "Revert the changes to {name}?\nThe file goes back to how it was; its current content is lost.",
   "fx.revertAdded": "Revert adding {name}?\nThe file will be deleted.",
   "fx.reverted": "Reverted {name}",
+  "tf.btnTitle": "Undo this turn's changes ({n} files)",
+  "tf.undoneTitle": "This turn's changes were undone ({n} files)",
   "tf.changed": "Changed {n} file(s) this turn",
   "tf.none": "No files changed this turn.",
   "tf.undo": "Undo this turn",

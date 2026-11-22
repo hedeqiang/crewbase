@@ -5,11 +5,13 @@ import { API, type FileDiff, type TurnChanges, type TurnSummary } from "../api";
 import { t } from "../i18n";
 import { toast } from "../store";
 import { confirmDialog } from "./Confirm";
+import { Popover, useMenu } from "./Popover";
 import { UnifiedDiff } from "./Files";
 
-/* 这一轮改了哪些文件: under a turn's last reply, the files the turn changed
- * in the agent's workspace (features/console/snapshots.go), each with its
- * diff, and 撤销这一轮 (the files back as they were before it). */
+/* 撤销这一轮的改动: in the actions of a turn's last reply, the files the
+ * turn changed in the agent's workspace (features/console/snapshots.go),
+ * each with its diff, and 撤销这一轮 (the files back as they were before
+ * it). The Files tab's 改动 shows the workspace's changes as a whole. */
 
 // per agent: the turns that changed files (one request for a conversation)
 type Entry = { at: number; list: TurnSummary[]; inflight?: Promise<void> };
@@ -59,23 +61,26 @@ function useSummary(agent: string, turn: string, ended: string): TurnSummary | u
   return s;
 }
 
-export function TurnFiles({ agent, turn, ended }: { agent: string; turn: string; ended: string }) {
+/** 撤销这一轮的改动: in a reply's actions, when its turn changed files.
+ *  Opens the files it changed (each with its diff) and 撤销这一轮. */
+export function UndoTurnBtn({ agent, turn, ended }: { agent: string; turn: string; ended: string }) {
   const sum = useSummary(agent, turn, ended);
-  const [open, setOpen] = useState(false);
+  const m = useMenu();
   const [tc, setTc] = useState<TurnChanges | null>(null);
   const [err, setErr] = useState("");
   const [busy, setBusy] = useState(false);
   useEffect(() => {
-    if (!open || tc) return;
+    if (!m.open || tc) return;
     API.turnChanges(agent, turn).then(setTc, (e) => setErr(e?.message ?? String(e)));
-  }, [open, tc, agent, turn]);
-  // a turn that only made pictures shows them, not "改了 4 个文件"
-  if (!sum || sum.files - (sum.media ?? 0) <= 0) return null;
+  }, [m.open, tc, agent, turn]);
+  if (!sum || sum.files === 0) return null;
+  const n = sum.files;
 
   const undo = async () => {
     const cur = tc ?? (await API.turnChanges(agent, turn).catch(() => null));
     if (!cur) return;
     const text = cur.later?.length ? t("tf.undoLater", { n: cur.files.length, later: cur.later.length }) : t("tf.undoQ", { n: cur.files.length });
+    m.close();
     if (!(await confirmDialog({ text, ok: t("tf.undo"), danger: true }))) return;
     setBusy(true);
     try {
@@ -90,12 +95,16 @@ export function TurnFiles({ agent, turn, ended }: { agent: string; turn: string;
     }
   };
 
+  const title = sum.undone ? t("tf.undoneTitle", { n }) : t("tf.btnTitle", { n });
   return (
-    <div className={"turnfiles" + (open ? " on" : "")}>
-      <div className="tfh">
-        <button type="button" className="tft" aria-expanded={open} onClick={() => setOpen(!open)}>
+    <>
+      <button type="button" className={"ix mact" + (m.open ? " on" : "")} ref={m.ref} aria-label={title} title={title} disabled={busy} onClick={m.toggle}>
+        <FileDiffIcon size={14} />
+      </button>
+      <Popover anchor={m.anchor} open={m.open} onClose={m.close} placement="top" width={420} className="tfpop">
+        <div className="tfph">
           <FileDiffIcon size={13} />
-          <span>{t("tf.changed", { n: sum.files - (sum.media ?? 0) })}</span>
+          <b>{t("tf.changed", { n })}</b>
           {(sum.added > 0 || sum.removed > 0) && (
             <span className="fxic">
               <span className="add">+{sum.added}</span>
@@ -103,17 +112,7 @@ export function TurnFiles({ agent, turn, ended }: { agent: string; turn: string;
             </span>
           )}
           {sum.undone && <span className="tfundone">{t("tf.undoneTag")}</span>}
-          {open ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
-        </button>
-        <span className="sp" />
-        {open && !sum.undone && (
-          <button type="button" className="btn sm ghost fxrevert" disabled={busy || (tc ? !tc.restorable : false)} onClick={undo} title={tc && !tc.restorable ? t("tf.cannot") : t("tf.undoTitle")}>
-            <Undo2 size={12} />
-            {t("tf.undo")}
-          </button>
-        )}
-      </div>
-      {open && (
+        </div>
         <div className="tfl">
           {err ? (
             <div className="fxmsg small errt">{err}</div>
@@ -125,8 +124,17 @@ export function TurnFiles({ agent, turn, ended }: { agent: string; turn: string;
             tc.files.map((f) => <TurnFile key={f.path} agent={agent} turn={turn} f={f} />)
           )}
         </div>
-      )}
-    </div>
+        {!sum.undone && (
+          <div className="tfpf">
+            <span className="small muted">{t("tf.undoTitle")}</span>
+            <button type="button" className="btn sm dng" disabled={busy || (tc ? !tc.restorable : false)} onClick={undo} title={tc && !tc.restorable ? t("tf.cannot") : undefined}>
+              <Undo2 size={12} />
+              {t("tf.undo")}
+            </button>
+          </div>
+        )}
+      </Popover>
+    </>
   );
 }
 

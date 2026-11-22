@@ -1,4 +1,4 @@
-import { TurnFiles } from "./TurnFiles";
+import { UndoTurnBtn } from "./TurnFiles";
 import { WaitingFor } from "./WaitingFor";
 import { FeedCtx, PinBtn, PinnedBar, QuoteLine, ReactBtn, Reactions, ReplyBtn, ReplyChip, SelectionActions, excerpt, jumpTo } from "./MsgExtras";
 import { Skeleton } from "./Skeleton";
@@ -1052,7 +1052,7 @@ function AgentMsg({ it, agent, showModel, bare, opened, extra, fold }: { it: Age
   const sm = it.model ? shortModelEffort(models, it.model) : null;
   // regenerate: the last finished turn of a one-to-one conversation
   const canRegen = !!acts && !it.superseded && acts.lastTurn?.item === it.id && acts.lastTurn.from > acts.compactedUpto;
-  const hasActs = !!it.text || canRegen;
+  const hasActs = !!it.text || canRegen || !!(it.stats && it.turnInput);
   return (
     <Wrap bare={bare} final={!!it.stats} agent={agent} seq={it.id}>
         {!bare && <div className="mh">
@@ -1114,7 +1114,6 @@ function AgentMsg({ it, agent, showModel, bare, opened, extra, fold }: { it: Age
         {/* the answer, once the turn is over (never narration or a stream) */}
         {it.stats && it.text && <LinkCards text={it.text} exclude={it.asked} />}
         {extra}
-        {it.stats && it.turnInput && it.turnEnded && <TurnFiles agent={it.agent} turn={it.turnInput} ended={it.turnEnded} />}
         {it.stats && <ReplyStats stats={it.stats} />}
         <Reactions target={it.id} />
         {hasActs && (
@@ -1123,6 +1122,7 @@ function AgentMsg({ it, agent, showModel, bare, opened, extra, fold }: { it: Age
             {it.text && <ReactBtn target={it.id} />}
             {it.text && <ReplyBtn q={{ seq: Number(it.id), who: agent?.name ?? it.agent, text: it.text }} />}
             {it.text && <PinBtn target={Number(it.id)} />}
+            {it.stats && it.turnInput && it.turnEnded && <UndoTurnBtn agent={it.agent} turn={it.turnInput} ended={it.turnEnded} />}
             {canRegen && (
               <button
                 type="button"
