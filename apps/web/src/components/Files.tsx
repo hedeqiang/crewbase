@@ -773,7 +773,7 @@ function DiffPane({ agentId, f, n, at, step, layout, setLayout, busy, onRevert, 
 
 /** Highlight each side of the hunks as one text so tokens spanning lines
  *  (comments, strings) read right. */
-function useHighlighted(hunks: Hunk[], path: string) {
+export function useHighlighted(hunks: Hunk[], path: string) {
   return useMemo(() => {
     const lang = langOf(path);
     const oldText: string[] = [];

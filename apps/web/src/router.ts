@@ -35,7 +35,7 @@ export interface Loc {
   item?: number;
 }
 
-const PANEL_TABS = new Set(["task", "schedule", "files", "preview", "library", "docs", "agent"]);
+const PANEL_TABS = new Set(["task", "schedule", "files", "code", "preview", "library", "docs", "agent"]);
 
 /** The place the store shows. */
 const sheetPanel = () => window.matchMedia("(max-width: 820px)").matches;

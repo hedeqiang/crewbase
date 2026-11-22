@@ -1123,6 +1123,190 @@ export interface LibFileLink extends LibLink {
   title?: string;
 }
 
+// ---------------------------------------------------------------- git (features/git)
+
+export interface GitRepoInfo {
+  id: string;
+  root: string;
+  main: string;
+  name: string;
+  branch?: string;
+  head?: string;
+  linked?: boolean;
+}
+export interface GitFileStatus {
+  path: string;
+  index: string;
+  work: string;
+  status: "modified" | "added" | "deleted" | "renamed" | "untracked" | "conflicted" | "typechange";
+  staged?: boolean;
+  unstaged?: boolean;
+}
+export interface GitStatus {
+  branch?: string;
+  head?: string;
+  upstream?: string;
+  ahead: number;
+  behind: number;
+  files: GitFileStatus[];
+  clean: boolean;
+  merging?: boolean;
+}
+export interface GitLine {
+  k: " " | "+" | "-";
+  t: string;
+  o?: number;
+  n?: number;
+}
+export interface GitHunk {
+  id: string;
+  header: string;
+  oldStart: number;
+  oldLines: number;
+  newStart: number;
+  newLines: number;
+  lines: GitLine[];
+}
+export interface GitFileDiff {
+  path: string;
+  status: GitFileStatus["status"];
+  binary?: boolean;
+  added: number;
+  removed: number;
+  hunks: GitHunk[];
+}
+export interface GitCommit {
+  hash: string;
+  short: string;
+  subject: string;
+  author: string;
+  when: string;
+  parents?: string[];
+}
+export interface GitWorktree {
+  id: string;
+  repo: string;
+  path: string;
+  branch: string;
+  base: string;
+  holder: string;
+  parent: string;
+  child?: string;
+  session?: string;
+  task?: string;
+  origin: "subagent" | "tool" | "person";
+  state: "active" | "archived" | "removed" | "merged";
+  archive?: { patch?: string; bundle?: string; at: string };
+  created: string;
+  updated: string;
+  status?: GitStatus;
+  ahead: number;
+  behind: number;
+  commits?: GitCommit[];
+  review?: string;
+  missing?: boolean;
+}
+export type GitReviewState = "draft" | "open" | "changes_requested" | "approved" | "merged" | "closed";
+export type GitSeverity = "blocker" | "major" | "minor" | "nit" | "note";
+export interface GitComment {
+  id: string;
+  author: string;
+  path?: string;
+  line?: number;
+  side?: "new" | "old";
+  severity: GitSeverity;
+  body: string;
+  commit: string;
+  round: number;
+  resolved?: boolean;
+  created: string;
+}
+export interface GitVerdict {
+  reviewer: string;
+  decision: "approve" | "request_changes" | "comment";
+  body?: string;
+  commit: string;
+  round: number;
+  at: string;
+}
+export interface GitReview {
+  id: string;
+  repo: string;
+  worktree?: string;
+  source: string;
+  target: string;
+  title: string;
+  body?: string;
+  author: string;
+  origin: string;
+  reviewers: string[];
+  state: GitReviewState;
+  head: string;
+  base: string;
+  round: number;
+  maxRounds: number;
+  comments: GitComment[];
+  verdicts: GitVerdict[];
+  session?: string;
+  merge?: { commit: string; strategy: string; by: string; at: string };
+  created: string;
+  updated: string;
+}
+export interface GitMergePreview {
+  target: string;
+  source: string;
+  clean: boolean;
+  conflicts?: string[];
+  fastForward: boolean;
+  upToDate?: boolean;
+  ahead: number;
+  behind: number;
+  files?: string[];
+  checkedOutIn?: string;
+}
+export interface GitLock {
+  id: string;
+  repo: string;
+  path: string;
+  start?: number;
+  end?: number;
+  holder: string;
+  reason?: string;
+  created: string;
+}
+export interface GitRepoView {
+  repo: GitRepoInfo | null;
+  reason?: string;
+  status?: GitStatus;
+  worktrees?: GitWorktree[];
+  reviews?: GitReview[];
+  locks?: GitLock[];
+  log?: GitCommit[];
+  protected?: boolean;
+  here?: string;
+}
+export interface GitSettings {
+  isolation: "shared" | "isolated-worktree" | "worktree-on-write";
+  protected: string[];
+  maxAutoRounds: number;
+  approvals: number;
+  autoReview: boolean;
+  remotes: { host: string; credential: string; username?: string }[];
+}
+export interface GitCommentInput {
+  path?: string;
+  line?: number;
+  side?: "new" | "old";
+  severity?: GitSeverity;
+  body: string;
+}
+
+const gq = (o: Record<string, string | undefined>) => {
+  const p = new URLSearchParams();
+  for (const [k, v] of Object.entries(o)) if (v) p.set(k, v);
+  return p.toString();
+};
+
 export interface LibStats {
   total: number;
   folders: Partial<Record<LibFolder, number>>;
@@ -1393,6 +1577,28 @@ export const API = {
   patchLibrary: (team: string, id: number, b: { title?: string; tags?: string[]; private?: boolean }) => api<LibItem>("PATCH", `/api/library/${id}?${libQS(team)}`, b),
   deleteLibrary: (team: string, id: number) => api("DELETE", `/api/library/${id}?${libQS(team)}`),
   restoreLibrary: (team: string, id: number, version: number) => api<LibItem>("POST", `/api/library/${id}/restore?${libQS(team)}`, { version }),
+  gitRepo: (agent: string, all = false) => api<GitRepoView>("GET", `/api/git/repo?${gq({ agent, all: all ? "1" : undefined })}`),
+  gitDiff: (agent: string, o: { worktree?: string; side?: string; base?: string; path?: string }) => api<{ files: GitFileDiff[] }>("GET", `/api/git/diff?${gq({ agent, ...o })}`),
+  gitLog: (agent: string, worktree?: string, rev?: string) => api<{ commits: GitCommit[] }>("GET", `/api/git/log?${gq({ agent, worktree, rev })}`),
+  gitHunk: (b: { agent: string; worktree?: string; path: string; hunk: string; action: "stage" | "unstage" | "discard" }) => api("POST", "/api/git/hunk", b),
+  gitFiles: (b: { agent: string; worktree?: string; paths: string[]; action: "stage" | "unstage" | "discard" }) => api("POST", "/api/git/files", b),
+  gitCommit: (b: { agent: string; worktree?: string; message: string; all: boolean }) => api<GitCommit>("POST", "/api/git/commit", b),
+  gitPush: (b: { agent: string; worktree?: string; branch?: string; remote?: string; force?: boolean }) => api<{ output: string }>("POST", "/api/git/push", b),
+  gitSpawn: (b: { agent: string; base?: string; branch?: string; task?: string }) => api<GitWorktree>("POST", "/api/git/worktrees", b),
+  gitRemoveWorktree: (agent: string, id: string, discard = false) => api<GitWorktree>("DELETE", `/api/git/worktrees/${id}?${gq({ agent, discard: discard ? "1" : undefined })}`),
+  gitOpenReview: (b: { agent: string; worktree?: string; source?: string; target?: string; title?: string; body?: string; reviewers?: string[]; draft?: boolean }) =>
+    api<GitReview>("POST", "/api/git/reviews", b),
+  gitReview: (agent: string, id: string) =>
+    api<{ review: GitReview; files: GitFileDiff[]; preview?: GitMergePreview; me: string; selfReview: boolean }>("GET", `/api/git/reviews/${id}?${gq({ agent })}`),
+  gitSubmit: (agent: string, id: string, b: { decision: "approve" | "request_changes" | "comment"; body?: string; comments?: GitCommentInput[] }) =>
+    api<GitReview>("POST", `/api/git/reviews/${id}/submit`, { agent, ...b }),
+  gitResolveComment: (agent: string, id: string, cid: string, resolved: boolean) => api<GitReview>("POST", `/api/git/reviews/${id}/comments/${cid}/resolve`, { agent, resolved }),
+  gitReviewAct: (agent: string, id: string, act: "publish" | "close" | "again") => api<GitReview>("POST", `/api/git/reviews/${id}/${act}`, { agent }),
+  gitMerge: (agent: string, id: string, strategy: string) => api<{ review: GitReview; commit: GitCommit }>("POST", `/api/git/reviews/${id}/merge`, { agent, strategy }),
+  gitLock: (b: { agent: string; path: string; start?: number; end?: number; reason?: string }) => api<GitLock>("POST", "/api/git/locks", b),
+  gitUnlock: (agent: string, id: string) => api("DELETE", `/api/git/locks/${id}?${gq({ agent })}`),
+  gitSettings: () => api<GitSettings>("GET", "/api/git/settings"),
+  setGitSettings: (b: GitSettings) => api<GitSettings>("PUT", "/api/git/settings", b),
   publishToLibrary: (team: string, b: { agent: string; path: string; session?: string; seq?: number; title?: string }) =>
     api<{ link: LibLink; item: LibItem }>("POST", `/api/library/publish?${libQS(team)}`, b),
   libraryLinks: (team: string, agent: string) => api<{ links: LibFileLink[] }>("GET", `/api/library/links?${libQS(team, { agent })}`),

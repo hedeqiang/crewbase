@@ -35,7 +35,7 @@ import { argsPreview } from "./projection";
 
 export type View = "chat" | "newAgent" | "settings";
 /** Built-in tabs, or `ui:<key>` for a plugin's sidebar-right.tab. */
-export type PanelTab = "task" | "schedule" | "files" | "preview" | "library" | "docs" | "agent" | `ui:${string}`;
+export type PanelTab = "task" | "schedule" | "files" | "code" | "preview" | "library" | "docs" | "agent" | `ui:${string}`;
 export type Theme = "system" | "light" | "dark";
 export type SettingsSection =
   | "general"
@@ -102,6 +102,8 @@ export interface State {
   me: Me | null;
   /** Bumped per board root on SSE "board.changed". */
   boardTick: Record<string, number>;
+  /** a git change somewhere (features/git): the 代码 panel asks again */
+  gitTick: number;
   /** Member to pair a device for when 主机与设备 opens (from 成员与角色). */
   pairFor: string | null;
   /** Sub-tab a deep link asks a settings page to open (e.g. market/mcp). */
@@ -273,6 +275,7 @@ let state: State = {
   tier: "desktop",
   me: null,
   boardTick: {},
+  gitTick: 0,
   pairFor: null,
   settingsTab: null,
   connected: false,
@@ -1026,6 +1029,7 @@ export function connectEvents() {
   on("ui.changed", () => void refreshUI());
   on("members.changed", () => void refreshTier());
   on("teams.changed", () => void refreshTeams());
+  on("git.changed", () => setState((s) => ({ gitTick: s.gitTick + 1 })));
   on("board.changed", (d: { root: string }) => setState((s) => ({ boardTick: { ...s.boardTick, [d.root]: (s.boardTick[d.root] ?? 0) + 1 } })));
   if (!src) return;
   const es2 = src;
