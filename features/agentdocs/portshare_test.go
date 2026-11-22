@@ -4,6 +4,7 @@ import (
 	"context"
 	"net"
 	"net/http"
+	"runtime"
 	"strconv"
 	"testing"
 	"time"
@@ -14,6 +15,9 @@ import (
 // binds 127.0.0.1 on the same port. The start check must not stay on a
 // kept-alive connection to the other program.
 func TestWaitUpIsNotFooledByAnotherServerOnThePort(t *testing.T) {
+	if runtime.GOOS != "darwin" {
+		t.Skip("only macOS lets a program bind 127.0.0.1 next to one listening on every address")
+	}
 	other, err := net.Listen("tcp", "0.0.0.0:0")
 	if err != nil {
 		t.Fatal(err)
