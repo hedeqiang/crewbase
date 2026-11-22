@@ -2,8 +2,8 @@ package git
 
 import (
 	"context"
-	"fmt"
 	"errors"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
