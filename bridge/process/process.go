@@ -524,6 +524,13 @@ func (p *proxy) spawn() (*generation, error) {
 		return nil, err
 	}
 	g := &generation{p: p, ctx: p.c.Fork(""), exited: make(chan struct{}), events: make(chan any, 256), killSB: killSB}
+	// the sandbox set up for it is cleaned up when the process never starts
+	started := false
+	defer func() {
+		if !started && killSB != nil {
+			killSB()
+		}
+	}()
 	inR, inW, err := os.Pipe()
 	if err != nil {
 		g.ctx.Dispose()
@@ -556,6 +563,7 @@ func (p *proxy) spawn() (*generation, error) {
 		g.ctx.Dispose()
 		return nil, fmt.Errorf("start %s: %w", strings.Join(argv, " "), err)
 	}
+	started = true
 	afterStart(cmd)
 	inR.Close()
 	outW.Close()
