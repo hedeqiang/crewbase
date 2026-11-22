@@ -738,7 +738,7 @@ function Reviews({ reviews, onOpen }: { reviews: GitReview[]; onOpen: (id: strin
               <div className="gxrvm small">
                 <span className="mono gxflow">{r.source} <ArrowRight size={11} /> {r.target}</span>
                 <span className="sp" />
-                {r.state !== "merged" && r.state !== "closed" && <span className="muted">{t("git.roundOf", { n: r.round, max: r.maxRounds })}</span>}
+                {r.state !== "merged" && r.state !== "closed" && <span className="muted">{r.round > r.maxRounds ? t("git.roundOver", { n: r.round }) : t("git.roundOf", { n: r.round, max: r.maxRounds })}</span>}
                 {r.comments.length > 0 && (
                   <span className={"gxcmc" + (open ? " hot" : "")}>
                     <MessageSquare size={11} />
@@ -827,7 +827,8 @@ function ReviewDetail({ agent, id, onBack }: { agent: AgentView; id: string; onB
       const out = await API.gitMerge(agent.id, r.id, strategy);
       toast(t("git.mergedAs", { short: out.commit.short }));
     });
-  const approvers = r.reviewers.filter((x) => lastVerdict(r, x) === "approve");
+  // everyone whose latest verdict approves the current head (a person too)
+  const approvers = [...new Set(r.verdicts.map((v) => v.reviewer))].filter((x) => lastVerdict(r, x) === "approve");
   const blockers = r.comments.filter((c) => c.severity === "blocker" && !c.resolved).length;
   const add = (file: string) => (line: number, side: "new" | "old", sev: GitSeverity, text: string) =>
     setPending((x) => [...x, { path: file, line, side, severity: sev, body: text }]);
@@ -850,7 +851,7 @@ function ReviewDetail({ agent, id, onBack }: { agent: AgentView; id: string; onB
       <div className="gxrdm">
         <ReviewState s={r.state} />
         <span className="mono small gxflow">{r.source} <ArrowRight size={11} /> {r.target}</span>
-        {live && <span className="small muted">{t("git.roundOf", { n: r.round, max: r.maxRounds })}</span>}
+        {live && <span className="small muted">{r.round > r.maxRounds ? t("git.roundOver", { n: r.round }) : t("git.roundOf", { n: r.round, max: r.maxRounds })}</span>}
         <span className="small muted">· {r.head.slice(0, 8)}</span>
       </div>
       <div className="gxrdp">
@@ -861,7 +862,7 @@ function ReviewDetail({ agent, id, onBack }: { agent: AgentView; id: string; onB
         <div>
           <span className="small muted">{t("git.reviewers")}</span>
           <span className="gxstack">
-            {r.reviewers.map((x) => {
+            {[...r.reviewers, ...approvers.filter((x) => !r.reviewers.includes(x))].map((x) => {
               const v = lastVerdict(r, x);
               return (
                 <span key={x} className={"gxrvr" + (v ? " v-" + v : "")}>

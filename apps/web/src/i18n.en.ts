@@ -2607,6 +2607,7 @@ export const en: Partial<Record<Key, string>> = {
   "git.st.typechange": "Type changed",
   "git.more": "Show all",
   "git.less": "Show less",
+  "git.roundOver": "Round {n} · automatic rounds used up",
   "lib.openConversation": "Open the conversation",
   "lib.openPage": "Open the library",
   "lib.private": "Only the agent that saved it",

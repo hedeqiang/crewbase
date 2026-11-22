@@ -2650,6 +2650,7 @@ const zh = {
   "git.st.typechange": "类型改变",
   "git.more": "展开全部",
   "git.less": "收起",
+  "git.roundOver": "第 {n} 轮 · 自动轮次已用完",
   "lib.openConversation": "打开来源对话",
   "lib.openPage": "打开文档库",
   "lib.private": "仅保存它的 Agent 可见",
