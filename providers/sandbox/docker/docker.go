@@ -253,6 +253,18 @@ func (d *Docker) args(name string, argv []string, cwd string, env []string, p sa
 			args = append(args, "--mount", "type=bind,source="+r+",target="+r+",readonly")
 		}
 		for _, r := range plan.Missing {
+			if acquire {
+				// the empty placeholder is made on the host first and bound
+				// read-only: a --tmpfs on a mount point Docker has to create
+				// was sometimes silently not mounted (Docker Desktop /
+				// OrbStack file sharing, right after the last placeholder was
+				// removed), and the command could then create the name
+				if err := os.Mkdir(r, 0o755); err != nil && !os.IsExist(err) {
+					return nil, nil, fmt.Errorf("sandbox-docker: placeholder %s: %w", r, err)
+				}
+				args = append(args, "--mount", "type=bind,source="+r+",target="+r+",readonly")
+				continue
+			}
 			args = append(args, "--tmpfs", r+":ro,size=4k")
 		}
 	} else {
