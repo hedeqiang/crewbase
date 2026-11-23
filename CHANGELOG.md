@@ -3,6 +3,20 @@
 Each `## <version>` section becomes the release notes of that version,
 shown in the desktop app's update window.
 
+## 0.9.14
+
+Agent 忙的时候发的消息默认排队，可以在输入框上方调整顺序或插话；Open Artifact 挪到「插件与技能」里；全屏时顶部不再被遮住。
+
+对话
+- Agent 正在工作时按 Enter 发送的消息会排队，这一轮做完后依次处理；想让它马上看到，按 ⌥Enter 插话
+- 排队的消息显示在输入框上方，每条都可以提前、延后、插话（下一步就加入正在进行的这一轮）或取消
+
+Open Artifact
+- 和 Open Agent Docs 一样，在「插件与技能 › 应用」里添加：安装、更新、开关都在同一个窗口里；装好后设置里才出现 Open Artifact 一栏
+
+修复
+- 全屏时侧边栏、对话标题和右侧面板的顶部被遮住
+
 ## 0.9.13
 
 接入 Open Artifact：Agent 做出来的幻灯片、设计稿、白板、表格、看板、文档和短片，你可以直接在预览里改、评论、导出。
