@@ -1,0 +1,19 @@
+/* Crewbase web UI styles, in cascade order. Split from the old
+   src/styles.css: each file is a contiguous run of it, in its original
+   order. Keep this order; later files override earlier ones. */
+@import "./00-tokens.css";
+@import "./01-shell.css";
+@import "./02-conversation.css";
+@import "./03-composer.css";
+@import "./04-panel.css";
+@import "./05-settings.css";
+@import "./06-responsive.css";
+@import "./07-additions-1.css";
+@import "./08-additions-2.css";
+@import "./09-additions-3.css";
+@import "./10-preview-files.css";
+@import "./11-library.css";
+@import "./12-motion.css";
+@import "./13-design-pass.css";
+@import "./14-settings-layout.css";
+@import "./15-code.css";

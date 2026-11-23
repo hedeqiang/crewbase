@@ -2,7 +2,7 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { App } from "./App";
 import { getLang, loadLang, setLang } from "./i18n";
-import "./styles.css";
+import "./styles/index.css";
 import { openSession, setState } from "./store";
 import { initCompanion } from "./companion";
 

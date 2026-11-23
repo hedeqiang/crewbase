@@ -1,0 +1,51 @@
+/* ===== responsive ===== */
+@media (max-width: 1100px) {
+  .sugs { grid-template-columns: minmax(0, 1fr); }
+}
+/* 960–1100: the panel stays beside the conversation (the list folds away
+   while it is open, store.ts), a little narrower */
+@media (min-width: 961px) and (max-width: 1100px) {
+  .panel { width: 310px; }
+}
+/* narrower: the panel comes over the conversation, with a soft edge, and
+   the conversation stays readable around it */
+@media (max-width: 960px) {
+  .inner { grid-template-columns: 268px minmax(0, 1fr); }
+  .inner.nolist { grid-template-columns: minmax(0, 1fr); }
+  .panel { position: absolute; right: 0; top: 0; bottom: 0; z-index: var(--z-panel); box-shadow: -12px 0 32px rgb(0 0 0 / .12), -1px 0 0 var(--border); width: min(330px, 100%); }
+  .panel-scrim { display: block; position: absolute; inset: 0; z-index: var(--z-panel-scrim); background: transparent; }
+}
+@media (max-width: 820px) {
+  .inner, .inner.nolist { grid-template-columns: minmax(0, 1fr); }
+  .list { position: absolute; left: 0; top: 0; bottom: 0; width: min(288px, 88%); z-index: var(--z-panel); box-shadow: var(--menu-shadow); }
+  .list-scrim { display: block; position: absolute; inset: 0; z-index: var(--z-panel-scrim); background: rgba(0, 0, 0, .12); }
+  .chead { padding-left: calc(12px + var(--inset-l)); }
+  .chead .lt { display: grid; }
+  .chead .role, .ownchip { display: none; }
+  .pvwrap { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); }
+  .pvlist { border-right: 0; border-bottom: 1px solid var(--border); max-height: 200px; }
+  .mrow { grid-template-columns: 18px minmax(0, 1fr) 84px 44px 34px; }
+  .mrow .caps { display: none; }
+}
+@media (max-width: 640px) {
+  .setwrap { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); }
+  .snav { flex-direction: row; overflow-x: auto; border-right: 0; border-bottom: 1px solid var(--border); padding: 6px; }
+  .snav .sh, .snav .sset { display: none; }
+  .sgrp { flex-direction: row; }
+  .snav button { width: auto; flex: none; white-space: nowrap; }
+  .na-colors { grid-template-columns: repeat(6, 26px); }
+  .feed { padding: 16px 16px 8px; }
+  .cwrap { padding: 4px 12px 10px; }
+  .qcard { margin-left: 0; }
+  .hst { display: none; }
+  .cfoot .quota { display: none; }
+  .cbtn:not(.cmodel):not(.envchip) .lbl { display: none; }
+  .envchip .envdir { display: none; }
+  .cmodel .lbl { max-width: 110px; }
+  .cmodel { max-width: 150px; }
+  .cmodel .eff { display: none; }
+  .ap { grid-template-columns: 30px minmax(0, 1fr); }
+  .ap .acts { grid-column: 1 / -1; justify-content: flex-start; }
+  .srow { flex-direction: column; align-items: flex-start; }
+  .vh, .vb, .pvd { padding-inline: 16px; }
+}

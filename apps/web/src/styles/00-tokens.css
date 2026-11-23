@@ -1,0 +1,109 @@
+/* Crewbase desktop UI. Tokens follow docs/03 §2:
+   neutral grey canvas, white surfaces, hairline borders, a single blue accent,
+   pill buttons; follows the system light/dark scheme unless [data-theme]. */
+:root {
+  --page: #f5f5f6; --chrome: #e9e9ec; --surface: #ffffff; --raised: #f7f7f8; --sunken: #f0f0f2; --bubble: #ebebef;
+  --text: #141414; --text2: #55555b; --muted: #6e6e75;
+  --border: rgba(20, 20, 20, .08); --border2: rgba(20, 20, 20, .14);
+  --hover: rgba(20, 20, 20, .045); --active: rgba(20, 20, 20, .075);
+  --accent: #007cf7; --accent-text: #0064c8; --accent-soft: rgba(0, 124, 247, .11);
+  --amber: #f08a00; --amber-text: #a85d00; --amber-soft: rgba(240, 138, 0, .14);
+  --danger: #e8222d; --danger-text: #c0141d; --danger-soft: rgba(232, 34, 45, .1);
+  --ok: #148a61; --ok-text: #0f7552; --ok-soft: rgba(20, 138, 97, .12);
+  --action: #141414; --on-action: #ffffff;
+  --eye: #141414;
+  --shadow: 0 1px 2px rgba(20, 20, 20, .04), 0 12px 40px rgba(20, 20, 20, .08);
+  --menu-shadow: 0 8px 30px rgba(20, 20, 20, .14), 0 0 0 1px rgba(20, 20, 20, .06);
+  --font: "Inter", -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Segoe UI", sans-serif;
+  --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --seg-system: #2a78d6; --seg-memory: #eb6834; --seg-tools: #1baf7a; --seg-skills: #eda100; --seg-toolio: #e87ba4; --seg-messages: #6250d6; --seg-free: var(--active);
+  --cat-1: #2a78d6; --cat-2: #eb6834; --cat-3: #1baf7a; --cat-4: #eda100; --cat-5: #e87ba4; --cat-6: #008300; --cat-7: #6250d6; --cat-8: #9b9ba3;
+  --heat-0: rgba(20, 20, 20, .06); --heat-1: #c6dcf6; --heat-2: #86b4ec; --heat-3: #3f87dd; --heat-4: #1a5aa8;
+  --takeover: #007cf7;
+  color-scheme: light;
+}
+
+/* Type and stacking scales. Colours are above, motion (--dur-* / --ease-*) is
+   with the motion rules further down. Font sizes: the integer px sizes in use.
+   Layers keep their historical values (nothing was merged); pdf.js's own
+   text-layer z-indexes are left alone. */
+:root {
+  --fs-11: 11px; --fs-12: 12px; --fs-13: 13px; --fs-14: 14px; --fs-16: 16px; --fs-18: 18px; --fs-20: 20px; --fs-24: 24px; --fs-28: 28px;
+  --z-raised: 1;       /* lifted over its siblings: sticky group headers, line numbers, small badges */
+  --z-sticky: 2;       /* sticky settings nav, tips and add buttons inside a pane */
+  --z-mask: 3;         /* drop mask over the composer */
+  --z-drawer: 4;       /* library detail as a drawer on narrow windows */
+  --z-float: 5;        /* library drop target, floating save bar */
+  --z-popup: 20;       /* @ and / menus above the composer */
+  --z-panel-scrim: 25; /* scrim behind the side panel / list on narrow windows */
+  --z-panel: 30;       /* side panel / list as an overlay on narrow windows */
+  --z-scrim: 45;       /* scrim behind the palette and modals */
+  --z-ovscrim: 49;     /* scrim behind settings overlays */
+  --z-modal: 50;       /* modals, ⌘K palette */
+  --z-popover: 60;     /* row menus, selection actions, offline banner, full-screen diagram */
+  --z-menu: 70;        /* menus */
+  --z-submenu: 71;     /* a menu's flyout */
+  --z-top: 80;         /* toasts, media viewer */
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --page: #1a1a1a; --chrome: #141414; --surface: #1c1c1c; --raised: #222222; --sunken: #161616; --bubble: #2c2c2f;
+    --text: #ececee; --text2: #a9a9ae; --muted: #8e8e95;
+    --border: rgba(255, 255, 255, .07); --border2: rgba(255, 255, 255, .12);
+    --hover: rgba(255, 255, 255, .05); --active: rgba(255, 255, 255, .085);
+    --accent: #1f8fff; --accent-text: #5aacff; --accent-soft: rgba(31, 143, 255, .18);
+    --amber: #ff9412; --amber-text: #ffb65c; --amber-soft: rgba(255, 148, 18, .16);
+    --danger: #fd2f3b; --danger-text: #ff6971; --danger-soft: rgba(253, 47, 59, .16);
+    --ok: #199e70; --ok-text: #45cf9c; --ok-soft: rgba(25, 158, 112, .18);
+    --action: #f0f0f0; --on-action: #141414;
+    --shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 12px 40px rgba(0, 0, 0, .4);
+    --menu-shadow: 0 10px 30px rgba(0, 0, 0, .5), 0 0 0 1px rgba(255, 255, 255, .08);
+    --seg-system: #3987e5; --seg-memory: #d95926; --seg-tools: #199e70; --seg-skills: #c98500; --seg-toolio: #d55181; --seg-messages: #9085e9; --seg-free: var(--active);
+    --cat-1: #3987e5; --cat-2: #d95926; --cat-3: #199e70; --cat-4: #c98500; --cat-5: #d55181; --cat-6: #008300; --cat-7: #9085e9; --cat-8: #76767c;
+    --heat-0: rgba(255, 255, 255, .06); --heat-1: #173a63; --heat-2: #1f5c9e; --heat-3: #3987e5; --heat-4: #8cc0f7;
+    --row-active: #262626;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --page: #1a1a1a; --chrome: #141414; --surface: #1c1c1c; --raised: #222222; --sunken: #161616; --bubble: #2c2c2f;
+  --text: #ececee; --text2: #a9a9ae; --muted: #8e8e95;
+  --border: rgba(255, 255, 255, .07); --border2: rgba(255, 255, 255, .12);
+  --hover: rgba(255, 255, 255, .05); --active: rgba(255, 255, 255, .085);
+  --accent: #1f8fff; --accent-text: #5aacff; --accent-soft: rgba(31, 143, 255, .18);
+  --amber: #ff9412; --amber-text: #ffb65c; --amber-soft: rgba(255, 148, 18, .16);
+  --danger: #fd2f3b; --danger-text: #ff6971; --danger-soft: rgba(253, 47, 59, .16);
+  --ok: #199e70; --ok-text: #45cf9c; --ok-soft: rgba(25, 158, 112, .18);
+  --action: #f0f0f0; --on-action: #141414;
+  --shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 12px 40px rgba(0, 0, 0, .4);
+  --menu-shadow: 0 10px 30px rgba(0, 0, 0, .5), 0 0 0 1px rgba(255, 255, 255, .08);
+  --seg-system: #3987e5; --seg-memory: #d95926; --seg-tools: #199e70; --seg-skills: #c98500; --seg-toolio: #d55181; --seg-messages: #9085e9; --seg-free: var(--active);
+  --cat-1: #3987e5; --cat-2: #d95926; --cat-3: #199e70; --cat-4: #c98500; --cat-5: #d55181; --cat-6: #008300; --cat-7: #9085e9; --cat-8: #76767c;
+  --heat-0: rgba(255, 255, 255, .06); --heat-1: #173a63; --heat-2: #1f5c9e; --heat-3: #3987e5; --heat-4: #8cc0f7;
+  --row-active: #262626;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html, body, #root { height: 100%; }
+html, body { background: var(--chrome); color: var(--text); }
+body { margin: 0; font-family: var(--font); font-size: var(--fs-14); line-height: 1.55; -webkit-font-smoothing: antialiased; overflow: hidden; }
+button { font: inherit; color: inherit; cursor: pointer; background: none; border: 0; padding: 0; }
+button:disabled { cursor: not-allowed; }
+input, textarea, select { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 6px; }
+svg.lucide { flex: none; stroke-width: 1.75; }
+.mono { font-family: var(--mono); }
+code { font-family: var(--mono); font-size: .9em; }
+.small { font-size: var(--fs-12); color: var(--muted); }
+.muted { color: var(--muted); }
+a { color: var(--accent-text); }
+
+.boot { height: 100%; background: var(--chrome); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px; }
+/* shown only if the check takes a moment (a fast start never flashes it) */
+.boot > * { animation: fade-in 240ms var(--ease-out, ease-out) 300ms backwards; }
+.bootbar { width: 120px; height: 3px; border-radius: 2px; background: var(--border2); overflow: hidden; position: relative; }
+.bootbar::after { content: ""; position: absolute; inset: 0; width: 40%; border-radius: 2px; background: var(--accent); animation: bootslide 1.1s ease-in-out infinite; }
+@keyframes bootslide { from { translate: -100% 0; } to { translate: 250% 0; } }
+
