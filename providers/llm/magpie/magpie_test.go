@@ -23,6 +23,7 @@ import (
 
 type fakeMagpie struct {
 	mu       sync.Mutex
+	only     string // when set, /v1/models lists just this chat model
 	gotModel string
 	gotAuth  string
 	gotUA    string
@@ -37,6 +38,13 @@ func (f *fakeMagpie) handler() http.Handler {
 	mux.HandleFunc("/v1/models", func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Query().Get("kind") != "chat,image,video" {
 			http.Error(w, "want every kind", 400)
+			return
+		}
+		f.mu.Lock()
+		only := f.only
+		f.mu.Unlock()
+		if only != "" {
+			fmt.Fprintf(w, `{"object":"list","data":[{"id":%q,"owned_by":"x"}]}`, only)
 			return
 		}
 		fmt.Fprint(w, `{"object":"list","data":[
@@ -304,5 +312,44 @@ func TestResponsesThroughMagpie(t *testing.T) {
 	mu.Unlock()
 	if tail != "/v1/responses:openai/gpt-6.1-sol /v1/chat/completions:openai/gpt-6.1-sol /v1/chat/completions:openai/gpt-6.1-sol" {
 		t.Fatalf("fallback: %s", tail)
+	}
+}
+
+// magpie's list changes (a provider left it): the pickers are told, once.
+func TestListChangeIsAnnounced(t *testing.T) {
+	f := &fakeMagpie{}
+	srv := httptest.NewServer(f.handler())
+	defer srv.Close()
+	port := srv.Listener.Addr().(*net.TCPAddr).Port
+	cfgHome := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", cfgHome)
+	os.MkdirAll(filepath.Join(cfgHome, "magpie"), 0o755)
+	os.WriteFile(filepath.Join(cfgHome, "magpie", "settings.json"), []byte(fmt.Sprintf(`{"port":%d}`, port)), 0o644)
+	h := kernel.NewHost(nil)
+	defer h.Close()
+	h.Load(llm.Plugin, kernel.LoadOptions{})
+	if _, err := h.Load(magpie.Plugin, kernel.LoadOptions{Config: map[string]any{"rescanInterval": "0"}}); err != nil {
+		t.Fatal(err)
+	}
+	var mu sync.Mutex
+	n := 0
+	llm.AdaptersChanged.Listen(h.Root(), func(struct{}) { mu.Lock(); n++; mu.Unlock() })
+	d := kernel.Use[*magpie.Discovery](h.Root(), magpie.ServiceKey)
+	count := func() int { mu.Lock(); defer mu.Unlock(); return n }
+	d.Rescan(context.Background())
+	if c := count(); c != 0 {
+		t.Fatalf("an unchanged list was announced %d times", c)
+	}
+	f.mu.Lock()
+	f.only = "openai/gpt-6.2"
+	f.mu.Unlock()
+	d.Rescan(context.Background())
+	d.Rescan(context.Background())
+	if c := count(); c != 1 {
+		t.Fatalf("announced %d times, want 1", c)
+	}
+	ad, _ := kernel.Use[*llm.Registry](h.Root(), llm.ServiceKey).Get("magpie")
+	if ms, _ := ad.Models(context.Background()); len(ms) != 1 || ms[0].ID != "openai/gpt-6.2" {
+		t.Fatalf("%+v", ms)
 	}
 }

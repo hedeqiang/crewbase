@@ -963,7 +963,18 @@ func knownModel(llms *llm.Registry, ref llm.ModelRef) error {
 			return nil
 		}
 	}
-	return gateway.BadRequest("%s has no model %q", ref.Provider, ref.Model)
+	// a list kept between scans (magpie): ask for it again before refusing,
+	// for a model just added there
+	if r, ok := ad.(interface{ Refresh(context.Context) error }); ok && r.Refresh(ctx) == nil {
+		if ms, err := llms.ModelsOf(ctx, ad); err == nil {
+			for _, m := range ms {
+				if m.ID == ref.Model {
+					return nil
+				}
+			}
+		}
+	}
+	return gateway.BadRequest("%s no longer lists the model %q; pick one it has", ref.Provider, ref.Model)
 }
 
 func contains(xs []string, s string) bool {
