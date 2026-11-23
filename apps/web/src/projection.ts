@@ -1,6 +1,6 @@
 // Projects a session's event log into conversation feed items.
 
-import type { ApprovalRequest, Attachment, ModelRef, Part, PageShown, PreviewInfo, Quote, SessionEvent, ToolCall, ToolResult } from "./api";
+import type { ApprovalRequest, ArtifactCardInfo, Attachment, ModelRef, Part, PageShown, PreviewInfo, Quote, SessionEvent, ToolCall, ToolResult } from "./api";
 
 export interface Step {
   call: ToolCall;
@@ -79,6 +79,8 @@ export type TurnPart =
   | { k: "steps"; id: string; steps: Step[] }
   /** preview_open showed a page in the right panel (preview/opened) */
   | { k: "preview"; id: string; p: PreviewInfo }
+  /** an artifact the turn made or changed (open-artifact/artifact) */
+  | { k: "artifact"; id: string; a: ArtifactCardInfo }
   /** show_page: a page as (part of) the answer (page/shown) */
   | { k: "page"; id: string; p: PageShown }
   /** images / a video it generated (features/media): the answer itself */
@@ -610,6 +612,14 @@ export function project(events: SessionEvent[], cards?: ReadonlySet<string>): Pr
         // a new version of the same page replaces the one shown before
         tu.parts = tu.parts.filter((x) => !(x.k === "page" && x.p.path === d.path));
         tu.parts.push({ k: "page", id, p: { ...d, agent: d.agent || e.agent, time: d.time || e.time } });
+        break;
+      }
+      case "open-artifact/artifact": {
+        if (!d.url) break;
+        const tu = turnFor(e.agent ?? "", id, e.time);
+        // one card per artifact in a turn, where it was last changed
+        tu.parts = tu.parts.filter((x) => !(x.k === "artifact" && x.a.url === d.url));
+        tu.parts.push({ k: "artifact", id, a: { ...d, agent: d.agent || e.agent } });
         break;
       }
       case "preview/opened":

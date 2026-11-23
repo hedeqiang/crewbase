@@ -2161,6 +2161,11 @@ a.lcard:hover, .lvideo .ltext:hover { background: var(--hover); }
 .prvct { display: flex; flex-direction: column; min-width: 0; line-height: 1.35; }
 .prvct b { font-size: 13px; font-weight: 600; }
 .prvct span { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.oacard { padding: 0 6px 0 0; gap: 2px; }
+.oacard:hover { background: var(--surface); }
+.oamain { display: flex; align-items: center; gap: 10px; padding: 8px 10px; min-width: 0; border-radius: 10px 0 0 10px; text-align: left; }
+.oamain:hover:not(:disabled) { background: var(--hover); }
+.oacard .prvct span { max-width: 420px; }
 .codewrap.haslang:has(.codeprev) { grid-template-columns: minmax(0, 1fr) auto auto; }
 .codeprev { color: var(--accent-text); }
 .tree .tnrow { position: relative; }

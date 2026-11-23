@@ -1,4 +1,4 @@
-import { Bell, Boxes, FileText, Library, Cpu, Keyboard, KeyRound, ListChecks, MessagesSquare, MousePointerClick, Puzzle, Server, Settings as Gear, User, Webhook, Workflow, Users } from "lucide-react";
+import { Bell, Boxes, FileText, Library, Cpu, Keyboard, KeyRound, ListChecks, MessagesSquare, MousePointerClick, Puzzle, Server, Settings as Gear, Shapes, User, Webhook, Workflow, Users } from "lucide-react";
 import type { ReactNode } from "react";
 import type { Key } from "../../i18n";
 import type { SettingsSection } from "../../store";
@@ -24,6 +24,7 @@ export const NAV: { group: Key; items: { id: SettingsSection; icon: ReactNode }[
       { id: "library", icon: <Library size={16} /> },
       // shown once Open Agent Docs is connected (Settings.tsx)
       { id: "docs", icon: <FileText size={16} /> },
+      { id: "artifacts", icon: <Shapes size={16} /> },
       { id: "computer", icon: <MousePointerClick size={16} /> },
       { id: "auto", icon: <Workflow size={16} /> },
       { id: "webhooks", icon: <Webhook size={16} /> },

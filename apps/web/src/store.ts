@@ -47,6 +47,7 @@ export type SettingsSection =
   | "market"
   | "library"
   | "docs"
+  | "artifacts"
   | "computer"
   | "auto"
   | "webhooks"

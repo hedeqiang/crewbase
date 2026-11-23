@@ -70,6 +70,7 @@ import { cloudVoice, dictate, dictationSupported, primeVoice, speak, speaking, s
 import { addFiles, addLibraryFile, clearFiles, filesFrom, LIB_DRAG, libraryFrom, MsgAttachments, PendingChips } from "./Attachments";
 import { MediaCard } from "./Media";
 import { LocalPreviewCards, PreviewLine } from "./Preview";
+import { ArtifactCard } from "./ArtifactCard";
 import {
   activeModel,
   ago,
@@ -1238,6 +1239,8 @@ function TurnMsg({ it, agent }: { it: Extract<FeedItem, { k: "turn" }>; agent?: 
             <MediaCard key={p.id} it={p.m} inTurn />
           ) : p.k === "preview" ? (
             <PreviewLine key={p.id} p={p.p} session={sid} />
+          ) : p.k === "artifact" ? (
+            <ArtifactCard key={p.id} a={p.a} session={sid} />
           ) : p.k === "page" ? (
             <PageCard key={p.id} p={p.p} session={sid} />
           ) : p.narration ? (

@@ -589,6 +589,34 @@ export interface ComputerBlocked {
   key: string;
   blocked: boolean;
 }
+/** Settings › Open Artifact (features/openartifact). */
+export interface OpenArtifactStatus {
+  enabled: boolean;
+  installed: string[];
+  version?: string;
+  latest?: string;
+  node: { path?: string; version?: string; ok: boolean; problem?: string };
+  running: boolean;
+  daemon?: string;
+  error?: string;
+  home: string;
+  homeUrl?: string;
+  tools?: string[];
+  sessions: number;
+  busy?: string;
+}
+
+/** An artifact a turn made (open-artifact/artifact). */
+export interface ArtifactCardInfo {
+  url: string;
+  title?: string;
+  type?: string;
+  root?: string;
+  viewUrl?: string;
+  action?: string;
+  agent?: string;
+}
+
 export interface ComputerOverview {
   available: boolean;
   platform: string;
@@ -1872,6 +1900,10 @@ export const API = {
   settings: () => api<Settings>("GET", "/api/settings"),
   patchSettings: (b: Partial<Settings>) => api<Settings>("PATCH", "/api/settings", b),
   notify: () => api<NotifyState>("GET", "/api/notify"),
+  openArtifact: () => api<OpenArtifactStatus>("GET", "/api/open-artifact"),
+  openArtifactLatest: () => api<{ version: string }>("GET", "/api/open-artifact/latest"),
+  installOpenArtifact: (version?: string) => api<OpenArtifactStatus>("POST", "/api/open-artifact/install", { version: version ?? "" }),
+  setOpenArtifact: (enabled: boolean) => api<OpenArtifactStatus>("POST", "/api/open-artifact/enabled", { enabled }),
   computer: () => api<ComputerOverview>("GET", "/api/computer"),
   setComputer: (enabled: boolean) => api<ComputerOverview>("PATCH", "/api/computer", { enabled }),
   setComputerPermission: (agent: string, app: string, permission: ComputerPerm) =>
