@@ -2,13 +2,13 @@
 
 [Open Artifact](https://github.com/JimLiu/open-artifact) turns what an agent makes into a live page instead of an answer you read once: a slide deck, a design canvas, a design system, a whiteboard, a sheet, a data dashboard, a doc or a short animated film. Each is a plain folder of files. You open it, retype it, drag things, comment, export PDF / PPTX / PNG, and what you ask from the page goes back to the conversation that made it.
 
-The plugin is `@crewbase/open-artifact`. Like Open Agent Docs it is set up under Settings › 插件与技能 › 应用 (Open Artifact › 添加), and it is idle until you install the runtime there. Once it is installed, Settings › Open Artifact shows the same controls.
+The plugin is `@crewbase/open-artifact`. Like Open Agent Docs it is set up under Settings › 插件与技能 › 应用 (Open Artifact › 添加), and it is idle until you install the runtime there. Once it is on, Settings › Open Artifact shows the library itself (every artifact on this computer, and the types), like the Open Agent Docs section; 管理 opens the setup dialog.
 
 ## Setting it up
 
 | Needs | |
 |---|---|
-| Node.js 22.18 or later | found on `PATH`; the page says what it found |
+| Node.js 22.18 or later | the first `node` that starts and is new enough, from `PATH`, Homebrew, nvm, volta, fnm, mise or asdf; one that is there but does not start (say a Homebrew `node@22` whose libraries were upgraded away) is skipped, and its error shown when none works |
 | The runtime | the npm package `@open-artifact/cli` (no dependencies, about 60 MB), installed with 安装并启用 |
 
 The runtime is downloaded from the npm registry and installed only when its bytes match the sha512 digest npm publishes for that version. It is unpacked under `<data dir>/apps/open-artifact/<version>`; regular files only, nothing outside that folder. 检查更新 asks npm for a newer one; the version in use and the one before it are kept.

@@ -26,6 +26,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -265,20 +266,128 @@ type NodeInfo struct {
 	Problem string `json:"problem,omitempty"`
 }
 
-// findNode looks for node (configured path, else PATH) and checks its version.
+// findNode finds a Node to run on: the configured one, else the first that
+// runs and is new enough of every node on PATH and in the usual places
+// (Homebrew, nvm, volta, fnm, mise, asdf). A node that is there but does
+// not start (a Homebrew node@22 whose libraries were upgraded away) is
+// passed over, and its error is what the page shows when none works.
 func findNode(ctx context.Context, configured string) NodeInfo {
-	p := configured
-	if p == "" {
-		var err error
-		if p, err = exec.LookPath("node"); err != nil {
-			return NodeInfo{Problem: "Node.js is not installed (Open Artifact needs Node 22.18 or later)"}
+	if configured != "" {
+		return checkNode(ctx, configured)
+	}
+	nodeCache.mu.Lock()
+	if time.Since(nodeCache.at) < 30*time.Second {
+		n := nodeCache.n
+		nodeCache.mu.Unlock()
+		return n
+	}
+	nodeCache.mu.Unlock()
+	n := searchNode(ctx, nodeCandidates())
+	nodeCache.mu.Lock()
+	nodeCache.n, nodeCache.at = n, time.Now()
+	nodeCache.mu.Unlock()
+	return n
+}
+
+var nodeCache struct {
+	mu sync.Mutex
+	n  NodeInfo
+	at time.Time
+}
+
+func searchNode(ctx context.Context, cands []string) NodeInfo {
+	var first NodeInfo
+	for _, p := range cands {
+		n := checkNode(ctx, p)
+		if n.OK {
+			return n
+		}
+		if first.Path == "" {
+			first = n
 		}
 	}
+	if first.Path == "" {
+		return NodeInfo{Problem: "Node.js is not installed (Open Artifact needs Node 22.18 or later)"}
+	}
+	return first
+}
+
+// nodeCandidates are the node binaries to try, PATH order first.
+func nodeCandidates() []string {
+	var out []string
+	seen := map[string]bool{}
+	add := func(p string) {
+		if p == "" || seen[p] {
+			return
+		}
+		if st, err := os.Stat(p); err != nil || st.IsDir() {
+			return
+		}
+		seen[p] = true
+		out = append(out, p)
+	}
+	for _, dir := range filepath.SplitList(os.Getenv("PATH")) {
+		if dir != "" {
+			add(filepath.Join(dir, "node"))
+		}
+	}
+	add("/opt/homebrew/bin/node")
+	add("/usr/local/bin/node")
+	globs := []string{"/opt/homebrew/opt/node*/bin/node", "/usr/local/opt/node*/bin/node"}
+	if home, err := os.UserHomeDir(); err == nil {
+		add(filepath.Join(home, ".volta", "bin", "node"))
+		globs = append(globs,
+			filepath.Join(home, ".nvm", "versions", "node", "*", "bin", "node"),
+			filepath.Join(home, ".local", "share", "fnm", "node-versions", "*", "installation", "bin", "node"),
+			filepath.Join(home, "Library", "Application Support", "fnm", "node-versions", "*", "installation", "bin", "node"),
+			filepath.Join(home, ".local", "share", "mise", "installs", "node", "*", "bin", "node"),
+			filepath.Join(home, ".asdf", "installs", "nodejs", "*", "bin", "node"))
+	}
+	for _, g := range globs {
+		ms, _ := filepath.Glob(g)
+		// newest first
+		sort.Slice(ms, func(i, j int) bool { return newer(verIn(ms[i]), verIn(ms[j])) || (verIn(ms[i]) == verIn(ms[j]) && ms[i] > ms[j]) })
+		for _, m := range ms {
+			add(m)
+		}
+	}
+	return out
+}
+
+var verInRe = regexp.MustCompile(`(\d+)\.(\d+)\.(\d+)`)
+
+// verIn is the version a path names (…/v24.1.0/…, node@22 → 22.0.0).
+func verIn(p string) string {
+	if m := verInRe.FindString(p); m != "" {
+		return m
+	}
+	if i := strings.Index(p, "node@"); i >= 0 {
+		major := p[i+5:]
+		if j := strings.IndexByte(major, '/'); j >= 0 {
+			major = major[:j]
+		}
+		return major + ".0.0"
+	}
+	return "999.0.0" // the unversioned one (Homebrew's node) is the newest
+}
+
+// checkNode runs node --version and checks it is new enough.
+func checkNode(ctx context.Context, p string) NodeInfo {
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
-	out, err := exec.CommandContext(ctx, p, "--version").Output()
+	var stderr strings.Builder
+	cmd := exec.CommandContext(ctx, p, "--version")
+	cmd.Stderr = &stderr
+	out, err := cmd.Output()
 	if err != nil {
-		return NodeInfo{Path: p, Problem: "could not run " + p}
+		why := strings.TrimSpace(stderr.String())
+		if i := strings.IndexByte(why, '\n'); i >= 0 {
+			why = why[:i]
+		}
+		if why == "" {
+			why = err.Error()
+		}
+		return NodeInfo{Path: p, Problem: fmt.Sprintf("%s does not start (%s)", p, why)}
 	}
 	v := strings.TrimPrefix(strings.TrimSpace(string(out)), "v")
 	n := NodeInfo{Path: p, Version: v}
@@ -291,7 +400,7 @@ func findNode(ctx context.Context, configured string) NodeInfo {
 		n.OK = true
 	}
 	if !n.OK {
-		n.Problem = fmt.Sprintf("Node %s is too old: Open Artifact needs %d.%d or later", v, MinNode[0], MinNode[1])
+		n.Problem = fmt.Sprintf("Node %s (%s) is too old: Open Artifact needs %d.%d or later", v, p, MinNode[0], MinNode[1])
 	}
 	return n
 }

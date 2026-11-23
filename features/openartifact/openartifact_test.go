@@ -168,6 +168,21 @@ func TestVersions(t *testing.T) {
 	if n := findNode(context.Background(), filepath.Join(dir, "missing")); n.OK {
 		t.Error("a missing node is fine")
 	}
+	// a node that does not start (a broken Homebrew node@22) is passed over
+	broken := filepath.Join(dir, "broken")
+	os.WriteFile(broken, []byte("#!/bin/sh\necho 'dyld: Library not loaded: libicui18n.74.dylib' >&2\nexit 134\n"), 0o755)
+	old := filepath.Join(dir, "node-20.11.0")
+	good := filepath.Join(dir, "node-26.13.1")
+	if n := searchNode(context.Background(), []string{broken, old, good}); !n.OK || n.Path != good {
+		t.Fatalf("search: %+v", n)
+	}
+	n := searchNode(context.Background(), []string{broken})
+	if n.OK || !strings.Contains(n.Problem, "Library not loaded") {
+		t.Fatalf("the reason is not shown: %+v", n)
+	}
+	if verIn("/opt/homebrew/opt/node@22/bin/node") != "22.0.0" || verIn("/u/.nvm/versions/node/v24.1.0/bin/node") != "24.1.0" {
+		t.Fatal("verIn")
+	}
 }
 
 func TestActionKinds(t *testing.T) {
