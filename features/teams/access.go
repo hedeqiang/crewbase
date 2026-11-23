@@ -220,6 +220,21 @@ func (s *Service) guard(r *gateway.Request, route string) error {
 				}
 			}
 		}
+	case strings.HasPrefix(route, "/api/webhooks") && !strings.HasPrefix(route, "/api/webhooks/ingest/"):
+		// a team's webhooks (?team=); the settings are the host's
+		team := r.HTTP.URL.Query().Get("team")
+		if route == "/api/webhooks/settings" {
+			if write && !w.admin() {
+				return &gateway.Error{Status: 403, Code: "forbidden", Message: "只有所有者或管理员能修改 Webhook 设置"}
+			}
+			break
+		}
+		if !s.TeamVisible(w, team) {
+			return errHidden
+		}
+		if write && !s.CanAct(w, team) {
+			return errRead
+		}
 	case strings.HasPrefix(route, "/api/library"):
 		// the 文档库 of the team in ?team=
 		team := r.HTTP.URL.Query().Get("team")
