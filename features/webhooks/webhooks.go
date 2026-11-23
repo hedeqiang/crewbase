@@ -714,7 +714,7 @@ func (s *Service) dispatch(ctx context.Context, e Endpoint, t Target, d *Deliver
 		if err != nil {
 			return fail(err)
 		}
-		r.OK, r.Ref, r.Detail = true, t.ID, "to "+res.Agent
+		r.OK, r.Ref, r.Detail = true, t.ID, res.Agent // the member it went to
 	default:
 		return fail(fmt.Errorf("unknown target %q", t.Kind))
 	}

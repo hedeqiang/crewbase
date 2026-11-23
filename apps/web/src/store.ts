@@ -49,6 +49,7 @@ export type SettingsSection =
   | "docs"
   | "computer"
   | "auto"
+  | "webhooks"
   | "approvals"
   | "hosts"
   | "teams"
@@ -104,6 +105,8 @@ export interface State {
   boardTick: Record<string, number>;
   /** a git change somewhere (features/git): the 代码 panel asks again */
   gitTick: number;
+  /** a webhook change (an endpoint, a delivery): the Webhook page asks again */
+  webhookTick: number;
   /** Member to pair a device for when 主机与设备 opens (from 成员与角色). */
   pairFor: string | null;
   /** Sub-tab a deep link asks a settings page to open (e.g. market/mcp). */
@@ -276,6 +279,7 @@ let state: State = {
   me: null,
   boardTick: {},
   gitTick: 0,
+  webhookTick: 0,
   pairFor: null,
   settingsTab: null,
   connected: false,
@@ -1030,6 +1034,7 @@ export function connectEvents() {
   on("members.changed", () => void refreshTier());
   on("teams.changed", () => void refreshTeams());
   on("git.changed", () => setState((s) => ({ gitTick: s.gitTick + 1 })));
+  on("webhooks.changed", () => setState((s) => ({ webhookTick: s.webhookTick + 1 })));
   on("board.changed", (d: { root: string }) => setState((s) => ({ boardTick: { ...s.boardTick, [d.root]: (s.boardTick[d.root] ?? 0) + 1 } })));
   if (!src) return;
   const es2 = src;

@@ -1308,6 +1308,82 @@ const gq = (o: Record<string, string | undefined>) => {
   return p.toString();
 };
 
+// ---------------------------------------------------------------- webhooks (features/webhooks)
+
+export type WhTargetKind = "workflow" | "routine" | "channel";
+export interface WhTarget {
+  kind: WhTargetKind;
+  id: string;
+  mention?: string;
+}
+export interface WhEndpoint {
+  id: string;
+  team: string;
+  name: string;
+  provider: string;
+  secret: string;
+  enabled: boolean;
+  events?: string[];
+  filter?: string;
+  instruction?: string;
+  targets: WhTarget[];
+  cooldown?: number;
+  cooldownKey?: string;
+  rateLimit?: number;
+  mode?: string;
+  relay?: boolean;
+  relayToken?: string;
+  created: string;
+  updated: string;
+}
+export interface WhSubscription {
+  id: string;
+  team: string;
+  name: string;
+  url: string;
+  events: string[];
+  filter?: string;
+  secret: string;
+  enabled: boolean;
+  created: string;
+  updated: string;
+}
+export interface WhDelivery {
+  id: string;
+  dir: "in" | "out";
+  team: string;
+  endpoint?: string;
+  subscription?: string;
+  name: string;
+  event?: string;
+  key?: string;
+  via?: string;
+  status: string;
+  error?: string;
+  code?: number;
+  attempts?: number;
+  next?: string;
+  targets?: (WhTarget & { ok: boolean; error?: string; ref?: string; detail?: string })[];
+  prompt?: string;
+  headers?: Record<string, string>;
+  body?: unknown;
+  bodyText?: string;
+  at: string;
+  updated: string;
+}
+export interface WhSettings {
+  allowPrivate: string[];
+  maxAttempts: number;
+}
+export type WhEndpointInput = Partial<Omit<WhEndpoint, "id" | "team" | "secret" | "created" | "updated" | "relayToken">> & { secret?: string };
+export type WhSubscriptionInput = Partial<Pick<WhSubscription, "name" | "url" | "events" | "filter" | "enabled">> & { secret?: string };
+
+const tq = (team: string, extra: Record<string, string | number | undefined> = {}) => {
+  const p = new URLSearchParams({ team });
+  for (const [k, v] of Object.entries(extra)) if (v !== undefined && v !== "") p.set(k, String(v));
+  return p.toString();
+};
+
 export interface LibStats {
   total: number;
   folders: Partial<Record<LibFolder, number>>;
@@ -1600,6 +1676,20 @@ export const API = {
   gitUnlock: (agent: string, id: string) => api("DELETE", `/api/git/locks/${id}?${gq({ agent })}`),
   gitSettings: () => api<GitSettings>("GET", "/api/git/settings"),
   setGitSettings: (b: GitSettings) => api<GitSettings>("PUT", "/api/git/settings", b),
+  webhooks: (team: string) => api<{ endpoints: WhEndpoint[]; subscriptions: WhSubscription[]; providers: string[]; events: string[] }>("GET", `/api/webhooks?${tq(team)}`),
+  saveEndpoint: (team: string, id: string | null, b: WhEndpointInput) =>
+    api<{ endpoint: WhEndpoint; secret: string }>(id ? "PATCH" : "POST", `/api/webhooks/endpoints${id ? "/" + id : ""}?${tq(team)}`, b),
+  deleteEndpoint: (team: string, id: string) => api("DELETE", `/api/webhooks/endpoints/${id}?${tq(team)}`),
+  rotateRelay: (team: string, id: string) => api<WhEndpoint>("POST", `/api/webhooks/endpoints/${id}/relay-token?${tq(team)}`),
+  saveSubscription: (team: string, id: string | null, b: WhSubscriptionInput) =>
+    api<{ subscription: WhSubscription; secret: string }>(id ? "PATCH" : "POST", `/api/webhooks/subscriptions${id ? "/" + id : ""}?${tq(team)}`, b),
+  deleteSubscription: (team: string, id: string) => api("DELETE", `/api/webhooks/subscriptions/${id}?${tq(team)}`),
+  testSubscription: (team: string, id: string) => api<WhDelivery>("POST", `/api/webhooks/subscriptions/${id}/test?${tq(team)}`),
+  deliveries: (team: string, of?: string, n?: number) => api<{ deliveries: WhDelivery[] }>("GET", `/api/webhooks/deliveries?${tq(team, { of, n })}`),
+  delivery: (team: string, id: string) => api<WhDelivery>("GET", `/api/webhooks/deliveries/${id}?${tq(team)}`),
+  replayDelivery: (team: string, id: string, dry: boolean) => api<WhDelivery>("POST", `/api/webhooks/deliveries/${id}/replay?${tq(team)}`, { dry }),
+  webhookSettings: () => api<WhSettings>("GET", "/api/webhooks/settings"),
+  setWebhookSettings: (b: WhSettings) => api<WhSettings>("PUT", "/api/webhooks/settings", b),
   publishToLibrary: (team: string, b: { agent: string; path: string; session?: string; seq?: number; title?: string }) =>
     api<{ link: LibLink; item: LibItem }>("POST", `/api/library/publish?${libQS(team)}`, b),
   libraryLinks: (team: string, agent: string) => api<{ links: LibFileLink[] }>("GET", `/api/library/links?${libQS(team, { agent })}`),
