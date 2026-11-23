@@ -46,6 +46,7 @@ import (
 	_ "github.com/hedeqiang/crewbase/features/members"
 	_ "github.com/hedeqiang/crewbase/features/memory"
 	_ "github.com/hedeqiang/crewbase/features/modelcatalog"
+	_ "github.com/hedeqiang/crewbase/features/openartifact"
 	_ "github.com/hedeqiang/crewbase/features/plugins"
 	_ "github.com/hedeqiang/crewbase/features/preview"
 	_ "github.com/hedeqiang/crewbase/features/providers"
@@ -175,6 +176,9 @@ var Base = kernel.Bundle{Name: "base", Entries: []kernel.Entry{
 	{ID: "git", Name: "@crewbase/git", Config: map[string]any{"root": "${root}"}},
 	// Webhooks in (verified, filtered, fanned out) and out (signed, retried).
 	{ID: "webhooks", Name: "@crewbase/webhooks", Config: map[string]any{"dir": "${root}"}},
+	// Open Artifact (docs/open-artifact.md): idle until installed and turned
+	// on in Settings › Open Artifact.
+	{ID: "open-artifact", Name: "@crewbase/open-artifact", Config: map[string]any{"dir": "${root}"}},
 	// Nightly: agents curate an overgrown MEMORY.md (backed up first).
 	{ID: "memory-tidy", Name: "@crewbase/memory-tidy"},
 	{ID: "memory-working", Name: "@crewbase/memory-working"},
@@ -227,6 +231,7 @@ var Desktop = kernel.Bundle{Name: "desktop", Entries: []kernel.Entry{
 	{ID: "library-api", Name: "@crewbase/library-api"},
 	{ID: "git-api", Name: "@crewbase/git-api"},
 	{ID: "webhooks-api", Name: "@crewbase/webhooks-api"},
+	{ID: "open-artifact-api", Name: "@crewbase/open-artifact-api"},
 	// Link cards (docs/previews.md): GET /api/unfurl, public addresses only.
 	{ID: "linkpreview", Name: "@crewbase/linkpreview"},
 	// 预览: preview_open and the right panel's preview tab (docs/previews.md).
