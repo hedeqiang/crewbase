@@ -171,7 +171,10 @@ func ContainsAny(s string, subs ...string) bool {
 var (
 	QuotaWords = []string{"insufficient_quota", "quota", "billing", "credit balance", "insufficient balance",
 		"insufficient_balance", "exceeded your current", "payment required", "out of credits", "balance is not enough",
-		"余额", "欠费", "额度"}
+		"余额", "欠费", "额度",
+		// Anthropic's spend limit: "You have reached your specified API usage
+		// limits. You will regain access on 2026-12-01 at 00:00 UTC."
+		"usage limits", "usage limit", "regain access", "spend limit", "spending limit", "monthly limit"}
 	RateWords = []string{"rate limit", "rate_limit", "ratelimit", "rate-limit", "too many requests", "per minute",
 		"per min", "requests per", "tokens per", "rpm", "tpm", "concurrency", "slow down"}
 	OverflowWords = []string{"context_length_exceeded", "maximum context length", "context length", "context window",
@@ -214,6 +217,9 @@ func Classify(provider string, status int, h http.Header, msg, code, secret stri
 		e.Message = fmt.Sprintf("HTTP %d: %s", status, e.Message)
 	}
 	retry, resets := RetryAfter(h)
+	if resets.IsZero() {
+		resets = ResetIn(msg)
+	}
 	switch {
 	case status == http.StatusPaymentRequired:
 		e.Kind, e.ResetsAt = llm.ErrQuotaExhausted, resets
@@ -259,6 +265,30 @@ func Classify(provider string, status int, h http.Header, msg, code, secret stri
 		e.Kind = llm.ErrUnavailable
 	}
 	return e
+}
+
+var regainRe = regexp.MustCompile(`(?i)(?:regain access|resets?|reset at|available again)\s+(?:on|at)?\s*(\d{4}-\d{2}-\d{2})(?:\s+at\s+|T|\s+)?(\d{1,2}:\d{2})?\s*(UTC|Z)?`)
+
+// ResetIn finds when a limit lifts in a provider's message ("You will
+// regain access on 2026-12-01 at 00:00 UTC"); zero when it says nothing
+// usable. Times are UTC.
+func ResetIn(msg string) time.Time {
+	m := regainRe.FindStringSubmatch(msg)
+	if m == nil {
+		return time.Time{}
+	}
+	at := "00:00"
+	if m[2] != "" {
+		at = m[2]
+	}
+	if len(at) == 4 {
+		at = "0" + at
+	}
+	t, err := time.Parse("2006-01-02 15:04", m[1]+" "+at)
+	if err != nil {
+		return time.Time{}
+	}
+	return t.UTC()
 }
 
 // RetryAfter parses Retry-After (seconds or HTTP date), retry-after-ms and
