@@ -3443,9 +3443,10 @@ input.fi { resize: none; }
 .slashh { font-size: 11px !important; font-weight: 400; color: var(--muted); flex: none; }
 .slashempty { padding: 12px 10px; line-height: 1.6; }
 .slashfoot { position: sticky; bottom: 0; background: var(--surface); padding: 6px 8px 7px; margin-top: 4px; border-top: 1px solid var(--border); font-size: 11px; }
-.pickchips, .usedchips { display: flex; flex-wrap: wrap; gap: 6px; }
+.pickchips { display: flex; flex-wrap: wrap; gap: 6px; }
 .pickchips { padding: 6px 0 2px; }
-.usedchips { justify-content: flex-end; margin-bottom: 4px; }
+/* a command the message used, where it was typed: /open-artifact … */
+.bubcmd { font-weight: 600; color: inherit; background: color-mix(in srgb, currentColor 10%, transparent); border-radius: 6px; padding: 1px 6px; margin-right: 2px; white-space: nowrap; }
 .pickchip { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 4px 8px; min-height: 26px; padding: 0 4px 0 9px; border-radius: 8px; font-size: 12px; font-weight: 500; background: var(--accent-soft); color: var(--accent-text); animation: rise-in var(--dur-fast) var(--ease-out) backwards; max-width: 100%; }
 .pickchip .pkh { display: inline-flex; align-items: center; gap: 5px; height: 26px; }
 .pickchip.tools { background: var(--amber-soft); color: var(--amber-text); }

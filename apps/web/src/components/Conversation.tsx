@@ -62,7 +62,7 @@ import {
 } from "lucide-react";
 import { display, enterSends, MAC } from "../shortcuts";
 import { API, desktop, parseRef, refString, useRawURL, type AgentView, type ApprovalRequest, type ChannelView, type ModelRef, type SlashPick } from "../api";
-import { filterSlash, PickChips, pickOf, promptItems, shownOrder, skillItems, slashAt, SlashMenu, toolItems, UsedChips, useSlashSources, type SlashItem } from "./SlashMenu";
+import { filterSlash, PickChips, pickOf, promptItems, shownOrder, skillItems, slashAt, SlashMenu, toolItems, UsedCmds, useSlashSources, type SlashItem } from "./SlashMenu";
 import { scheduleLabel } from "./settings/Automation";
 import { t, type Key } from "../i18n";
 import { argsFull, argsPreview, project, type AgentItem, type Decision, type FeedItem, type Rewind, type Step, type TurnPart, type TurnStats } from "../projection";
@@ -386,11 +386,11 @@ function UserMsg({ it }: { it: Extract<FeedItem, { k: "user" }> }) {
   return (
     <div className="m-user" data-seq={it.seq}>
       {it.reply && <QuoteLine q={it.reply} mine />}
-      <UsedChips use={it.use} />
       {it.attachments?.length ? <MsgAttachments agent={it.to} items={it.attachments} /> : null}
-      {(it.text || (!it.attachments?.length && !it.use?.length)) && (
+      {(it.text || it.use?.length || !it.attachments?.length) && (
         <div className={"bubble" + (long && !expanded ? " clipped" : "")}>
           {it.from && <span className="from">{it.from}</span>}
+          <UsedCmds use={it.use} />
           <WithMentions text={long && !expanded ? it.text.slice(0, LONG_MSG) + "…" : it.text} />
           {long && (
             <button type="button" className="bubmore" onClick={() => setExpanded(!expanded)}>

@@ -214,19 +214,18 @@ export function PickChips({ picks, argsOf, onRemove, onArgs, missing }: { picks:
 }
 
 /** On a sent message: what was picked for it. */
-export function UsedChips({ use }: { use?: { kind: string; name: string }[] }) {
+/** The commands a message used (/skill, /tools, a prompt), at the start of
+ *  its bubble as they were typed: one token each, no chip outside it. */
+export function UsedCmds({ use }: { use?: { kind: string; name: string }[] }) {
   if (!use?.length) return null;
   const tip = (u: { kind: string; name: string }) => (u.kind === "skill" ? t("slash.usedSkill", { name: u.name }) : u.kind === "prompt" ? t("slash.usedPrompt", { name: u.name }) : t("slash.usedTools", { name: u.name }));
   return (
-    <div className="usedchips">
+    <>
       {use.map((u) => (
-        <span key={u.kind + u.name} className={"pickchip sm " + u.kind} title={tip(u)}>
-          <span className="pkh">
-            {pickIcon(u.kind, 11)}
-            <span>{pickLabel(u)}</span>
-          </span>
+        <span key={u.kind + u.name} className="bubcmd" title={tip(u)}>
+          /{pickLabel(u)}
         </span>
-      ))}
-    </div>
+      ))}{" "}
+    </>
   );
 }
