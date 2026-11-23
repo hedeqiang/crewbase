@@ -1,5 +1,5 @@
 /* Motion: one scale of durations and curves for the whole app (the CSS
- * tokens --dur-* / --ease-* in styles.css are the same values), and two
+ * tokens --dur-* / --ease-* in src/styles/00-tokens.css are the same values), and two
  * pieces that make it move as one (a change of place — another
  * conversation, settings — is instant, as in native apps):
  *

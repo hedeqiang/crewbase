@@ -202,7 +202,7 @@ function ChannelTask({ channel }: { channel: ChannelView }) {
             <Avatar agent={a} size={24} status />
             <span className="g">
               <b>{a?.name ?? id}</b>
-              <span className="small pblk">
+              <span className="small pn-blk">
                 {id === channel.owner ? t("ch.owner") + " · " : ""}
                 {a ? statusLabel(a.status) : "—"}
                 {a ? ` · ${t("ch.queueLen", { n: a.queue.length })}` : ""}
@@ -217,13 +217,13 @@ function ChannelTask({ channel }: { channel: ChannelView }) {
         );
       })}
       {!archived && (
-        <button className="btn ghost addm pmt6" type="button" ref={addM.ref} onClick={addM.toggle} disabled={others.length === 0} title={others.length === 0 ? t("ch.noOthers") : undefined}>
+        <button className="btn ghost addm pn-mt6" type="button" ref={addM.ref} onClick={addM.toggle} disabled={others.length === 0} title={others.length === 0 ? t("ch.noOthers") : undefined}>
           <UserPlus size={13} />
           {t("ch.addMember")}
         </button>
       )}
       {!archived && others.length === 0 && (
-        <p className="small muted pnote0">
+        <p className="small muted pn-note0">
           {t("ch.noOthers")}
         </p>
       )}
@@ -274,7 +274,7 @@ function ChannelTask({ channel }: { channel: ChannelView }) {
             );
           })}
         <hr />
-        <p className="small pmnote">
+        <p className="small pn-mnote">
           {t("ch.reassignNote")}
         </p>
       </Popover>
@@ -452,7 +452,7 @@ function TaskTab({ agent }: { agent: AgentView }) {
         <div className="psec">{chat ? t("chat.queue", { n: agent.queue.length }) : t("panel.queue", { name: agent.name, n: agent.queue.length })}</div>
       )}
       {chat && agent.queue.length === 0 ? null : agent.queue.length === 0 ? (
-        <p className="small pm0">
+        <p className="small pn-m0">
           {t("panel.queueEmpty")}
         </p>
       ) : (
@@ -461,7 +461,7 @@ function TaskTab({ agent }: { agent: AgentView }) {
             <span className="n">{i + 1}</span>
             <span className="g">
               <span className="qt">{q.text}</span>
-              <span className="small pblk">
+              <span className="small pn-blk">
                 {i === 0 ? t("panel.queueNext") : ""}
                 {q.model ? `${i === 0 ? " · " : ""}${modelLabel(models, q.model)}` : ""}
               </span>
@@ -613,9 +613,9 @@ function AgentTab({ agent, sessionId }: { agent: AgentView; sessionId: string })
         <Popover anchor={lookM.anchor} open={lookM.open} onClose={lookM.close} width={300}>
           <LookPicker agent={agent} onChange={(p) => void API.patchAgent(agent.id, p).catch((e) => toast(e?.message ?? String(e)))} />
         </Popover>
-        <div className="agname">
+        <div className="pn-agname">
           <b>{agent.name}</b>
-          <div className="small mono agid">
+          <div className="small mono pn-agid">
             {agent.id}
           </div>
         </div>
@@ -627,12 +627,12 @@ function AgentTab({ agent, sessionId }: { agent: AgentView; sessionId: string })
       )}
       {agent.kind !== "chat" && <Brief agent={agent} />}
       <div className="psec" hidden={agent.kind === "chat"}>
-        {t("panel.roleTag")} <span className="psech">{t("panel.roleTagHint")}</span>
+        {t("panel.roleTag")} <span className="pn-sech">{t("panel.roleTagHint")}</span>
       </div>
       <input hidden={agent.kind === "chat"} className="fi sm" value={role} placeholder={t("panel.rolePh")} onChange={(e) => setRole(e.target.value)} onBlur={saveRole} onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()} />
 
       <div className="psec">
-        {t("panel.modelOrder")} <span className="psech">{t("panel.modelOrderHint")}</span>
+        {t("panel.modelOrder")} <span className="pn-sech">{t("panel.modelOrderHint")}</span>
       </div>
       <div className="route">
         {order.map((r, i) => {
@@ -745,7 +745,7 @@ function AgentTab({ agent, sessionId }: { agent: AgentView; sessionId: string })
               </div>
             ))}
           </div>
-          <div className="small pmt6">
+          <div className="small pn-mt6">
             {t("panel.nativeNote")}
           </div>
         </>
@@ -756,12 +756,12 @@ function AgentTab({ agent, sessionId }: { agent: AgentView; sessionId: string })
       <ToolLoading agent={agent} />
 
       <div className="psec">{t("panel.context")}</div>
-      <div className="pctx">
+      <div className="pn-ctx">
         <span>{win ? `${kfmt(used)} / ${kfmt(win)}` : "—"}</span>
         <b>{pct === null ? "—" : pct + "%"}</b>
       </div>
       {bd ? (
-        <div className="cbar pcbar">
+        <div className="cbar pn-cbar">
           {bd.segments
             .filter((g) => g.tokens > 0)
             .map((g) => (
@@ -772,7 +772,7 @@ function AgentTab({ agent, sessionId }: { agent: AgentView; sessionId: string })
       ) : (
         <div className="meter">
           <i className={pct !== null && pct >= 80 ? "amber" : ""} style={{ width: (pct ?? 0) + "%" }} />
-          <span className="th th80" />
+          <span className="th pn-th80" />
         </div>
       )}
       <div className="small">{t("panel.contextNote")}</div>
@@ -799,7 +799,7 @@ function AgentTab({ agent, sessionId }: { agent: AgentView; sessionId: string })
         ))}
       </div>
       <WorkNotes agent={agent} />
-      <div className="pdel">
+      <div className="pn-del">
         <button className="btn dng" type="button" onClick={del}>
           <Trash size={13} />
           {agent.kind === "chat" ? t("chat.delete") : t("panel.deleteAgent")}
@@ -908,12 +908,12 @@ function ToolLoading({ agent }: { agent: AgentView }) {
           </button>
         ))}
       </div>
-      <div className="small pmt6">
+      <div className="small pn-mt6">
         {t(`tl.desc.${mode}` as Key, { n: groups.reduce((a, g) => a + g.count, 0), k: kfmt(tokens) })}
       </div>
       {mode !== "never" && (
         <>
-          <div className="small muted ptlh">
+          <div className="small muted pn-tlh">
             {t("tl.always")}
           </div>
           <div className="tglist tlgroups">

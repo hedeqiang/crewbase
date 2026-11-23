@@ -311,7 +311,7 @@ button.tg:disabled { opacity: .5; cursor: not-allowed; }
 .menu .msep { height: 1px; background: var(--border); margin: 4px 2px; }
 .rmnote { margin: 0 0 6px; line-height: 1.6; color: var(--text2); }
 .modal.sm { width: min(400px, calc(100% - 24px)); }
-.ovscrim.show { display: block; position: fixed; inset: 0; background: rgba(0,0,0,.28); z-index: var(--z-ovscrim); }
+.ovscrim.show { display: block; position: fixed; inset: 0; background: rgba(0,0,0,.28); z-index: var(--z-overlay-scrim); }
 .btn.dngfill { background: var(--danger); color: #fff; border-color: transparent; }
 .btn.dngfill:hover:not(:disabled) { opacity: .9; background: var(--danger); }
 

@@ -37,7 +37,7 @@
   --r-4: 4px; --r-6: 6px; --r-8: 8px; --r-12: 12px; --r-14: 14px; --r-16: 16px; --r-pill: 999px;
   --fs-11: 11px; --fs-12: 12px; --fs-13: 13px; --fs-14: 14px; --fs-16: 16px; --fs-18: 18px; --fs-20: 20px; --fs-24: 24px; --fs-28: 28px;
   --z-raised: 1;       /* lifted over its siblings: sticky group headers, line numbers, small badges */
-  --z-sticky: 2;       /* sticky settings nav, tips and add buttons inside a pane */
+  --z-sticky: 2;       /* pane-level float（吸顶、提示、绝对定位的小按钮） */
   --z-mask: 3;         /* drop mask over the composer */
   --z-drawer: 4;       /* library detail as a drawer on narrow windows */
   --z-float: 5;        /* library drop target, floating save bar */
@@ -45,10 +45,10 @@
   --z-panel-scrim: 25; /* scrim behind the side panel / list on narrow windows */
   --z-panel: 30;       /* side panel / list as an overlay on narrow windows */
   --z-scrim: 45;       /* scrim behind the palette and modals */
-  --z-ovscrim: 49;     /* scrim behind settings overlays */
+  --z-overlay-scrim: 49; /* scrim behind settings overlays */
   --z-modal: 50;       /* modals, ⌘K palette */
-  --z-popover: 60;     /* row menus, selection actions, offline banner, full-screen diagram */
-  --z-menu: 70;        /* menus */
+  --z-popover: 60;     /* menus that pop out next to a row or a selection (row menus, selection actions); also offline banner, full-screen diagram */
+  --z-menu: 70;        /* global menus (header, composer, pickers): above row/selection popovers */
   --z-submenu: 71;     /* a menu's flyout */
   --z-top: 80;         /* toasts, media viewer */
 }
