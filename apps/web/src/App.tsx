@@ -22,6 +22,7 @@ import { Logo } from "./components/Logo";
 
 // Loaded when first opened: most sessions never visit settings.
 const Settings = lazy(() => import("./components/Settings").then((m) => ({ default: m.Settings })));
+const Desk = lazy(() => import("./components/Desk").then((m) => ({ default: m.Desk })));
 const AddProviderDialog = lazy(() => import("./components/settings/AddProvider").then((m) => ({ default: m.AddProviderDialog })));
 
 export function App() {
@@ -207,14 +208,20 @@ function Shell() {
           <>
             {showList && <SessionList />}
             {showList && <div className="ovscrim list-scrim" onClick={() => setState({ listOpen: false })} />}
-            <div className="center">
-              <ConvHeader draftColor={draft.color} draftShape={draft.shape} draftFace={draft.face} />
-              {view === "newAgent" ? (
-                <NewAgent draft={draft} setDraft={setDraft} />
-              ) : (
-                <Conversation onTemplate={(d) => setDraft({ ...emptyDraft(), ...d })} />
-              )}
-            </div>
+            {view === "desk" ? (
+              <Suspense fallback={<div className="center" />}>
+                <Desk />
+              </Suspense>
+            ) : (
+              <div className="center">
+                <ConvHeader draftColor={draft.color} draftShape={draft.shape} draftFace={draft.face} />
+                {view === "newAgent" ? (
+                  <NewAgent draft={draft} setDraft={setDraft} />
+                ) : (
+                  <Conversation onTemplate={(d) => setDraft({ ...emptyDraft(), ...d })} />
+                )}
+              </div>
+            )}
             {showPanel && <Panel />}
             {showPanel && <div className="ovscrim panel-scrim" onClick={() => setState({ panelOpen: false })} />}
           </>

@@ -19,6 +19,7 @@ import {
   isChat,
   chatTitle,
   newChat,
+  openDesk,
   openNewChannel,
   openSession,
   openSettings,
@@ -39,6 +40,7 @@ import { RowMenuButton, RowMenuHost, openAddToFolder, openNewFolder, openRowMenu
 import { Popover, useMenu } from "./Popover";
 import { keyLabel } from "../shortcuts";
 import { UpdatePill } from "./Update";
+import { DESK } from "./settings/nav";
 
 const ISSUES_URL = "https://github.com/hedeqiang/crewbase/issues";
 
@@ -70,6 +72,7 @@ export function SessionList() {
   const current = useStore((s) => s.current);
   const view = useStore((s) => s.view);
   const addonUpdates = useStore((s) => s.addonUpdates);
+  const deskPage = useStore((s) => s.desk);
   const manage = useStore((s) => s.tier === "desktop");
   const connected = useStore((s) => s.connected);
   const profile = useStore((s) => s.profile);
@@ -420,6 +423,16 @@ export function SessionList() {
         {noMatch && <p className="small lempty">{t("list.noMatch")}</p>}
       </div>
       <UpdatePill />
+      {manage && (
+      <nav className="ldesk" aria-label={t("desk.title")}>
+        {DESK.map((d) => (
+          <button key={d.id} type="button" className="dk" aria-current={view === "desk" && deskPage === d.id} onClick={() => openDesk(d.id)}>
+            {d.icon}
+            <span className="nm">{t(d.title)}</span>
+          </button>
+        ))}
+      </nav>
+      )}
       <div className="lfoot">
         <button className="mebtn" type="button" ref={me.ref} onClick={me.toggle} aria-haspopup="menu" aria-expanded={me.open}>
           <span className="mewrap">

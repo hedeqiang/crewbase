@@ -24,3 +24,8 @@ features/google/
 
 # local scratch space for Claude Code sessions
 .claude-scratch/
+
+# Open Artifact pieces agents make in this folder (docs, design boards, screenshot pages)
+/artifacts/
+# pages agents show in the conversation (Crewbase's show_page)
+/.crewbase/

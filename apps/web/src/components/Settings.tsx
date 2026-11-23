@@ -9,7 +9,6 @@ import { API, desktop, type DesktopPermission, type DesktopUpdateState, type Upd
 import { getLang, t, type Key, type Lang } from "../i18n";
 import { ago, kfmt, modeLabel, modelKind, priceLong, priceShort, providerName, until } from "../format";
 import { openSession, refreshModels, setBubbles, setLang, setLinkCards, setState, toast, useStore, type Bubbles, type SettingsSection, resync } from "../store";
-import { Automation } from "./settings/Automation";
 import { Webhooks } from "./settings/Webhooks";
 import { Extensions } from "./settings/Extensions";
 import { Profile } from "./settings/Profile";
@@ -48,7 +47,6 @@ import {
 } from "../shortcuts";
 import { ThemeSeg } from "./SessionList";
 import { confirmDialog } from "./Confirm";
-import { LibraryPage } from "./Library";
 import { DocsPage } from "./settings/AgentDocs";
 import { OpenArtifactPage } from "./settings/OpenArtifact";
 import { leaveTo } from "../router";
@@ -112,10 +110,8 @@ export function Settings() {
         {(sec === "general" || (!manage && !MOBILE_SECTIONS.has(sec))) && <General />}
         {manage && sec === "models" && <Models />}
         {sec === "approvals" && <Approvals />}
-        {manage && sec === "auto" && <Automation />}
         {manage && sec === "webhooks" && <Webhooks />}
         {manage && sec === "market" && <Extensions />}
-        {manage && sec === "library" && <LibraryPage embedded />}
         {manage && sec === "docs" && <DocsPage />}
         {manage && sec === "artifacts" && <OpenArtifactPage />}
         {manage && sec === "profile" && <Profile />}
@@ -127,7 +123,7 @@ export function Settings() {
         {manage && sec === "teams" && <Teams />}
         {manage && sec === "im" && <Im />}
         {manage && sec === "computer" && <Computer />}
-        {manage && !["general", "models", "approvals", "auto", "webhooks", "market", "library", "docs", "artifacts", "profile", "vault", "keys", "notify", "hosts", "team", "teams", "im", "computer"].includes(sec) && <Soon sec={sec} />}
+        {manage && !["general", "models", "approvals", "webhooks", "market", "docs", "artifacts", "profile", "vault", "keys", "notify", "hosts", "team", "teams", "im", "computer"].includes(sec) && <Soon sec={sec} />}
       </div>
     </div>
   );
@@ -135,9 +131,9 @@ export function Settings() {
 
 /** pages laid out wider (tables, grids, a file browser); the others read
  *  in one column of about 760px */
-const WIDE_SECTIONS = new Set<string>(["market", "auto", "profile"]);
+const WIDE_SECTIONS = new Set<string>(["market", "profile"]);
 /** pages with their own panes (a list beside details, a file browser) */
-const FULL_SECTIONS = new Set<string>(["models", "library", "docs", "artifacts"]);
+const FULL_SECTIONS = new Set<string>(["models", "docs", "artifacts"]);
 
 const GROUPS: { id: Shortcut["group"]; title: Key }[] = [
   { id: "general", title: "keys.general" },
@@ -1167,6 +1163,8 @@ function QuotaRow({ label, remaining, resetsAt }: { label?: string; remaining: n
   );
 }
 
+/** 设置 › 审批: what waits for the person, the remembered choices and what
+ *  was decided. */
 function Approvals() {
   const approvals = useStore((s) => s.approvals);
   const agents = useStore((s) => s.agents);

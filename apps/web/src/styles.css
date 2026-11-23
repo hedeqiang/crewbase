@@ -3948,3 +3948,32 @@ button.foldw:hover { background: var(--hover); color: var(--text); }
 .prboxh a { font-weight: 600; color: var(--text); }
 .prboxa { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
 .prboxa select { height: 30px; border-radius: 15px; border: 1px solid var(--border2); background: var(--surface); padding: 0 10px; font: inherit; font-size: 12.5px; color: var(--text); }
+
+/* 工作台 (the list's foot): 文档库, 自动化, 审批 — pages used every day,
+   opened in the main column instead of inside settings */
+.ldesk { display: flex; flex-direction: column; gap: 1px; padding: 6px 8px; border-top: 1px solid var(--border); }
+.ldesk .dk { display: flex; align-items: center; gap: 10px; height: 32px; padding: 0 8px; border-radius: 8px; font-size: 13px; color: var(--text2); text-align: left; width: 100%; border: 1px solid transparent; }
+.ldesk .dk:hover { background: var(--hover); color: var(--text); }
+.ldesk .dk[aria-current="true"] { background: var(--row-active); color: var(--text); font-weight: 500; border-color: var(--border); }
+.ldesk .dk .nm { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.desk .vw { flex: 1; }
+.deskhead { border-bottom: 0; }
+
+/* the 工作台 pages read like settings pages */
+.desk .vh { padding: 16px calc(28px + var(--inset-r)) 14px 28px; min-height: 64px; gap: 4px 12px; }
+.desk .vh h2 { font-size: 18px; font-weight: 600; }
+.desk .vh .sub { font-size: 13px; color: var(--text2); margin-top: 0; }
+.desk .vh .r .btn.pri { background: var(--surface); color: var(--text); border-color: var(--border2); }
+.desk .vh .r .btn.pri:hover:not(:disabled) { background: var(--hover); opacity: 1; }
+.desk .vb { padding: 22px 28px 48px; }
+.desk .vw .vsec, .desk .vw .psec2 { font-size: 13px; font-weight: 600; color: var(--text); margin: 28px 0 10px; letter-spacing: 0; }
+.desk .vw .vb > .vsec:first-child, .desk .vw .vb > .psec2:first-child, .desk .vw .vb > :first-child .vsec:first-child { margin-top: 0; }
+.desk .vw .sbox, .desk .vw .box, .desk .vw .empty { border: 1px solid var(--border); border-radius: 12px; background: var(--surface); }
+.desk .vw .empty { border-style: solid; padding: 20px; }
+.desk .vw .srow .g span, .desk .vw .srow .g p { max-width: 72ch; }
+.desk .vw .rulenote, .desk .vw .cusafe, .desk .vw .imintro { background: var(--raised); border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; color: var(--text2); }
+.desk .vw .imintro-i { background: var(--surface); color: var(--text2); border: 1px solid var(--border); }
+.desk .vw .imintro .g b { color: var(--text); }
+.desk .vw .vltnote, .desk .vw .tnote, .desk .vw .cxnote { margin: 12px 0 0; font-size: 12px; line-height: 1.6; color: var(--muted); max-width: 90ch; }
+.desk .vw .estate { padding: 28px 20px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); margin: 0; }
+.desk .vw .estate .esic { background: var(--raised); border: 1px solid var(--border); }

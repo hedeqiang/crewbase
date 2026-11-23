@@ -8,7 +8,7 @@ import { AlarmClock, ChevronRight, MessageSquare, Pencil, Play, Trash, X } from 
 import { API, type AgentView, type Followup, type Routine } from "../api";
 import { t } from "../i18n";
 import { ago, modeLabel, until } from "../format";
-import { openSession, openSettings, toast, useStore } from "../store";
+import { openDesk, openSession, toast, useStore } from "../store";
 import { confirmDialog } from "./Confirm";
 import { RoutineForm, RoutineRuns, scheduleLabel } from "./settings/Automation";
 
@@ -226,7 +226,7 @@ export function ScheduleTab({ agent, data }: { agent: AgentView; data: ScheduleD
 
       {routines !== null && routines.length > 0 && !edit && <SetupHint name={agent.name} more />}
       {manage ? (
-        <button className="linkbtn schedall" type="button" onClick={() => openSettings("auto")}>
+        <button className="linkbtn schedall" type="button" onClick={() => openDesk("auto")}>
           {t("sched.all")}
         </button>
       ) : (

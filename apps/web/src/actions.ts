@@ -56,7 +56,7 @@ export function runShortcut(id: ActionId) {
       setState({ panelOpen: !s.panelOpen });
       break;
     case "search":
-      if (s.view === "settings") leaveTo("chat");
+      if (s.view === "settings" || s.view === "desk") leaveTo("chat");
       setState({ listOpen: true });
       setTimeout(() => focusSel(".list .search input"), 0);
       break;

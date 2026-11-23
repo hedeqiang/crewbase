@@ -3,7 +3,8 @@
 // server):
 //
 //   #/c/<session>[?panel=<tab>&file=<path>&doc=<url>&sub=<session>]
-//   #/settings/<section>[?item=<library id>]
+//   #/settings/<section>
+//   #/desk/<library|auto>[?item=<library id>]   (工作台)
 //   #/new-agent
 //   #/                       (nothing open)
 //
@@ -18,19 +19,20 @@
 // native app.
 //
 // Older links keep working: #/session/<id>, #/settings/<section>[/<tab>],
-// #/library.
+// #/library, and #/settings/library|auto (now in the 工作台).
 
-import { getState, loadSession, setState, subscribe, toast, type PanelTab, type SettingsSection, type State } from "./store";
+import { getState, loadSession, setState, subscribe, toast, type DeskPage, type PanelTab, type SettingsSection, type State } from "./store";
 import { t } from "./i18n";
 
 export interface Loc {
-  view: "chat" | "settings" | "newAgent";
+  view: "chat" | "settings" | "newAgent" | "desk";
   session?: string;
   panel?: PanelTab; // the right panel is open on this tab
   file?: string;
   doc?: string;
   sub?: string;
   section?: SettingsSection;
+  desk?: DeskPage;
   tab?: string; // a settings page's own tab (older links)
   item?: number;
 }
@@ -41,7 +43,8 @@ const PANEL_TABS = new Set(["task", "schedule", "files", "code", "preview", "lib
 const sheetPanel = () => window.matchMedia("(max-width: 820px)").matches;
 
 export function locOf(s: State): Loc {
-  if (s.view === "settings") return { view: "settings", section: s.settingsList && sheetPanel() ? undefined : s.settings, item: s.settings === "library" && s.libOpen !== null ? s.libOpen : undefined };
+  if (s.view === "settings") return { view: "settings", section: s.settingsList && sheetPanel() ? undefined : s.settings };
+  if (s.view === "desk") return { view: "desk", desk: s.desk, item: s.desk === "library" && s.libOpen !== null ? s.libOpen : undefined };
   if (s.view === "newAgent") return { view: "newAgent" };
   const l: Loc = { view: "chat", session: s.current ?? undefined };
   if (s.current && s.panelOpen) {
@@ -58,6 +61,8 @@ export function format(l: Loc): string {
   let path = "#/";
   if (l.view === "settings") {
     path = l.section ? "#/settings/" + encodeURIComponent(l.section) : "#/settings";
+  } else if (l.view === "desk") {
+    path = "#/desk/" + (l.desk ?? "library");
     if (l.item !== undefined) q.set("item", String(l.item));
   } else if (l.view === "newAgent") {
     path = "#/new-agent";
@@ -99,17 +104,25 @@ export function parse(hash: string): Loc | null {
     }
     case "settings": {
       const item = q.get("item");
-      return { view: "settings", section: (parts[1] || undefined) as SettingsSection | undefined, tab: parts[2], item: item && /^\d+$/.test(item) ? Number(item) : undefined };
+      // these moved to the 工作台
+      if (parts[1] && isDesk(parts[1])) return { view: "desk", desk: parts[1], item: item && /^\d+$/.test(item) ? Number(item) : undefined };
+      return { view: "settings", section: (parts[1] || undefined) as SettingsSection | undefined, tab: parts[2] };
+    }
+    case "desk": {
+      const item = q.get("item");
+      return { view: "desk", desk: parts[1] && isDesk(parts[1]) ? parts[1] : "library", item: item && /^\d+$/.test(item) ? Number(item) : undefined };
     }
     case "library": {
       const id = parts[1] && /^\d+$/.test(parts[1]) ? Number(parts[1]) : undefined;
-      return { view: "settings", section: "library" as SettingsSection, item: id };
+      return { view: "desk", desk: "library", item: id };
     }
     case "new-agent":
       return { view: "newAgent" };
   }
   return null;
 }
+
+const isDesk = (x: string): x is DeskPage => x === "library" || x === "auto";
 
 let started = false;
 let applying = false;
@@ -126,7 +139,7 @@ const here = () => location.pathname + location.search;
  *  the same place with the panel opened or closed. */
 function isNewPlace(a: Loc | null, b: Loc): boolean {
   if (!a) return false;
-  if (a.view !== b.view || a.session !== b.session || a.section !== b.section || a.item !== b.item) return true;
+  if (a.view !== b.view || a.session !== b.session || a.section !== b.section || a.desk !== b.desk || a.item !== b.item) return true;
   // the panel opened or closed: the same place, except on a phone-width
   // window, where the panel is a sheet over it (back closes it)
   if (!a.panel || !b.panel) return !a.panel !== !b.panel && sheetPanel();
@@ -168,7 +181,9 @@ export function apply(l: Loc) {
   applying = true;
   try {
     if (l.view === "settings") {
-      setState({ view: "settings", settings: l.section ?? s.settings ?? "general", settingsList: !l.section && sheetPanel(), palette: false, ...(l.section === "library" ? { libOpen: l.item ?? null } : {}), ...(l.tab ? { settingsTab: l.tab } : {}) });
+      setState({ view: "settings", settings: l.section ?? s.settings ?? "general", settingsList: !l.section && sheetPanel(), palette: false, ...(l.tab ? { settingsTab: l.tab } : {}) });
+    } else if (l.view === "desk") {
+      setState({ view: "desk", desk: l.desk ?? "library", palette: false, ...(l.desk === "library" ? { libOpen: l.item ?? null } : {}), ...(sheetPanel() ? { listOpen: false } : {}) });
     } else if (l.view === "newAgent") {
       setState({ view: "newAgent", palette: false, ...(sheetPanel() ? { listOpen: false } : {}) });
     } else {

@@ -4,10 +4,10 @@ import { Bot, Hash, ListChecks, Monitor, PanelRight, Search, Shield, Square, Sun
 import { API, type SearchHit } from "../api";
 import { t, type Key } from "../i18n";
 import { ago, modeLabel } from "../format";
-import { newChat, openNewAgent, openSession, openSettings, sessionAgent, setState, setTheme, toast, useStore } from "../store";
+import { newChat, openDesk, openNewAgent, openSession, openSettings, sessionAgent, setState, setTheme, toast, useStore } from "../store";
 import { Avatar } from "./Avatar";
 import { SlotIcon, runCommand, useSlot } from "./UISlots";
-import { SECTIONS, SECTION_ICONS } from "./settings/nav";
+import { DESK, SECTIONS, SECTION_ICONS } from "./settings/nav";
 
 interface Item {
   group: string;
@@ -86,6 +86,7 @@ function PaletteInner() {
         sub: r.reason,
         run: () => openSession(r.session),
       });
+    for (const d of DESK) it.push({ group: t("desk.title"), icon: d.icon, title: t(d.title), run: () => openDesk(d.id) });
     for (const s of SECTIONS) it.push({ group: t("pal.settings"), icon: SECTION_ICONS[s], title: t(`set.${s}` as Key), run: () => openSettings(s) });
     it.push({ group: t("pal.commands"), icon: <MessageSquare size={16} />, title: t("list.newChat"), sub: keyLabel("newChat"), run: () => void newChat() });
     it.push({ group: t("pal.commands"), icon: <Bot size={16} />, title: t("pal.cmd.newAgent"), sub: keyLabel("newAgent"), run: () => openNewAgent() });

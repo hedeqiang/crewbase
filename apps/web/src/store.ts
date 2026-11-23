@@ -33,7 +33,10 @@ import { getLang, loadLang, setLang as setLangRaw, t, type Lang } from "./i18n";
 import { modelKind, setUserProviders } from "./format";
 import { argsPreview } from "./projection";
 
-export type View = "chat" | "newAgent" | "settings";
+export type View = "chat" | "newAgent" | "settings" | "desk";
+/** The pages of the 工作台 (the list's foot): used every day, so not in settings.
+ *  Approvals stay in settings: the 需要你 pill and ⌘⇧A reach what waits. */
+export type DeskPage = "library" | "auto";
 /** Built-in tabs, or `ui:<key>` for a plugin's sidebar-right.tab. */
 export type PanelTab = "task" | "schedule" | "files" | "code" | "preview" | "library" | "docs" | "agent" | `ui:${string}`;
 export type Theme = "system" | "light" | "dark";
@@ -45,11 +48,9 @@ export type SettingsSection =
   | "keys"
   | "models"
   | "market"
-  | "library"
   | "docs"
   | "artifacts"
   | "computer"
-  | "auto"
   | "webhooks"
   | "approvals"
   | "hosts"
@@ -173,6 +174,8 @@ export interface State {
   /** Profile bits from GET /api/settings and /api/system (may be absent on older daemons). */
   profile: Profile;
   settings: SettingsSection;
+  /** the 工作台 page shown while view is "desk" */
+  desk: DeskPage;
   listOpen: boolean;
   panelOpen: boolean;
   panelTab: PanelTab;
@@ -317,7 +320,7 @@ let state: State = {
   streams: {},
   // the address says where a reload lands: settings shows its own page
   // (and loading) at once, not a conversation's
-  view: typeof location !== "undefined" && location.hash.startsWith("#/settings") ? "settings" : typeof location !== "undefined" && location.hash.startsWith("#/new-agent") ? "newAgent" : "chat",
+  view: typeof location !== "undefined" && location.hash.startsWith("#/settings") ? "settings" : typeof location !== "undefined" && location.hash.startsWith("#/new-agent") ? "newAgent" : typeof location !== "undefined" && location.hash.startsWith("#/desk") ? "desk" : "chat",
   current: LS.get("current"),
   hist: LS.get("current") ? [LS.get("current")!] : [],
   histPos: LS.get("current") ? 0 : -1,
@@ -327,6 +330,7 @@ let state: State = {
   team: loadTeam(),
   ui: [],
   settings: ((typeof location !== "undefined" && /^#\/settings\/([\w-]+)/.exec(location.hash)?.[1]) || "general") as SettingsSection,
+  desk: ((typeof location !== "undefined" && /^#\/desk\/(library|auto)\b/.exec(location.hash)?.[1]) || "library") as DeskPage,
   listOpen: !narrow() || !LS.get("current"),
   panelOpen: !midWidth() && LS.get("panel") !== "0",
   panelTab: "task",
@@ -474,6 +478,12 @@ export function openSettings(sec?: SettingsSection) {
   setState({ view: "settings", settings: sec ?? "general", settingsList: !sec && narrow(), palette: false, listOpen: narrow() ? false : state.listOpen });
 }
 
+/** Opens a page of the 工作台 (文档库, 自动化) in the main column,
+ *  beside the conversation list. */
+export function openDesk(page: DeskPage) {
+  setState({ view: "desk", desk: page, palette: false, listOpen: narrow() ? false : state.listOpen });
+}
+
 export const isChat = (a?: AgentView) => a?.kind === "chat";
 
 
@@ -510,7 +520,7 @@ export function switchTeam(id: string) {
     const meta = s.current ? s.sessions[s.current] : undefined;
     const owner = meta?.kind === "channel" ? meta : Object.values(s.agents).find((a) => a.session === s.current);
     const keep = !!owner && teamOf(owner) === id;
-    return { team: id, current: keep ? s.current : null, view: s.view === "settings" ? s.view : "chat" };
+    return { team: id, current: keep ? s.current : null, view: s.view === "settings" || s.view === "desk" ? s.view : "chat" };
   });
 }
 
@@ -647,7 +657,7 @@ async function newChatOnce(folder?: string) {
 
 /** The team's 文档库 page. */
 export function openLibrary(item?: number) {
-  openSettings("library");
+  openDesk("library");
   setState({ libOpen: item ?? null });
 }
 

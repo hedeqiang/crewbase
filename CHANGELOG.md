@@ -3,6 +3,15 @@
 Each `## <version>` section becomes the release notes of that version,
 shown in the desktop app's update window.
 
+## Unreleased
+
+文档库和自动化移到会话列表底部的「工作台」，设置重新分组。
+
+界面
+- 会话列表底部新增「工作台」：文档库、自动化，点开后显示在对话区，会话列表不收起，⌘[ 回到刚才的对话
+- 设置分为「你 / 能力 / 连接 / 团队与设备」四组：审批归入「能力」，即时通讯从「设备」移到「连接」，与 Webhook、Open Agent Docs、Open Artifact 放在一起
+- 旧地址 #/settings/library、#/settings/auto、#/library 会自动打开工作台里的对应页面；⌘K 也能搜到工作台
+
 ## 0.9.15
 
 Open Artifact 的作品库内嵌进设置，插件里可以随时管理；更稳地找到 Node；用过的 / 命令显示在消息里。
