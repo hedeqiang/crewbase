@@ -498,3 +498,42 @@ func TestFlowThroughBridge(t *testing.T) {
 	}
 	t.Fatal("the tools stayed after turning off")
 }
+
+// The latest version was published moments ago and its file is not there
+// yet (404): the version before it is installed.
+func TestInstallFallsBackWhileLatestIsNotThere(t *testing.T) {
+	body := tgz(t, goodPkg)
+	sum := sha512.Sum512(body)
+	good := "sha512-" + base64.StdEncoding.EncodeToString(sum[:])
+	var srv *httptest.Server
+	srv = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case strings.HasSuffix(r.URL.Path, "-9.9.9.tgz"):
+			http.NotFound(w, r)
+		case strings.HasSuffix(r.URL.Path, ".tgz"):
+			w.Write(body)
+		default:
+			v := func(n string) map[string]any {
+				return map[string]any{"dist": map[string]string{"tarball": srv.URL + "/cli-" + n + ".tgz", "integrity": good}}
+			}
+			json.NewEncoder(w).Encode(map[string]any{"dist-tags": map[string]string{"latest": "9.9.9"},
+				"versions": map[string]any{"9.9.9": v("9.9.9"), "9.9.8": v("9.9.8"), "9.9.7": v("9.9.7"), "10.0.0-beta.1": v("10.0.0-beta.1")}})
+		}
+	}))
+	t.Cleanup(srv.Close)
+	dir := t.TempDir()
+	node := filepath.Join(dir, "node")
+	os.WriteFile(node, []byte("#!/bin/sh\necho v22.18.0\n"), 0o755)
+	r := setup(t, map[string]any{"node": node, "registry": srv.URL, "home": filepath.Join(dir, "home")})
+	r.s.mu.Lock()
+	r.s.st.Enabled = false
+	r.s.mu.Unlock()
+	st, err := r.s.Install(context.Background(), "")
+	if err != nil || st.Version != "9.9.8" {
+		t.Fatalf("%v %+v", err, st)
+	}
+	// asked for by name: no fallback, and it says why
+	if _, err := r.s.Install(context.Background(), "9.9.9"); err == nil || !strings.Contains(err.Error(), "moments ago") {
+		t.Fatalf("named version: %v", err)
+	}
+}

@@ -234,12 +234,23 @@ func (s *Service) install(ctx context.Context, version string) error {
 	if err != nil {
 		return err
 	}
-	if _, err := install(ctx, s.client, s.apps, rel); err != nil {
+	_, err = install(ctx, s.client, s.apps, rel)
+	// the latest was published moments ago and is not downloadable yet: the
+	// version before it now (it is offered as an update once it is there)
+	for _, o := range rel.Older {
+		if version != "" || !errors.Is(err, errNotYet) {
+			break
+		}
+		if _, err = install(ctx, s.client, s.apps, o); err == nil {
+			rel.Version = o.Version
+		}
+	}
+	if err != nil {
 		return err
 	}
 	s.mu.Lock()
 	s.st.Version, s.st.Enabled = rel.Version, true
-	s.status.Latest = rel.Version
+	s.status.Latest = ""
 	err = s.saveLocked()
 	s.mu.Unlock()
 	s.prune(rel.Version)

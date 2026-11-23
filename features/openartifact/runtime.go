@@ -43,7 +43,14 @@ type Release struct {
 	Version   string `json:"version"`
 	Tarball   string `json:"-"`
 	Integrity string `json:"-"`
+	// Older are the stable versions before it, newest first (a fallback
+	// while a just-published version is not downloadable yet).
+	Older []Release `json:"-"`
 }
+
+// errNotYet: the registry lists the version but its file is not there yet
+// (it takes a few minutes after a publish to reach every server).
+var errNotYet = errors.New("not downloadable yet")
 
 var versionRe = regexp.MustCompile(`^\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$`)
 
@@ -85,7 +92,21 @@ func latest(ctx context.Context, client *http.Client, registry, version string) 
 	if !strings.HasPrefix(v.Dist.Integrity, "sha512-") {
 		return Release{}, fmt.Errorf("%s %s publishes no sha512 integrity digest; not installing it", Package, version)
 	}
-	return Release{Version: version, Tarball: v.Dist.Tarball, Integrity: v.Dist.Integrity}, nil
+	rel := Release{Version: version, Tarball: v.Dist.Tarball, Integrity: v.Dist.Integrity}
+	var older []string
+	for o := range doc.Versions {
+		if o != version && versionRe.MatchString(o) && !strings.Contains(o, "-") && newer(version, o) {
+			older = append(older, o)
+		}
+	}
+	sort.Slice(older, func(i, j int) bool { return newer(older[i], older[j]) })
+	for _, o := range older[:min(len(older), 3)] {
+		d := doc.Versions[o].Dist
+		if strings.HasPrefix(d.Integrity, "sha512-") {
+			rel.Older = append(rel.Older, Release{Version: o, Tarball: d.Tarball, Integrity: d.Integrity})
+		}
+	}
+	return rel, nil
 }
 
 // install downloads rel, checks it against its integrity digest and
@@ -108,6 +129,9 @@ func install(ctx context.Context, client *http.Client, apps string, rel Release)
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != 200 {
+		if resp.StatusCode == http.StatusNotFound {
+			return "", fmt.Errorf("download %s %s: %w (npm published it moments ago; try again in a few minutes)", Package, rel.Version, errNotYet)
+		}
 		return "", fmt.Errorf("download %s %s: HTTP %d", Package, rel.Version, resp.StatusCode)
 	}
 	tmp, err := os.CreateTemp(apps, ".download-*.tgz")
