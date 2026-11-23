@@ -3,6 +3,15 @@
 Each `## <version>` section becomes the release notes of that version,
 shown in the desktop app's update window.
 
+## 0.9.16
+
+模型用量到上限时自动换下一个模型；magpie 的模型列表变了，模型选择器会跟着更新；修复 OpenAI 模型带浏览器工具时报错。
+
+模型
+- 提供方的 API 用量到达上限（如「You have reached your specified API usage limits」）时，这一轮自动换到下一个模型继续，不再直接失败；到消息里说的恢复时间才再试这个模型
+- magpie 里的模型列表有变化（某个提供方被移除、模型改名）时，模型选择器立即更新，不再选到已经没有的模型、一直提示「magpie has no model」；刚在 magpie 里加的模型也能马上选
+- 修复 OpenAI 模型在带浏览器工具时每次请求都报 400（「reserved namespace 'browser'」）
+
 ## 0.9.15
 
 Open Artifact 的作品库内嵌进设置，插件里可以随时管理；更稳地找到 Node；用过的 / 命令显示在消息里。
