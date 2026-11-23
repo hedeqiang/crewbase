@@ -133,14 +133,14 @@
 .fstep-f .sp { flex: 1; }
 .fid { font-family: var(--mono); font-size: var(--fs-11); color: var(--muted); padding: 2px 6px; border-radius: var(--r-6); }
 .fid:hover { background: var(--hover); color: var(--text2); }
-.fid-in { width: 130px; padding: 4px 8px; font-size: var(--fs-12); }
+.fid-in { width: 130px; padding: 3px 8px; font-size: var(--fs-12); }
 .apick { gap: 8px; padding-left: 6px; }
 .apick.none { color: var(--amber-text); border-style: dashed; }
 
 /* agents at once */
 .fstep.par { background: color-mix(in srgb, var(--accent-soft) 35%, var(--surface)); }
 .fbr { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 8px; padding: 0 12px 12px 50px; }
-.fbr-i { position: relative; border: 1px solid var(--border); border-radius: var(--r-12); background: var(--surface); padding: 8px 10px 10px; cursor: pointer; display: flex; flex-direction: column; gap: 6px; text-align: left; min-width: 0; outline: none; transition: border-color var(--dur-fast), box-shadow var(--dur-fast); }
+.fbr-i { position: relative; border: 1px solid var(--border); border-radius: var(--r-12); background: var(--surface); padding: 9px 10px 10px; cursor: pointer; display: flex; flex-direction: column; gap: 6px; text-align: left; min-width: 0; outline: none; transition: border-color var(--dur-fast), box-shadow var(--dur-fast); }
 .fbr-i:hover { border-color: var(--border2); }
 .fbr-i:focus-visible { box-shadow: 0 0 0 2px var(--accent); }
 .fbr-i.on { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
@@ -207,7 +207,7 @@
 /* the / menu and its picks */
 .mention.slash { width: min(440px, calc(100% - 16px)); max-height: min(380px, 52vh); overflow: auto; padding: 6px 6px 0; animation: m-in var(--dur-fast) var(--ease-out) backwards; }
 .slashg + .slashg { margin-top: 4px; padding-top: 4px; border-top: 1px solid var(--border); }
-.mention.slash .mi { align-items: flex-start; padding: 8px 8px; }
+.mention.slash .mi { align-items: flex-start; padding: 7px 8px; }
 .mention.slash .mi .g span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .mention.slash .mi .g b { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
 .slashic { width: 26px; height: 26px; border-radius: var(--r-8); display: grid; place-items: center; flex: none; background: var(--sunken); color: var(--text2); }
@@ -216,7 +216,7 @@
 .slashn { font-family: var(--mono); font-size: var(--fs-13); font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .slashh { font-size: var(--fs-11) !important; font-weight: 400; color: var(--muted); flex: none; }
 .slashempty { padding: 12px 10px; line-height: 1.6; }
-.slashfoot { position: sticky; bottom: 0; background: var(--surface); padding: 6px 8px 8px; margin-top: 4px; border-top: 1px solid var(--border); font-size: var(--fs-11); }
+.slashfoot { position: sticky; bottom: 0; background: var(--surface); padding: 6px 8px 7px; margin-top: 4px; border-top: 1px solid var(--border); font-size: var(--fs-11); }
 .pickchips { display: flex; flex-wrap: wrap; gap: 6px; }
 .pickchips { padding: 6px 0 2px; }
 /* a command the message used, where it was typed: /open-artifact … */
@@ -305,13 +305,13 @@ button.foldw:hover { background: var(--hover); color: var(--text); }
 .fxdiff tr.ad mark.wd, .fxdiff td.ad mark.wd { background: color-mix(in srgb, var(--dfa-mark) 28%, transparent); }
 .fxdiff .mk { font-weight: 700; }
 .fxdiff tr.hh td { font-family: var(--mono); letter-spacing: -.01em; }
-.fxitem { gap: 8px; padding: 8px 10px; }
+.fxitem { gap: 8px; padding: 7px 10px; }
 .fxitem .fxst { margin-left: 2px; }
 
 /* 改动: changed files on the left, the picked one's diff on the right */
 .fxchg { display: grid; grid-template-columns: minmax(190px, 34%) minmax(0, 1fr); flex: 1; min-height: 0; outline: none; }
 .fxclist { display: flex; flex-direction: column; min-height: 0; border-right: 1px solid var(--border); background: var(--raised); }
-.fxchead { padding: 10px 12px 8px; border-bottom: 1px solid var(--border); display: flex; flex-direction: column; gap: 2px; }
+.fxchead { padding: 10px 12px 9px; border-bottom: 1px solid var(--border); display: flex; flex-direction: column; gap: 2px; }
 .fxcsum { display: flex; align-items: center; gap: 8px; font-size: var(--fs-13); }
 .fxcsum b { font-weight: 600; }
 .fxcsrc { font-size: var(--fs-11); color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

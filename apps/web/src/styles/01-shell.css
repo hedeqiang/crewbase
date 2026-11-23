@@ -67,7 +67,7 @@
 .lsec.grp:hover { color: var(--text2); }
 .lsec .fold { margin-left: -2px; transition: transform var(--dur-hover); }
 .lsec.grp[aria-expanded="true"] .fold { transform: rotate(90deg); }
-.ci { display: grid; grid-template-columns: 32px minmax(0, 1fr); gap: 10px; align-items: center; width: 100%; padding: 8px 8px; border-radius: var(--r-8); text-align: left; border: 1px solid transparent; }
+.ci { display: grid; grid-template-columns: 32px minmax(0, 1fr); gap: 10px; align-items: center; width: 100%; padding: 7px 8px; border-radius: var(--r-8); text-align: left; border: 1px solid transparent; }
 .ci + .ci { margin-top: 1px; }
 .ci:hover { background: var(--hover); }
 .ci[aria-current="true"] { background: var(--row-active); border-color: var(--border); box-shadow: 0 1px 2px rgba(20, 20, 20, .05); }

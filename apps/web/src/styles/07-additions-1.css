@@ -88,7 +88,7 @@
 .qi.mem { align-items: center; }
 .qi.mem b { font-weight: 500; }
 .tglist { display: flex; flex-direction: column; gap: 2px; }
-.tgrow { display: flex; align-items: center; gap: 10px; padding: 8px 0; }
+.tgrow { display: flex; align-items: center; gap: 10px; padding: 7px 0; }
 .tgrow .g { flex: 1; min-width: 0; display: flex; flex-direction: column; line-height: 1.35; }
 .tgrow .g b { font-size: var(--fs-13); font-weight: 500; }
 .tgrow .g span { font-size: var(--fs-12); color: var(--muted); }
@@ -122,7 +122,7 @@ button.tg:disabled { opacity: .5; cursor: not-allowed; }
 .routerow .arrow { color: var(--muted); }
 .ssel select { max-width: 100%; }
 .htable { border: 1px solid var(--border); border-radius: var(--r-12); overflow: hidden; background: var(--surface); }
-.hrow { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; gap: 10px; align-items: center; padding: 8px 14px; border-top: 1px solid var(--border); width: 100%; text-align: left; font-size: var(--fs-13); }
+.hrow { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; gap: 10px; align-items: center; padding: 9px 14px; border-top: 1px solid var(--border); width: 100%; text-align: left; font-size: var(--fs-13); }
 .hrow:first-child { border-top: 0; }
 .hrow:hover:not(:disabled) { background: var(--hover); }
 .hrow:disabled { cursor: default; }
@@ -155,7 +155,7 @@ button.tg:disabled { opacity: .5; cursor: not-allowed; }
 .wfi { width: 30px; height: 30px; border-radius: var(--r-8); background: var(--active); display: grid; place-items: center; color: var(--text2); flex: none; }
 .form { display: flex; flex-direction: column; gap: 4px; margin-bottom: 12px; }
 .fgrid { display: grid; grid-template-columns: 96px minmax(0, 1fr); gap: 8px 14px; align-items: start; margin-top: 10px; }
-.fgrid > .fl { margin: 8px 0 0; }
+.fgrid > .fl { margin: 7px 0 0; }
 .fgrid > .seg, .fgrid > .ssel, .fgrid > .uchip { justify-self: start; }
 .chips { display: flex; flex-wrap: wrap; gap: 4px; margin: 6px 0 4px; }
 .chip { font-size: var(--fs-12); border: 1px solid var(--border2); border-radius: var(--r-pill); padding: 0 8px; line-height: 21px; color: var(--text2); }
@@ -264,7 +264,7 @@ button.tg:disabled { opacity: .5; cursor: not-allowed; }
 
 .mdtable { overflow-x: auto; margin: 6px 0 10px; border: 1px solid var(--border); border-radius: var(--r-12); }
 .mdtable table { border-collapse: collapse; width: 100%; font-size: var(--fs-13); }
-.mdtable th, .mdtable td { padding: 8px 12px; border-bottom: 1px solid var(--border); vertical-align: top; text-align: left; overflow-wrap: break-word; word-break: normal; }
+.mdtable th, .mdtable td { padding: 7px 12px; border-bottom: 1px solid var(--border); vertical-align: top; text-align: left; overflow-wrap: break-word; word-break: normal; }
 /* a long unbroken value (an address, a hash) sets the column's width and the table scrolls; prose still wraps */
 .mdtable td { min-width: 4em; max-width: 34em; }
 .mdtable th { font-weight: 600; background: var(--raised); white-space: nowrap; }
@@ -428,7 +428,7 @@ button.tg:disabled { opacity: .5; cursor: not-allowed; }
 .ir-entry .g b { font-size: var(--fs-14); font-weight: 500; color: var(--text); }
 .ir-entry .g span { font-size: var(--fs-13); }
 .modal.ir { width: min(580px, calc(100% - 24px)); }
-.ir-note { display: flex; gap: 8px; align-items: flex-start; margin: 6px 0 12px; padding: 8px 12px; border-radius: var(--r-8); background: var(--ok-soft, var(--active)); color: var(--ok-text, var(--text2)); font-size: var(--fs-13); line-height: 1.55; }
+.ir-note { display: flex; gap: 8px; align-items: flex-start; margin: 6px 0 12px; padding: 9px 12px; border-radius: var(--r-8); background: var(--ok-soft, var(--active)); color: var(--ok-text, var(--text2)); font-size: var(--fs-13); line-height: 1.55; }
 .ir-note svg { flex: none; margin-top: 1px; }
 .ir-pick { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .ir-src { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; padding: 14px; border: 1px solid var(--border2); border-radius: var(--r-12); text-align: left; }

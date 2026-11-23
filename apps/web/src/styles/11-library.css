@@ -61,7 +61,7 @@
 .libcard .thumb { position: relative; aspect-ratio: 4 / 3; background: var(--sunken); display: grid; place-items: center; overflow: hidden; }
 .libcard .thumb img, .libcard .thumb video { width: 100%; height: 100%; object-fit: cover; display: block; }
 .libcard .badge { position: absolute; top: 7px; right: 7px; width: 20px; height: 20px; border-radius: var(--r-pill); display: grid; place-items: center; background: rgba(0, 0, 0, .55); color: #fff; }
-.libcard .cap { display: flex; flex-direction: column; gap: 1px; padding: 8px 10px 8px; min-width: 0; }
+.libcard .cap { display: flex; flex-direction: column; gap: 1px; padding: 8px 10px 9px; min-width: 0; }
 .libcard .cap b { font-size: var(--fs-13); font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .libcard .cap span { font-size: var(--fs-12); color: var(--muted); }
 
@@ -84,7 +84,7 @@
 .libpv.img img, .libpv.img video { max-width: 100%; max-height: 360px; display: block; }
 .libpv.msg { padding: 18px 14px; display: flex; flex-direction: column; align-items: flex-start; gap: 10px; }
 .libpvbar { display: flex; align-items: center; justify-content: flex-end; padding: 6px 8px; border-bottom: 1px solid var(--border); background: var(--surface); }
-.libpvbar.small { justify-content: flex-start; padding: 8px 12px; }
+.libpvbar.small { justify-content: flex-start; padding: 7px 12px; }
 .libpv .fxcode { max-height: 380px; overflow: auto; }
 .libmd { max-height: 380px; overflow: auto; padding: 4px 14px 12px; background: var(--surface); font-size: var(--fs-13); overflow-wrap: anywhere; }
 .libmd .mdtable td, .libmd .mdtable th { overflow-wrap: break-word; }
@@ -98,7 +98,7 @@
 .libedit .lbl { display: flex; flex-direction: column; gap: 6px; font-size: var(--fs-12); color: var(--muted); }
 .libtagedit { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; min-height: 34px; padding: 4px 6px; border: 1px solid var(--border2); border-radius: var(--r-8); background: var(--surface); }
 .libtagedit:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
-.libtagedit input { flex: 1; min-width: 80px; border: 0; outline: none; background: transparent; font: inherit; font-size: var(--fs-13); color: var(--text); padding: 4px 4px; }
+.libtagedit input { flex: 1; min-width: 80px; border: 0; outline: none; background: transparent; font: inherit; font-size: var(--fs-13); color: var(--text); padding: 3px 4px; }
 .libpriv { display: flex; align-items: flex-start; gap: 8px; cursor: pointer; }
 .libpriv input { margin-top: 3px; }
 .libpriv > span { display: flex; flex-direction: column; gap: 2px; font-size: var(--fs-13); }
@@ -174,7 +174,7 @@
 .adsteps { margin: 0 0 8px; padding-left: 20px; line-height: 1.7; color: var(--text2); }
 .adconn { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .adids { display: flex; flex-direction: column; gap: 2px; }
-.adid { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; padding: 8px 10px; border-radius: var(--r-8); background: var(--raised); font-size: var(--fs-13); }
+.adid { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; padding: 7px 10px; border-radius: var(--r-8); background: var(--raised); font-size: var(--fs-13); }
 .adid b { font-weight: 500; }
 .adid code { font-family: var(--mono); font-size: var(--fs-12); color: var(--accent-text); }
 .adwake { display: flex; gap: 8px; align-items: flex-start; margin-top: 12px; cursor: pointer; }
@@ -206,17 +206,17 @@
 .updot.static { position: static; display: inline-block; box-shadow: none; flex: none; }
 .snav .sn.upd { background: var(--accent); color: #fff; }
 .segn.upd { display: inline-grid; place-items: center; min-width: 16px; height: 16px; padding: 0 4px; border-radius: var(--r-8); background: var(--accent); color: #fff; font-size: var(--fs-11); }
-.updbar { display: flex; align-items: center; gap: 8px; width: 100%; margin: 0 0 14px; padding: 8px 14px; border-radius: var(--r-12); background: var(--accent-soft); color: var(--accent-text); font-size: var(--fs-13); font-weight: 500; text-align: left; }
+.updbar { display: flex; align-items: center; gap: 8px; width: 100%; margin: 0 0 14px; padding: 9px 14px; border-radius: var(--r-12); background: var(--accent-soft); color: var(--accent-text); font-size: var(--fs-13); font-weight: 500; text-align: left; }
 .updbar:hover { filter: brightness(.98); }
 .updquiet { display: flex; align-items: center; gap: 6px; margin: 0 0 12px; }
 .updquiet svg { color: var(--ok-text); }
 .updsec { border: 1px solid var(--border); border-radius: var(--r-14); background: var(--surface); margin: 0 0 18px; overflow: hidden; }
-.updhead { display: flex; align-items: center; gap: 8px; padding: 12px 14px; border-bottom: 1px solid var(--border); background: var(--accent-soft); color: var(--accent-text); }
+.updhead { display: flex; align-items: center; gap: 8px; padding: 11px 14px; border-bottom: 1px solid var(--border); background: var(--accent-soft); color: var(--accent-text); }
 .updhead b { font-size: var(--fs-14); font-weight: 600; }
 .updhead .ix { color: var(--accent-text); }
 .updhead .spinning { animation: spin 1s linear infinite; }
 .updlist { display: flex; flex-direction: column; }
-.updrow { padding: 12px 14px; border-top: 1px solid var(--border); }
+.updrow { padding: 11px 14px; border-top: 1px solid var(--border); }
 .updrow:first-child { border-top: 0; }
 .updrow.done { display: flex; align-items: center; gap: 8px; color: var(--ok-text); }
 .updmain { display: flex; align-items: center; gap: 10px; }
@@ -269,8 +269,8 @@ b > .mkver, .g b .mkver { margin: 0 0 0 6px; }
 /* a docs page linked in an answer */
 .doccards { display: flex; flex-direction: column; gap: 8px; margin: 8px 0 2px; max-width: 640px; }
 .doccard { border: 1px solid var(--border); border-radius: var(--r-12); background: var(--surface); overflow: hidden; }
-.doccard.bad { display: flex; align-items: center; gap: 8px; padding: 8px 12px; color: var(--muted); }
-.dch { display: flex; align-items: center; gap: 8px; padding: 8px 8px 8px 12px; border-bottom: 1px solid var(--border); }
+.doccard.bad { display: flex; align-items: center; gap: 8px; padding: 9px 12px; color: var(--muted); }
+.dch { display: flex; align-items: center; gap: 8px; padding: 9px 8px 9px 12px; border-bottom: 1px solid var(--border); }
 .dcic { width: 26px; height: 26px; border-radius: var(--r-6); display: grid; place-items: center; background: linear-gradient(135deg, #2a78d6, #6250d6); color: #fff; flex: none; }
 .dcic .emoji { font-size: var(--fs-16); }
 .dct { flex: 1; min-width: 0; display: flex; flex-direction: column; text-align: left; gap: 1px; }

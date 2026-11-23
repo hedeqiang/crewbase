@@ -1,6 +1,6 @@
 /* composer */
 .cwrap { padding: 4px max(24px, calc((100% - 760px) / 2)) 12px; }
-.confirmbar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; border: 1px solid color-mix(in srgb, var(--danger) 45%, transparent); background: var(--danger-soft); border-radius: var(--r-12); padding: 8px 12px; font-size: var(--fs-13); margin-bottom: 8px; }
+.confirmbar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; border: 1px solid color-mix(in srgb, var(--danger) 45%, transparent); background: var(--danger-soft); border-radius: var(--r-12); padding: 9px 12px; font-size: var(--fs-13); margin-bottom: 8px; }
 .confirmbar p { margin: 0; flex: 1; min-width: 200px; }
 .confirmbar.errbar { margin: 12px 0 0; color: var(--danger-text); }
 .composer { border: 1px solid var(--border2); border-radius: var(--r-16); background: var(--surface); padding: 12px 10px 8px 14px; box-shadow: 0 1px 2px rgba(20, 20, 20, .04), 0 6px 20px rgba(20, 20, 20, .05); transition: border-color var(--dur-hover), box-shadow var(--dur-hover); }
@@ -57,7 +57,7 @@
 
 /* menus */
 .menu { position: fixed; z-index: var(--z-menu); min-width: 220px; max-width: calc(100vw - 16px); background: var(--surface); border-radius: var(--r-12); box-shadow: var(--menu-shadow); padding: 6px; font-size: var(--fs-13); overflow: auto; }
-.menu .mi { display: flex; align-items: center; gap: 8px; width: 100%; padding: 8px 8px; border-radius: var(--r-8); text-align: left; }
+.menu .mi { display: flex; align-items: center; gap: 8px; width: 100%; padding: 7px 8px; border-radius: var(--r-8); text-align: left; }
 .menu .mi.top { align-items: flex-start; }
 .menu button.mi:hover:not(:disabled) { background: var(--hover); }
 .menu .mi:disabled { opacity: .5; }
@@ -68,7 +68,7 @@
 .menu .mi svg.lucide { color: var(--text2); }
 .menu .mi .ck svg.lucide { color: var(--accent-text); }
 .menu .mlbl { font-size: var(--fs-11); font-weight: 600; color: var(--muted); padding: 8px 8px 4px; }
-.menu hr { border: 0; border-top: 1px solid var(--border); margin: 4px 4px; }
+.menu hr { border: 0; border-top: 1px solid var(--border); margin: 5px 4px; }
 .menu .seg { margin: 2px 8px 6px; }
 .inboxmenu .mi + .mi { border-top: 1px solid var(--border); border-radius: 0; }
 

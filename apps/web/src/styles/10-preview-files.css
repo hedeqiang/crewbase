@@ -27,7 +27,7 @@
 .prverr { color: var(--text2); }
 .prverr p { margin: 0; max-width: 320px; line-height: 1.6; font-size: var(--fs-13); }
 .prverr svg { color: var(--amber); }
-.prvline { display: inline-flex; align-items: center; gap: 6px; margin: 4px 0; padding: 4px 8px 4px 8px; border-radius: var(--r-6); font-size: var(--fs-13); color: var(--accent-text); background: var(--accent-soft); max-width: 100%; }
+.prvline { display: inline-flex; align-items: center; gap: 6px; margin: 4px 0; padding: 3px 8px 3px 8px; border-radius: var(--r-6); font-size: var(--fs-13); color: var(--accent-text); background: var(--accent-soft); max-width: 100%; }
 .prvline span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .prvline:hover { filter: brightness(.97); }
 .prvcards { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0 2px; }
@@ -78,7 +78,7 @@
 .mkirow .mknosb { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 /* example requests under a greeting / a new chat's opening */
 .starters { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; margin-top: 10px; }
-.starter { text-align: left; font-size: var(--fs-13); line-height: 1.4; padding: 8px 12px; border: 1px solid var(--border2); border-radius: var(--r-12); background: var(--surface); color: var(--text); max-width: 100%; }
+.starter { text-align: left; font-size: var(--fs-13); line-height: 1.4; padding: 7px 12px; border: 1px solid var(--border2); border-radius: var(--r-12); background: var(--surface); color: var(--text); max-width: 100%; }
 .starter:hover:not(:disabled) { background: var(--hover); border-color: var(--accent); }
 /* Settings › 保管库 */
 .vltempty { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 40px 0; color: var(--muted); }
@@ -285,7 +285,7 @@
 .fxdiff tr.rm td { background: var(--dfd-bg); }
 .fxdiff tr.rm .ln { background: var(--dfd-ln); color: var(--text2); opacity: 1; }
 .fxdiff tr.rm .mk { color: var(--dfd-mark); }
-.fxdiff tr.hh td { background: var(--dfh-bg); color: var(--dfh-text); padding: 4px 10px; font-size: var(--fs-12); }
+.fxdiff tr.hh td { background: var(--dfh-bg); color: var(--dfh-text); padding: 3px 10px; font-size: var(--fs-12); }
 .fxdiff.split table { table-layout: fixed; }
 .fxdiff.split col.cn { width: 46px; }
 .fxdiff.split td.ad { background: var(--dfa-bg); }

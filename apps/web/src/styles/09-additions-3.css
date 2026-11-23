@@ -49,7 +49,7 @@ button.psec.toggle { width: 100%; background: none; border: 0; font-family: inhe
 .imcheck .btn { display: inline-flex; align-items: center; gap: 6px; }
 .imcheck .errt { display: inline-flex; align-items: center; gap: 4px; overflow-wrap: anywhere; }
 .imkeynote { margin: 10px 0 0; }
-.imhint { margin-top: 4px; line-height: 1.45; }
+.imhint { margin-top: 5px; line-height: 1.45; }
 .imtwo { display: grid; align-items: start; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 0 12px; }
 .imtwo .ssel, .imtwo .ssel select { width: 100%; }
 .imkw { margin-top: 8px; }
@@ -93,7 +93,7 @@ button.psec.toggle { width: 100%; background: none; border: 0; font-family: inhe
 .mksh .sp { flex: 1; }
 .mkgrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 20px; row-gap: 2px; margin: 0 -8px; }
 @container (max-width: 600px) { .mkgrid { grid-template-columns: minmax(0, 1fr); } }
-.mkrow { display: flex; align-items: center; gap: 12px; padding: 8px 8px; border-radius: var(--r-12); min-width: 0; }
+.mkrow { display: flex; align-items: center; gap: 12px; padding: 9px 8px; border-radius: var(--r-12); min-width: 0; }
 .mkgrid .mkrow:hover { background: var(--hover); }
 .mkrow > .g { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
 .mkrow > .g > b { font-size: var(--fs-14); font-weight: 600; display: flex; align-items: center; gap: 8px; min-width: 0; white-space: nowrap; overflow: hidden; }
@@ -108,7 +108,7 @@ button.psec.toggle { width: 100%; background: none; border: 0; font-family: inhe
 .mkadd { width: 30px; height: 30px; border-radius: 50%; flex: none; display: grid; place-items: center; border: 1px solid var(--border2); color: var(--text2); background: var(--surface); }
 .mkadd:hover:not(:disabled) { background: var(--hover); color: var(--text); }
 .mkadd.done { border-color: transparent; background: var(--ok-soft); color: var(--ok-text); }
-.mkmore { margin-top: 6px; font-size: var(--fs-13); font-weight: 500; color: var(--accent-text); padding: 4px 0; }
+.mkmore { margin-top: 6px; font-size: var(--fs-13); font-weight: 500; color: var(--accent-text); padding: 3px 0; }
 .mkmore:hover { text-decoration: underline; }
 .mklist { border: 1px solid var(--border); border-radius: var(--r-14); background: var(--surface); }
 .mkirow + .mkirow { border-top: 1px solid var(--border); }
@@ -124,7 +124,7 @@ button.psec.toggle { width: 100%; background: none; border: 0; font-family: inhe
 .mkep { display: flex; gap: 8px; align-items: baseline; margin-top: 6px; min-width: 0; }
 .mkep span { flex: none; }
 .mkep code { min-width: 0; color: var(--text2); }
-.mknote { font-size: var(--fs-13); color: var(--text2); background: var(--sunken); border-radius: var(--r-8); padding: 8px 12px; margin: 12px 0 0; line-height: 1.6; }
+.mknote { font-size: var(--fs-13); color: var(--text2); background: var(--sunken); border-radius: var(--r-8); padding: 9px 12px; margin: 12px 0 0; line-height: 1.6; }
 .mksign { margin-top: 14px; }
 .mksign .spin { vertical-align: -1px; margin-right: 4px; }
 .mkic.brand.tile { padding: 0; overflow: hidden; box-shadow: none; background: none; outline: 1px solid var(--border); outline-offset: -1px; }
@@ -152,7 +152,7 @@ button.psec.toggle { width: 100%; background: none; border: 0; font-family: inhe
 /* 即时通讯 › 飞书 / Lark: groups the bot is in */
 .imgroups { display: flex; flex-direction: column; gap: 6px; }
 .imglist { display: flex; flex-direction: column; gap: 4px; max-height: 220px; overflow: auto; border: 1px solid var(--border); border-radius: var(--r-12); padding: 4px; }
-.imgrow { display: flex; align-items: center; gap: 10px; text-align: left; padding: 8px 10px; border-radius: var(--r-8); background: none; border: 0; color: inherit; font: inherit; cursor: pointer; }
+.imgrow { display: flex; align-items: center; gap: 10px; text-align: left; padding: 7px 10px; border-radius: var(--r-8); background: none; border: 0; color: inherit; font: inherit; cursor: pointer; }
 .imgrow:hover { background: var(--hover); }
 .imgrow.on { background: var(--accent-soft); }
 .imgrow .g { display: flex; flex-direction: column; gap: 1px; flex: 1; min-width: 0; }
@@ -179,7 +179,7 @@ button.psec.toggle { width: 100%; background: none; border: 0; font-family: inhe
 
 /* sub-agent runs (task panel) */
 .subruns { display: flex; flex-direction: column; gap: 2px; margin-bottom: 4px; }
-.subrun { display: flex; align-items: center; gap: 8px; width: 100%; text-align: left; padding: 8px 8px; border-radius: var(--r-8); }
+.subrun { display: flex; align-items: center; gap: 8px; width: 100%; text-align: left; padding: 7px 8px; border-radius: var(--r-8); }
 .subrun:hover { background: var(--hover); }
 .subrun .g { display: flex; flex-direction: column; gap: 1px; min-width: 0; flex: 1; }
 .srtask { font-size: var(--fs-13); overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
@@ -195,7 +195,7 @@ button.psec.toggle { width: 100%; background: none; border: 0; font-family: inhe
 .subfeed .bgcard, .subfeed .qcard { margin-left: 0; }
 .steplink { margin-left: auto; flex: none; font-size: var(--fs-12); color: var(--accent-text); padding: 0 4px; border-radius: var(--r-4); }
 .steplink:hover { text-decoration: underline; }
-.bgsub { display: block; font-size: var(--fs-12); padding: 0 12px 8px 42px; }
+.bgsub { display: block; font-size: var(--fs-12); padding: 0 12px 9px 42px; }
 
 /* template areas */
 .tplgrp { display: flex; flex-direction: column; gap: 2px; }
@@ -288,7 +288,7 @@ button.psec.toggle { width: 100%; background: none; border: 0; font-family: inhe
 /* ===== in-place update (components/Update.tsx) =====
    A quiet card above the profile: a ring that fills with the download, then
    "重启以完成更新". No colour but the accent's, and only while it matters. */
-.updpill { display: flex; align-items: center; gap: 8px; margin: 0 8px 8px; padding: 8px 8px 8px 8px; border-radius: var(--r-8); background: var(--surface); border: 1px solid var(--border); box-shadow: 0 1px 2px rgba(20, 20, 20, .04); font-size: var(--fs-12); animation: updin .28s cubic-bezier(.2, .8, .2, 1); }
+.updpill { display: flex; align-items: center; gap: 8px; margin: 0 8px 8px; padding: 7px 8px 7px 8px; border-radius: var(--r-8); background: var(--surface); border: 1px solid var(--border); box-shadow: 0 1px 2px rgba(20, 20, 20, .04); font-size: var(--fs-12); animation: updin .28s cubic-bezier(.2, .8, .2, 1); }
 .updpill .g { flex: 1; min-width: 0; display: flex; flex-direction: column; line-height: 1.35; align-items: flex-start; }
 .updpill .g > b, .updpill .g > .updmain { font-size: var(--fs-13); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
 .updpill .g > span { font-size: var(--fs-12); color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
@@ -339,7 +339,7 @@ button.psec.toggle { width: 100%; background: none; border: 0; font-family: inhe
 .cxbig.sm b { font-size: var(--fs-20); }
 .cxsub { margin-top: 4px; font-size: var(--fs-12); color: var(--text2); font-variant-numeric: tabular-nums; }
 .cxcache { flex: 0 1 230px; padding: 0 14px; border-left: 1px solid var(--border); }
-.cxcbar { height: 5px; border-radius: var(--r-4); background: var(--active); margin-top: 8px; overflow: hidden; }
+.cxcbar { height: 5px; border-radius: var(--r-4); background: var(--active); margin-top: 7px; overflow: hidden; }
 .cxcbar i { display: block; height: 100%; border-radius: var(--r-4); background: var(--ok); }
 .cxmodel { flex: 0 1 auto; display: flex; flex-direction: column; align-items: flex-end; justify-content: space-between; gap: 8px; padding-left: 14px; border-left: 1px solid var(--border); }
 .cxmname { display: inline-flex; align-items: center; gap: 8px; font-size: var(--fs-13); font-weight: 500; max-width: 260px; }
@@ -360,7 +360,7 @@ button.psec.toggle { width: 100%; background: none; border: 0; font-family: inhe
 .cxhint { margin: 6px 2px 0; }
 .cxnote { margin: 0; }
 .cxmap { position: relative; flex: 1; min-height: 320px; border-radius: var(--r-12); overflow: hidden; }
-.cxblk { position: absolute; margin: 1px; border-radius: var(--r-6); padding: 4px 8px; display: flex; flex-direction: column; align-items: flex-start; justify-content: flex-start; gap: 1px; overflow: hidden; text-align: left; color: var(--text);
+.cxblk { position: absolute; margin: 1px; border-radius: var(--r-6); padding: 5px 8px; display: flex; flex-direction: column; align-items: flex-start; justify-content: flex-start; gap: 1px; overflow: hidden; text-align: left; color: var(--text);
   background: color-mix(in srgb, var(--c) 24%, var(--surface)); box-shadow: inset 0 2px 0 var(--c); transition: background var(--dur-fast), opacity var(--dur-fast); }
 button.cxblk:hover { background: color-mix(in srgb, var(--c) 38%, var(--surface)); }
 button.cxblk:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
@@ -370,7 +370,7 @@ button.cxblk:focus-visible { outline: 2px solid var(--accent); outline-offset: -
 .cxblk.free { background: repeating-linear-gradient(135deg, var(--active) 0 1.5px, transparent 1.5px 8px); box-shadow: inset 0 0 0 1px var(--border2); color: var(--text2); }
 .cxblk .n { font-size: var(--fs-12); font-weight: 500; line-height: 1.3; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cxblk .v { font-size: var(--fs-11); color: var(--text2); line-height: 1.3; white-space: nowrap; font-variant-numeric: tabular-nums; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
-.cxtip { position: absolute; z-index: var(--z-sticky); transform: translate(12px, 14px); pointer-events: none; background: var(--surface); box-shadow: var(--menu-shadow); border-radius: var(--r-8); padding: 8px 10px; font-size: var(--fs-12); display: flex; flex-direction: column; gap: 1px; max-width: 280px; }
+.cxtip { position: absolute; z-index: var(--z-sticky); transform: translate(12px, 14px); pointer-events: none; background: var(--surface); box-shadow: var(--menu-shadow); border-radius: var(--r-8); padding: 7px 10px; font-size: var(--fs-12); display: flex; flex-direction: column; gap: 1px; max-width: 280px; }
 .cxtip.l { transform: translate(calc(-100% - 12px), 14px); }
 .cxtip b { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cxtip span { color: var(--text2); font-variant-numeric: tabular-nums; white-space: nowrap; }
@@ -387,7 +387,7 @@ button.cxblk:focus-visible { outline: 2px solid var(--accent); outline-offset: -
 .cxrow .bar i { display: block; height: 100%; border-radius: var(--r-4); }
 .cxrow b { width: 52px; text-align: right; font-weight: 500; font-variant-numeric: tabular-nums; flex: none; }
 .cxrow .p { width: 38px; text-align: right; color: var(--muted); font-size: var(--fs-12); font-variant-numeric: tabular-nums; flex: none; }
-.cxrow.sm { padding: 4px 6px; }
+.cxrow.sm { padding: 5px 6px; }
 .cxdetail { min-width: 0; min-height: 0; display: flex; flex-direction: column; border: 1px solid var(--border); border-radius: var(--r-12); background: var(--raised); overflow: hidden; }
 .cxdh { display: flex; align-items: center; gap: 8px; padding: 10px 10px 4px 12px; }
 .cxdh .g { flex: 1; min-width: 0; display: flex; flex-direction: column; line-height: 1.3; }
