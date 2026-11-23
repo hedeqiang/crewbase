@@ -88,8 +88,10 @@ a { color: var(--accent-text); }
    The window has no separate title bar: the sidebar runs full height and its
    top strip plus the conversation header form the draggable title-bar band.
    In the MyGo desktop shell the --mygo-titlebar-* variables are set (traffic
-   lights inset); in a browser they are absent and fall back to 0. */
-:root { --modal-top: var(--mygo-titlebar-height, 0px); --tbh: var(--mygo-titlebar-height, 44px); --inset-l: var(--mygo-titlebar-inset-left, 0px); --inset-r: var(--mygo-titlebar-inset-right, 0px); --row-active: var(--surface); }
+   lights inset); in a browser they are absent and fall back to 0. In full
+   screen the shell reports a 0px title bar (no traffic lights): the bars keep
+   their 44px height and only the insets go. */
+:root { --modal-top: var(--mygo-titlebar-height, 0px); --tbh: max(44px, var(--mygo-titlebar-height, 44px)); --inset-l: var(--mygo-titlebar-inset-left, 0px); --inset-r: var(--mygo-titlebar-inset-right, 0px); --row-active: var(--surface); }
 .drag, .chead, .lbar, .ptabs, .snav, .vh { --app-region: drag; -webkit-app-region: drag; }
 .nodrag, .chead button, .chead a, .lbar button, .ptabs button, .snav button, .snav input, .snav label, .vh button, .vh input, .vh select, .vh label, .vh a { --app-region: no-drag; -webkit-app-region: no-drag; }
 .app { height: 100%; display: flex; flex-direction: column; background: var(--surface); position: relative; }
