@@ -29,6 +29,8 @@ export interface Input {
   from?: string;
   model?: ModelRef;
   front?: boolean;
+  /** 排队: waits for the running turn to end (else it joins it at the next step) */
+  queue?: boolean;
   queued: string;
 }
 
@@ -1858,6 +1860,7 @@ export const API = {
   resend: (id: string, b: { session: string; seq: number; text?: string; model?: string }) =>
     api<{ rewind: number; from: number; reason: string; inputs: Input[] }>("POST", `/api/agents/${enc(id)}/resend`, b),
   action: (id: string, a: "stop" | "pause" | "resume") => api<AgentView>("POST", `/api/agents/${enc(id)}/${a}`),
+  moveInput: (id: string, input: string, by: number) => api<AgentView>("POST", `/api/agents/${enc(id)}/queue/${enc(input)}/move`, { by }),
   cancelInput: (id: string, input: string) => api<AgentView>("DELETE", `/api/agents/${enc(id)}/queue/${enc(input)}`),
   sessions: () => api<{ sessions: SessionMeta[] }>("GET", "/api/sessions"),
   events: (id: string, since: number) =>

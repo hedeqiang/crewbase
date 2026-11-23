@@ -680,6 +680,24 @@ var Plugin = kernel.Register(kernel.Spec{
 				}
 				return view(a), nil
 			}})
+		// move a queued message sooner or later ({by: -1 | 1 | …})
+		g.Handle(c, gateway.Route{Method: "POST", Path: "/api/agents/{id}/queue/{input}/move", Devices: mobile,
+			Handle: func(_ context.Context, r *gateway.Request) (any, error) {
+				a, err := getAgent(r)
+				if err != nil {
+					return nil, err
+				}
+				var b struct {
+					By int `json:"by"`
+				}
+				if err := r.Decode(&b); err != nil {
+					return nil, gateway.BadRequest("%v", err)
+				}
+				if !a.Move(r.Params["input"], b.By) {
+					return nil, gateway.NotFound()
+				}
+				return view(a), nil
+			}})
 		// connectors agents can be given (MCP servers, built-in connectors)
 		g.Handle(c, gateway.Route{Method: "GET", Path: "/api/connectors",
 			Handle: func(context.Context, *gateway.Request) (any, error) {

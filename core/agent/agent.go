@@ -636,6 +636,33 @@ func (a *Agent) Steer(id string) bool {
 	return true
 }
 
+// Move moves queued input id by places in the queue (negative = sooner),
+// within its ends; false when it is not queued.
+func (a *Agent) Move(id string, by int) bool {
+	a.mu.Lock()
+	idx := -1
+	for i, in := range a.queue {
+		if in.ID == id {
+			idx = i
+		}
+	}
+	if idx < 0 {
+		a.mu.Unlock()
+		return false
+	}
+	to := min(max(idx+by, 0), len(a.queue)-1)
+	if to != idx {
+		in := a.queue[idx]
+		a.queue = append(a.queue[:idx], a.queue[idx+1:]...)
+		a.queue = append(a.queue[:to], append([]Input{in}, a.queue[to:]...)...)
+	}
+	a.mu.Unlock()
+	if to != idx {
+		QueueChanged.Emit(a.ctx, a.id)
+	}
+	return true
+}
+
 // Wake returns a channel signalled when inputs arrive or the queue resumes.
 func (a *Agent) Wake() <-chan struct{} { return a.wake }
 

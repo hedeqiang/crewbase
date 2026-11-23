@@ -57,6 +57,8 @@ import {
   Sparkles,
   Paperclip,
   ChevronUp,
+  CornerDownRight,
+  X,
 } from "lucide-react";
 import { display, enterSends, MAC } from "../shortcuts";
 import { API, desktop, parseRef, refString, useRawURL, type AgentView, type ApprovalRequest, type ChannelView, type ModelRef, type SlashPick } from "../api";
@@ -2114,8 +2116,10 @@ function Composer({
     addFiles(sessionId, agent.id, files);
   };
 
-  /** queue: wait for the running turn to end (排队) instead of joining it (插话) */
-  const send = async (queue = false) => {
+  /** While the agent works a message waits for the turn to end (排队);
+   *  steer: it joins the running turn at its next step instead (插话). */
+  const send = async (steer = false) => {
+    const queue = !steer;
     const text = draft.trim();
     const ready = pending.filter((f) => f.state === "ok" && f.att);
     if ((!text && !ready.length && !picks.length) || sending || archived) return;
@@ -2165,7 +2169,8 @@ function Composer({
       setReply(sessionId, null);
       clearFiles(sessionId);
       setPicks([]);
-      if (wasBusy) toast(queue && busy ? t("chat.queued", { n: agent.queue.length + 1 }) : busy ? t("steer.sent", { name: agent.name }) : t("chat.queued", { n: agent.queue.length + 1 }));
+      // a queued message shows above the composer; say only what is not seen there
+      if (wasBusy && busy && !queue) toast(t("steer.sent", { name: agent.name }));
     } catch (e: any) {
       toast(t("chat.sendFailed", { error: e?.message ?? String(e) }));
     } finally {
@@ -2281,6 +2286,7 @@ function Composer({
           </button>
         </div>
       )}
+      {!channel && <QueueStack agent={agent} session={sessionId} busy={busy} />}
       <form
         className={"composer" + (dragging ? " drop" : "")}
         onSubmit={(e) => {
@@ -2462,7 +2468,7 @@ function Composer({
             }
             // ⌘Enter sends; with 「Enter 发送」 on, plain Enter sends and
             // Shift+Enter starts a new line
-            // while the agent works, ⌥Enter queues the message for after this turn
+            // while the agent works a message queues; ⌥Enter joins the running turn (插话)
             if (e.key === "Enter" && !e.nativeEvent.isComposing && busy && e.altKey && !e.shiftKey) {
               e.preventDefault();
               void send(true);
@@ -2562,18 +2568,16 @@ function Composer({
           ) : (
             <>
               {busy && canSend ? (
-                // while it works: two labelled choices, each with its key
-                <span className="steerpair">
-                  <button className="cbtn qbtn" type="button" disabled={sending} onClick={() => void send(true)} title={t("steer.queueTitle", { key: display("alt+enter").join("") })}>
-                    <ListPlus size={14} />
-                    <span className="lbl">{t("steer.queue")}</span>
-                    <kbd>{display("alt+enter").join("")}</kbd>
-                  </button>
-                  <button className="send on steerbtn" type="submit" disabled={sending} aria-label={t("steer.send")} title={t("steer.sendTitle", { key: sendKey })}>
-                    <span>{t("steer.now")}</span>
-                    <kbd>{sendKey}</kbd>
-                  </button>
-                </span>
+                // while it works the message queues; ⌥Enter (or 插话 on a queued one) joins the turn
+                <button
+                  className="send on"
+                  type="submit"
+                  disabled={sending}
+                  aria-label={t("steer.queueTitle", { key: sendKey })}
+                  title={t("steer.queueTitle", { key: sendKey }) + "\n" + t("steer.sendTitle", { key: display("alt+enter").join("") })}
+                >
+                  <ArrowUp size={16} />
+                </button>
               ) : (
                 <button
                   className={"send" + (canSend ? " on" : "")}
@@ -2936,6 +2940,58 @@ function ChatOpening({ agent }: { agent: AgentView }) {
           <p>{t("chat.opening")}</p>
         </div>
       </div>
+    </div>
+  );
+}
+
+/** The messages waiting for the running turn (排队), above the composer:
+ *  sooner / later, 插话 (join the turn now) and cancel. */
+function QueueStack({ agent, session, busy }: { agent: AgentView; session: string; busy: boolean }) {
+  const items = agent.queue.filter((q) => q.session === session && !q.from);
+  if (!items.length) return null;
+  const act = (p: Promise<unknown>) => void p.catch((e) => toast(e?.message ?? String(e)));
+  const all = agent.queue;
+  return (
+    <div className="qstack" aria-label={t("chat.queue", { n: items.length })}>
+      <div className="qshd small">
+        <ListPlus size={13} />
+        {t("qs.head", { n: items.length })}
+      </div>
+      {items.map((q) => {
+        const at = all.findIndex((x) => x.id === q.id);
+        const joining = !q.queue && busy;
+        return (
+          <div className="qsrow" key={q.id}>
+            <span className="qstx">{q.text || t("qs.attach")}</span>
+            {joining ? (
+              <span className="small muted qsj">{t("qs.joining")}</span>
+            ) : (
+              <>
+                <button className="ix" type="button" disabled={at <= 0} aria-label={t("qs.up")} title={t("qs.up")} onClick={() => act(API.moveInput(agent.id, q.id, -1))}>
+                  <ChevronUp size={14} />
+                </button>
+                <button className="ix" type="button" disabled={at >= all.length - 1} aria-label={t("qs.down")} title={t("qs.down")} onClick={() => act(API.moveInput(agent.id, q.id, 1))}>
+                  <ChevronDown size={14} />
+                </button>
+                {busy && (
+                  <button
+                    className="btn sm qssteer"
+                    type="button"
+                    title={t("steer.nowTitle")}
+                    onClick={() => act(API.steer(agent.id, q.id).then(() => toast(t("steer.sent", { name: agent.name }))))}
+                  >
+                    <CornerDownRight size={13} />
+                    {t("steer.now")}
+                  </button>
+                )}
+              </>
+            )}
+            <button className="ix" type="button" aria-label={t("panel.queueCancel")} title={t("panel.queueCancel")} onClick={() => act(API.cancelInput(agent.id, q.id))}>
+              <X size={14} />
+            </button>
+          </div>
+        );
+      })}
     </div>
   );
 }
