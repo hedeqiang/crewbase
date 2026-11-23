@@ -327,11 +327,24 @@ var Plugin = kernel.Register(kernel.Spec{
 					return err
 				}
 				if refs, ok := b["modelRefs"].([]any); ok {
+					// only a model the change adds is checked: one the agent
+					// already has stays where it is in the order even when
+					// its provider no longer lists it (the pick moves to the
+					// front and the rest are sent back as they were)
+					had := map[string]bool{}
+					if a, err := getAgent(r); err == nil {
+						for _, m := range a.Spec().Models {
+							had[m.String()] = true
+						}
+					}
 					for _, x := range refs {
 						s, _ := x.(string)
 						ref, err := llm.ParseRef(s)
 						if err != nil {
 							return gateway.BadRequest("%v", err)
+						}
+						if had[ref.String()] {
+							continue
 						}
 						if err := knownModel(llms, ref); err != nil {
 							return err
