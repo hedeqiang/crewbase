@@ -722,12 +722,13 @@ function PasteHero({ onPaste }: { onPaste: (text: string) => void }) {
 }
 
 function RowAction({ r }: { r: Row }) {
-  if (r.manage && r.state === "connected")
+  // set up (connected, or installed like Open Artifact): 管理 opens it again
+  if (r.manage && (r.state === "connected" || r.state === "added"))
     return (
       <span className="mkmanage">
         <span className="mkst ok">
           <Check size={13} />
-          {t("mk2.connected")}
+          {r.state === "connected" ? t("mk2.connected") : t("mk2.added")}
         </span>
         <button className="btn sm" type="button" onClick={r.onAct}>
           {t("mk2.manage")}
