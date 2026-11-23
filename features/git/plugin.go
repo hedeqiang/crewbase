@@ -13,6 +13,7 @@ import (
 	"github.com/hedeqiang/crewbase/core/agent"
 	"github.com/hedeqiang/crewbase/core/tools"
 	"github.com/hedeqiang/crewbase/features/audit"
+	"github.com/hedeqiang/crewbase/internal/netguard"
 	"github.com/hedeqiang/crewbase/kernel"
 )
 
@@ -53,10 +54,13 @@ var Plugin = kernel.Register(kernel.Spec{
 			return err
 		}
 		s.registerTools(c, kernel.Use[*tools.Registry](c, tools.ServiceKey))
+		s.registerPRTools(c, kernel.Use[*tools.Registry](c, tools.ServiceKey))
 		vcs.AllocateWorkspace.Listen(c, s.allocate)
 		// an agent works in the worktrees it holds as in its own folder
 		s.agents.SetExtraRoots(s.heldBy)
 		fs.WriteIntent.Use(c, s.writeIntent)
+		tools.PreExecute.Use(c, s.preExecute(c))
+		vcs.Forge.Listen(c, s.forgeEvent)
 		vcs.PreMerge.Use(c, s.preMerge)
 		// a worktree whose folder vanished (deleted by hand) is forgotten
 		c.Go(func(ctx context.Context) {
@@ -75,17 +79,21 @@ var Plugin = kernel.Register(kernel.Spec{
 	},
 })
 
-// heldBy are the folders of the active worktrees agent holds.
-func (s *Service) heldBy(agent string) []string {
+// heldBy are the folders of the active worktrees agent holds: rw, and ro
+// for untrusted ones (a fork's pull request).
+func (s *Service) heldBy(agent string) (rw, ro []string) {
 	s.st.mu.Lock()
 	defer s.st.mu.Unlock()
-	var out []string
 	for _, w := range s.st.st.Worktrees {
 		if w.State == WTActive && w.Holder == agent {
-			out = append(out, w.Path)
+			if w.Untrusted {
+				ro = append(ro, w.Path)
+			} else {
+				rw = append(rw, w.Path)
+			}
 		}
 	}
-	return out
+	return rw, ro
 }
 
 // sweep forgets worktrees whose folder is gone.
@@ -137,6 +145,19 @@ func (s *Service) SetSettings(x Settings) (Settings, error) {
 		rs = []Remote{}
 	}
 	x.Remotes = rs
+	for _, r := range x.Remotes {
+		if r.API != "" && !strings.HasPrefix(r.API, "https://") && !strings.HasPrefix(r.API, "http://") {
+			return Settings{}, fmt.Errorf("%s: the API address must be http(s)://…", r.Host)
+		}
+	}
+	if _, err := netguard.ParsePrefixes(x.AllowPrivate); err != nil {
+		return Settings{}, err
+	}
+	if x.PRReviewer != "" {
+		if a, ok := s.agents.Get(x.PRReviewer); !ok || a.Spec().Ephemeral {
+			return Settings{}, fmt.Errorf("unknown reviewer agent %q", x.PRReviewer)
+		}
+	}
 	s.st.mu.Lock()
 	s.st.st.Settings = &x
 	err := s.st.save()

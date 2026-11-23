@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/hedeqiang/crewbase/capabilities/approval"
+	"github.com/hedeqiang/crewbase/capabilities/credentials"
 	"github.com/hedeqiang/crewbase/capabilities/fs"
 	"github.com/hedeqiang/crewbase/capabilities/vcs"
 	"github.com/hedeqiang/crewbase/core/agent"
@@ -84,6 +85,7 @@ func setup(t *testing.T) *rig {
 		{agent.Plugin, map[string]any{"root": root, "defaultModels": []string{"mock/default"}}},
 		{agentloop.Plugin, nil},
 		{local.Plugin, nil},
+		{credentials.Plugin, map[string]any{"root": root}},
 		{gitcli.Plugin, nil},
 		{Plugin, map[string]any{"root": root}},
 	} {
@@ -434,7 +436,7 @@ func TestAgainAfterRefreshAsksReviewers(t *testing.T) {
 	}
 	// the holder works in its worktree like in its folder
 	lead, _ := r.agents.Get("lead")
-	if roots := lead.ExtraRoots(); len(roots) != 1 || roots[0] != w.Path {
+	if roots, ro := lead.ExtraRoots(); len(roots) != 1 || roots[0] != w.Path || len(ro) != 0 {
 		t.Fatal(roots)
 	}
 }

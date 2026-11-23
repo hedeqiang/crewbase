@@ -27,6 +27,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
+	"net/netip"
 	"os"
 	"path"
 	"path/filepath"
@@ -82,6 +84,8 @@ type Service struct {
 	probe sync.Map // dir → probed
 	// enqueue hands an agent a message (reviews, fix rounds); tests swap it.
 	enqueue func(a *agent.Agent, in agent.Input) error
+	// httpFor makes the GitHub client's HTTP client (tests swap it)
+	httpFor func(allow []netip.Prefix) *http.Client
 }
 
 type probed struct {

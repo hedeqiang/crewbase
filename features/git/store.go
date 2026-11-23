@@ -32,15 +32,21 @@ type Worktree struct {
 	Holder   string `json:"holder"`          // the agent working in it
 	Child    string `json:"child,omitempty"` // the sub-agent working in it
 	// Children: every sub-agent that worked in it (who they worked for is Parent)
-	Children []string  `json:"children,omitempty"`
-	Parent   string    `json:"parent"`  // the agent whose folder it came from
-	Session  string    `json:"session"` // the conversation that made it
-	Task     string    `json:"task"`    // what it is for
-	Origin   string    `json:"origin"`  // subagent | tool | person
-	State    string    `json:"state"`   // WTActive …
-	Archive  *Archive  `json:"archive,omitempty"`
-	Created  time.Time `json:"created"`
-	Updated  time.Time `json:"updated"`
+	Children []string `json:"children,omitempty"`
+	Parent   string   `json:"parent"`  // the agent whose folder it came from
+	Session  string   `json:"session"` // the conversation that made it
+	Task     string   `json:"task"`    // what it is for
+	Origin   string   `json:"origin"`  // subagent | tool | person
+	State    string   `json:"state"`   // WTActive …
+	Archive  *Archive `json:"archive,omitempty"`
+	// Untrusted: a pull request from someone else's fork. Agents may read
+	// it but not change it, and no command runs in it (outside Docker).
+	Untrusted bool `json:"untrusted,omitempty"`
+	// PR is the GitHub pull request it was checked out from (0 = none).
+	PR      int       `json:"pr,omitempty"`
+	PRRepo  string    `json:"prRepo,omitempty"` // owner/repo
+	Created time.Time `json:"created"`
+	Updated time.Time `json:"updated"`
 }
 
 // Archive is what was kept of a worktree removed with changes.
@@ -108,8 +114,10 @@ type Review struct {
 	Verdicts  []Verdict  `json:"verdicts"`
 	Session   string     `json:"session,omitempty"` // where it was opened
 	Merge     *MergeInfo `json:"merge,omitempty"`
-	Created   time.Time  `json:"created"`
-	Updated   time.Time  `json:"updated"`
+	// PR ties the review to a GitHub pull request.
+	PR      *PRLink   `json:"pr,omitempty"`
+	Created time.Time `json:"created"`
+	Updated time.Time `json:"updated"`
 }
 
 // Comment is anchored to a line of a file at a commit.
@@ -144,6 +152,27 @@ type Verdict struct {
 	At       time.Time `json:"at"`
 }
 
+// PRLink is the GitHub pull request a review is tied to.
+type PRLink struct {
+	Number    int    `json:"number"`
+	URL       string `json:"url"`
+	Host      string `json:"host"`
+	Repo      string `json:"repo"`  // owner/repo
+	State     string `json:"state"` // open | closed | merged
+	Draft     bool   `json:"draft,omitempty"`
+	HeadSHA   string `json:"headSha,omitempty"`
+	Base      string `json:"base,omitempty"`
+	Mergeable *bool  `json:"mergeable,omitempty"`
+	Checks    string `json:"checks,omitempty"` // success | failure | pending | ""
+	// Posted: local comments already published to GitHub.
+	Posted []string `json:"posted,omitempty"`
+	// CIRounds: fix rounds started by failed checks; FailedSHA the last
+	// commit a round was started for.
+	CIRounds  int       `json:"ciRounds,omitempty"`
+	FailedSHA string    `json:"failedSha,omitempty"`
+	Updated   time.Time `json:"updated"`
+}
+
 // MergeInfo is how a review was merged.
 type MergeInfo struct {
 	Commit   string    `json:"commit"`
@@ -157,6 +186,9 @@ type Remote struct {
 	Host       string `json:"host"`               // github.com
 	Credential string `json:"credential"`         // vault:<id>
 	Username   string `json:"username,omitempty"` // default x-access-token
+	// API overrides the REST root (default https://api.github.com, or
+	// https://<host>/api/v3 for GitHub Enterprise Server).
+	API string `json:"api,omitempty"`
 }
 
 // Settings are the git feature's settings (Settings › Git).
@@ -174,6 +206,12 @@ type Settings struct {
 	// AutoReview: agents named as reviewers are asked to review at once.
 	AutoReview bool     `json:"autoReview"`
 	Remotes    []Remote `json:"remotes"`
+	// AllowPrivate: private address ranges the GitHub API may be reached
+	// at (an internal GitHub Enterprise Server).
+	AllowPrivate []string `json:"allowPrivate,omitempty"`
+	// PRReviewer: an agent asked to review pull requests others open (on
+	// GitHub webhook events; "" = none).
+	PRReviewer string `json:"prReviewer,omitempty"`
 }
 
 // DefaultSettings are the settings before any change.

@@ -553,6 +553,169 @@ var APIPlugin = kernel.Register(kernel.Spec{
 				return nil, gateway.NotFound()
 			}})
 
+		// ---- GitHub pull requests
+		num := func(r *gateway.Request) (int, error) {
+			n, err := strconv.Atoi(r.Params["num"])
+			if err != nil || n <= 0 {
+				return 0, gateway.NotFound()
+			}
+			return n, nil
+		}
+		ghErr := func(err error) error {
+			var he *GHError
+			if errors.As(err, &he) {
+				st := he.Status
+				if st == 401 || st == 403 {
+					return &gateway.Error{Status: 400, Code: "GITHUB_AUTH", Message: he.Error() + " (check the credential for this host in Settings › Git)"}
+				}
+				if st == 404 {
+					return &gateway.Error{Status: 404, Code: "GITHUB_NOT_FOUND", Message: he.Error()}
+				}
+				return &gateway.Error{Status: 502, Code: "GITHUB", Message: he.Error()}
+			}
+			return apiErr(err)
+		}
+		g.Handle(c, gateway.Route{Method: "GET", Path: "/api/git/prs", Devices: mobile,
+			Handle: func(ctx context.Context, r *gateway.Request) (any, error) {
+				a, _, err := repoOf(ctx, r, q(r, "agent"), false)
+				if err != nil {
+					return nil, err
+				}
+				ps, err := s.ListPRs(ctx, a.Workspace(), q(r, "state"))
+				if err != nil {
+					return nil, ghErr(err)
+				}
+				return map[string]any{"prs": ps}, nil
+			}})
+		g.Handle(c, gateway.Route{Method: "GET", Path: "/api/git/prs/{num}", Devices: mobile,
+			Handle: func(ctx context.Context, r *gateway.Request) (any, error) {
+				a, _, err := repoOf(ctx, r, q(r, "agent"), false)
+				if err != nil {
+					return nil, err
+				}
+				n, err := num(r)
+				if err != nil {
+					return nil, err
+				}
+				v, err := s.ViewPR(ctx, a.Workspace(), n)
+				if err != nil {
+					return nil, ghErr(err)
+				}
+				return v, nil
+			}})
+		g.Handle(c, gateway.Route{Method: "POST", Path: "/api/git/prs/{num}/checkout",
+			Handle: func(ctx context.Context, r *gateway.Request) (any, error) {
+				var b struct {
+					Agent  string `json:"agent"`
+					Holder string `json:"holder"`
+				}
+				_ = r.Decode(&b)
+				a, _, err := repoOf(ctx, r, b.Agent, true)
+				if err != nil {
+					return nil, err
+				}
+				n, err := num(r)
+				if err != nil {
+					return nil, err
+				}
+				holder := a.ID()
+				if b.Holder != "" {
+					if _, err := reach(r, b.Holder, true); err != nil {
+						return nil, err
+					}
+					holder = b.Holder
+				}
+				w, err := s.CheckoutPR(ctx, a.Workspace(), n, holder, person(r), "")
+				if err != nil {
+					return nil, ghErr(err)
+				}
+				return s.Describe(ctx, w), nil
+			}})
+		// a review's pull request: open / update it, publish the review, merge it
+		reviewArg := func(ctx context.Context, r *gateway.Request) (Review, error) {
+			var b struct {
+				Agent  string `json:"agent"`
+				Review string `json:"review"`
+			}
+			_ = r.Decode(&b)
+			_, info, err := repoOf(ctx, r, b.Agent, true)
+			if err != nil {
+				return Review{}, err
+			}
+			rv, ok := s.Review(b.Review)
+			if !ok || rv.Repo != info.ID {
+				return Review{}, gateway.NotFound()
+			}
+			return rv, nil
+		}
+		g.Handle(c, gateway.Route{Method: "POST", Path: "/api/git/prs",
+			Handle: func(ctx context.Context, r *gateway.Request) (any, error) {
+				rv, err := reviewArg(ctx, r)
+				if err != nil {
+					return nil, err
+				}
+				var b struct {
+					Title string `json:"title"`
+					Body  string `json:"body"`
+					Draft bool   `json:"draft"`
+				}
+				_ = r.Decode(&b)
+				out, err := s.CreatePR(ctx, CreatePRRequest{Review: rv.ID, Title: b.Title, Body: b.Body, Draft: b.Draft, Actor: person(r)})
+				if err != nil {
+					return nil, ghErr(err)
+				}
+				return out, nil
+			}})
+		g.Handle(c, gateway.Route{Method: "POST", Path: "/api/git/prs/{num}/review",
+			Handle: func(ctx context.Context, r *gateway.Request) (any, error) {
+				rv, err := reviewArg(ctx, r)
+				if err != nil {
+					return nil, err
+				}
+				if n, err := num(r); err != nil || rv.PR == nil || rv.PR.Number != n {
+					return nil, gateway.NotFound()
+				}
+				out, event, err := s.SyncPRReview(ctx, rv.ID, person(r), "")
+				if err != nil {
+					return nil, ghErr(err)
+				}
+				return map[string]any{"review": out, "event": event}, nil
+			}})
+		g.Handle(c, gateway.Route{Method: "POST", Path: "/api/git/prs/{num}/sync",
+			Handle: func(ctx context.Context, r *gateway.Request) (any, error) {
+				rv, err := reviewArg(ctx, r)
+				if err != nil {
+					return nil, err
+				}
+				if n, err := num(r); err != nil || rv.PR == nil || rv.PR.Number != n {
+					return nil, gateway.NotFound()
+				}
+				out, err := s.RefreshPR(ctx, rv.ID)
+				if err != nil {
+					return nil, ghErr(err)
+				}
+				return out, nil
+			}})
+		g.Handle(c, gateway.Route{Method: "POST", Path: "/api/git/prs/{num}/merge",
+			Handle: func(ctx context.Context, r *gateway.Request) (any, error) {
+				rv, err := reviewArg(ctx, r)
+				if err != nil {
+					return nil, err
+				}
+				if n, err := num(r); err != nil || rv.PR == nil || rv.PR.Number != n {
+					return nil, gateway.NotFound()
+				}
+				var b struct {
+					Method string `json:"method"`
+				}
+				_ = r.Decode(&b)
+				out, sha, err := s.MergePR(ctx, MergePRRequest{Review: rv.ID, Method: b.Method, Actor: person(r)})
+				if err != nil {
+					return nil, ghErr(err)
+				}
+				return map[string]any{"review": out, "commit": sha}, nil
+			}})
+
 		g.Handle(c, gateway.Route{Method: "GET", Path: "/api/git/settings",
 			Handle: func(context.Context, *gateway.Request) (any, error) { return s.Settings(), nil }})
 		g.Handle(c, gateway.Route{Method: "PUT", Path: "/api/git/settings",

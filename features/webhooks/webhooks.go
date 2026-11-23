@@ -33,6 +33,7 @@ import (
 	"time"
 
 	"github.com/hedeqiang/crewbase/capabilities/credentials"
+	"github.com/hedeqiang/crewbase/capabilities/vcs"
 	"github.com/hedeqiang/crewbase/core/agent"
 	"github.com/hedeqiang/crewbase/features/channel"
 	"github.com/hedeqiang/crewbase/features/routines"
@@ -451,7 +452,18 @@ func (s *Service) Ingest(ctx context.Context, e Endpoint, h http.Header, body []
 		return *d, http.StatusOK
 	}
 	ev := decode(res.Event, h, body)
+	// a code host's event keeps pull requests and local reviews in step
+	forged := false
+	if s.c != nil && ev.Body != nil {
+		if r, ok := vcs.Forge.Run(s.c, ctx, vcs.ForgeEvent{Team: e.Team, Provider: e.Provider, Event: res.Event, Delivery: res.Delivery, Body: ev.Body}); ok {
+			d.Targets = append(d.Targets, TargetResult{Target: Target{Kind: "git", ID: r.Ref}, OK: true, Detail: r.Detail})
+			forged = true
+		}
+	}
 	s.handle(ctx, e, ev, d, false)
+	if forged && (d.Status == StFiltered || len(e.Targets) == 0) {
+		d.Status, d.Error = StAccepted, ""
+	}
 	s.save(d)
 	if d.Status == StAccepted || d.Status == StPartial {
 		s.record("webhook/received", "webhook:"+e.ID, map[string]any{"endpoint": e.ID, "team": e.Team, "event": d.Event, "delivery": d.Key, "via": via, "status": d.Status, "targets": d.Targets})
