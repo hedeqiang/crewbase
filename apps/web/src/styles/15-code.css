@@ -5,13 +5,13 @@
 .gxrepo b { color: var(--text); font-weight: 600; font-size: var(--fs-14); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .gxbranch { display: inline-flex; align-items: center; gap: 4px; font-family: var(--mono); font-size: var(--fs-12); padding: 0 8px; line-height: 20px; border-radius: var(--r-pill); background: var(--active); color: var(--text2); white-space: nowrap; max-width: 220px; overflow: hidden; text-overflow: ellipsis; }
 .gxbranch.prot { background: var(--amber-soft); color: var(--amber-text); }
-.gxab { font-variant-numeric: tabular-nums; color: var(--muted); }
+.gxab { color: var(--muted); }
 .gxtabs { display: flex; gap: 2px; padding: 0 10px; border-bottom: 1px solid var(--border); }
 .gxtab { position: relative; display: inline-flex; align-items: center; gap: 4px; padding: 7px 8px 8px; font-size: var(--fs-13); font-weight: 500; color: var(--text2); border-radius: var(--r-6) var(--r-6) 0 0; }
 .gxtab:hover { color: var(--text); }
 .gxtab.on { color: var(--text); }
 .gxtab.on::after { content: ""; position: absolute; left: 8px; right: 8px; bottom: -1px; height: 2px; border-radius: var(--r-4); background: var(--text); }
-.gxn { font-size: var(--fs-11); font-weight: 600; min-width: 17px; padding: 0 4px; line-height: 17px; text-align: center; border-radius: var(--r-pill); background: var(--active); color: var(--text2); font-variant-numeric: tabular-nums; }
+.gxn { font-size: var(--fs-11); font-weight: 600; min-width: 17px; padding: 0 4px; line-height: 17px; text-align: center; border-radius: var(--r-pill); background: var(--active); color: var(--text2); }
 .gxn.hot { background: var(--accent); color: #fff; }
 .gxbody { flex: 1; min-height: 0; overflow: auto; }
 .gxpad { padding: 14px; }

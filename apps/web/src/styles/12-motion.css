@@ -103,7 +103,7 @@
 .rx:hover { background: var(--hover); }
 .rx:active { scale: .92; }
 .rx.mine { border-color: color-mix(in srgb, var(--accent) 45%, transparent); background: var(--accent-soft); }
-.rx .n { font-size: var(--fs-12); font-weight: 600; color: var(--text2); font-variant-numeric: tabular-nums; }
+.rx .n { font-size: var(--fs-12); font-weight: 600; color: var(--text2); }
 .rx.pop { animation: rx-pop var(--dur-slow) var(--ease-spring) backwards; }
 @keyframes rx-pop { from { opacity: 0; scale: .4; } 60% { scale: 1.12; } }
 .menu.rxpick { min-width: 0; display: flex; gap: 2px; padding: 5px; border-radius: var(--r-pill); }
@@ -136,7 +136,7 @@
 .ci .l2 .l2t { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ci.unread .l1 b { font-weight: 650; }
 .ci.unread .l2 .l2t { color: var(--text2); }
-.ucnt { flex: none; min-width: 18px; height: 18px; padding: 0 4px; border-radius: var(--r-8); background: var(--danger); color: #fff; font-size: var(--fs-11); font-weight: 700; line-height: 18px; text-align: center; font-variant-numeric: tabular-nums; animation: rx-pop var(--dur-slow) var(--ease-spring) backwards; }
+.ucnt { flex: none; min-width: 18px; height: 18px; padding: 0 4px; border-radius: var(--r-8); background: var(--danger); color: #fff; font-size: var(--fs-11); font-weight: 700; line-height: 18px; text-align: center; animation: rx-pop var(--dur-slow) var(--ease-spring) backwards; }
 .lsec .cnt.red { color: var(--muted); }
 .lunread { margin-bottom: 4px; }
 .lunread .ci { animation: rise-in var(--dur-slow) var(--ease-out) backwards; }
@@ -151,7 +151,7 @@
 .wfh { display: flex; align-items: center; gap: 8px; width: 100%; padding: 8px 12px; font-size: var(--fs-13); color: var(--text); text-align: left; }
 .wfh b { font-weight: 600; }
 .wfh .sp { flex: 1; }
-.wfn { font-size: var(--fs-12); color: var(--muted); font-variant-numeric: tabular-nums; }
+.wfn { font-size: var(--fs-12); color: var(--muted); }
 .wfspin { color: var(--accent); animation: spin 1.4s linear infinite; }
 .wfok { color: var(--ok); }
 .wfbad { color: var(--danger); }
@@ -161,7 +161,7 @@
 .wfr:hover { background: var(--hover); }
 .wfname { flex: none; font-weight: 600; }
 .wftask { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); }
-.wfst { flex: none; display: inline-flex; align-items: center; gap: 4px; font-size: var(--fs-12); color: var(--muted); font-variant-numeric: tabular-nums; }
+.wfst { flex: none; display: inline-flex; align-items: center; gap: 4px; font-size: var(--fs-12); color: var(--muted); }
 .wfr.fin .wfname { color: var(--text2); }
 .wfdot { width: 18px; height: 18px; border-radius: var(--r-6); background: var(--accent-soft); color: var(--accent-text); flex: none; display: grid; place-items: center; }
 .wfring { width: 11px; height: 11px; border-radius: 50%; border: 1.5px solid var(--border2); border-top-color: var(--accent); animation: spin .9s linear infinite; }
@@ -188,7 +188,7 @@
 .pinmain b { flex: none; font-weight: 600; color: var(--text); }
 .pinmain span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pinmain:hover span { color: var(--text); }
-.pinn { flex: none; font-size: var(--fs-11); color: var(--muted); padding: 1px 8px; border-radius: var(--r-8); background: var(--sunken); font-variant-numeric: tabular-nums; }
+.pinn { flex: none; font-size: var(--fs-11); color: var(--muted); padding: 1px 8px; border-radius: var(--r-8); background: var(--sunken); }
 @media (max-width: 700px) { .pinbar { padding: 7px 12px; } }
 
 /* selected text in a reply (SelectionActions) */

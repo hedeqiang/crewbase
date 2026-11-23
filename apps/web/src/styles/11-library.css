@@ -8,7 +8,7 @@
 .lnv { display: flex; align-items: center; gap: 8px; height: 32px; padding: 0 10px; border-radius: var(--r-8); font-size: var(--fs-13); color: var(--text2); text-align: left; }
 .lnv svg { flex: none; color: var(--muted); }
 .lnv span:not(.cnt) { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.lnv .cnt { font-size: var(--fs-12); color: var(--muted); font-variant-numeric: tabular-nums; }
+.lnv .cnt { font-size: var(--fs-12); color: var(--muted); }
 .lnv:hover { background: var(--hover); color: var(--text); }
 .lnv[aria-current="true"] { background: var(--active); color: var(--text); font-weight: 500; }
 .lnv[aria-current="true"] svg { color: var(--text); }
@@ -45,7 +45,7 @@
 .librow .lock { color: var(--muted); flex: none; }
 .libtg { display: flex; gap: 4px; justify-content: flex-end; min-width: 0; max-width: 260px; overflow: hidden; }
 .libtg .pill { min-width: 0; max-width: 140px; overflow: hidden; text-overflow: ellipsis; display: inline-block; }
-.libsz, .libwhen { font-size: var(--fs-12); color: var(--muted); text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.libsz, .libwhen { font-size: var(--fs-12); color: var(--muted); text-align: right; white-space: nowrap; }
 .libsnip mark { background: var(--amber-soft); color: var(--text); border-radius: var(--r-4); padding: 0 2px; }
 .libic { width: 34px; height: 34px; border-radius: var(--r-8); display: grid; place-items: center; flex: none; background: var(--sunken); color: var(--text2); }
 .libic.f-inbox { background: var(--accent-soft); color: var(--accent-text); }

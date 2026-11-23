@@ -87,8 +87,8 @@
 .cap.c-vision { background: color-mix(in srgb, #10a37f 16%, transparent); color: var(--ok-text); }
 .cap.c-tools { background: var(--accent-soft); color: var(--accent-text); }
 .cap.c-long { background: var(--amber-soft); color: var(--amber-text); }
-.mctx { font-size: var(--fs-12); color: var(--text2); font-variant-numeric: tabular-nums; text-align: right; }
-.mprice { font-size: var(--fs-12); color: var(--muted); font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mctx { font-size: var(--fs-12); color: var(--text2); text-align: right; }
+.mprice { font-size: var(--fs-12); color: var(--muted); text-align: right; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .psec2.psec2r > span:first-child { flex: 1; }
 .cap.c-image { background: color-mix(in srgb, var(--cat-5) 14%, transparent); color: var(--cat-5); }
 .mkgroup + .mkgroup { margin-top: 14px; }

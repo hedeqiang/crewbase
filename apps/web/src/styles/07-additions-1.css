@@ -130,7 +130,7 @@ button.tg:disabled { opacity: .5; cursor: not-allowed; }
 .hrow .g b { font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .hrow .g > span { font-size: var(--fs-12); color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: flex; align-items: center; gap: 4px; }
 .hrow .tm { white-space: nowrap; min-width: 52px; text-align: right; }
-.num { font-variant-numeric: tabular-nums; font-weight: 500; }
+.num { font-weight: 500; }
 .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 10px; }
 .rcard { border: 1px solid var(--border); border-radius: var(--r-14); padding: 12px 14px; background: var(--surface); min-width: 0; display: flex; flex-direction: column; }
 .rcard.off { background: var(--raised); }
@@ -206,7 +206,7 @@ button.tg:disabled { opacity: .5; cursor: not-allowed; }
 .stats { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; }
 .stat { border: 1px solid var(--border); border-radius: var(--r-14); padding: 12px 14px; display: flex; flex-direction: column; gap: 2px; min-width: 0; background: var(--surface); }
 .stat .sl { font-size: var(--fs-12); color: var(--text2); }
-.stat b { font-size: var(--fs-24); font-weight: 600; font-variant-numeric: tabular-nums; letter-spacing: -.01em; line-height: 1.25; }
+.stat b { font-size: var(--fs-24); font-weight: 600; letter-spacing: -.01em; line-height: 1.25; }
 .stat.ok b { color: var(--ok-text); }
 .profname-btn { display: inline-flex; align-items: center; gap: 6px; padding: 0; color: var(--text); }
 .profname-btn b { font-size: var(--fs-16); }
@@ -218,7 +218,7 @@ button.tg:disabled { opacity: .5; cursor: not-allowed; }
 .hsum { flex: 1; min-width: 160px; margin: 16px 0 0; padding-left: 24px; border-left: 1px solid var(--border); display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 16px; align-content: start; }
 .hsum div { min-width: 0; }
 .hsum dt { font-size: var(--fs-12); color: var(--muted); }
-.hsum dd { margin: 2px 0 0; font-size: var(--fs-18); font-weight: 600; font-variant-numeric: tabular-nums; }
+.hsum dd { margin: 2px 0 0; font-size: var(--fs-18); font-weight: 600; }
 @media (max-width: 1100px) { .hmain { flex-direction: column; gap: 12px; } .hmain .hmscroll { width: 100%; } .hsum { padding-left: 0; border-left: 0; border-top: 1px solid var(--border); padding-top: 12px; margin-top: 0; width: 100%; grid-template-columns: repeat(4, minmax(0, 1fr)); } }
 @media (max-width: 640px) { .hsum { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 .heat { padding: 14px 16px 10px; }
@@ -319,7 +319,7 @@ button.tg:disabled { opacity: .5; cursor: not-allowed; }
 .na-sugh .vsec { margin: 0; }
 .wtplh { width: 100%; margin: 14px 0 -4px; font-size: var(--fs-12); color: var(--muted); letter-spacing: .04em; }
 .btn.sm { height: 26px; padding: 0 10px; font-size: var(--fs-12); }
-.shuffle .muted { color: var(--muted); font-variant-numeric: tabular-nums; }
+.shuffle .muted { color: var(--muted); }
 .sugs { grid-template-columns: 1fr; }
 .sug { align-items: center; }
 
@@ -351,12 +351,12 @@ button.tg:disabled { opacity: .5; cursor: not-allowed; }
 .ap-mn b { font-weight: 500; font-size: var(--fs-13); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ap-mn > .mono:only-child { color: var(--text); }
 .ap-mn b + .mono { color: var(--muted); font-size: var(--fs-12); }
-.ap-meta { flex: none; font-size: var(--fs-12); color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.ap-meta { flex: none; font-size: var(--fs-12); color: var(--muted); white-space: nowrap; }
 .ap-tag { flex: none; font-size: var(--fs-11); padding: 0 6px; line-height: 18px; border-radius: var(--r-4); background: var(--active); color: var(--text2); }
 .mcl-bar { display: flex; align-items: center; gap: 10px; margin-top: 8px; }
 .mcl-q { height: 30px; }
 .mcl-q .ib.sm { width: 20px; height: 20px; display: grid; place-items: center; border-radius: var(--r-4); color: var(--muted); }
-.mcl-n { flex: none; color: var(--muted); font-variant-numeric: tabular-nums; }
+.mcl-n { flex: none; color: var(--muted); }
 .mcl-bar .linkbtn { flex: none; }
 .mcl-g + .mcl-g { margin-top: 6px; }
 .mcl-gh { display: flex; align-items: center; gap: 8px; padding: 6px 2px 2px; position: sticky; top: 0; background: var(--surface); z-index: var(--z-raised); }

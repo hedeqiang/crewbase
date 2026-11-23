@@ -7,14 +7,13 @@
 .emptyv { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; text-align: center; padding: 24px; }
 .chico { width: 72px; height: 72px; border-radius: var(--r-16); background: var(--active); display: grid; place-items: center; color: var(--text2); }
 .chico svg { width: 32px; height: 32px; }
-.tmark { align-self: center; font-size: var(--fs-12); color: var(--muted); font-variant-numeric: tabular-nums; padding: 4px 0 0; }
+.tmark { align-self: center; font-size: var(--fs-12); color: var(--muted); padding: 4px 0 0; }
 .m-user { display: flex; flex-direction: column; align-items: flex-end; }
 .bubble { background: var(--bubble); padding: 8px 14px; border-radius: var(--r-16) var(--r-16) var(--r-6) var(--r-16); max-width: min(560px, 85%); overflow-wrap: anywhere; white-space: pre-wrap; }
 .bubble .from { display: block; font-size: var(--fs-12); color: var(--muted); font-weight: 500; }
 .m-agent { display: grid; grid-template-columns: 28px minmax(0, 1fr); gap: 10px; }
 .m-agent .mh { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; font-size: var(--fs-12); line-height: 20px; }
 .m-agent .mh b { font-size: var(--fs-14); font-weight: 600; }
-.m-agent .mh .t { font-variant-numeric: tabular-nums; }
 .m-agent .mh .via { transition: opacity var(--dur-hover); }
 .m-agent .mh .via.hov { opacity: 0; }
 .m-agent:hover .mh .via.hov { opacity: 1; }

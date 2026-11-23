@@ -74,7 +74,7 @@
   .crow { gap: 4px; }
 }
 .crow .send { flex: none; }
-.prvscale { font-variant-numeric: tabular-nums; flex: none; }
+.prvscale { flex: none; }
 .mkirow .mknosb { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 /* example requests under a greeting / a new chat's opening */
 .starters { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; margin-top: 10px; }
@@ -105,7 +105,7 @@
 .tlseg { display: flex; width: 100%; } .tlseg button { flex: 1; }
 
 /* ---- 插件与技能 (2026-11 redesign) ---- */
-.segn { margin-left: 6px; font-size: var(--fs-11); font-weight: 600; color: var(--muted); font-variant-numeric: tabular-nums; }
+.segn { margin-left: 6px; font-size: var(--fs-11); font-weight: 600; color: var(--muted); }
 .mkhero { border: 1px solid var(--border); border-radius: var(--r-16); padding: 18px 20px 14px; margin: 0 0 22px;
   background: linear-gradient(135deg, color-mix(in srgb, var(--accent) 6%, var(--surface)), var(--surface) 60%); }
 .mkherot { display: flex; gap: 12px; align-items: flex-start; }
@@ -120,7 +120,7 @@
 .mkherofmt span { font-size: var(--fs-12); color: var(--muted); padding: 2px 8px; border-radius: var(--r-pill); background: var(--sunken); }
 .mkkinds { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin: 0 0 18px; }
 .mkkind { height: 30px; padding: 0 12px; border-radius: var(--r-pill); border: 1px solid var(--border2); font-size: var(--fs-13); color: var(--text2); display: inline-flex; align-items: center; gap: 6px; background: var(--surface); }
-.mkkind span { font-size: var(--fs-11); color: var(--muted); font-variant-numeric: tabular-nums; }
+.mkkind span { font-size: var(--fs-11); color: var(--muted); }
 .mkkind:hover { background: var(--hover); color: var(--text); }
 .mkkind.on { background: var(--text); border-color: var(--text); color: var(--surface); }
 .mkkind.on span { color: color-mix(in srgb, var(--surface) 70%, transparent); }
@@ -155,7 +155,7 @@
 .search.mksearch.inline input { font-size: var(--fs-13); }
 .mkctop > .g:only-child, .mkctop > .g:not(:has(.mkbadge)) { justify-content: center; min-height: 38px; }
 @container (max-width: 560px) { .search.mksearch.inline { width: 100%; } }
-.mkcount { font-size: var(--fs-12); font-weight: 500; color: var(--muted); margin-left: 4px; font-variant-numeric: tabular-nums; }
+.mkcount { font-size: var(--fs-12); font-weight: 500; color: var(--muted); margin-left: 4px; }
 .mkrow > .g > span.mkmeta { font-size: var(--fs-12); }
 .mkrow > .g > span.mkmeta .mono { font-size: var(--fs-12); }
 .mkhint { margin: 10px 0 0; color: var(--muted); }
@@ -230,7 +230,7 @@
 .fic.data { color: var(--cat-4); }
 .fic.doc { color: var(--cat-1); }
 .fic.img { color: var(--cat-5); }
-.fxsz { flex: none; font-size: var(--fs-11); color: var(--muted); font-variant-numeric: tabular-nums; }
+.fxsz { flex: none; font-size: var(--fs-11); color: var(--muted); }
 .fxdot { width: 6px; height: 6px; border-radius: 50%; background: var(--amber); flex: none; }
 .fxst { flex: none; width: 16px; text-align: center; font: 600 var(--fs-11)/1 var(--mono); }
 .st-added { color: var(--dfa-mark); }
@@ -246,8 +246,8 @@
 .fxmeta { flex: none; font-size: var(--fs-11); color: var(--muted); }
 .fxchip { flex: none; display: inline-flex; align-items: center; gap: 4px; font-size: var(--fs-11); font-weight: 500; padding: 1px 8px; border-radius: var(--r-pill); background: var(--sunken); }
 .fxchip:hover { background: var(--active); }
-.add { color: var(--dfa-mark); font-weight: 600; font-variant-numeric: tabular-nums; }
-.del { color: var(--dfd-mark); font-weight: 600; font-variant-numeric: tabular-nums; }
+.add { color: var(--dfa-mark); font-weight: 600; }
+.del { color: var(--dfd-mark); font-weight: 600; }
 .fxmini button { height: 24px; padding: 0 8px; font-size: var(--fs-12); display: inline-grid; place-items: center; }
 .fxbody { flex: 1; overflow: auto; min-height: 0; }
 .fxmd { padding: 14px 18px; font-size: var(--fs-13); }
