@@ -769,7 +769,26 @@ func (s *Service) execute(ctx context.Context, lr *liveRun, from int, outputs ma
 }
 
 func (s *Service) finish(lr *liveRun, status, output, msg string) {
-	_, _ = lr.ss.Append(TypeRun, "", RunEvent{Run: lr.id, Workflow: lr.wf.ID, Status: status, Output: truncate(output, MaxRecordedOutput), Error: msg})
+	ev := RunEvent{Run: lr.id, Workflow: lr.wf.ID, Status: status, Output: truncate(output, MaxRecordedOutput), Error: msg}
+	_, _ = lr.ss.Append(TypeRun, "", ev)
+	RunFinished.Emit(s.c, RunDone{RunEvent: ev, Name: lr.wf.Name, Agents: agentIDs(lr.wf)})
+}
+
+// RunDone is a finished workflow run (RunFinished).
+type RunDone struct {
+	RunEvent
+	Name   string   `json:"name"`
+	Agents []string `json:"agents,omitempty"`
+}
+
+// RunFinished is emitted when a workflow run ends (completed, failed,
+// cancelled).
+var RunFinished = kernel.NewEmit[RunDone]("workflow/run-finished")
+
+// StartTriggered runs a workflow now, recording what triggered it
+// (webhook, …).
+func (s *Service) StartTriggered(id, input, trigger string) (RunView, error) {
+	return s.startTrigger(id, input, trigger)
 }
 
 func (s *Service) record(lr *liveRun, ev StepEvent) {

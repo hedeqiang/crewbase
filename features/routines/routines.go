@@ -203,6 +203,26 @@ func (s *Service) RunNow(ctx context.Context, id string) error {
 	return s.sched.Trigger(ctx, id, "", nil)
 }
 
+// RunWith runs a routine now with a payload (a webhook event); key makes
+// a repeated delivery a no-op.
+func (s *Service) RunWith(ctx context.Context, id, key string, body []byte) error {
+	if _, ok := s.Get(id); !ok {
+		return fmt.Errorf("routine %s not found", id)
+	}
+	return s.sched.Trigger(ctx, id, key, body)
+}
+
+// RunDone is a finished routine run (RunFinished).
+type RunDone struct {
+	Run
+	Name    string `json:"name"`
+	Agent   string `json:"agent"`
+	Session string `json:"session"`
+}
+
+// RunFinished is emitted when a routine run ends (quiet, attention, failed).
+var RunFinished = kernel.NewEmit[RunDone]("routine/run-finished")
+
 // Runs lists a routine's runs, newest first.
 func (s *Service) Runs(id string) ([]Run, error) {
 	r, ok := s.Get(id)
@@ -287,6 +307,9 @@ func (s *Service) onTurnEnd(e agentloop.TurnEndEvent) {
 		}
 	}
 	_, _ = ss.Append(TypeRun, e.Agent, run)
+	if r, ok := s.Get(id); ok {
+		RunFinished.Emit(s.c, RunDone{Run: run, Name: r.Name, Agent: e.Agent, Session: e.Session})
+	}
 	if run.Status == StatusQuiet {
 		return // silent when nothing is wrong
 	}

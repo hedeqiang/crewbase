@@ -321,6 +321,16 @@ func (s *Service) Post(id, text, from string) (PostResult, error) {
 // PostReply is Post answering an earlier message (回复), quoted, with the
 // skills / tool families / prompt templates picked with / (use).
 func (s *Service) PostReply(id, text, from string, reply *session.Quote, use ...session.Invoke) (PostResult, error) {
+	return s.post(id, text, from, "", reply, use)
+}
+
+// PostCapped is Post for messages from outside (a webhook event): the
+// turns it starts run no wider than mode (sandbox, read-only).
+func (s *Service) PostCapped(id, text, from, mode string) (PostResult, error) {
+	return s.post(id, text, from, mode, nil, nil)
+}
+
+func (s *Service) post(id, text, from, mode string, reply *session.Quote, use []session.Invoke) (PostResult, error) {
 	ss, err := s.channel(id)
 	if err != nil {
 		return PostResult{}, err
@@ -331,7 +341,7 @@ func (s *Service) PostReply(id, text, from string, reply *session.Quote, use ...
 	}
 	targets := s.resolveMentions(ss, text)
 	if len(targets) > 1 {
-		return s.postMany(ss, id, text, from, targets, reply, use)
+		return s.postMany(ss, id, text, from, mode, targets, reply, use)
 	}
 	target := ""
 	if len(targets) == 1 {
@@ -347,7 +357,7 @@ func (s *Service) PostReply(id, text, from string, reply *session.Quote, use ...
 	if State(ss) == StatePaused {
 		_ = s.setState(ss, StateActive, from)
 	}
-	in, err := a.Enqueue(agent.Input{Session: id, Text: text, From: from, Reply: reply, Use: use})
+	in, err := a.Enqueue(agent.Input{Session: id, Text: text, From: from, Reply: reply, Use: use, Mode: mode})
 	if err != nil {
 		return PostResult{}, err
 	}
@@ -365,7 +375,7 @@ func (s *Service) PostReply(id, text, from string, reply *session.Quote, use ...
 
 // postMany gives one message to several mentioned members: it is recorded
 // once (addressed to all of them) and each gets it as its own task.
-func (s *Service) postMany(ss *session.Session, id, text, from string, targets []string, reply *session.Quote, use []session.Invoke) (PostResult, error) {
+func (s *Service) postMany(ss *session.Session, id, text, from, mode string, targets []string, reply *session.Quote, use []session.Invoke) (PostResult, error) {
 	// recorded once, now: what the picks stand for is filled in first (for
 	// the first member named; each sees the same message)
 	if len(use) > 0 || strings.HasPrefix(text, "/") {
@@ -390,7 +400,7 @@ func (s *Service) postMany(ss *session.Session, id, text, from string, targets [
 		if !ok {
 			continue
 		}
-		in, err := a.Enqueue(agent.Input{Session: id, Text: text, From: from, Logged: true})
+		in, err := a.Enqueue(agent.Input{Session: id, Text: text, From: from, Logged: true, Mode: mode})
 		if err != nil {
 			return res, err
 		}
