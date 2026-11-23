@@ -40,6 +40,7 @@ Crewbase runs a team of agents on your own machine or server. Each agent has its
 - **Tools that do real work.** Shell and files in the workspace, a per-agent Chrome you can take over at any time, MCP servers (including OAuth and resources/prompts), skills, long-term memory, and attachments (images, PDF, Office) loaded natively for models that can read them.
 - **A shared library and schedules.** Files uploaded in conversations, images and videos agents generate, and documents they save land in a per-team library with full-text search (Chinese too), versions and private items; every agent can search it. Ask an agent for something recurring ("every morning at 8, check …") and it sets up a routine after you confirm.
 - **Docs written with your agents.** Connect a self-hosted [Open Agent Docs](https://github.com/kadaliao/open-agent-docs) server: each agent gets its own identity there, and @mentioning one in a comment gives it the task ([details](docs/agentdocs.md)).
+- **Artifacts you edit, not just read.** With [Open Artifact](https://github.com/JimLiu/open-artifact) on, agents make slide decks, designs, whiteboards, sheets, dashboards, docs and short films as folders in their workspace; they open in the 预览 panel, where you retype, comment and export, and what you ask from the page comes back to the conversation that made it ([details](docs/open-artifact.md)).
 - **DeepSeek tool APIs for any model.** With a DeepSeek key, every agent gets `web_search`, `web_fetch` and `ocr_file`; scanned PDFs and images are OCR'd for text-only models; dictation and read-aloud use DeepSeek ASR / TTS.
 - **Plugins all the way down.** The kernel is a plugin host: built-in Go plugins, out-of-process plugins in Go, TypeScript or Python, sandboxed **WebAssembly** hooks, and declarative UI slots. Marketplace packages are checksum-pinned and publisher-signed.
 - **Reach it from anywhere — with zero inbound ports.** Pair a phone through an end-to-end encrypted relay (installable PWA for approvals and chat), or talk to your crew from Slack, Telegram, Discord, Feishu and Lark.
@@ -131,7 +132,7 @@ The design documents are written in Chinese; English versions will follow.
 - [Product requirements](docs/01-product-requirements.md) · [UX design](docs/03-ux-design.md) · [Roadmap](docs/07-roadmap.md)
 - [Architecture](docs/04-architecture.md) · [Plugin system](docs/05-plugin-system.md) · [Security model](docs/06-security-model.md)
 - [Desktop app](docs/desktop.md) · [Deployment](docs/deploy.md) · [Releasing](docs/release.md)
-- Features: [Previews](docs/previews.md) · [Computer use](docs/computer-use.md) · [Open Agent Docs](docs/agentdocs.md)
+- Features: [Previews](docs/previews.md) · [Computer use](docs/computer-use.md) · [Open Agent Docs](docs/agentdocs.md) · [Open Artifact](docs/open-artifact.md)
 
 ## Security
 
