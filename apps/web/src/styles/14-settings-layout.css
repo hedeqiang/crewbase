@@ -367,7 +367,7 @@ button.foldw:hover { background: var(--hover); color: var(--text); }
    their badge; a changed file is coloured by what happened to it, a folder
    holding changes has a dot */
 .st-modified { color: var(--accent-text); }
-.fxst { background: none !important; min-width: 14px; font: 600 12px/1 var(--font); }
+.fxst { background: none !important; min-width: 14px; font: 600 var(--fs-12)/1 var(--font); }
 .fxst.st-modified { color: var(--accent-text); }
 .fxst.st-added { color: var(--dfa-mark); }
 .fxst.st-deleted { color: var(--dfd-mark); }

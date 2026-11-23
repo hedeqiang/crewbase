@@ -107,7 +107,7 @@
 .agname { flex: 1; min-width: 0; }
 .agid { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .psech { font-weight: 400; }
-.pctx { display: flex; justify-content: space-between; font-size: 12.5px; }
+.pctx { display: flex; justify-content: space-between; font-size: var(--fs-13); }
 .pcbar { margin: 7px 0 6px; }
 .th80 { left: 80%; }
 .pdel { margin-top: 20px; }

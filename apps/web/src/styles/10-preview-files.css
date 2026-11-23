@@ -232,7 +232,7 @@
 .fic.img { color: var(--cat-5); }
 .fxsz { flex: none; font-size: var(--fs-11); color: var(--muted); font-variant-numeric: tabular-nums; }
 .fxdot { width: 6px; height: 6px; border-radius: 50%; background: var(--amber); flex: none; }
-.fxst { flex: none; width: 16px; text-align: center; font: 600 10.5px/1 var(--mono); }
+.fxst { flex: none; width: 16px; text-align: center; font: 600 var(--fs-11)/1 var(--mono); }
 .st-added { color: var(--dfa-mark); }
 .st-modified { color: var(--amber-text); }
 .st-deleted { color: var(--dfd-mark); }
@@ -259,7 +259,7 @@
 .fxempty { display: grid; place-items: center; }
 .fxedit { flex: 1; min-height: 0; border: 0; resize: none; outline: none; padding: 12px 14px; font-size: var(--fs-12); line-height: 1.6; background: var(--surface); color: var(--text); tab-size: 2; }
 /* code with line numbers */
-.fxcode table, .fxdiff table { border-collapse: collapse; width: 100%; font: 12px/1.6 var(--mono); tab-size: 2; }
+.fxcode table, .fxdiff table { border-collapse: collapse; width: 100%; font: var(--fs-12)/1.6 var(--mono); tab-size: 2; }
 .fxcode { background: var(--surface); }
 .fxcode .ln, .fxdiff .ln { width: 1%; min-width: 38px; padding: 0 10px 0 8px; text-align: right; color: var(--muted); opacity: .7; user-select: none; vertical-align: top; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .fxcode .lc, .fxdiff .lc { padding: 0 14px 0 8px; white-space: pre-wrap; overflow-wrap: anywhere; color: var(--hl-var); vertical-align: top; }

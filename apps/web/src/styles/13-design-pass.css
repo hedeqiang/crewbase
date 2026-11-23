@@ -32,7 +32,7 @@ input.fi { resize: none; }
 .qssteer { margin: 0 2px; height: 24px; gap: 4px; }
 .qsj { padding: 0 6px; white-space: nowrap; }
 .steerpair { display: inline-flex; align-items: center; gap: 6px; }
-.steerpair kbd { font: 500 10.5px/1 var(--mono, ui-monospace); opacity: .65; margin-left: 2px; background: none; border: 0; padding: 0; }
+.steerpair kbd { font: 500 var(--fs-11)/1 var(--mono, ui-monospace); opacity: .65; margin-left: 2px; background: none; border: 0; padding: 0; }
 .send.steerbtn { width: auto; padding: 0 12px; gap: 6px; border-radius: 16px; font-size: var(--fs-13); font-weight: 600; }
 /* 移到文件夹: a list to pick from (RowMenu) */
 .fpick { display: flex; flex-direction: column; gap: 2px; max-height: 300px; overflow: auto; margin: 2px -6px 4px; }
@@ -84,7 +84,7 @@ input.fi { resize: none; }
   .rx { height: 30px; padding: 0 10px; }
   .qline, .pinmain { min-height: 32px; }
 }
-.ddpath { overflow-wrap: anywhere; }
+.ddpath { overflow-wrap: anywhere; font-size: var(--fs-12); }
 /* the composer's model menu: one panel (ModelPicker) */
 .menu.mpickpop { padding: 0; display: flex; flex-direction: column; overflow: hidden; }
 .mpick { display: flex; flex-direction: column; min-height: 0; max-height: inherit; }
@@ -141,7 +141,7 @@ input.fi { resize: none; }
   .setwrap.slist .snav { flex-direction: column; overflow-x: hidden; overflow-y: auto; border-bottom: 0; padding: calc(8px + var(--tbh, 0px)) 12px 24px; }
   .setwrap.slist .snav .sh { display: block; }
   .setwrap.slist .snav .sset { display: flex; }
-  .setwrap.slist .snav button { width: 100%; flex: none; padding: 12px 12px; font-size: 15px; }
+  .setwrap.slist .snav button { width: 100%; flex: none; padding: 12px 12px; font-size: var(--fs-16); }
   .setwrap.slist .sgrp { flex-direction: column; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 4px; margin-bottom: 6px; }
   .setwrap.slist .sgrp .sh { padding: 10px 10px 4px; }
   .setwrap.slist .snav button[aria-current="true"] { background: none; box-shadow: none; font-weight: 400; }

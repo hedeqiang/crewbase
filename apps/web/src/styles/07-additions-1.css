@@ -438,7 +438,7 @@ button.tg:disabled { opacity: .5; cursor: not-allowed; }
 .ir-text { min-height: 96px; resize: vertical; font-size: var(--fs-13); line-height: 1.55; padding: 8px 10px; }
 .ir-fmt { display: flex; align-items: center; gap: 8px; margin: 2px 0 4px; }
 .ir-sec { font-size: var(--fs-12); font-weight: 600; color: var(--muted); margin: 14px 0 6px; }
-.ir-instr { margin: 0; max-height: 180px; overflow: auto; padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--raised); font: 12px/1.6 var(--mono); white-space: pre-wrap; overflow-wrap: anywhere; }
+.ir-instr { margin: 0; max-height: 180px; overflow: auto; padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--raised); font: var(--fs-12)/1.6 var(--mono); white-space: pre-wrap; overflow-wrap: anywhere; }
 .ir-list { list-style: none; margin: 0; padding: 0; border: 1px solid var(--border); border-radius: 10px; }
 .ir-list li { display: flex; flex-direction: column; gap: 1px; padding: 8px 12px; border-top: 1px solid var(--border); }
 .ir-list li:first-child { border-top: 0; }

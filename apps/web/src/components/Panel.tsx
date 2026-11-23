@@ -412,7 +412,7 @@ function TaskTab({ agent }: { agent: AgentView }) {
                 {agent.effectiveMode === "host" && agent.modeUntil && <span className="small">{t("chat.modeUntil", { time: until(agent.modeUntil) }).replace(/^，/, "")}</span>}
               </dd>
               <dt>{t("panel.dir")}</dt>
-              <dd className="mono ddpath" style={{ fontSize: 12 }} title={agent.workspace}>
+              <dd className="mono ddpath" title={agent.workspace}>
                 {midPath(shortPath(agent.workspace))}
               </dd>
             </>

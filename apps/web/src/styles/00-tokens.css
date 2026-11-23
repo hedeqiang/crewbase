@@ -24,7 +24,10 @@
 }
 
 /* Type and stacking scales. Colours are above, motion (--dur-* / --ease-*) is
-   with the motion rules further down. Font sizes: the integer px sizes in use.
+   with the motion rules further down. Font sizes: the integer px sizes in use;
+   the variable name is the value, so only whole-px steps exist and stray
+   sizes (12.5, 11.5, ...) are folded into the neighbouring step. 10px is kept
+   as a literal for the tiny file-status badge (.fxst).
    Layers keep their historical values (nothing was merged); pdf.js's own
    text-layer z-indexes are left alone. */
 :root {

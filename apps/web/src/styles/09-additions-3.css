@@ -137,7 +137,7 @@ button.psec.toggle { width: 100%; background: none; border: 0; font-family: inhe
 .mkst.err { color: var(--danger-text); }
 .mkrow > .ix { flex: none; margin-left: -6px; }
 .mkcode { display: flex; align-items: center; justify-content: center; gap: 12px; margin: 14px 0 12px; padding: 14px; border-radius: 12px; background: var(--sunken); }
-.mkcode code { font: 600 24px/1.2 var(--mono, ui-monospace, monospace); letter-spacing: .12em; color: var(--text); user-select: all; }
+.mkcode code { font: 600 var(--fs-24)/1.2 var(--mono, ui-monospace, monospace); letter-spacing: .12em; color: var(--text); user-select: all; }
 .mkghopen { width: 100%; justify-content: center; text-decoration: none; }
 .mkghwait { margin: 12px 0 0; text-align: center; }
 .mkghwait .spin, .mkghmsg .spin { vertical-align: -1px; margin-right: 4px; }
