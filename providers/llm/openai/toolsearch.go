@@ -81,11 +81,24 @@ func (a *Adapter) searchTools(req llm.Request) bool {
 
 var badNamespaceChar = regexp.MustCompile(`[^a-zA-Z0-9_-]+`)
 
-// namespaceName makes a group name a valid namespace name.
+// reservedNamespaces are names OpenAI keeps for its own tools; a request
+// with a function namespace by one of them is refused ("Function
+// 'browser.browser_click' is not allowed in reserved namespace 'browser'").
+var reservedNamespaces = map[string]bool{
+	"browser": true, "python": true, "container": true, "computer": true, "web": true, "web_search": true,
+	"file_search": true, "image_gen": true, "code_interpreter": true, "functions": true, "multi_tool_use": true,
+	"mcp": true, "shell": true, "apply_patch": true, "local_shell": true, "tool_search": true, "openai": true,
+}
+
+// namespaceName makes a group name a valid namespace name, never one
+// OpenAI reserves (those get a "crew_" prefix: browser → crew_browser).
 func namespaceName(group string) string {
 	n := strings.Trim(badNamespaceChar.ReplaceAllString(group, "_"), "_")
 	if n == "" {
 		n = "tools"
+	}
+	if reservedNamespaces[strings.ToLower(n)] {
+		n = "crew_" + n
 	}
 	if len(n) > 48 {
 		n = n[:48]

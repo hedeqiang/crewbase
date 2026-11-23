@@ -158,3 +158,11 @@ func TestToolSearchRequestAndReplay(t *testing.T) {
 		}
 	}
 }
+
+func TestNamespaceNotReserved(t *testing.T) {
+	for in, want := range map[string]string{"browser": "crew_browser", "Python": "crew_Python", "git": "git", "my server!": "my_server", "": "tools"} {
+		if got := namespaceName(in); got != want {
+			t.Errorf("%q: %q, want %q", in, got, want)
+		}
+	}
+}

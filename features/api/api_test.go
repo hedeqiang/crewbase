@@ -402,3 +402,30 @@ func TestCreateIgnoresHome(t *testing.T) {
 		t.Fatalf("home taken from the client: %v", out["workspace"])
 	}
 }
+
+// The agent keeps a model its provider has since dropped (magpie took a
+// provider's models away): picking another model moves the pick to the
+// front and sends the rest back, and the dropped one must not refuse it.
+func TestPickWithADroppedFallback(t *testing.T) {
+	base, h := start(t)
+	code, a := do(t, base, tok, "POST", "/api/agents", map[string]any{"name": "Kai", "modelRefs": []string{"mock/default"}})
+	if code != 200 {
+		t.Fatal(code, a)
+	}
+	id := a["id"].(string)
+	ag, _ := kernel.Use[*agent.Registry](h.Root(), agent.ServiceKey).Get(id)
+	gone := llm.ModelRef{Provider: "mock", Model: "gone"}
+	if err := ag.Update(func(s *agent.Spec) { s.Models = []llm.ModelRef{gone, {Provider: "mock", Model: "default"}} }); err != nil {
+		t.Fatal(err)
+	}
+	// the composer's pick: the chosen model first, then the agent's others
+	code, out := do(t, base, tok, "PATCH", "/api/agents/"+id, map[string]any{"modelRefs": []string{"mock/default", "mock/gone"}})
+	if code != 200 {
+		t.Fatalf("pick refused by the dropped fallback: %d %v", code, out)
+	}
+	// adding a model the provider does not list is still refused
+	code, out = do(t, base, tok, "PATCH", "/api/agents/"+id, map[string]any{"modelRefs": []string{"mock/typo", "mock/default"}})
+	if code != 400 {
+		t.Fatalf("a new unknown model was accepted: %d %v", code, out)
+	}
+}

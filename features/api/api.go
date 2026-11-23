@@ -327,11 +327,24 @@ var Plugin = kernel.Register(kernel.Spec{
 					return err
 				}
 				if refs, ok := b["modelRefs"].([]any); ok {
+					// only a model the change adds is checked: one the agent
+					// already has stays where it is in the order even when
+					// its provider no longer lists it (the pick moves to the
+					// front and the rest are sent back as they were)
+					had := map[string]bool{}
+					if a, err := getAgent(r); err == nil {
+						for _, m := range a.Spec().Models {
+							had[m.String()] = true
+						}
+					}
 					for _, x := range refs {
 						s, _ := x.(string)
 						ref, err := llm.ParseRef(s)
 						if err != nil {
 							return gateway.BadRequest("%v", err)
+						}
+						if had[ref.String()] {
+							continue
 						}
 						if err := knownModel(llms, ref); err != nil {
 							return err
@@ -963,7 +976,18 @@ func knownModel(llms *llm.Registry, ref llm.ModelRef) error {
 			return nil
 		}
 	}
-	return gateway.BadRequest("%s has no model %q", ref.Provider, ref.Model)
+	// a list kept between scans (magpie): ask for it again before refusing,
+	// for a model just added there
+	if r, ok := ad.(interface{ Refresh(context.Context) error }); ok && r.Refresh(ctx) == nil {
+		if ms, err := llms.ModelsOf(ctx, ad); err == nil {
+			for _, m := range ms {
+				if m.ID == ref.Model {
+					return nil
+				}
+			}
+		}
+	}
+	return gateway.BadRequest("%s no longer lists the model %q; pick one it has", ref.Provider, ref.Model)
 }
 
 func contains(xs []string, s string) bool {

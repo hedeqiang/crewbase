@@ -12,6 +12,15 @@ shown in the desktop app's update window.
 - 设置分为「你 / 能力 / 连接 / 团队与设备」四组：审批归入「能力」，即时通讯从「设备」移到「连接」，与 Webhook、Open Agent Docs、Open Artifact 放在一起
 - 旧地址 #/settings/library、#/settings/auto、#/library 会自动打开工作台里的对应页面；⌘K 也能搜到工作台
 
+## 0.9.16
+
+模型用量到上限时自动换下一个模型；magpie 的模型列表变了，模型选择器会跟着更新；修复 OpenAI 模型带浏览器工具时报错。
+
+模型
+- 提供方的 API 用量到达上限（如「You have reached your specified API usage limits」）时，这一轮自动换到下一个模型继续，不再直接失败；到消息里说的恢复时间才再试这个模型
+- magpie 里的模型列表有变化（某个提供方被移除、模型改名）时，模型选择器立即更新，不再选到已经没有的模型、一直提示「magpie has no model」；刚在 magpie 里加的模型也能马上选
+- 修复 OpenAI 模型在带浏览器工具时每次请求都报 400（「reserved namespace 'browser'」）
+
 ## 0.9.15
 
 Open Artifact 的作品库内嵌进设置，插件里可以随时管理；更稳地找到 Node；用过的 / 命令显示在消息里。

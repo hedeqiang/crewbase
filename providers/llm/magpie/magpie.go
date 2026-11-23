@@ -152,6 +152,15 @@ func (a *Adapter) Models(context.Context) ([]llm.ModelInfo, error) {
 	return append([]llm.ModelInfo(nil), a.models...), nil
 }
 
+// Refresh fetches magpie's list now (between the scans).
+func (a *Adapter) Refresh(ctx context.Context) error {
+	up, err := a.refresh(ctx)
+	if err == nil && !up {
+		err = fmt.Errorf("magpie is not running")
+	}
+	return err
+}
+
 // AllModels returns everything magpie lists, enabled or not.
 func (a *Adapter) AllModels() []llm.ModelInfo {
 	a.mu.RLock()
@@ -384,11 +393,30 @@ func (a *Adapter) refresh(ctx context.Context) (bool, error) {
 	inner.SetHTTPClient(a.client)
 	a.mu.Lock()
 	inner.InheritRoutes(a.inner) // e.g. a /responses route found missing
+	changed := a.inner != nil && !sameModels(a.all, infos)
 	a.inner, a.all, a.version = inner, infos, ver
 	a.filterLocked()
 	a.providers, a.modelProv = provs, modelProv
 	a.mu.Unlock()
+	if changed {
+		// the person changed magpie's list (or a provider left it): pickers
+		// list again, rather than offering ids magpie no longer has
+		llm.AdaptersChanged.Emit(a.c.Host(), struct{}{})
+	}
 	return true, nil
+}
+
+// sameModels reports whether two catalogs list the same models.
+func sameModels(a, b []llm.ModelInfo) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i].ID != b[i].ID || a[i].Name != b[i].Name || a[i].ContextWindow != b[i].ContextWindow || a[i].Kind != b[i].Kind {
+			return false
+		}
+	}
+	return true
 }
 
 // Discovery keeps the magpie adapter registered while the gateway runs.
