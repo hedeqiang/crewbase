@@ -57,6 +57,11 @@ type Call struct {
 	// Roots are further folders the call may work in like its workspace
 	// (agent.Registry.ExtraRoots: e.g. the git worktrees the agent holds).
 	Roots []string `json:"roots,omitempty"`
+	// ReadRoots may be read but not written (an untrusted worktree).
+	ReadRoots []string `json:"readRoots,omitempty"`
+	// Offline: the command runs with no network (a policy decided it,
+	// e.g. code from an untrusted pull request).
+	Offline bool `json:"offline,omitempty"`
 }
 
 // Decode unmarshals args into v.

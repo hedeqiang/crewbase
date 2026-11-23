@@ -362,9 +362,10 @@ func (l *loop) turn(parent context.Context, a *agent.Agent, in agent.Input) {
 			}
 			// a call through call_tool runs (and is recorded) as the tool it names
 			name, args, _ := unwrapCall(tc.Name, tc.Args)
+			rw, ro := a.ExtraRoots()
 			exe := l.toolsReg.Run(ctx, l.c, tools.Call{
 				ID: tc.ID, Name: name, Args: args, Agent: a.ID(), Session: ss,
-				Mode: agent.Stricter(a.Mode(), in.Mode), Workspace: a.Workspace(), Roots: a.ExtraRoots(),
+				Mode: agent.Stricter(a.Mode(), in.Mode), Workspace: a.Workspace(), Roots: rw, ReadRoots: ro,
 			})
 			stop = stop || exe.Result.StopTurn
 			if exe.Parked {

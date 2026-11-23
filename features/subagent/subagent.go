@@ -233,7 +233,15 @@ func (r *runner) spawn(ctx context.Context, provName string, fork bool, req suba
 			})
 			switch {
 			case ok && al.Dir != "":
-				if err := a.Update(func(s *agent.Spec) { s.SharedWorkspace = al.Dir }); err != nil {
+				if al.ReadOnly {
+					mode = agent.ModeReadOnly // an untrusted worktree: read only
+				}
+				if err := a.Update(func(s *agent.Spec) {
+					s.SharedWorkspace = al.Dir
+					if al.ReadOnly {
+						s.Mode = agent.ModeReadOnly
+					}
+				}); err != nil {
 					return subagent.Result{}, fmt.Errorf("sub-agent workspace: %w", err)
 				}
 				if al.Note != "" {

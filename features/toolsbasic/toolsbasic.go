@@ -83,6 +83,9 @@ func PolicyFor(call tools.Call, allowHosts []string) sandbox.Policy {
 	p := sandbox.PolicyFor(EffectiveMode(call.Mode), call.Workspace, allowHosts)
 	// the call's further roots (worktrees it holds) are writable like the
 	// workspace, with their protected paths read-only
+	if call.Offline {
+		p.Network, p.AllowHosts = sandbox.NetworkNone, nil
+	}
 	if p.Mode == sandbox.ModeWorkspaceWrite && len(p.WritableRoots) > 0 {
 		for _, r := range call.Roots {
 			if filepath.IsAbs(r) && filepath.Clean(r) != "/" {
@@ -114,6 +117,12 @@ func AccessFor(call tools.Call) (fs.Access, error) {
 		if filepath.IsAbs(r) {
 			a.Roots = append(a.Roots, r)
 			a.Protected = append(a.Protected, agent.ProtectedPaths(r)...)
+		}
+	}
+	for _, r := range call.ReadRoots {
+		if filepath.IsAbs(r) {
+			a.Roots = append(a.Roots, r)
+			a.Protected = append(a.Protected, r) // the whole folder: read only
 		}
 	}
 	return a, nil

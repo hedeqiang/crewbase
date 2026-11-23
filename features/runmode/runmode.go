@@ -139,7 +139,7 @@ func (g *Guard) Check(ctx context.Context, d *tools.Decision) (string, bool) {
 			return reason, true
 		}
 	}
-	extra := append([]string(nil), call.Roots...)
+	extra := append(append([]string(nil), call.Roots...), call.ReadRoots...)
 	if d.Tool != nil {
 		extra = append(extra, d.Tool.AllowedRoots...)
 	}
