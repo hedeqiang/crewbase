@@ -3,6 +3,19 @@
 Each `## <version>` section becomes the release notes of that version,
 shown in the desktop app's update window.
 
+## 0.9.15
+
+Open Artifact 的作品库内嵌进设置，插件里可以随时管理；更稳地找到 Node；用过的 / 命令显示在消息里。
+
+Open Artifact
+- 设置 › Open Artifact 直接显示作品库（本机所有作品和类型，可以新建），和 Open Agent Docs 一样；「管理」打开安装和开关
+- 插件与技能里装好的 Open Artifact 可以点「管理」再次打开
+- 找 Node 时会依次尝试 PATH 和 Homebrew、nvm、volta、fnm、mise、asdf 里的每一个，跳过装着但启动不了的（比如升级后坏掉的 Homebrew node@22）；都不行时显示具体原因
+- npm 刚发布的新版本还下载不到时，先装上一个版本，之后再作为更新提供
+
+对话
+- 用 / 选的技能、工具或提示词直接显示在消息气泡开头，不再单独飘在气泡上方
+
 ## 0.9.14
 
 Agent 忙的时候发的消息默认排队，可以在输入框上方调整顺序或插话；Open Artifact 挪到「插件与技能」里；全屏时顶部不再被遮住。
