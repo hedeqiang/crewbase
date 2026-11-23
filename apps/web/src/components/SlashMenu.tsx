@@ -129,7 +129,21 @@ export function shownOrder(items: SlashItem[]): SlashItem[] {
   return GROUPS.flatMap((g) => items.filter((x) => x.kind === g.kind));
 }
 
-export function SlashMenu({ items, sel, loading, onPick, onHover, empty, forWho }: { items: SlashItem[]; sel: number; loading: boolean; onPick: (it: SlashItem) => void; onHover: (i: number) => void; empty: ReactNode; forWho?: string }) {
+/** The part of the name that matches what is typed after "/", so the phone
+ *  reader of a long list can see why a row is there. */
+function marked(name: string, q: string) {
+  const i = q ? name.toLowerCase().indexOf(q.toLowerCase()) : -1;
+  if (i < 0) return name;
+  return (
+    <>
+      {name.slice(0, i)}
+      <mark>{name.slice(i, i + q.length)}</mark>
+      {name.slice(i + q.length)}
+    </>
+  );
+}
+
+export function SlashMenu({ items, sel, query, loading, onPick, onHover, empty, forWho }: { items: SlashItem[]; sel: number; query: string; loading: boolean; onPick: (it: SlashItem) => void; onHover: (i: number) => void; empty: ReactNode; forWho?: string }) {
   const list = useRef<HTMLDivElement>(null);
   useEffect(() => {
     list.current?.querySelector<HTMLElement>('[aria-selected="true"]')?.scrollIntoView({ block: "nearest" });
@@ -158,7 +172,7 @@ export function SlashMenu({ items, sel, loading, onPick, onHover, empty, forWho 
                     <span className="slashic">{it.icon}</span>
                     <span className="g">
                       <b>
-                        <span className="slashn">/{it.name}</span>
+                        <span className="slashn">/{marked(it.name, query)}</span>
                         {it.hint && <span className="slashh">{it.hint}</span>}
                       </b>
                       {it.desc && <span>{it.desc}</span>}
@@ -170,7 +184,20 @@ export function SlashMenu({ items, sel, loading, onPick, onHover, empty, forWho 
           );
         })
       )}
-      <div className="slashfoot small muted">{t("slash.keys")}</div>
+      <div className="slashfoot small muted">
+        <span>
+          <kbd>↑↓</kbd>
+          {t("slash.keyNav")}
+        </span>
+        <span>
+          <kbd>↵</kbd>
+          {t("slash.keyPick")}
+        </span>
+        <span>
+          <kbd>Esc</kbd>
+          {t("slash.keyClose")}
+        </span>
+      </div>
     </div>
   );
 }

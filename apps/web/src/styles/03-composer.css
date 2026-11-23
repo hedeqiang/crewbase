@@ -3,19 +3,21 @@
 .confirmbar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; border: 1px solid color-mix(in srgb, var(--danger) 45%, transparent); background: var(--danger-soft); border-radius: var(--r-12); padding: 9px 12px; font-size: var(--fs-13); margin-bottom: 8px; }
 .confirmbar p { margin: 0; flex: 1; min-width: 200px; }
 .confirmbar.errbar { margin: 12px 0 0; color: var(--danger-text); }
-.composer { border: 1px solid var(--border2); border-radius: var(--r-16); background: var(--surface); padding: 12px 10px 8px 12px; box-shadow: 0 1px 2px rgba(20, 20, 20, .04), 0 6px 20px rgba(20, 20, 20, .05); transition: border-color var(--dur-hover), box-shadow var(--dur-hover); }
-.composer:focus-within { border-color: color-mix(in srgb, var(--text) 24%, transparent); box-shadow: 0 1px 2px rgba(20, 20, 20, .05), 0 10px 28px rgba(20, 20, 20, .08), 0 0 0 3px var(--accent-soft); }
-.composer textarea { width: 100%; border: 0; background: transparent; outline: none; font-size: var(--fs-14); padding: 2px 2px 9px 0; resize: none; line-height: 21px; max-height: 178px; display: block; }
+.composer { border: 1px solid var(--border2); border-radius: var(--r-16); background: var(--surface); padding: 13px 12px 9px 14px; box-shadow: 0 1px 2px rgba(20, 20, 20, .04), 0 6px 20px rgba(20, 20, 20, .05); transition: border-color var(--dur-hover), box-shadow var(--dur-hover); }
+.composer:focus-within { border-color: color-mix(in srgb, var(--text) 24%, transparent); box-shadow: 0 1px 2px rgba(20, 20, 20, .05), 0 10px 28px rgba(20, 20, 20, .08), 0 0 0 3px color-mix(in srgb, var(--accent) 7%, transparent); }
+.composer textarea { width: 100%; border: 0; background: transparent; outline: none; font-size: var(--fs-14); padding: 2px 2px 10px 0; min-height: 41px; resize: none; line-height: 21px; max-height: 178px; display: block; }
 .composer textarea::placeholder { color: var(--muted); }
-.crow { display: flex; align-items: center; gap: 4px; min-width: 0; margin: 0 -2px 0 -6px; }
+/* the box has three bands: what you type, what you send as, how much room is left */
+.crow { display: flex; align-items: center; gap: 4px; min-width: 0; margin: 0 -12px 0 -14px; padding: 9px 12px 0 14px; border-top: 1px solid var(--border); }
 .crow .sp { flex: 1; }
+.cfoot:empty { display: none; }
 /* icon buttons are quiet circles; only the two chips that open a menu
    (where it runs, which model) keep an edge, so the row has one rhythm */
-.cbtn { height: 28px; border-radius: var(--r-pill); padding: 0 8px; display: inline-flex; align-items: center; gap: 5px; font-size: var(--fs-12); color: var(--text2); white-space: nowrap; min-width: 0; border: 1px solid transparent; transition: background var(--dur-hover), color var(--dur-hover), border-color var(--dur-hover); }
+.cbtn { height: 30px; border-radius: var(--r-pill); padding: 0 10px; display: inline-flex; align-items: center; gap: 5px; font-size: var(--fs-12); color: var(--text2); white-space: nowrap; min-width: 0; border: 1px solid transparent; transition: background var(--dur-hover), color var(--dur-hover), border-color var(--dur-hover); }
 .cbtn > svg.lucide:last-child:not(:first-child) { color: var(--muted); }
 .cbtn .lbl { overflow: hidden; text-overflow: ellipsis; }
 .cbtn:hover:not(:disabled) { background: var(--hover); color: var(--text); }
-.cbtn.round { width: 28px; padding: 0; justify-content: center; flex: none; }
+.cbtn.round { width: 30px; padding: 0; justify-content: center; flex: none; }
 .cbtn.envchip, .cbtn.cmodel { border-color: var(--border2); }
 .cbtn.envchip { color: var(--text2); }
 .cbtn.danger { color: var(--danger-text); border-color: color-mix(in srgb, var(--danger) 35%, transparent); }
@@ -23,7 +25,7 @@
 .cmodel { color: var(--text); max-width: 240px; }
 .cmodel.ov { border-color: var(--accent); background: var(--accent-soft); }
 .cmodel .eff { color: var(--muted); flex: none; font-size: var(--fs-11); }
-.send { width: 28px; height: 28px; border-radius: 50%; background: var(--active); color: var(--muted); display: grid; place-items: center; flex: none; transition: background var(--dur-hover), color var(--dur-hover), transform var(--dur-hover); }
+.send { width: 30px; height: 30px; border-radius: 50%; background: var(--active); color: var(--muted); display: grid; place-items: center; flex: none; transition: background var(--dur-hover), color var(--dur-hover), transform var(--dur-hover); }
 .send.on { background: var(--accent); color: #fff; box-shadow: 0 1px 2px color-mix(in srgb, var(--accent) 45%, transparent); }
 .send.on:hover:not(:disabled) { background: color-mix(in srgb, var(--accent), #000 8%); }
 .send:active:not(:disabled) { transform: scale(.94); }
@@ -31,7 +33,7 @@
 .send.stop:hover { background: color-mix(in srgb, var(--text), transparent 15%); }
 .send:disabled { cursor: default; }
 .send.on:disabled { opacity: .6; }
-.cfoot { display: flex; align-items: center; gap: 10px; padding: 7px 6px 1px; font-size: var(--fs-12); color: var(--muted); min-width: 0; }
+.cfoot { display: flex; align-items: center; gap: 10px; padding: 7px 2px 0; font-size: var(--fs-12); color: var(--muted); min-width: 0; }
 .cfoot .sp { flex: 1; }
 .cfoot .cnote { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: block; }
 .cfoot > span { display: inline-flex; align-items: center; gap: 4px; }
@@ -110,5 +112,9 @@
 .mention .mi .g .slashh { margin-left: auto; flex: none; font-size: var(--fs-11); font-weight: 500; color: var(--muted); background: var(--sunken); border-radius: var(--r-pill); padding: 1px 7px; }
 .mention .mi[aria-selected="true"] .g .slashh { background: var(--surface); }
 .slashempty { padding: 14px 10px; line-height: 1.6; }
-.slashfoot { position: sticky; bottom: 0; margin: 2px -4px 0; padding: 7px 10px; background: var(--surface); border-top: 1px solid var(--border); font-size: var(--fs-11); color: var(--muted); }
+.slashfoot { position: sticky; bottom: 0; display: flex; align-items: center; gap: 14px; margin: 2px -4px 0; padding: 7px 10px; background: var(--surface); border-top: 1px solid var(--border); font-size: var(--fs-11); color: var(--muted); }
+.slashfoot span { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
+.slashfoot kbd { font-family: var(--mono); font-size: var(--fs-11); line-height: 16px; min-width: 16px; text-align: center; padding: 0 4px; color: var(--text2); background: var(--sunken); border: 1px solid var(--border); border-radius: var(--r-4); }
+.mention .mi .g .slashn mark { background: none; color: var(--accent-text); font-weight: 600; }
+.mention .mi[aria-selected="true"] .g .slashn mark { color: var(--accent-text); }
 .slashfor { padding: 3px 8px 6px; font-size: var(--fs-11); }

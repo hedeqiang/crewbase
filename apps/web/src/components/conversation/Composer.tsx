@@ -438,6 +438,7 @@ export function Composer({
         {slashOpen && (
           <SlashMenu
             items={slashItems}
+            query={slash ?? ""}
             forWho={channel ? target.name : undefined}
             sel={slashItems.length ? ssel % slashItems.length : 0}
             loading={!sources}
@@ -697,29 +698,29 @@ export function Composer({
             </>
           )}
         </div>
-      </form>
-      <div className="cfoot">
+        <div className="cfoot">
         {/* a plain chat has no tools: say so before a link is sent to it */}
         {plain && /https?:\/\/\S/.test(draft) ? <span className="small muted cnote">{t("chat.plainNoLinks")}</span> : <span className="sp" />}
         {shown && quota !== null && (
-          <span className={"quota" + (quota <= 10 ? " warnq" : "")}>
-            <ProviderMark provider={shown.provider} model={shown.model} size={11} />
-            {t("comp.quota", { model: providerName(shown.provider), pct: quota })}
-          </span>
+        <span className={"quota" + (quota <= 10 ? " warnq" : "")}>
+        <ProviderMark provider={shown.provider} model={shown.model} size={11} />
+        {t("comp.quota", { model: providerName(shown.provider), pct: quota })}
+        </span>
         )}
         <button
-          className="ctxbtn"
-          type="button"
-          ref={ctxM.ref}
-          onClick={ctxM.toggle}
-          aria-haspopup="menu"
-          title={pct === null ? t("comp.contextNone") : t("comp.context", { pct })}
-          aria-label={pct === null ? t("comp.contextNone") : t("comp.context", { pct })}
+        className="ctxbtn"
+        type="button"
+        ref={ctxM.ref}
+        onClick={ctxM.toggle}
+        aria-haspopup="menu"
+        title={pct === null ? t("comp.contextNone") : t("comp.context", { pct })}
+        aria-label={pct === null ? t("comp.contextNone") : t("comp.context", { pct })}
         >
-          <i className={"ring" + (pct !== null && pct >= 80 ? " hi" : "")} style={{ ["--p" as any]: pct ?? 0 }} />
-          {pct ? t("comp.context", { pct }) : null}
+        <i className={"ring" + (pct !== null && pct >= 80 ? " hi" : "")} style={{ ["--p" as any]: pct ?? 0 }} />
+        {pct ? t("comp.context", { pct }) : null}
         </button>
-      </div>
+        </div>
+      </form>
 
       <Popover anchor={permM.anchor} open={permM.open} onClose={() => (permM.close(), setEnvDir(false))} placement="top" width={340}>
         {envDir ? (

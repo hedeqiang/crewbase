@@ -209,10 +209,11 @@
 .pickchips { padding: 6px 0 2px; }
 /* a command the message used, where it was typed: /open-artifact … */
 .bubcmd { font-weight: 600; color: inherit; background: color-mix(in srgb, currentColor 10%, transparent); border-radius: var(--r-6); padding: 1px 6px; margin-right: 2px; white-space: nowrap; }
-.pickchip { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 4px 8px; min-height: 26px; padding: 0 4px 0 8px; border-radius: var(--r-8); font-size: var(--fs-12); font-weight: 500; background: var(--accent-soft); color: var(--accent-text); animation: rise-in var(--dur-fast) var(--ease-out) backwards; max-width: 100%; }
+.pickchip { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 4px 8px; min-height: 26px; padding: 0 4px 0 8px; border: 1px solid var(--border); border-radius: var(--r-pill); font-size: var(--fs-12); font-weight: 500; background: var(--raised); color: var(--text); animation: rise-in var(--dur-fast) var(--ease-out) backwards; max-width: 100%; }
 .pickchip .pkh { display: inline-flex; align-items: center; gap: 4px; height: 26px; }
-.pickchip.tools { background: var(--amber-soft); color: var(--amber-text); }
-.pickchip.prompt { background: var(--ok-soft); color: var(--ok-text); }
+.pickchip.skill .pkh > svg { color: var(--accent-text); }
+.pickchip.tools .pkh > svg { color: var(--amber-text); }
+.pickchip.prompt .pkh > svg { color: var(--ok-text); }
 .pickchip .pkh button { width: 18px; height: 18px; border-radius: var(--r-6); display: grid; place-items: center; color: inherit; opacity: .7; }
 .pickchip .pkh button:hover { opacity: 1; background: color-mix(in srgb, currentColor 14%, transparent); }
 .pickchip.sm { min-height: 22px; padding: 0 8px; font-size: var(--fs-11); }
