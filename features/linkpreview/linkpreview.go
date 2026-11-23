@@ -6,6 +6,8 @@
 package linkpreview
 
 import (
+	"github.com/hedeqiang/crewbase/internal/netguard"
+
 	"container/list"
 	"context"
 	"encoding/json"
@@ -165,52 +167,12 @@ func (s *Service) resolve(ctx context.Context, host string) ([]netip.Addr, error
 	return ips, nil
 }
 
-// nonPublic: ranges beyond what netip already knows. 198.18.0.0/15 is
-// allowed on purpose: proxies in fake-IP / TUN mode (Clash, Surge…) answer
-// every name with an address there and resolve the name themselves, so
-// refusing it would turn link cards off on those machines entirely.
-var nonPublic = func() []netip.Prefix {
-	var out []netip.Prefix
-	for _, p := range []string{
-		"0.0.0.0/8", "10.0.0.0/8", "100.64.0.0/10", "127.0.0.0/8", "169.254.0.0/16",
-		"172.16.0.0/12", "192.0.0.0/24", "192.0.2.0/24", "192.168.0.0/16",
-		"198.51.100.0/24", "203.0.113.0/24", "224.0.0.0/4", "240.0.0.0/4",
-		"::/128", "::1/128", "64:ff9b::/96", "64:ff9b:1::/48", "100::/64", "2001:db8::/32",
-		"fc00::/7", "fe80::/10", "fec0::/10", "ff00::/8",
-	} {
-		out = append(out, netip.MustParsePrefix(p))
-	}
-	return out
-}()
-
-// Blocked reports whether ip is loopback, private, link-local, multicast,
-// unspecified or otherwise not a public unicast address.
-func Blocked(ip netip.Addr) bool {
-	ip = ip.Unmap()
-	if !ip.IsValid() || ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() ||
-		ip.IsInterfaceLocalMulticast() || ip.IsMulticast() || ip.IsUnspecified() {
-		return true
-	}
-	for _, p := range nonPublic {
-		if p.Contains(ip) {
-			return true
-		}
-	}
-	return false
-}
+// Blocked reports whether ip is not a public unicast address (netguard).
+func Blocked(ip netip.Addr) bool { return netguard.Blocked(ip) }
 
 // localHost: names that mean this machine or the LAN, refused before any
 // lookup (the 预览 panel handles localhost links).
-func localHost(h string) bool {
-	h = strings.TrimSuffix(strings.ToLower(h), ".")
-	if h == "localhost" || strings.HasSuffix(h, ".localhost") || strings.HasSuffix(h, ".local") || strings.HasSuffix(h, ".internal") {
-		return true
-	}
-	if ip, err := netip.ParseAddr(strings.Trim(h, "[]")); err == nil {
-		return Blocked(ip)
-	}
-	return false
-}
+func localHost(h string) bool { return netguard.LocalName(h) }
 
 func checkURL(u *url.URL) error {
 	if u.Scheme != "http" && u.Scheme != "https" {
