@@ -159,7 +159,7 @@ function MemberCard({
   const approves = m.role === "member";
   return (
     <div className={"tcard" + (open ? " open" : "")}>
-      <div className="tcardh" role="button" tabIndex={0} aria-expanded={open} onClick={onToggle} onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && onToggle()}>
+      <div className="tcardh" role="button" tabIndex={0} aria-expanded={open} onClick={onToggle} onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && e.target === e.currentTarget && (e.preventDefault(), onToggle())}>
         <PersonDot name={m.name} size={34} />
         <span className="g">
           <b>{m.name}</b>

@@ -794,6 +794,12 @@ function TeamSwitcher({ teams, current }: { teams: TeamView[]; current: string }
                   className="btn sm"
                   role="button"
                   tabIndex={0}
+                  onKeyDown={(e) => {
+                    if (e.key !== "Enter" && e.key !== " ") return;
+                    e.preventDefault();
+                    e.stopPropagation();
+                    e.currentTarget.click();
+                  }}
                   onClick={(e) => {
                     e.stopPropagation();
                     API.joinTeam(x.id).then(

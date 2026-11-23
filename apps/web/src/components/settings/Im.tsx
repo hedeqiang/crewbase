@@ -192,7 +192,7 @@ function PlatformCard({
   const act = () => (connected ? onToggle() : onConnect());
   return (
     <div className={"tcard imcard" + (open ? " open" : "")}>
-      <div className="tcardh" role="button" tabIndex={0} aria-expanded={connected ? open : undefined} onClick={act} onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && act()}>
+      <div className="tcardh" role="button" tabIndex={0} aria-expanded={connected ? open : undefined} onClick={act} onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && e.target === e.currentTarget && (e.preventDefault(), act())}>
         <ImMark platform={p.id} label={pname(p)} />
         <span className="g">
           <b>{pname(p)}</b>

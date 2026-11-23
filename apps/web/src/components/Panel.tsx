@@ -846,7 +846,15 @@ function Brief({ agent }: { agent: AgentView }) {
           <span className="spin sm" /> {t("panel.briefWriting")}
         </div>
       ) : body ? (
-        <div className={"pbrief-body" + (open ? " open" : "")} onClick={() => setOpen(!open)} title={open ? undefined : t("panel.briefMore")}>
+        <div
+          className={"pbrief-body" + (open ? " open" : "")}
+          role="button"
+          tabIndex={0}
+          aria-expanded={open}
+          onClick={() => setOpen(!open)}
+          onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && e.target === e.currentTarget && (e.preventDefault(), setOpen(!open))}
+          title={open ? undefined : t("panel.briefMore")}
+        >
           {body}
         </div>
       ) : (

@@ -133,7 +133,7 @@ function TeamCard({
 
   return (
     <div className={"tcard" + (open ? " open" : "")}>
-      <div className="tcardh" role="button" tabIndex={0} aria-expanded={open} onClick={onToggle} onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && onToggle()}>
+      <div className="tcardh" role="button" tabIndex={0} aria-expanded={open} onClick={onToggle} onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && e.target === e.currentTarget && (e.preventDefault(), onToggle())}>
         <span className="tdot lg" style={{ background: tm.color || "var(--accent)" }}>
           {tm.name.slice(0, 1)}
         </span>
