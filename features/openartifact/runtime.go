@@ -346,7 +346,9 @@ func nodeCandidates() []string {
 	for _, g := range globs {
 		ms, _ := filepath.Glob(g)
 		// newest first
-		sort.Slice(ms, func(i, j int) bool { return newer(verIn(ms[i]), verIn(ms[j])) || (verIn(ms[i]) == verIn(ms[j]) && ms[i] > ms[j]) })
+		sort.Slice(ms, func(i, j int) bool {
+			return newer(verIn(ms[i]), verIn(ms[j])) || (verIn(ms[i]) == verIn(ms[j]) && ms[i] > ms[j])
+		})
 		for _, m := range ms {
 			add(m)
 		}
