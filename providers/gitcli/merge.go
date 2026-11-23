@@ -393,6 +393,44 @@ func (g *Git) RemoteURL(ctx context.Context, dir, remote string) (string, error)
 	return trim(r.out), nil
 }
 
+// Remote is a parsed remote URL.
+type Remote struct {
+	Host  string // github.com
+	Owner string
+	Repo  string // without .git
+}
+
+// Slug is owner/repo.
+func (r Remote) Slug() string { return r.Owner + "/" + r.Repo }
+
+// ParseRemote reads https://host/owner/repo(.git), ssh://git@host[:port]/owner/repo
+// and git@host:owner/repo forms.
+func ParseRemote(raw string) (Remote, bool) {
+	raw = strings.TrimSpace(raw)
+	var host, path string
+	if u, err := url.Parse(raw); err == nil && u.Host != "" {
+		host, path = u.Hostname(), u.Path
+	} else if at := strings.Index(raw, "@"); at >= 0 && !strings.Contains(raw, "://") {
+		rest := raw[at+1:]
+		i := strings.Index(rest, ":")
+		if i <= 0 {
+			return Remote{}, false
+		}
+		host, path = rest[:i], rest[i+1:]
+	} else {
+		return Remote{}, false
+	}
+	parts := strings.Split(strings.Trim(path, "/"), "/")
+	if host == "" || len(parts) < 2 {
+		return Remote{}, false
+	}
+	owner, repo := parts[len(parts)-2], strings.TrimSuffix(parts[len(parts)-1], ".git")
+	if owner == "" || repo == "" {
+		return Remote{}, false
+	}
+	return Remote{Host: strings.ToLower(host), Owner: owner, Repo: repo}, true
+}
+
 // HostOf is the host a remote URL points at ("" when it has none).
 func HostOf(remote string) string {
 	if u, err := url.Parse(remote); err == nil && u.Host != "" {
@@ -406,6 +444,59 @@ func HostOf(remote string) string {
 		}
 	}
 	return ""
+}
+
+// askpass makes a one-off askpass for token; the script holds no secret
+// (it reads this command's environment) and is removed by cleanup.
+func askpass(user, token string) (env []string, args []string, cleanup func(), err error) {
+	tmp, err := os.MkdirTemp("", "crewbase-askpass-")
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	script := filepath.Join(tmp, "askpass")
+	body := "#!/bin/sh\ncase \"$1\" in\n  Username*|username*) printf '%s\\n' \"$CREWBASE_GIT_USER\" ;;\n  *) printf '%s\\n' \"$CREWBASE_GIT_TOKEN\" ;;\nesac\n"
+	if err := os.WriteFile(script, []byte(body), 0o700); err != nil {
+		os.RemoveAll(tmp)
+		return nil, nil, nil, err
+	}
+	if user == "" {
+		user = "x-access-token"
+	}
+	return []string{"GIT_ASKPASS=" + script, "CREWBASE_GIT_USER=" + user, "CREWBASE_GIT_TOKEN=" + token},
+		[]string{"-c", "credential.helper="}, func() { os.RemoveAll(tmp) }, nil
+}
+
+// Fetch implements vcs.Provider.
+func (g *Git) Fetch(ctx context.Context, dir string, r vcs.FetchRequest) (string, error) {
+	if r.Remote == "" {
+		r.Remote = "origin"
+	}
+	if err := checkRef(r.Remote); err != nil {
+		return "", err
+	}
+	for _, rs := range r.RefSpecs {
+		if strings.HasPrefix(rs, "-") || strings.ContainsAny(rs, " \n\t\x00") {
+			return "", fmt.Errorf("%q is not a refspec", rs)
+		}
+	}
+	args := []string{"fetch", "--no-tags", "--quiet", "--no-recurse-submodules"}
+	if r.Depth > 0 {
+		args = append(args, "--depth", strconv.Itoa(r.Depth))
+	}
+	args = append(append(args, "--", r.Remote), r.RefSpecs...)
+	o := opts{write: true, lock: g.key(ctx, dir), timeout: 5 * time.Minute}
+	if r.Token != "" {
+		env, pre, cleanup, err := askpass(r.Username, r.Token)
+		if err != nil {
+			return "", err
+		}
+		defer cleanup()
+		o.env, o.secrets = env, []string{r.Token}
+		args = append(pre, args...)
+	}
+	res, err := g.run(ctx, dir, o, args...)
+	text := scrub(strings.TrimSpace(string(res.out)+"\n"+string(res.err)), o.secrets)
+	return text, err
 }
 
 // Push implements vcs.Provider. A token goes to git through an askpass
@@ -432,23 +523,13 @@ func (g *Git) Push(ctx context.Context, dir string, r vcs.PushRequest) (string, 
 	args = append(args, "--", r.Remote, "refs/heads/"+r.Branch+":refs/heads/"+r.Branch)
 	o := opts{write: true, lock: g.key(ctx, dir), timeout: 5 * time.Minute}
 	if r.Token != "" {
-		tmp, err := os.MkdirTemp("", "crewbase-askpass-")
+		env, pre, cleanup, err := askpass(r.Username, r.Token)
 		if err != nil {
 			return "", err
 		}
-		defer os.RemoveAll(tmp)
-		script := filepath.Join(tmp, "askpass")
-		body := "#!/bin/sh\ncase \"$1\" in\n  Username*|username*) printf '%s\\n' \"$CREWBASE_GIT_USER\" ;;\n  *) printf '%s\\n' \"$CREWBASE_GIT_TOKEN\" ;;\nesac\n"
-		if err := os.WriteFile(script, []byte(body), 0o700); err != nil {
-			return "", err
-		}
-		user := r.Username
-		if user == "" {
-			user = "x-access-token"
-		}
-		o.env = []string{"GIT_ASKPASS=" + script, "CREWBASE_GIT_USER=" + user, "CREWBASE_GIT_TOKEN=" + r.Token}
-		o.secrets = []string{r.Token}
-		args = append([]string{"-c", "credential.helper="}, args...)
+		defer cleanup()
+		o.env, o.secrets = env, []string{r.Token}
+		args = append(pre, args...)
 	}
 	res, err := g.run(ctx, dir, o, args...)
 	text := scrub(strings.TrimSpace(string(res.out)+"\n"+string(res.err)), o.secrets)

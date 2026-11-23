@@ -266,6 +266,17 @@ type PushRequest struct {
 	SetUp    bool // --set-upstream
 }
 
+// FetchRequest fetches from a remote. RefSpecs are full refspecs
+// ("+refs/pull/7/head:refs/crewbase/pr/7"); empty = the remote's default.
+// Username and Token work as in PushRequest.
+type FetchRequest struct {
+	Remote   string
+	RefSpecs []string
+	Username string
+	Token    string
+	Depth    int // 0 = full history
+}
+
 // Provider is the `vcs` service.
 type Provider interface {
 	// Probe returns the repository dir lies in (ErrNotRepo outside one).
@@ -307,6 +318,7 @@ type Provider interface {
 	Archive(ctx context.Context, dir, base, out string) (patch, bundle string, err error)
 	RemoteURL(ctx context.Context, dir, remote string) (string, error)
 	Push(ctx context.Context, dir string, r PushRequest) (string, error)
+	Fetch(ctx context.Context, dir string, r FetchRequest) (string, error)
 }
 
 // ---------------------------------------------------------------- events
@@ -341,6 +353,8 @@ type Allocation struct {
 	Worktree string // the worktree's id ("" = no worktree)
 	Branch   string
 	Note     string // told to the sub-agent (where it works, what to use)
+	// ReadOnly: the sub-agent may only read there (an untrusted worktree).
+	ReadOnly bool
 	Release  func(ctx context.Context) string
 }
 
@@ -379,3 +393,23 @@ type Event struct {
 
 // Changed is emitted after every git state change.
 var Changed = kernel.NewEmit[Event]("git/changed")
+
+// ForgeEvent is a verified webhook from a code host (GitHub), passed on by
+// the webhooks feature so pull requests stay in step with local reviews.
+type ForgeEvent struct {
+	Team     string
+	Provider string // github
+	Event    string // pull_request | pull_request_review | check_run | check_suite
+	Delivery string
+	Body     any // the decoded JSON
+}
+
+// ForgeResult says what the event did.
+type ForgeResult struct {
+	Detail string // e.g. "review rv… : checks failed, fix round 2"
+	Ref    string // the review or worktree
+}
+
+// Forge hands a verified code-host webhook to whoever tracks pull
+// requests (Bail: the first listener that took it answers).
+var Forge = kernel.NewBail[ForgeEvent, ForgeResult]("vcs/forge-event")

@@ -3,11 +3,14 @@ package gitcli
 import (
 	"context"
 	"errors"
+	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/hedeqiang/crewbase/capabilities/vcs"
 )
@@ -286,5 +289,83 @@ func TestRefsAndHosts(t *testing.T) {
 	}
 	if scrub("token abcd1234 in url", []string{"abcd1234"}) != "token *** in url" {
 		t.Fatal("not scrubbed")
+	}
+}
+
+// serve exports dir over git:// (git daemon) and returns its URL.
+func serve(t *testing.T, base string) string {
+	t.Helper()
+	l, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	port := l.Addr().(*net.TCPAddr).Port
+	l.Close()
+	cmd := exec.Command("git", "daemon", "--export-all", "--reuseaddr", "--listen=127.0.0.1", "--port="+strconv.Itoa(port), "--base-path="+base, base)
+	if err := cmd.Start(); err != nil {
+		t.Skip("git daemon not available")
+	}
+	t.Cleanup(func() { cmd.Process.Kill(); cmd.Wait() })
+	for i := 0; i < 100; i++ {
+		if c, err := net.Dial("tcp", "127.0.0.1:"+strconv.Itoa(port)); err == nil {
+			c.Close()
+			break
+		}
+		time.Sleep(30 * time.Millisecond)
+	}
+	return "git://127.0.0.1:" + strconv.Itoa(port)
+}
+
+func TestFetchPullRef(t *testing.T) {
+	g := newGit(t)
+	ctx := context.Background()
+	base := t.TempDir()
+	upstream := filepath.Join(base, "acme", "api.git")
+	os.MkdirAll(upstream, 0o755)
+	src := repo(t, g)
+	g.run(ctx, upstream, opts{write: true}, "init", "--bare", "--quiet")
+	// a contributor's commit, published as refs/pull/7/head
+	write(t, src, "fix.txt", "fix\n")
+	c, _ := g.Commit(ctx, src, vcs.CommitRequest{Message: "contributor fix", All: true})
+	// setup with plain git (Crewbase's own calls refuse file:// on purpose)
+	push := exec.Command("git", "push", "--quiet", upstream, "main~0:refs/heads/main", c.Hash+":refs/pull/7/head")
+	push.Dir = src
+	if b, err := push.CombinedOutput(); err != nil {
+		t.Fatal(err, string(b))
+	}
+	url := serve(t, base) + "/acme/api.git"
+	local := repo(t, g)
+	g.run(ctx, local, opts{write: true}, "remote", "add", "origin", url)
+	if _, err := g.Fetch(ctx, local, vcs.FetchRequest{RefSpecs: []string{"+refs/pull/7/head:refs/crewbase/pr/7"}}); err != nil {
+		t.Fatal(err)
+	}
+	got, err := g.Resolve(ctx, local, "refs/crewbase/pr/7")
+	if err != nil || got != c.Hash {
+		t.Fatalf("%v %s want %s", err, got, c.Hash)
+	}
+	// a token is handed over through the askpass and scrubbed from errors
+	_, err = g.Fetch(ctx, local, vcs.FetchRequest{Remote: "nope", Token: "tok-SECRET-123"})
+	if err == nil || strings.Contains(err.Error(), "tok-SECRET-123") {
+		t.Fatal(err)
+	}
+	if _, err := g.Fetch(ctx, local, vcs.FetchRequest{RefSpecs: []string{"--upload-pack=x"}}); err == nil {
+		t.Fatal("an option passed as a refspec")
+	}
+}
+
+func TestParseRemote(t *testing.T) {
+	for in, want := range map[string]string{
+		"https://github.com/acme/api.git":         "github.com acme/api",
+		"git@github.com:acme/api.git":             "github.com acme/api",
+		"ssh://git@ghe.corp.example:2222/a/b.git": "ghe.corp.example a/b",
+		"https://GitHub.com/acme/api":             "github.com acme/api",
+	} {
+		r, ok := ParseRemote(in)
+		if !ok || r.Host+" "+r.Slug() != want {
+			t.Fatalf("%s: %+v", in, r)
+		}
+	}
+	if _, ok := ParseRemote("/tmp/x"); ok {
+		t.Fatal("a path parsed")
 	}
 }
