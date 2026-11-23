@@ -204,19 +204,7 @@
 .trig .ssel.sm select, .trig .fi.sm { padding-top: 0; padding-bottom: 0; line-height: 28px; }
 .trig .ssel.sm::after { right: 10px; }
 
-/* the / menu and its picks */
-.mention.slash { width: min(440px, calc(100% - 16px)); max-height: min(380px, 52vh); overflow: auto; padding: 6px 6px 0; animation: m-in var(--dur-fast) var(--ease-out) backwards; }
-.slashg + .slashg { margin-top: 4px; padding-top: 4px; border-top: 1px solid var(--border); }
-.mention.slash .mi { align-items: flex-start; padding: 7px 8px; }
-.mention.slash .mi .g span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.mention.slash .mi .g b { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
-.slashic { width: 26px; height: 26px; border-radius: var(--r-8); display: grid; place-items: center; flex: none; background: var(--sunken); color: var(--text2); }
-.mi.skill .slashic { background: var(--accent-soft); color: var(--accent-text); }
-.mi.tools .slashic { background: var(--amber-soft); color: var(--amber-text); }
-.slashn { font-family: var(--mono); font-size: var(--fs-13); font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.slashh { font-size: var(--fs-11) !important; font-weight: 400; color: var(--muted); flex: none; }
-.slashempty { padding: 12px 10px; line-height: 1.6; }
-.slashfoot { position: sticky; bottom: 0; background: var(--surface); padding: 6px 8px 7px; margin-top: 4px; border-top: 1px solid var(--border); font-size: var(--fs-11); }
+/* the / menu's picks (the menu's own rules live in 03-composer.css) */
 .pickchips { display: flex; flex-wrap: wrap; gap: 6px; }
 .pickchips { padding: 6px 0 2px; }
 /* a command the message used, where it was typed: /open-artifact … */
@@ -235,9 +223,7 @@
 .pkarg input { flex: 1; min-width: 0; height: 24px; border: 1px solid color-mix(in srgb, currentColor 25%, transparent); border-radius: var(--r-6); background: var(--surface); color: var(--text); font: inherit; font-weight: 400; font-size: var(--fs-12); padding: 0 8px; outline: none; }
 .pkarg input:focus { border-color: currentColor; }
 .pkarg.bad input { border-color: var(--danger); box-shadow: 0 0 0 2px var(--danger-soft); }
-.mi.prompt .slashic { background: var(--ok-soft); color: var(--ok-text); }
-.slashfor { padding: 2px 8px 6px; font-size: var(--fs-11); }
-@media (prefers-reduced-motion: reduce) { .mention.slash, .pickchip { animation: none; } }
+@media (prefers-reduced-motion: reduce) { .pickchip { animation: none; } }
 
 /* an agent's words after the pictures it made: folded to one line */
 button.foldw { display: flex; align-items: center; gap: 6px; width: fit-content; max-width: min(560px, 100%); margin: 4px 0 2px -8px; padding: 4px 8px; border-radius: var(--r-8); font-size: var(--fs-13); line-height: 1.5; color: var(--text2); text-align: left; min-width: 0; }

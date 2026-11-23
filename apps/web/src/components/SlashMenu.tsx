@@ -147,11 +147,14 @@ export function SlashMenu({ items, sel, loading, onPick, onHover, empty, forWho 
           if (!rows.length) return null;
           return (
             <div key={g.kind} className="slashg">
-              <div className="mlbl">{t(g.label)}</div>
+              <div className="mlbl">
+                {t(g.label)}
+                <span className="mcnt">{rows.length}</span>
+              </div>
               {rows.map((it) => {
                 const k = ++i;
                 return (
-                  <button key={it.key} type="button" role="option" aria-selected={k === sel} className={"mi " + it.kind} onMouseEnter={() => onHover(k)} onClick={() => onPick(it)}>
+                  <button key={it.key} type="button" role="option" aria-selected={k === sel} className={"mi k-" + it.kind} onMouseEnter={() => onHover(k)} onClick={() => onPick(it)}>
                     <span className="slashic">{it.icon}</span>
                     <span className="g">
                       <b>

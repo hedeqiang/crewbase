@@ -47,13 +47,6 @@
 .fchip { display: inline-flex; align-items: center; gap: 4px; font-size: var(--fs-12); border: 1px solid var(--border2); border-radius: var(--r-6); padding: 0 6px; line-height: 20px; }
 .composer { position: relative; }
 .composer textarea:disabled { cursor: not-allowed; }
-.mention { position: absolute; left: 8px; bottom: calc(100% + 6px); width: min(300px, calc(100% - 16px)); background: var(--surface); border-radius: var(--r-12); box-shadow: var(--menu-shadow); padding: 6px; z-index: var(--z-popup); font-size: var(--fs-13); }
-.mention .mi { display: flex; align-items: center; gap: 8px; width: 100%; padding: 6px 8px; border-radius: var(--r-8); text-align: left; }
-.mention .mi[aria-selected="true"], .mention .mi:hover { background: var(--hover); }
-.mention .mi .g { flex: 1; min-width: 0; display: flex; flex-direction: column; line-height: 1.3; }
-.mention .mi .g b { font-weight: 500; }
-.mention .mi .g span { font-size: var(--fs-12); color: var(--muted); }
-.mention .mlbl { font-size: var(--fs-11); font-weight: 600; color: var(--muted); padding: 4px 8px; }
 .menu div.mi { cursor: default; }
 
 /* browser takeover */
