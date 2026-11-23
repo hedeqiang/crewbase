@@ -3,6 +3,18 @@
 Each `## <version>` section becomes the release notes of that version,
 shown in the desktop app's update window.
 
+## 0.9.13
+
+接入 Open Artifact：Agent 做出来的幻灯片、设计稿、白板、表格、看板、文档和短片，你可以直接在预览里改、评论、导出。
+
+Open Artifact（设置 › Open Artifact）
+- 一键安装运行时（来自 npm 的 @open-artifact/cli，和 npm 公布的 sha512 校验值一致才会安装；需要 Node.js 22.18 或更新版本），之后可以检查更新、随时关闭
+- Agent 可以用 Artifact 工具做幻灯片、设计稿、设计系统、白板、表格、数据看板、文档和短片，也可以输入 /open-artifact slides 季度汇报 直接开始
+- 作品就是工作区里的普通文件夹；Agent 第一次写入后，页面自动在右侧「预览」里打开，对话里也会出现作品卡片，点一下就能再打开
+- 在页面里点「问 Crewbase」或发送评论，会回到做它的那段对话继续改；协作者的评论只作为通知交给 Agent，不当成你的话
+- 审批照常：查看不打扰，修改按写入、删除按删除、分享一定先问你；非主机模式下 Agent 只能动自己工作区里的作品；只读 Agent 不能新建或修改作品
+- 作品库和本机其他 Agent 应用（Claude Code、Codex 等）共用
+
 ## 0.9.12
 
 Webhook 进出：外部系统的事件验签后交给 Agent，这里发生的事带签名推送出去；代码评审接上 GitHub 拉取请求。
