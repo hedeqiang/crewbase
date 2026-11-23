@@ -2,6 +2,7 @@ package relay
 
 import (
 	"context"
+	"net/http"
 	"strings"
 
 	"github.com/hedeqiang/crewbase/features/devices"
@@ -43,6 +44,18 @@ var Plugin = kernel.Register(kernel.Spec{
 			if h, err = NewHost(id, cfg.URL, g, c.Log()); err != nil {
 				return err
 			}
+			// public webhooks for endpoints that opted in (features/webhooks)
+			h.SetHooks(func() []string {
+				ts, _ := HookTokens.Run(c, context.Background(), struct{}{})
+				return ts
+			}, func(ctx context.Context, token string, hdr http.Header, body []byte) int {
+				st, ok := HookIntake.Run(c, ctx, HookCall{Token: token, Header: hdr, Body: body})
+				if !ok {
+					return http.StatusNotFound
+				}
+				return st
+			})
+			HooksChanged.Listen(c, func(struct{}) { h.KickHooks() })
 			c.Go(h.Run)
 		}
 		g.Handle(c, gateway.Route{Method: "GET", Path: "/api/relay",

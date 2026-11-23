@@ -1,7 +1,8 @@
 // Command crew-relay is the Crewbase relay server: hosts (crewd) and their
 // paired devices both connect out to it, so no host opens an inbound port.
 // It forwards end-to-end encrypted frames and never sees tokens or
-// content. With the web UI built in, it also serves the app devices open
+// content — except public webhooks a host opted into (/v1/hooks/…), which
+// their senders cannot encrypt; --no-hooks turns that intake off. With the web UI built in, it also serves the app devices open
 // from a pairing link.
 //
 //	crew-relay --addr :8443 --tls-cert cert.pem --tls-key key.pem
@@ -32,10 +33,11 @@ func main() {
 	origins := flag.String("origins", "", "extra allowed web origins for device connections, comma-separated hosts")
 	maxHosts := flag.Int("max-hosts", 1000, "hosts online at once")
 	noWeb := flag.Bool("no-web", false, "do not serve the web app")
+	noHooks := flag.Bool("no-hooks", false, "do not accept public webhooks for hosts (/v1/hooks/…); they pass through the relay unencrypted")
 	flag.Parse()
 
 	log := slog.New(slog.NewTextHandler(os.Stderr, nil))
-	cfg := relay.ServerConfig{MaxHosts: *maxHosts, Log: log}
+	cfg := relay.ServerConfig{MaxHosts: *maxHosts, Log: log, NoHooks: *noHooks}
 	if *origins != "" {
 		cfg.Origins = strings.Split(*origins, ",")
 	}

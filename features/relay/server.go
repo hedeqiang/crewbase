@@ -29,6 +29,8 @@ type ServerConfig struct {
 	// Origins devices may connect from ("" = same host only).
 	Origins []string
 	Log     *slog.Logger
+	// NoHooks switches off the public webhook intake (/v1/hooks/…).
+	NoHooks bool
 }
 
 // Server forwards frames between hosts and their devices. It keeps no
@@ -38,6 +40,9 @@ type Server struct {
 
 	mu    sync.Mutex
 	hosts map[string]*hostConn
+
+	hookOnce sync.Once
+	hk       *hookState
 }
 
 type hostConn struct {
@@ -48,6 +53,10 @@ type hostConn struct {
 	mu      sync.Mutex
 	clients map[uint32]*websocket.Conn
 	nextSID atomic.Uint32
+}
+
+func (h *hostConn) write(ctx context.Context, b []byte) error {
+	return h.c.Write(ctx, websocket.MessageBinary, b)
 }
 
 // NewServer makes a relay server.
@@ -76,6 +85,7 @@ func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /v1/host", s.serveHost)
 	mux.HandleFunc("GET /v1/client", s.serveClient)
+	mux.HandleFunc("POST /v1/hooks/{token}", s.serveHook)
 	mux.HandleFunc("GET /v1/status", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(map[string]bool{"online": s.Online(r.URL.Query().Get("host"))})
@@ -163,6 +173,7 @@ func (s *Server) serveHost(w http.ResponseWriter, r *http.Request) {
 			cc.Close(websocket.StatusGoingAway, "host offline")
 		}
 		h.mu.Unlock()
+		s.dropHostHooks(h)
 		s.cfg.Log.Info("host offline", "host", id)
 	}()
 	go keepalive(ctx, c)
@@ -171,11 +182,22 @@ func (s *Server) serveHost(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			return
 		}
+		if typ == websocket.MessageText {
+			var m hookTokensMsg
+			if json.Unmarshal(b, &m) == nil && m.Hooks != nil {
+				s.setHostHooks(h, m.Hooks)
+			}
+			continue
+		}
 		if typ != websocket.MessageBinary {
 			continue
 		}
 		ft, sid, payload, err := DecodeFrame(b)
 		if err != nil {
+			continue
+		}
+		if ft == FrameHookOK {
+			s.hookAnswered(sid, payload)
 			continue
 		}
 		h.mu.Lock()

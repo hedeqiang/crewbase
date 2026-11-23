@@ -28,6 +28,10 @@ type Host struct {
 	online  bool
 	lastErr string
 	devices int
+
+	hookTokens func() []string
+	hookHandle HookHandler
+	hookKick   chan struct{}
 }
 
 // Status of the link.
@@ -142,6 +146,31 @@ func (h *Host) session(ctx context.Context) error {
 	sctx, scancel := context.WithCancel(ctx)
 	defer scancel()
 	go keepalive(sctx, c)
+	// the webhook tokens this host serves: now, when they change, and
+	// once a minute in case a change was missed
+	kick := make(chan struct{}, 1)
+	h.mu.Lock()
+	h.hookKick = kick
+	h.mu.Unlock()
+	go func() {
+		last := ""
+		t := time.NewTicker(time.Minute)
+		defer t.Stop()
+		for {
+			ts := h.hookTokensNow()
+			if key := strings.Join(ts, ","); key != last {
+				if writeJSON(sctx, c, hookTokensMsg{Hooks: ts}) == nil {
+					last = key
+				}
+			}
+			select {
+			case <-sctx.Done():
+				return
+			case <-kick:
+			case <-t.C:
+			}
+		}
+	}()
 	var wmu sync.Mutex
 	write := func(typ byte, sid uint32, p []byte) error {
 		wmu.Lock()
@@ -182,6 +211,8 @@ func (h *Host) session(ctx context.Context) error {
 			if st := streams[sid]; st != nil {
 				st.in(payload)
 			}
+		case FrameHook:
+			go h.serveHookFrame(sctx, sid, payload, write)
 		case FrameClose:
 			if st := streams[sid]; st != nil {
 				st.stop()
