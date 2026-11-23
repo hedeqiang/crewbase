@@ -2,6 +2,7 @@ import { Skeleton } from "../Skeleton";
 import { Fragment, useEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent, type ReactNode } from "react";
 import { UpdatesSection, useAddonUpdates } from "./Updates";
 import { AgentDocsDialog, AgentDocsIcon, useAgentDocs } from "./AgentDocs";
+import { OpenArtifactDialog, OpenArtifactIcon, oaInstalled, useOpenArtifact } from "./OpenArtifact";
 import { createPortal } from "react-dom";
 import {
   BadgeCheck, Bug, CalendarDays, Check, ClipboardPaste, Copy, ExternalLink, GitCommitHorizontal, Globe, ListChecks, LogIn, Megaphone,
@@ -414,6 +415,8 @@ function MarketView({ d, q, reload, reloadMarket, onApprove, onSignIn, onManage,
   const [dialog, setDialog] = useState<CatItem | null>(null);
   const docs = useAgentDocs();
   const [docsOpen, setDocsOpen] = useState(false);
+  const oa = useOpenArtifact();
+  const [oaOpen, setOaOpen] = useState(false);
   const servers = d.servers ?? [];
   const mark = (id: string, on: boolean) => setBusy((b) => ({ ...b, [id]: on }));
   const fail = (id: string, e: unknown) => setErrs((x) => ({ ...x, [id]: errMsg(e) }));
@@ -575,6 +578,21 @@ function MarketView({ d, q, reload, reloadMarket, onApprove, onSignIn, onManage,
     onAct: () => setDocsOpen(true),
     manage: true,
   };
+  const oaShown = (kind === "all" || kind === "mcp") && matches(q, "Open Artifact", t("oa.short"), "幻灯片 slides 设计 design 白板 whiteboard 表格 sheet ppt");
+  const oaRow: Row = {
+    key: "app:open-artifact",
+    name: "Open Artifact",
+    desc: t("oa.short"),
+    icon: <OpenArtifactIcon />,
+    badge: { label: t("oa.badge"), tone: "" as const },
+    verb: "add",
+    version: oaInstalled(oa.st) ? oa.st!.version : undefined,
+    state: oa.st?.busy ? "busy" : oaInstalled(oa.st) ? (oa.st!.enabled && oa.st!.error ? "error" : "added") : "idle",
+    error: oa.st?.enabled && oa.st.error ? oa.st.error : undefined,
+    onAct: () => setOaOpen(true),
+    manage: true,
+  };
+  const apps = [...(docsShown ? [docsRow] : []), ...(oaShown ? [oaRow] : [])];
   return (
     <>
       {!q && <PasteHero onPaste={onPaste} />}
@@ -599,8 +617,8 @@ function MarketView({ d, q, reload, reloadMarket, onApprove, onSignIn, onManage,
           </span>
         )}
       </div>
-      {docsShown && <Section title={t("ad.section")} desc={t("ad.sectionDesc")} rows={[docsRow]} />}
-      {shown.length === 0 && !docsShown && <div className="empty">{t("mk.noResults", { q })}</div>}
+      {apps.length > 0 && <Section title={t("ad.section")} desc={t("ad.sectionDesc")} rows={apps} />}
+      {shown.length === 0 && apps.length === 0 && <div className="empty">{t("mk.noResults", { q })}</div>}
       {shown.map((x) => (
         <Fragment key={x.id}>
           <Section title={x.title} desc={x.desc} rows={x.rows} />
@@ -612,6 +630,7 @@ function MarketView({ d, q, reload, reloadMarket, onApprove, onSignIn, onManage,
             docs.setSt(x);
             void refreshAgentDocs();
           }} />}
+      {oaOpen && <OpenArtifactDialog onClose={() => setOaOpen(false)} />}
       {dialog && <ConnectDialog item={dialog} target={target} servers={servers} onClose={() => setDialog(null)} onChanged={reload} onSignIn={onSignIn} />}
     </>
   );

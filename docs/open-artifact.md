@@ -2,7 +2,7 @@
 
 [Open Artifact](https://github.com/JimLiu/open-artifact) turns what an agent makes into a live page instead of an answer you read once: a slide deck, a design canvas, a design system, a whiteboard, a sheet, a data dashboard, a doc or a short animated film. Each is a plain folder of files. You open it, retype it, drag things, comment, export PDF / PPTX / PNG, and what you ask from the page goes back to the conversation that made it.
 
-The plugin is `@crewbase/open-artifact` (settings: Settings › Open Artifact). It is idle until you install the runtime there.
+The plugin is `@crewbase/open-artifact`. Like Open Agent Docs it is set up under Settings › 插件与技能 › 应用 (Open Artifact › 添加), and it is idle until you install the runtime there. Once it is installed, Settings › Open Artifact shows the same controls.
 
 ## Setting it up
 
@@ -52,4 +52,4 @@ A conversation from before a restart is still found: Crewbase answers "resumed" 
 
 ## Turning it off
 
-The switch in Settings › Open Artifact takes the tools away from every agent and stops the bridge. The daemon keeps running for your other apps, and your artifacts stay where they are.
+The switch (in its dialog under 插件与技能, or Settings › Open Artifact) takes the tools away from every agent and stops the bridge. The daemon keeps running for your other apps, and your artifacts stay where they are.

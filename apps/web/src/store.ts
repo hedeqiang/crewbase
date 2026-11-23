@@ -155,6 +155,8 @@ export interface State {
   addonUpdates: number;
   /** the connected Open Agent Docs server (null: none) */
   agentDocs: { url: string; workspace?: string; local: boolean } | null;
+  /** Open Artifact is installed (Settings lists its section) */
+  openArtifact: boolean;
   /** the docs page shown in the right panel's 文档 tab (null: the docs home) */
   docsOpen: string | null;
   events: Record<string, SessionEvent[]>;
@@ -308,6 +310,7 @@ let state: State = {
   mcpTick: 0,
   addonUpdates: 0,
   agentDocs: null,
+  openArtifact: false,
   docsOpen: null,
   events: {},
   loadErr: {},
@@ -521,6 +524,15 @@ export function teamMode<M extends string>(m: M): M | "read-only" {
 /** The team new things are created in ("" = default, as the API stores it). */
 export function currentTeam(): string | undefined {
   return state.team === DEFAULT_TEAM ? undefined : state.team;
+}
+
+export async function refreshOpenArtifact() {
+  try {
+    const d = await API.openArtifact();
+    setState({ openArtifact: !!d.version && d.installed.includes(d.version) });
+  } catch {
+    /* not this daemon (a phone, an older server) */
+  }
 }
 
 export async function refreshAgentDocs() {
@@ -895,6 +907,7 @@ export async function resync() {
     refreshTeams(),
     refreshAddonUpdates(),
     refreshAgentDocs(),
+    refreshOpenArtifact(),
   ]);
   // first run on a phone: the list is empty, the welcome steps matter
   if (narrow() && state.listOpen && Object.keys(state.agents).length === 0) setState({ listOpen: false });

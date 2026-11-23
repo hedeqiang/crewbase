@@ -64,7 +64,9 @@ export function Settings() {
   const n = useStore((s) => s.approvals.length);
   const nUpd = useStore((s) => s.addonUpdates);
   const docsOn = useStore((s) => !!s.agentDocs);
-  const shown = (id: string) => id !== "docs" || docsOn;
+  const oaOn = useStore((s) => s.openArtifact);
+  // apps set up under 插件与技能 get a section once they are there
+  const shown = (id: string) => (id !== "docs" || docsOn) && (id !== "artifacts" || oaOn);
   const manage = useStore((s) => s.tier === "desktop");
   const [q, setQ] = useState("");
   const ql = q.trim().toLowerCase();

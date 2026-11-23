@@ -2611,6 +2611,7 @@ a.lcard:hover, .lvideo .ltext:hover { background: var(--hover); }
 
 /* Open Agent Docs */
 .adicon { display: grid; place-items: center; border-radius: 10px; background: linear-gradient(135deg, #2a78d6, #6250d6); color: #fff; flex: none; }
+.oaicon { background: linear-gradient(135deg, #e0682b, #c43d7a); }
 .addlg .mbd { display: flex; flex-direction: column; gap: 6px; }
 .addesc { line-height: 1.6; margin: 0 0 6px; }
 .adsteps { margin: 0 0 8px; padding-left: 20px; line-height: 1.7; color: var(--text2); }
@@ -3039,7 +3040,6 @@ b > .mkver, .g b .mkver { margin: 0 0 0 6px; }
 /* inputs never show a resize corner */
 input.fi { resize: none; }
 /* while the agent works: 排队 ⌥↵ (outlined) and 插话 ↵ (filled), labelled */
-.steerpair { display: inline-flex; align-items: center; gap: 6px; }
 .qstack { margin: 0 0 6px; border: 1px solid var(--border2); border-radius: 12px; background: var(--surface); padding: 4px 6px 4px 10px; display: flex; flex-direction: column; }
 .qshd { display: flex; align-items: center; gap: 6px; color: var(--muted); padding: 4px 0 2px; }
 .qsrow { display: flex; align-items: center; gap: 2px; min-height: 32px; border-top: 1px solid var(--border); }
@@ -3047,6 +3047,7 @@ input.fi { resize: none; }
 .qstx { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; padding-right: 6px; }
 .qssteer { margin: 0 2px; height: 24px; gap: 4px; }
 .qsj { padding: 0 6px; white-space: nowrap; }
+.steerpair { display: inline-flex; align-items: center; gap: 6px; }
 .steerpair kbd { font: 500 10.5px/1 var(--mono, ui-monospace); opacity: .65; margin-left: 2px; background: none; border: 0; padding: 0; }
 .send.steerbtn { width: auto; padding: 0 12px; gap: 6px; border-radius: 16px; font-size: 13px; font-weight: 600; }
 /* 移到文件夹: a list to pick from (RowMenu) */
