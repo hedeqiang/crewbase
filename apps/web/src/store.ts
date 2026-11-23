@@ -155,7 +155,7 @@ export interface State {
   addonUpdates: number;
   /** the connected Open Agent Docs server (null: none) */
   agentDocs: { url: string; workspace?: string; local: boolean } | null;
-  /** Open Artifact is installed (Settings lists its section) */
+  /** Open Artifact is installed and on (Settings lists its library) */
   openArtifact: boolean;
   /** the docs page shown in the right panel's 文档 tab (null: the docs home) */
   docsOpen: string | null;
@@ -529,7 +529,7 @@ export function currentTeam(): string | undefined {
 export async function refreshOpenArtifact() {
   try {
     const d = await API.openArtifact();
-    setState({ openArtifact: !!d.version && d.installed.includes(d.version) });
+    setState({ openArtifact: d.enabled && !!d.version && d.installed.includes(d.version) });
   } catch {
     /* not this daemon (a phone, an older server) */
   }

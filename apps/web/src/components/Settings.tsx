@@ -137,7 +137,7 @@ export function Settings() {
  *  in one column of about 760px */
 const WIDE_SECTIONS = new Set<string>(["market", "auto", "profile"]);
 /** pages with their own panes (a list beside details, a file browser) */
-const FULL_SECTIONS = new Set<string>(["models", "library", "docs"]);
+const FULL_SECTIONS = new Set<string>(["models", "library", "docs", "artifacts"]);
 
 const GROUPS: { id: Shortcut["group"]; title: Key }[] = [
   { id: "general", title: "keys.general" },

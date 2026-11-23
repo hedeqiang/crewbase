@@ -184,13 +184,52 @@ export function OpenArtifactDialog({ onClose }: { onClose: () => void }) {
   );
 }
 
-/** Settings › Open Artifact (listed once it is installed). */
+/** The library can be framed only from the computer the daemon runs on
+ *  (it listens on 127.0.0.1). */
+function embeddable() {
+  return typeof location !== "undefined" && ["127.0.0.1", "localhost", "[::1]", "::1"].includes(location.hostname);
+}
+
+/** 设置 › Open Artifact: the library (every artifact), like Open Agent Docs'
+ *  workspace; 管理 opens the setup dialog. Listed once it is turned on. */
 export function OpenArtifactPage() {
-  const { st, setSt } = useOpenArtifact();
+  const { st } = useOpenArtifact();
+  const [manage, setManage] = useState(false);
+  const url = st?.running ? st.homeUrl : undefined;
+  const sub = st ? [st.daemon && `Open Artifact ${st.daemon}`, st.running ? t("oa.libraryDesc") : st.error ? t("oa.down", { error: st.error }) : t("oa.starting")].filter(Boolean).join(" · ") : "";
   return (
     <>
-      <Head title={t("set.artifacts")} sub={t("sub.artifacts")} />
-      <div className="vb">{st ? <Body st={st} setSt={setSt} /> : <Skeleton />}</div>
+      <Head
+        title="Open Artifact"
+        sub={sub}
+        right={
+          <span className="docshr">
+            {url && (
+              <button className="btn sm" type="button" onClick={() => openExternal(url)}>
+                <ExternalLink size={12} />
+                {t("oa.cardBrowser")}
+              </button>
+            )}
+            <button className="btn sm" type="button" onClick={() => setManage(true)}>
+              {t("mk2.manage")}
+            </button>
+          </span>
+        }
+      />
+      <div className="docswrap">
+        {!st ? (
+          <Skeleton />
+        ) : !url ? (
+          <div className="docsframe loading small muted">{st.error ? t("oa.down", { error: st.error }) : t("oa.starting")}</div>
+        ) : !embeddable() ? (
+          <div className="docsout">
+            <p className="small muted">{t("oa.notHere")}</p>
+          </div>
+        ) : (
+          <iframe className="docsframe" src={url} title="Open Artifact" allow="clipboard-read; clipboard-write; fullscreen" />
+        )}
+      </div>
+      {manage && <OpenArtifactDialog onClose={() => setManage(false)} />}
     </>
   );
 }

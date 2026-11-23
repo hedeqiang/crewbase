@@ -2911,6 +2911,7 @@ export const en: Partial<Record<Key, string>> = {
   "oa.short": "Slides, designs, whiteboards, sheets, dashboards, docs and films agents make, which you edit, comment on and export in the preview (runs on this computer)",
   "oa.badge": "On this computer",
   "oa.desc": "Agents make artifacts as folders in their workspace that open as editable pages in the preview; what you comment or ask on a page goes back to the conversation that made it. The runtime comes from npm, and the library is shared with your other agent apps on this computer.",
+  "oa.notHere": "The library runs on the computer Crewbase runs on and can't be shown here; open it in Crewbase on that computer.",
   "oa.runtime": "Runtime",
   "oa.runtimeNone": "Not installed · @open-artifact/cli from npm, about 60 MB",
   "oa.runtimeAt": "{version}",

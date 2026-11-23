@@ -2954,6 +2954,7 @@ const zh = {
   "oa.short": "Agent 做的幻灯片、设计稿、白板、表格、看板、文档和短片，你在预览里直接改、评论、导出（本机运行）",
   "oa.badge": "本机运行",
   "oa.desc": "Agent 把作品做成工作区里的文件夹，在右侧预览里打开成可编辑的页面；你在页面上的评论和请求会回到做它的对话。运行时来自 npm，和本机其他 Agent 应用共用一个作品库。",
+  "oa.notHere": "作品库在运行 Crewbase 的那台电脑上，这里打不开；在那台电脑上的 Crewbase 里查看。",
   "oa.runtime": "运行时",
   "oa.runtimeNone": "未安装 · 来自 npm 的 @open-artifact/cli，约 60 MB",
   "oa.runtimeAt": "{version}",
