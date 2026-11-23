@@ -51,11 +51,13 @@ type rig struct {
 
 func setup(t *testing.T) *rig {
 	t.Helper()
+	// the folder first: cleanups run last-in-first-out, so the host (and its
+	// delivery worker) stops before the folder is removed
+	root := t.TempDir()
 	h := kernel.NewHost(nil)
 	t.Cleanup(h.Close)
 	var addr string
 	gateway.Listening.Listen(h.Root(), func(a string) { addr = a })
-	root := t.TempDir()
 	for _, x := range []struct {
 		s   kernel.Spec
 		cfg map[string]any
