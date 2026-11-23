@@ -43,10 +43,11 @@ type Worktree struct {
 	// it but not change it, and no command runs in it (outside Docker).
 	Untrusted bool `json:"untrusted,omitempty"`
 	// PR is the GitHub pull request it was checked out from (0 = none).
-	PR      int       `json:"pr,omitempty"`
-	PRRepo  string    `json:"prRepo,omitempty"` // owner/repo
-	Created time.Time `json:"created"`
-	Updated time.Time `json:"updated"`
+	PR       int       `json:"pr,omitempty"`
+	PRRepo   string    `json:"prRepo,omitempty"`   // owner/repo
+	PRAuthor string    `json:"prAuthor,omitempty"` // its author's GitHub login
+	Created  time.Time `json:"created"`
+	Updated  time.Time `json:"updated"`
 }
 
 // Archive is what was kept of a worktree removed with changes.

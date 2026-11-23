@@ -323,7 +323,7 @@ func (s *Service) CheckoutPR(ctx context.Context, dir string, n int, holder, act
 	}
 	untrusted := p.Fork()
 	w, err = s.updateWorktree(w.ID, func(x *Worktree) {
-		x.PR, x.PRRepo, x.Untrusted = n, c.repo.Slug(), untrusted
+		x.PR, x.PRRepo, x.PRAuthor, x.Untrusted = n, c.repo.Slug(), p.User.Login, untrusted
 		x.Base = p.Base.Ref
 	})
 	if err != nil {
@@ -410,6 +410,9 @@ func (s *Service) CreatePR(ctx context.Context, q CreatePRRequest) (Review, erro
 	if r.State == RvMerged || r.State == RvClosed {
 		return Review{}, fmt.Errorf("review %s is %s", r.ID, r.State)
 	}
+	if strings.HasPrefix(r.Author, "person:github:") {
+		return Review{}, fmt.Errorf("review %s is of someone else's pull request (#%d): publish it with git_pr_review instead", r.ID, prNumber(r))
+	}
 	c, err := s.github(ctx, r.RepoRoot)
 	if err != nil {
 		return Review{}, err
@@ -455,6 +458,13 @@ func (s *Service) CreatePR(ctx context.Context, q CreatePRRequest) (Review, erro
 	}
 	s.changed(vcs.Event{Type: "git/pr.opened", Repo: r.Repo, ID: r.ID, Actor: q.Actor, Session: q.Session, Data: map[string]any{"pr": p.Number, "url": p.HTMLURL, "repo": c.repo.Slug()}})
 	return out, nil
+}
+
+func prNumber(r Review) int {
+	if r.PR != nil {
+		return r.PR.Number
+	}
+	return 0
 }
 
 // ---------------------------------------------------------------- review

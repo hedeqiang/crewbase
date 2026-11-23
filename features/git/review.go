@@ -125,6 +125,7 @@ func (s *Service) Open(ctx context.Context, o OpenRequest) (Review, error) {
 		return s.again(ctx, o)
 	}
 	var info vcs.RepoInfo
+	var prLink *PRLink // a review of a pull request checked out from GitHub
 	source, target := strings.TrimSpace(o.Source), strings.TrimSpace(o.Target)
 	wtID := o.Worktree
 	if wtID != "" {
@@ -135,11 +136,26 @@ func (s *Service) Open(ctx context.Context, o OpenRequest) (Review, error) {
 		if info, err = s.Repo(ctx, w.Path); err != nil {
 			return Review{}, err
 		}
-		if source == "" {
-			source = w.Branch
+		// the worktree's own branch (a PR's head ref name is not a local branch)
+		if source == "" || source != w.Branch {
+			if g, err := s.vcs(); err == nil {
+				if _, err := g.Resolve(ctx, w.Path, source); source == "" || err != nil {
+					source = w.Branch
+				}
+			}
 		}
 		if target == "" {
 			target = w.Base
+		}
+		// someone else's pull request: they are its author, whoever opens
+		// the review reviews it
+		if w.PR > 0 && w.PRAuthor != "" {
+			opener := o.Author
+			o.Author = "person:github:" + w.PRAuthor
+			if !strings.HasPrefix(opener, "person:") && !slices.Contains(o.Reviewers, opener) {
+				o.Reviewers = append(o.Reviewers, opener)
+			}
+			prLink = &PRLink{Number: w.PR, Repo: w.PRRepo, State: "open", Updated: time.Now().UTC()}
 		}
 	} else {
 		if info, err = s.Repo(ctx, o.Dir); err != nil {
@@ -217,6 +233,7 @@ func (s *Service) Open(ctx context.Context, o OpenRequest) (Review, error) {
 	} else {
 		r.Asked = p.SourceHead
 	}
+	r.PR = prLink
 	s.st.mu.Lock()
 	s.st.st.Reviews = append(s.st.st.Reviews, r)
 	err = s.st.save()
@@ -759,6 +776,10 @@ func (s *Service) tellApproved(ctx context.Context, r Review) {
 	}
 	text := fmt.Sprintf("[Code review %s] “%s” was approved by %s. Merge it with git_merge(review: %q) when you are ready (merging into %s may ask the person).",
 		r.ID, r.Title, strings.Join(s.approvers(r), ", "), r.ID, r.Target)
+	if r.PR != nil {
+		text = fmt.Sprintf("[Code review %s] “%s” was approved by %s. It has GitHub pull request #%d: merge it there with git_pr_merge(review: %q) (it checks the CI first; the person approves).",
+			r.ID, r.Title, strings.Join(s.approvers(r), ", "), r.PR.Number, r.ID)
+	}
 	if open := openComments(r); len(open) > 0 {
 		text += "\n\nComments left with the approval (not blocking):\n" + strings.Join(open, "\n") + "\n\nAll comments and verdicts: git_diff(review: \"" + r.ID + "\"). " +
 			"These do not need another review: merge, or note them for later. Only ask for another round (git_review_open) if you change behaviour, and new commits make this approval stale."
