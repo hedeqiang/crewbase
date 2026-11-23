@@ -30,8 +30,9 @@ import { useHighlighted } from "./Files";
 import { Popover, useMenu } from "./Popover";
 import { Skeleton } from "./Skeleton";
 import { Markdown } from "./Markdown";
+import { PRList, ReviewPR } from "./CodePRs";
 
-type Section = "changes" | "worktrees" | "reviews" | "locks" | "settings";
+type Section = "changes" | "worktrees" | "reviews" | "prs" | "locks" | "settings";
 
 const errOf = (e: any) => e?.message ?? String(e);
 
@@ -143,6 +144,7 @@ export function CodeTab({ agent }: { agent: AgentView }) {
     ["changes", t("git.sec.changes"), nChanged > 0 ? <span className="gxn">{nChanged}</span> : null],
     ["worktrees", t("git.sec.worktrees"), active.length > 0 ? <span className="gxn">{active.length}</span> : null],
     ["reviews", t("git.sec.reviews"), openReviews.length > 0 ? <span className={"gxn" + (waiting ? " hot" : "")}>{openReviews.length}</span> : null],
+    ["prs", t("git.sec.prs"), null],
     ["locks", t("git.sec.locks"), (view.locks?.length ?? 0) > 0 ? <span className="gxn">{view.locks!.length}</span> : null],
   ];
   return (
@@ -190,6 +192,8 @@ export function CodeTab({ agent }: { agent: AgentView }) {
             onOpen={(id) => (setScope(id), setSection("changes"))} onReview={(id) => setReview(id)} />
         ) : section === "reviews" ? (
           <Reviews reviews={view.reviews ?? []} onOpen={setReview} />
+        ) : section === "prs" ? (
+          <PRList agent={agent} onOpenReview={setReview} onOpenWorktree={(id) => (setScope(id), setSection("changes"))} />
         ) : section === "locks" ? (
           <Locks agent={agent} locks={view.locks ?? []} reload={reload} />
         ) : (
@@ -639,6 +643,12 @@ function Worktrees({ agent, view, reload, showAll, setShowAll, onOpen, onReview 
               <GitBranch size={13} />
               <b className="mono" title={w.path}>{w.branch}</b>
               <span className="small muted">{t("git.fromBase", { base: w.base })}</span>
+              {w.pr ? <span className="prtag">#{w.pr}</span> : null}
+              {w.untrusted && (
+                <span className="prtag fork" title={t("pr.forkNote")}>
+                  {t("pr.untrusted")}
+                </span>
+              )}
               <span className="sp" />
               <WtState w={w} />
             </div>
@@ -930,6 +940,8 @@ function ReviewDetail({ agent, id, onBack }: { agent: AgentView; id: string; onB
         )
       )}
 
+      <ReviewPR agent={agent} r={r} onChanged={reload} />
+
       {/* verdict */}
       {live && r.state !== "draft" && (
         <div className="gxverdict">
@@ -1145,6 +1157,7 @@ function PushBtn({ agent, worktree, branch }: { agent: AgentView; worktree?: str
 // ---------------------------------------------------------------- settings
 
 function GitSettingsView({ onDone }: { onDone: () => void }) {
+  const agents = useStore((x) => x.agents);
   const [s, setS] = useState<GitSettings | null>(null);
   const [busy, setBusy] = useState(false);
   useEffect(() => void API.gitSettings().then(setS, (e) => toast(errOf(e))), []);
@@ -1197,7 +1210,8 @@ function GitSettingsView({ onDone }: { onDone: () => void }) {
       {s.remotes.map((r, i) => (
         <div key={i} className="gxremote">
           <input value={r.host} placeholder="github.com" onChange={(e) => setS({ ...s, remotes: s.remotes.map((x, j) => (j === i ? { ...x, host: e.target.value } : x)) })} />
-          <input className="mono" value={r.credential} placeholder="vault:github-token" onChange={(e) => setS({ ...s, remotes: s.remotes.map((x, j) => (j === i ? { ...x, credential: e.target.value } : x)) })} />
+          <input className="mono" value={r.credential} placeholder="vault:github/token" onChange={(e) => setS({ ...s, remotes: s.remotes.map((x, j) => (j === i ? { ...x, credential: e.target.value } : x)) })} />
+          <input className="mono" value={r.api ?? ""} placeholder={t("git.set.apiPh")} title={t("git.set.apiHint")} onChange={(e) => setS({ ...s, remotes: s.remotes.map((x, j) => (j === i ? { ...x, api: e.target.value || undefined } : x)) })} />
           <button type="button" className="ix" aria-label={t("common.delete")} onClick={() => setS({ ...s, remotes: s.remotes.filter((_, j) => j !== i) })}>
             <X size={12} />
           </button>
@@ -1206,6 +1220,27 @@ function GitSettingsView({ onDone }: { onDone: () => void }) {
       <button type="button" className="linkbtn small" onClick={() => setS({ ...s, remotes: [...s.remotes, { host: "", credential: "vault:" }] })}>
         + {t("git.set.addRemote")}
       </button>
+      <h4>{t("git.set.github")}</h4>
+      <div className="gxfield">
+        <span>{t("git.set.prReviewer")}</span>
+        <span className="ssel">
+          <select value={s.prReviewer ?? ""} onChange={(e) => setS({ ...s, prReviewer: e.target.value || undefined })}>
+            <option value="">{t("git.set.prReviewerNone")}</option>
+            {Object.values(agents)
+              .filter((a) => a.kind !== "chat")
+              .map((a) => (
+                <option key={a.id} value={a.id}>
+                  {a.name}
+                </option>
+              ))}
+          </select>
+        </span>
+      </div>
+      <span className="small muted">{t("git.set.prReviewerHint")}</span>
+      <span className="small">{t("git.set.allowPrivate")}</span>
+      <input className="mono" value={(s.allowPrivate ?? []).join(", ")} placeholder="10.0.0.0/8" onChange={(e) => setS({ ...s, allowPrivate: e.target.value.split(",").map((x) => x.trim()).filter(Boolean) })} />
+      <span className="small muted">{t("git.set.allowPrivateHint")}</span>
+      <span className="small muted">{t("git.set.forkHint")}</span>
       <div className="gxcrow gxsetf">
         <span className="sp" />
         <button type="button" className="btn sm ghost" onClick={onDone}>{t("common.cancel")}</button>

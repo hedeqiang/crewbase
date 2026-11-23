@@ -3893,3 +3893,42 @@ button.foldw:hover { background: var(--hover); color: var(--text); }
 .whdeta { display: flex; gap: 6px; }
 .whdry { padding: 8px 10px; border-radius: 8px; background: var(--accent-soft); align-items: flex-start; }
 .whdry > div:first-child { display: flex; align-items: center; gap: 6px; }
+
+/* 代码 › 拉取请求 (CodePRs.tsx) */
+.prst.open { color: var(--ok-text); }
+.prst.draft { color: var(--muted); }
+.prst.merged { color: #8250df; }
+.prst.closed { color: var(--danger-text); }
+.prrow .gxrvh .small { flex: none; }
+.prtag { flex: none; font-size: 11px; font-weight: 600; padding: 0 6px; line-height: 18px; border-radius: 9px; background: var(--active); color: var(--text2); }
+.prtag.fork { background: var(--amber-soft); color: var(--amber-text); }
+.prtag.rv { background: var(--accent-soft); color: var(--accent-text); }
+.prtag.wt { background: var(--ok-soft); color: var(--ok-text); }
+.prtag.st-merged { background: color-mix(in srgb, #8250df 14%, transparent); color: #8250df; }
+.prtag.st-open { background: var(--ok-soft); color: var(--ok-text); }
+.prtag.st-closed { background: var(--danger-soft); color: var(--danger-text); }
+.prck { display: inline-grid; place-items: center; width: 16px; height: 16px; border-radius: 50%; flex: none; }
+.prck.success { background: var(--ok-soft); color: var(--ok-text); }
+.prck.failure { background: var(--danger-soft); color: var(--danger-text); }
+.prck.pending { background: var(--amber-soft); color: var(--amber-text); }
+.prd .gxrdt { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
+.prwarn { background: var(--amber-soft); color: var(--amber-text); }
+.prsec { display: flex; flex-direction: column; gap: 6px; }
+.prsec > .gxgh { padding: 4px 0 0; }
+.prcheck { border: 1px solid var(--border2); border-radius: 9px; overflow: hidden; }
+.prcheck.failure { border-color: color-mix(in srgb, var(--danger) 35%, transparent); }
+.prcheckh { display: flex; align-items: center; gap: 8px; width: 100%; padding: 7px 10px; text-align: left; font-size: 13px; }
+.prcheckh:hover { background: var(--hover); }
+.prcheckh .g { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.prcheckb { padding: 0 10px 10px; display: flex; flex-direction: column; gap: 4px; }
+.prann { padding: 4px 8px; border-radius: 6px; background: var(--danger-soft); color: var(--danger-text); overflow-wrap: anywhere; }
+.prbody .md { font-size: 13px; }
+.prfile { display: flex; align-items: center; gap: 8px; padding: 3px 0; min-width: 0; }
+.prfile .g { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.prbox { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 9px 12px; border-radius: 10px; border: 1px dashed var(--border2); }
+.prbox .g { flex: 1; min-width: 140px; }
+.prbox.linked { flex-direction: column; align-items: stretch; border-style: solid; }
+.prboxh { display: flex; align-items: center; gap: 7px; }
+.prboxh a { font-weight: 600; color: var(--text); }
+.prboxa { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
+.prboxa select { height: 30px; border-radius: 15px; border: 1px solid var(--border2); background: var(--surface); padding: 0 10px; font: inherit; font-size: 12.5px; color: var(--text); }

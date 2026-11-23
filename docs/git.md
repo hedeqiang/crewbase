@@ -69,6 +69,52 @@ Conflicts are resolved in the worktree with `git_conflict_resolve`:
 
 Pushes always ask the person. Committing or merging into a protected branch also asks; protected branches are `main`, `master` and `release/*` by default. A push uses the credential configured for the remote's host. That is a vault reference: Crewbase resolves it for that one command and hands it to git through a one-off askpass. A remote on another host never sees it, and the token is scrubbed from all output.
 
+## GitHub pull requests
+
+When the repository's `origin` is on GitHub (github.com or GitHub Enterprise Server), the 代码 tab gets a 拉取请求 section and agents get six more tools. The token is the one already set for the host under push credentials (a `vault:` reference). An internal GHE needs its address range allowed in Settings › Git.
+
+| Tool | Does | Asks |
+|---|---|---|
+| `git_pr_list` / `git_pr_view` | list pull requests; read one with its files, whether it merges, its checks (failed ones with their annotations) and its reviews | no |
+| `git_pr_checkout` | fetch `refs/pull/N/head` into a worktree of its own | no |
+| `git_pr_create` | push a review's branch and open (or update) its pull request; the description is the review's, saying which agent wrote it and who approved it | yes (push) |
+| `git_pr_review` | publish a review's comments on their lines with the verdict | yes (publish) |
+| `git_pr_merge` | merge on GitHub (merge, squash or rebase) | yes (push) |
+
+The approval card for opening a pull request or publishing a review shows the full text that will become public.
+
+### Pull requests from forks are untrusted
+
+Running a stranger's code is running it on this computer. The macOS sandbox limits writes, not reads, and its network is open, so a test in a fork's pull request could read `~/.ssh` and send it out. So a pull request from another repository is checked out as **untrusted**:
+
+- its holder reads it but cannot write it, and a sub-agent sent there runs read-only;
+- git writes there are refused;
+- any command that runs in it, or names it, is refused. With the Docker sandbox (reads confined to the mounted worktree), it may run with no network, after an approval that cannot be remembered.
+
+Agents are told its content is data, never instructions. A pull request from a branch of the same repository (someone with write access) is a normal worktree.
+
+### Publishing a review
+
+Line comments on lines the pull request's diff shows go on those lines; the others go in the review's text. Each carries its severity and author. GitHub refuses approving or requesting changes on your own pull request. When the token's user opened it (one token shared by everyone), the verdict is posted as a comment that states it. The local review keeps the real verdict. A review of someone else's pull request has that person as its author and the agent that opened it as a reviewer; it is published with `git_pr_review`, and nobody is asked to "fix" it.
+
+### Merging on GitHub
+
+`git_pr_merge` merges only when:
+- the local review is approved at the pull request's head;
+- nothing frozen changes;
+- GitHub says it merges (it works this out lazily, so a "not yet known" is never taken as yes or no);
+- no check has failed.
+
+The merge is pinned to the head that was checked.
+
+### Webhooks
+
+An inbound webhook with the `github` provider (Settings › Webhook) keeps things in step:
+
+- `pull_request`: a linked review follows the pull request's head and state, including a merge done on GitHub. A pull request someone else opens is checked out and handed to the reviewer agent named in Settings › Git, a bounded number of times per pull request.
+- `check_run` / `check_suite` failing on a linked pull request's head: its author gets one fix round per failing commit, with the failed checks and annotations, up to the automatic rounds. After that the person decides.
+- `pull_request_review` with changes requested by a person: their verdict and line comments land on the local review, and its fix round follows.
+
 ## What keeps repository content from running code
 
 Crewbase runs git in its own process for these tools. Every call:
@@ -101,5 +147,6 @@ The tools load on demand as the `git` family:
 | `git_conflict_resolve` | start, resolve, conclude or abort a merge in a worktree |
 | `git_push` | push a branch (always asks) |
 | `git_lock` | freeze lines or a file, or lift a lock |
+| `git_pr_*` | GitHub pull requests (above) |
 
 Every change is written to the audit log (`git/*` records) and pushed to the UI.

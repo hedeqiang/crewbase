@@ -1206,6 +1206,9 @@ export interface GitWorktree {
   review?: string;
   reviewState?: GitReviewState;
   missing?: boolean;
+  untrusted?: boolean;
+  pr?: number;
+  prRepo?: string;
 }
 export type GitReviewState = "draft" | "open" | "changes_requested" | "approved" | "merged" | "closed";
 export type GitSeverity = "blocker" | "major" | "minor" | "nit" | "note";
@@ -1250,6 +1253,7 @@ export interface GitReview {
   verdicts: GitVerdict[];
   session?: string;
   merge?: { commit: string; strategy: string; by: string; at: string };
+  pr?: GitPRLink;
   created: string;
   updated: string;
 }
@@ -1286,13 +1290,67 @@ export interface GitRepoView {
   protected?: boolean;
   here?: string;
 }
+export interface GitPRLink {
+  number: number;
+  url: string;
+  host: string;
+  repo: string;
+  state: "open" | "closed" | "merged" | string;
+  draft?: boolean;
+  headSha?: string;
+  base?: string;
+  mergeable?: boolean | null;
+  checks?: "success" | "failure" | "pending" | "";
+  posted?: string[];
+  ciRounds?: number;
+  updated: string;
+}
+export interface GitPRSummary {
+  number: number;
+  title: string;
+  url: string;
+  author: string;
+  state: string;
+  draft?: boolean;
+  fork?: boolean;
+  head: string;
+  base: string;
+  headSha: string;
+  updated: string;
+  review?: string;
+  worktree?: string;
+  untrusted?: boolean;
+}
+export interface GitCheck {
+  name: string;
+  status: string;
+  conclusion: string;
+  url?: string;
+  summary?: string;
+  annotations?: string[];
+}
+export interface GitPRView extends GitPRSummary {
+  body: string;
+  additions: number;
+  deletions: number;
+  files: { filename: string; status: string; additions: number; deletions: number }[];
+  mergeable: boolean | null;
+  mergeableState?: string;
+  checks: { state: "success" | "failure" | "pending" | "none"; runs: GitCheck[] };
+  reviews: { id: number; user: { login: string }; state: string; body: string; submitted_at: string; html_url: string }[];
+  comments: { id: number; user: { login: string }; path: string; line: number; body: string }[];
+  merged?: boolean;
+  me?: string;
+}
 export interface GitSettings {
   isolation: "shared" | "isolated-worktree" | "worktree-on-write";
   protected: string[];
   maxAutoRounds: number;
   approvals: number;
   autoReview: boolean;
-  remotes: { host: string; credential: string; username?: string }[];
+  remotes: { host: string; credential: string; username?: string; api?: string }[];
+  allowPrivate?: string[];
+  prReviewer?: string;
 }
 export interface GitCommentInput {
   path?: string;
@@ -1674,6 +1732,13 @@ export const API = {
   gitMerge: (agent: string, id: string, strategy: string) => api<{ review: GitReview; commit: GitCommit }>("POST", `/api/git/reviews/${id}/merge`, { agent, strategy }),
   gitLock: (b: { agent: string; path: string; start?: number; end?: number; reason?: string }) => api<GitLock>("POST", "/api/git/locks", b),
   gitUnlock: (agent: string, id: string) => api("DELETE", `/api/git/locks/${id}?${gq({ agent })}`),
+  gitPRs: (agent: string, state?: string) => api<{ prs: GitPRSummary[] }>("GET", `/api/git/prs?${gq({ agent, state })}`),
+  gitPR: (agent: string, n: number) => api<GitPRView>("GET", `/api/git/prs/${n}?${gq({ agent })}`),
+  gitPRCheckout: (agent: string, n: number, holder?: string) => api<GitWorktree>("POST", `/api/git/prs/${n}/checkout`, { agent, holder }),
+  gitPRCreate: (agent: string, review: string, b: { title?: string; body?: string; draft?: boolean }) => api<GitReview>("POST", "/api/git/prs", { agent, review, ...b }),
+  gitPRReview: (agent: string, review: string, n: number) => api<{ review: GitReview; event: string }>("POST", `/api/git/prs/${n}/review`, { agent, review }),
+  gitPRSync: (agent: string, review: string, n: number) => api<GitReview>("POST", `/api/git/prs/${n}/sync`, { agent, review }),
+  gitPRMerge: (agent: string, review: string, n: number, method: string) => api<{ review: GitReview; commit: string }>("POST", `/api/git/prs/${n}/merge`, { agent, review, method }),
   gitSettings: () => api<GitSettings>("GET", "/api/git/settings"),
   setGitSettings: (b: GitSettings) => api<GitSettings>("PUT", "/api/git/settings", b),
   webhooks: (team: string) => api<{ endpoints: WhEndpoint[]; subscriptions: WhSubscription[]; providers: string[]; events: string[] }>("GET", `/api/webhooks?${tq(team)}`),
