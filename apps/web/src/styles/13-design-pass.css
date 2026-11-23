@@ -24,7 +24,7 @@
 /* inputs never show a resize corner */
 input.fi { resize: none; }
 /* while the agent works: 排队 ⌥↵ (outlined) and 插话 ↵ (filled), labelled */
-.qstack { margin: 0 0 6px; border: 1px solid var(--border2); border-radius: 12px; background: var(--surface); padding: 4px 6px 4px 10px; display: flex; flex-direction: column; }
+.qstack { margin: 0 0 6px; border: 1px solid var(--border2); border-radius: var(--r-12); background: var(--surface); padding: 4px 6px 4px 10px; display: flex; flex-direction: column; }
 .qshd { display: flex; align-items: center; gap: 6px; color: var(--muted); padding: 4px 0 2px; }
 .qsrow { display: flex; align-items: center; gap: 2px; min-height: 32px; border-top: 1px solid var(--border); }
 .qshd + .qsrow { border-top: 0; }
@@ -33,10 +33,10 @@ input.fi { resize: none; }
 .qsj { padding: 0 6px; white-space: nowrap; }
 .steerpair { display: inline-flex; align-items: center; gap: 6px; }
 .steerpair kbd { font: 500 var(--fs-11)/1 var(--mono, ui-monospace); opacity: .65; margin-left: 2px; background: none; border: 0; padding: 0; }
-.send.steerbtn { width: auto; padding: 0 12px; gap: 6px; border-radius: 16px; font-size: var(--fs-13); font-weight: 600; }
+.send.steerbtn { width: auto; padding: 0 12px; gap: 6px; border-radius: var(--r-pill); font-size: var(--fs-13); font-weight: 600; }
 /* 移到文件夹: a list to pick from (RowMenu) */
 .fpick { display: flex; flex-direction: column; gap: 2px; max-height: 300px; overflow: auto; margin: 2px -6px 4px; }
-.fpo { display: flex; align-items: center; gap: 10px; height: 36px; padding: 0 10px; border-radius: 8px; font-size: var(--fs-13); text-align: left; color: var(--text); }
+.fpo { display: flex; align-items: center; gap: 10px; height: 36px; padding: 0 10px; border-radius: var(--r-8); font-size: var(--fs-13); text-align: left; color: var(--text); }
 .fpo:hover { background: var(--hover); }
 .fpo[aria-checked="true"] { background: var(--accent-soft); }
 .fpo svg:first-child { color: var(--text2); flex: none; }
@@ -46,16 +46,16 @@ input.fi { resize: none; }
 /* the token page: the command with its copy button */
 .cmdrow { display: flex; align-items: center; gap: 6px; }
 .cmdrow .cmd { flex: 1; min-width: 0; margin: 4px 0; }
-.cmdcopy { flex: none; width: 32px; height: 32px; border: 1px solid var(--border); border-radius: 8px; display: grid; place-items: center; color: var(--text2); }
+.cmdcopy { flex: none; width: 32px; height: 32px; border: 1px solid var(--border); border-radius: var(--r-8); display: grid; place-items: center; color: var(--text2); }
 .cmdcopy:hover { background: var(--hover); color: var(--text); }
 .pairneed { display: flex; flex-direction: column; gap: 12px; font-size: var(--fs-13); line-height: 1.55; }
 .pairneed p { margin: 0; }
-.pnlead { display: flex; gap: 10px; align-items: flex-start; padding: 12px 14px; border-radius: 12px; background: var(--raised); border: 1px solid var(--border); color: var(--text); }
+.pnlead { display: flex; gap: 10px; align-items: flex-start; padding: 12px 14px; border-radius: var(--r-12); background: var(--raised); border: 1px solid var(--border); color: var(--text); }
 .pnlead svg { flex: none; margin-top: 2px; color: var(--text2); }
 .pnsteps { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 8px; color: var(--text2); }
 .pnsteps li::marker { color: var(--muted); }
 .pncode { position: relative; margin-top: 6px; }
-.pncode pre { margin: 0; padding: 10px 40px 10px 12px; border-radius: 10px; background: var(--raised); border: 1px solid var(--border); font-size: var(--fs-12); line-height: 1.6; color: var(--text); overflow-x: auto; }
+.pncode pre { margin: 0; padding: 10px 40px 10px 12px; border-radius: var(--r-12); background: var(--raised); border: 1px solid var(--border); font-size: var(--fs-12); line-height: 1.6; color: var(--text); overflow-x: auto; }
 .pncode .ix { position: absolute; top: 6px; right: 6px; }
 .pairneed .pnshield { vertical-align: -2px; color: var(--ok-text); }
 .pairdlg .mft { align-items: center; margin-top: 0; padding: 4px 18px 16px; }
@@ -63,8 +63,8 @@ input.fi { resize: none; }
 .pairdlg .mft a.btn { text-decoration: none; }
 /* one empty state (EmptyState.tsx) */
 .estate { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 6px; padding: 40px 24px; margin: 8px 0; color: var(--text2); }
-.estate.compact { padding: 22px 20px; border: 1px solid var(--border); border-radius: 12px; background: var(--raised); }
-.estate .esic { width: 44px; height: 44px; border-radius: 12px; display: grid; place-items: center; background: var(--sunken); color: var(--text2); margin-bottom: 4px; }
+.estate.compact { padding: 22px 20px; border: 1px solid var(--border); border-radius: var(--r-12); background: var(--raised); }
+.estate .esic { width: 44px; height: 44px; border-radius: var(--r-12); display: grid; place-items: center; background: var(--sunken); color: var(--text2); margin-bottom: 4px; }
 .estate b { font-size: var(--fs-16); font-weight: 600; color: var(--text); }
 .estate p { margin: 0; font-size: var(--fs-13); line-height: 1.6; max-width: 420px; color: var(--text2); }
 .estate .esact { margin-top: 8px; }
@@ -75,11 +75,11 @@ input.fi { resize: none; }
 }
 /* touch: every control at least ~40px to hit (the look stays) */
 @media (pointer: coarse) {
-  .cbtn { height: 36px; padding: 0 11px; }
+  .cbtn { height: 36px; padding: 0 12px; }
   .composer .cbtn.ic, .composer .attbtn { min-width: 36px; }
   .send { width: 36px; height: 36px; }
   .ib { width: 40px; height: 40px; }
-  .lscroll .ci { padding-top: 9px; padding-bottom: 9px; }
+  .lscroll .ci { padding-top: 8px; padding-bottom: 8px; }
   .menu .mi { min-height: 40px; }
   .rx { height: 30px; padding: 0 10px; }
   .qline, .pinmain { min-height: 32px; }
@@ -106,9 +106,9 @@ input.fi { resize: none; }
 /* buttons: four kinds (primary black/white, secondary outlined, ghost,
    danger) in three sizes — sm 26, md 32, lg 40. Blue is for selection,
    focus and links, not for actions. */
-.btn { height: 32px; padding: 0 14px; border-radius: 16px; }
-.btn.sm { height: 26px; padding: 0 10px; border-radius: 13px; font-size: var(--fs-12); }
-.btn.big { height: 40px; padding: 0 22px; border-radius: 20px; font-size: var(--fs-14); }
+.btn { height: 32px; padding: 0 14px; border-radius: var(--r-pill); }
+.btn.sm { height: 26px; padding: 0 10px; border-radius: var(--r-pill); font-size: var(--fs-12); }
+.btn.big { height: 40px; padding: 0 22px; border-radius: var(--r-pill); font-size: var(--fs-14); }
 .btn.blue { background: var(--action); color: var(--on-action); }
 .btn.warn { background: var(--surface); color: var(--amber-text); border-color: color-mix(in srgb, var(--amber) 55%, transparent); }
 .btn.warn:hover:not(:disabled) { background: var(--amber-soft); opacity: 1; }
@@ -127,8 +127,8 @@ input.fi { resize: none; }
 .na-who { display: flex; gap: 18px; align-items: flex-start; }
 .na-who .na-two { flex: 1; min-width: 0; }
 .na-avwrap { position: relative; flex: none; }
-.na-avwrap .na-dice { position: absolute; right: -6px; bottom: -6px; width: 26px; height: 26px; padding: 0; justify-content: center; background: var(--surface); border: 1px solid var(--border2); border-radius: 13px; }
-.na-heroav { border-radius: 18px; transition: scale var(--dur-fast) var(--ease-out); }
+.na-avwrap .na-dice { position: absolute; right: -6px; bottom: -6px; width: 26px; height: 26px; padding: 0; justify-content: center; background: var(--surface); border: 1px solid var(--border2); border-radius: var(--r-pill); }
+.na-heroav { border-radius: var(--r-16); transition: scale var(--dur-fast) var(--ease-out); }
 .na-heroav:hover { scale: 1.04; }
 .menu.na-lookpop { padding: 12px; }
 .na-lookpop .na-look .na-shapes { flex-wrap: wrap; }
@@ -142,7 +142,7 @@ input.fi { resize: none; }
   .setwrap.slist .snav .sh { display: block; }
   .setwrap.slist .snav .sset { display: flex; }
   .setwrap.slist .snav button { width: 100%; flex: none; padding: 12px 12px; font-size: var(--fs-16); }
-  .setwrap.slist .sgrp { flex-direction: column; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 4px; margin-bottom: 6px; }
+  .setwrap.slist .sgrp { flex-direction: column; background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-12); padding: 4px; margin-bottom: 6px; }
   .setwrap.slist .sgrp .sh { padding: 10px 10px 4px; }
   .setwrap.slist .snav button[aria-current="true"] { background: none; box-shadow: none; font-weight: 400; }
   .setwrap.slist .snav button.back { padding-left: 4px; }
@@ -161,9 +161,9 @@ input.fi { resize: none; }
 .schedhint { flex-direction: column; gap: 10px; border-style: solid; border-color: var(--border); }
 .schedhint .g { display: flex; gap: 8px; align-items: flex-start; }
 .schedex { display: flex; flex-wrap: wrap; gap: 6px; }
-.schedex .chipbtn { white-space: normal; text-align: left; height: auto; min-height: 28px; padding: 5px 10px; line-height: 1.4; }
+.schedex .chipbtn { white-space: normal; text-align: left; height: auto; min-height: 28px; padding: 4px 10px; line-height: 1.4; }
 /* keyboard: a list row in focus is outlined as a whole row */
-.lscroll .ci:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; border-radius: 10px; }
+.lscroll .ci:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; border-radius: var(--r-8); }
 .rowmore:focus-visible { outline-offset: -2px; }
 .mcommon { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin: 0 0 8px; color: var(--muted); }
 .cap.c-none { background: var(--sunken); color: var(--muted); text-decoration: line-through; text-decoration-color: color-mix(in srgb, var(--muted) 60%, transparent); }
@@ -180,7 +180,7 @@ input.fi { resize: none; }
 .modal.ctxmap.brief .cxbody { flex: none; }
 .modal.ctxmap.brief .cxhead { flex-wrap: wrap; }
 /* Open Agent Docs: reconnect when its credential is gone */
-.adrepair { margin: 12px 0 4px; padding: 12px 14px; border-radius: 12px; background: var(--amber-soft); display: flex; flex-direction: column; gap: 6px; }
+.adrepair { margin: 12px 0 4px; padding: 12px 14px; border-radius: var(--r-12); background: var(--amber-soft); display: flex; flex-direction: column; gap: 6px; }
 .adrepair b { color: var(--amber-text); font-size: var(--fs-13); }
 .adrepair p { margin: 0; color: var(--text2); line-height: 1.5; }
 .adrrow { display: flex; gap: 8px; margin-top: 4px; }
@@ -188,7 +188,7 @@ input.fi { resize: none; }
 .mkerr { display: inline-flex; align-items: center; gap: 10px; }
 /* 保管库: each entry says what it is and who uses it (Vault) */
 .vltrow { align-items: center; }
-.vlic { width: 32px; height: 32px; border-radius: 8px; background: var(--sunken); display: grid; place-items: center; flex: none; color: var(--text2); }
+.vlic { width: 32px; height: 32px; border-radius: var(--r-8); background: var(--sunken); display: grid; place-items: center; flex: none; color: var(--text2); }
 .vltrow .g b { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .vlwhat { font-weight: 400; color: var(--text2); font-size: var(--fs-13); }
 .vltrow .c { flex-wrap: nowrap; }

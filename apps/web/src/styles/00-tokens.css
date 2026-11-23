@@ -31,6 +31,10 @@
    Layers keep their historical values (nothing was merged); pdf.js's own
    text-layer z-indexes are left alone. */
 :root {
+  /* Radii: controls, buttons and small cards 8; cards and panels 12; windows,
+     settings boxes and large cards 14 (docs/03 §2); big tiles and the composer 16;
+     anything pill- or capsule-shaped uses --r-pill. 1px and 50% (circles) stay literal. */
+  --r-4: 4px; --r-6: 6px; --r-8: 8px; --r-12: 12px; --r-14: 14px; --r-16: 16px; --r-pill: 999px;
   --fs-11: 11px; --fs-12: 12px; --fs-13: 13px; --fs-14: 14px; --fs-16: 16px; --fs-18: 18px; --fs-20: 20px; --fs-24: 24px; --fs-28: 28px;
   --z-raised: 1;       /* lifted over its siblings: sticky group headers, line numbers, small badges */
   --z-sticky: 2;       /* sticky settings nav, tips and add buttons inside a pane */
@@ -95,7 +99,7 @@ body { margin: 0; font-family: var(--font); font-size: var(--fs-14); line-height
 button { font: inherit; color: inherit; cursor: pointer; background: none; border: 0; padding: 0; }
 button:disabled { cursor: not-allowed; }
 input, textarea, select { font: inherit; color: inherit; }
-:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 6px; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: var(--r-6); }
 svg.lucide { flex: none; stroke-width: 1.75; }
 .mono { font-family: var(--mono); }
 code { font-family: var(--mono); font-size: .9em; }
@@ -106,7 +110,7 @@ a { color: var(--accent-text); }
 .boot { height: 100%; background: var(--chrome); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px; }
 /* shown only if the check takes a moment (a fast start never flashes it) */
 .boot > * { animation: fade-in 240ms var(--ease-out, ease-out) 300ms backwards; }
-.bootbar { width: 120px; height: 3px; border-radius: 2px; background: var(--border2); overflow: hidden; position: relative; }
-.bootbar::after { content: ""; position: absolute; inset: 0; width: 40%; border-radius: 2px; background: var(--accent); animation: bootslide 1.1s ease-in-out infinite; }
+.bootbar { width: 120px; height: 3px; border-radius: var(--r-4); background: var(--border2); overflow: hidden; position: relative; }
+.bootbar::after { content: ""; position: absolute; inset: 0; width: 40%; border-radius: var(--r-4); background: var(--accent); animation: bootslide 1.1s ease-in-out infinite; }
 @keyframes bootslide { from { translate: -100% 0; } to { translate: 250% 0; } }
 
