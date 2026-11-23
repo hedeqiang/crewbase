@@ -19,7 +19,7 @@
   <a href="https://github.com/hedeqiang/crewbase/releases/latest"><img alt="Release" src="https://img.shields.io/github/v/release/hedeqiang/crewbase?include_prereleases&sort=semver"></a>
   <a href="https://github.com/hedeqiang/crewbase/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/hedeqiang/crewbase/actions/workflows/ci.yml/badge.svg"></a>
   <a href="LICENSE"><img alt="License" src="https://img.shields.io/badge/license-MIT-blue"></a>
-  <a href="https://awesomemygo.dev/ai"><img alt="Listed on Awesome MyGo" src="https://awesomemygo.dev/badge.svg"></a>
+  <a href="https://awesomemygo.dev/ai"><img alt="Listed on Awesome MyGo" src="https://img.shields.io/badge/awesome%20mygo-listed-41c4f0"></a>
 </p>
 
 <p align="center"><b>English</b> · <a href="README.zh-CN.md">简体中文</a></p>
