@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Check, ChevronDown, ChevronRight, ChevronLeft, CornerLeftUp, Folder, FolderOpen, Clock, Undo2, Shield, ShieldAlert, Eye, ListPlus, ChevronUp, CornerDownRight, X } from "lucide-react";
 import { API, desktop, type AgentView } from "../../api";
 import { t } from "../../i18n";
-import { setState, toast } from "../../store";
+import { refreshAgent, setState, toast } from "../../store";
 import { shortPath, dirName, recentDirs, rememberDir, tailPath } from "./util";
 
 /** Folders on the host, one level at a time (no native picker here). */
@@ -160,7 +160,13 @@ export function ModeIcon({ mode, size }: { mode: string; size: number }) {
 export function QueueStack({ agent, session, busy }: { agent: AgentView; session: string; busy: boolean }) {
   const items = agent.queue.filter((q) => q.session === session && !q.from);
   if (!items.length) return null;
-  const act = (p: Promise<unknown>) => void p.catch((e) => toast(e?.message ?? String(e)));
+  // an input the daemon no longer has queued (claimed, or gone) answers
+  // 404: the queue shown was out of date, so read it again, no error
+  const act = (p: Promise<unknown>) =>
+    void p.catch((e) => {
+      if (e?.status === 404) void refreshAgent(agent.id);
+      else toast(e?.message ?? String(e));
+    });
   const all = agent.queue;
   return (
     <div className="qstack" aria-label={t("chat.queue", { n: items.length })}>

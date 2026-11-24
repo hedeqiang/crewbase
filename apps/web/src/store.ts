@@ -946,6 +946,9 @@ function clearStream(session: string, agent?: string) {
 const SUMMARY_TYPES = new Set(["message/user", "message/assistant", "approval/asked", "session/meta"]);
 
 function applySessionEvent(ev: SessionEvent) {
+  // a queued input that was claimed or cancelled leaves the queue on
+  // screen at once, whatever agent.updated says or when it comes
+  if ((ev.type === "input/claimed" || ev.type === "input/cancelled") && ev.agent && ev.data?.id) dropQueued(ev.agent, ev.data.id);
   if (!state.sessions[ev.session]) void refreshSessions();
   if (SUMMARY_TYPES.has(ev.type)) scheduleSummaries();
   if (ev.type.startsWith("channel/")) void refreshChannel(ev.session);
@@ -965,6 +968,25 @@ function applySessionEvent(ev: SessionEvent) {
   const last = cur.length ? cur[cur.length - 1].seq : 0;
   if (ev.seq === last + 1) setState((s) => ({ events: { ...s.events, [ev.session]: [...(s.events[ev.session] ?? []), ev] } }));
   else if (ev.seq > last + 1) void loadSession(ev.session); // gap: refetch
+}
+
+/** Takes an input out of an agent's queue as shown. */
+export function dropQueued(agent: string, id: string) {
+  setState((s) => {
+    const a = s.agents[agent];
+    if (!a || !a.queue.some((q) => q.id === id)) return {};
+    return { agents: { ...s.agents, [agent]: { ...a, queue: a.queue.filter((q) => q.id !== id) } } };
+  });
+}
+
+/** Reads an agent again from the daemon (its queue as it really is). */
+export async function refreshAgent(id: string) {
+  try {
+    const a = await API.agent(id);
+    setState((s) => ({ agents: { ...s.agents, [a.id]: a } }));
+  } catch {
+    /* gone: agent.deleted says so */
+  }
 }
 
 function applyStream(e: StreamChunk) {

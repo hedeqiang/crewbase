@@ -959,16 +959,21 @@ var Plugin = kernel.Register(kernel.Spec{
 		// ---- event bridge
 		session.OnEvent.Listen(c, func(a session.Appended) { hub.Publish("session.event", a.Event) })
 		agent.StatusChanged.Listen(c, func(e agent.StatusEvent) { hub.Publish("agent.status", e) })
-		agent.QueueChanged.Listen(c, func(id string) {
+		// the agent's view is read and sent under one lock: changes made
+		// at once from different goroutines (a message queued, the loop
+		// claiming it) are sent in the order their views were read, so the
+		// last one on the wire is the agent as it is now (a view read before
+		// a claim but sent after it left the queue on screen wrong)
+		var viewMu sync.Mutex
+		publishAgent := func(id string) {
+			viewMu.Lock()
+			defer viewMu.Unlock()
 			if a, ok := agents.Get(id); ok {
 				hub.Publish("agent.updated", view(a))
 			}
-		})
-		agent.Updated.Listen(c, func(s agent.Spec) {
-			if a, ok := agents.Get(s.ID); ok {
-				hub.Publish("agent.updated", view(a))
-			}
-		})
+		}
+		agent.QueueChanged.Listen(c, publishAgent)
+		agent.Updated.Listen(c, func(s agent.Spec) { publishAgent(s.ID) })
 		agent.Created.Listen(c, func(_ context.Context, a *agent.Agent) (struct{}, error) {
 			hub.Publish("agent.updated", view(a))
 			return struct{}{}, nil
