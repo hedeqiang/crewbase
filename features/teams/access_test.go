@@ -236,9 +236,18 @@ func TestAccess(t *testing.T) {
 			t.Fatal("bob did not get the visible event")
 		}
 	}
-	// search: the owner finds the secret plan, Bob does not
-	if _, out := e.do(t, tok, "GET", "/api/search?q=secret%20plan", nil); !strings.Contains(fmt.Sprint(out), secSession) {
-		t.Fatalf("owner search: %v", out)
+	// search: the owner finds the secret plan, Bob does not. A message is
+	// recorded (and searchable) when the agent's turn takes it, a moment
+	// after it is posted: wait for that
+	var found any
+	for end := time.Now().Add(5 * time.Second); ; time.Sleep(50 * time.Millisecond) {
+		_, out := e.do(t, tok, "GET", "/api/search?q=secret%20plan", nil)
+		if found = out; strings.Contains(fmt.Sprint(out), secSession) {
+			break
+		}
+		if time.Now().After(end) {
+			t.Fatalf("owner search: %v", found)
+		}
 	}
 	if code, out := e.do(t, bobTok, "GET", "/api/search?q=secret%20plan", nil); code != 200 || strings.Contains(fmt.Sprint(out), secSession) {
 		t.Fatalf("bob search: %d %v", code, out)
