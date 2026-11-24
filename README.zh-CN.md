@@ -32,7 +32,7 @@ Crewbase 在你自己的电脑或服务器上运行一支 Agent 团队。每个 
 
 ## 亮点
 
-- **任意模型。** 原生接入 Anthropic、OpenAI、Gemini、DeepSeek、xAI、Kimi、智谱、MiniMax、通义千问、火山引擎，以及任何 OpenAI 兼容接口、[magpie](https://github.com/yetone/magpie) 网关、本地模型（Ollama、LM Studio）。按任务类型路由，失败自动切换到下一个模型。
+- **任意模型。** 原生接入 Anthropic、OpenAI、Gemini、DeepSeek、xAI、Kimi、智谱、MiniMax、通义千问、火山引擎；聚合平台 [LinkyRouter](https://linkyrouter.ai)（一个 Key 用 OpenAI、Anthropic、Google 等 50+ 模型）、OpenRouter、硅基流动、Groq；以及任何 OpenAI 兼容接口、[magpie](https://github.com/yetone/magpie) 网关、本地模型（Ollama、LM Studio）。按任务类型路由，失败自动切换到下一个模型。
 - **是团队，不只是聊天。** 频道单一负责人与显式交接、子 Agent 委派、可视化画布编排工作流，每棵委派树共享一块任务板（依赖图）。空白的**新对话**（⌘N）同样能使用全部工具。
 - **代码先评审再合入。** 在 Git 项目里，每个要写代码的子 Agent 都有自己的工作树和分支，并行干活互不覆盖。Agent 之间用行评论互相评审、有上限地多轮返修；谁也不能批准自己（或自己子 Agent）的工作，合入前先预览且不碰任何工作区，冻结的代码行改不动，推送前都会先问你。接上 GitHub 后：评审通过的分支一键开 PR、把评审发到 PR 上、CI 通过再合入、CI 失败自动返修；来自 fork 的 PR 只读审阅，代码绝不在本机运行（[详情](docs/git.md)）。
 - **Webhook 进出。** GitHub、GitLab、Sentry、Linear、Stripe 的事件验签、过滤后交给频道、例行巡检或工作流（没有公网地址的电脑也能经中继接收）；这里发生的事——工作流完成、巡检发现问题、等待审批——带签名推送出去，失败自动重试（[详情](docs/webhooks.md)）。
