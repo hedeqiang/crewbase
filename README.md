@@ -142,6 +142,18 @@ Crewbase runs code and calls services on your behalf, so its defaults are conser
 
 Issues and pull requests are welcome. Run `make check` and `pnpm build` in `apps/web` before sending a change; CI runs the same checks on Linux and macOS.
 
+## Sponsors
+
+Thanks to the sponsors who support Crewbase.
+
+<p>
+  <a href="https://linkyrouter.ai">
+    <img src="docs/media/sponsor-linkyrouter.svg" width="40" height="40" alt="LinkyRouter" align="left" />
+  </a>
+  <b><a href="https://linkyrouter.ai">LinkyRouter</a></b> — one link to every AI. One API key for OpenAI, Anthropic, Google and 50+ models, with unified billing and instant failover. Built in: <b>Settings › Models › Add provider › LinkyRouter</b>.
+</p>
+<br clear="left" />
+
 ## License
 
 [MIT](LICENSE).

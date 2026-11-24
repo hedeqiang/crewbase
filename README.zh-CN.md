@@ -141,6 +141,18 @@ Crewbase 会代你执行代码、调用服务，所以默认设置很保守：Ag
 
 欢迎提 issue 和 PR。提交前请运行 `make check`，并在 `apps/web` 下运行 `pnpm build`；CI 会在 Linux 与 macOS 上跑同样的检查。
 
+## 赞助商
+
+感谢支持 Crewbase 的赞助商。
+
+<p>
+  <a href="https://linkyrouter.ai/zh/">
+    <img src="docs/media/sponsor-linkyrouter.svg" width="40" height="40" alt="LinkyRouter" align="left" />
+  </a>
+  <b><a href="https://linkyrouter.ai/zh/">LinkyRouter</a></b>：一个 Key 连接所有 AI。一个 API Key 使用 OpenAI、Anthropic、Google 等 50+ 模型，统一计费，即时故障切换。已内置：<b>设置 › 模型 › 添加提供方 › LinkyRouter</b>。
+</p>
+<br clear="left" />
+
 ## 许可证
 
 [MIT](LICENSE)。
