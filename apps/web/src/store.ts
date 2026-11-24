@@ -38,7 +38,7 @@ export type View = "chat" | "newAgent" | "settings" | "desk";
  *  Approvals stay in settings: the 需要你 pill and ⌘⇧A reach what waits. */
 export type DeskPage = "library" | "auto";
 /** Built-in tabs, or `ui:<key>` for a plugin's sidebar-right.tab. */
-export type PanelTab = "task" | "schedule" | "files" | "code" | "preview" | "library" | "docs" | "agent" | `ui:${string}`;
+export type PanelTab = "task" | "usage" | "schedule" | "files" | "code" | "preview" | "library" | "docs" | "agent" | `ui:${string}`;
 export type Theme = "system" | "light" | "dark";
 export type SettingsSection =
   | "general"
