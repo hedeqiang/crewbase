@@ -1,7 +1,7 @@
 import { TaskBoard } from "./TaskBoard";
 import { WorkNotes, WorkTasks } from "./Working";
 import { useEffect, useMemo, useState, useRef, type ReactNode, type PointerEvent as ReactPointerEvent } from "react";
-import { Settings2, Archive, ChartColumn, CalendarClock, Code2, Eye, FileText, FolderTree, Library as LibraryIcon, ListChecks, Puzzle, ArrowDown, ArrowUp, Check, ChevronLeft, ChevronRight, CircleMinus, CircleX, Globe, GripVertical, Link2, Minimize2, Pause, Play, Plus, Shuffle, Square, Trash, UserPlus, X, CornerDownRight } from "lucide-react";
+import { Settings2, Archive, CalendarClock, Code2, Eye, FileText, FolderTree, Library as LibraryIcon, ListChecks, Puzzle, ArrowDown, ArrowUp, Check, ChevronLeft, ChevronRight, CircleMinus, CircleX, Globe, GripVertical, Link2, Minimize2, Pause, Play, Plus, Shuffle, Square, Trash, UserPlus, X, CornerDownRight } from "lucide-react";
 import { API, refString, type AgentView, type ChannelView, type ContextBreakdown, type ModelRef } from "../api";
 import { t, type Key } from "../i18n";
 import { activeModel, allModels, detailLabel, effortLabel, exhaustedHint, exhaustedLabel, hhmm, isExhausted, kfmt, modeLabel, modelLabel, modelMeta, modelOff, pillTone, sameRef, statusLabel, until } from "../format";
@@ -18,7 +18,6 @@ import { Popover, useMenu } from "./Popover";
 import { ProviderMark } from "./ProviderMark";
 import { shortPath, SubFeed } from "./Conversation";
 import { PanelView, SlotIcon, useSlot } from "./UISlots";
-import { UsageTab } from "./UsageTab";
 import { confirmDialog } from "./Confirm";
 import { AgentConnectors } from "./AgentConnectors";
 
@@ -57,7 +56,6 @@ export function Panel() {
   // a plain chat has no workspace to browse (an HTML answer can still be previewed)
   const tabs: [typeof tab, string, ReactNode][] = [
     ["task", t("panel.task"), <ListChecks size={16} />],
-    ["usage", t("ut.tab"), <ChartColumn size={16} />],
     ...(chat ? [] : ([["schedule", t("sched.tab"), <CalendarClock size={16} />]] as [typeof tab, string, ReactNode][])),
     ...(chat || !desktopTier ? [] : ([["files", t("panel.files"), <FolderTree size={16} />]] as [typeof tab, string, ReactNode][])),
     ...(chat ? [] : ([["code", t("panel.code"), <Code2 size={16} />]] as [typeof tab, string, ReactNode][])),
@@ -119,7 +117,6 @@ export function Panel() {
         {view === "docs" && <DocsTab />}
         {view === "schedule" && <ScheduleTab key={"sched:" + agent.id} agent={agent} data={sched} />}
         {view === "preview" && <PreviewTab key={"prv:" + (current ?? agent.session)} session={current ?? agent.session} />}
-        {view === "usage" && <UsageTab key={"usage:" + (current ?? agent.session)} agent={agent} session={current ?? agent.session} />}
         {view === "agent" && <AgentTab key={"agent:" + agent.id} agent={agent} sessionId={current ?? agent.session} />}
         {pluginTab && (
           <div className="uitab">
