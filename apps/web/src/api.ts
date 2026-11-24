@@ -2089,6 +2089,8 @@ export interface ProviderPreset {
   /** "" = model vendor, "platform" = aggregator / inference platform */
   group?: string;
   modelHint?: string;
+  /** what it offers, in a few words */
+  desc?: string;
 }
 
 /** A provider added from the UI (GET /api/providers). */

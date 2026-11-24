@@ -60,10 +60,19 @@
 .sdot { width: 7px; height: 7px; border-radius: 50%; background: var(--muted); flex: none; }
 .sdot.ok { background: var(--ok); } .sdot.err { background: var(--danger); }
 .pvd { overflow: auto; padding: 20px 24px 28px; min-width: 0; }
-.pvh { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
-.pvh .g { flex: 1; min-width: 160px; display: flex; flex-direction: column; }
-.pvh .g b { font-size: var(--fs-18); font-weight: 600; }
-.pvh .g span { font-size: var(--fs-13); color: var(--muted); }
+.pvh { display: flex; align-items: center; gap: 14px; }
+.pvh .g { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.pvh .g b { font-size: var(--fs-18); font-weight: 600; display: flex; align-items: center; gap: 8px; min-width: 0; }
+.pvh .g > span { font-size: var(--fs-13); color: var(--muted); }
+.pvacts { display: inline-flex; align-items: center; gap: 6px; flex: none; }
+.pvacts .ib-dng { width: 30px; padding: 0; justify-content: center; color: var(--muted); }
+.pvacts .ib-dng:hover { color: var(--danger-text); background: var(--danger-soft); }
+.pvmeta { display: flex; align-items: center; gap: 8px 16px; flex-wrap: wrap; margin-top: 12px; padding: 9px 12px; border: 1px solid var(--border); border-radius: var(--r-10, 10px); background: var(--raised); font-size: var(--fs-12); color: var(--text2); min-width: 0; }
+.pvmeta > span { display: inline-flex; align-items: center; gap: 6px; min-width: 0; max-width: 100%; }
+.pvmeta > span.mono { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: block; }
+.pvmeta > span.mono svg { vertical-align: -2px; margin-right: 6px; }
+.pvmeta svg { flex: none; color: var(--muted); }
+.pvmeta code { font-family: var(--mono); font-size: var(--fs-12); background: none; padding: 0; }
 .pvusers { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: 12px; font-size: var(--fs-13); color: var(--text2); }
 .uchip { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--border2); border-radius: var(--r-pill); padding: 2px 8px 2px 4px; font-size: var(--fs-12); }
 .uchip:hover { background: var(--hover); }

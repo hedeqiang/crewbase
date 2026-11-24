@@ -1,4 +1,4 @@
-import { AlertTriangle, Check, ChevronDown, ExternalLink, KeyRound, Loader2, Search, Sparkles, X } from "lucide-react";
+import { AlertTriangle, Check, ChevronDown, ChevronRight, ExternalLink, KeyRound, Loader2, Plus, Search, Sparkles, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { API, desktop, type ModelKind, type ProviderPreset, type ProviderTestResult, type UserProvider } from "../../api";
 import { classifyModelId, modelKind } from "../../format";
@@ -181,12 +181,28 @@ export function AddProviderDialog({ onClose, existing, edit }: { onClose: () => 
     const added = existing.includes(p.id);
     return (
       <button key={p.id} type="button" className="ap-card" disabled={added} onClick={() => choose(p)} title={added ? t("ap.already") : p.baseURL}>
-        {p.icon ? <IconMark icon={p.icon} id={p.id} label={p.name} size={22} /> : <ProviderMark provider={p.id} size={22} />}
-        <span>{p.name}</span>
-        {added && <Check size={14} className="ap-done" />}
+        {p.icon ? <IconMark icon={p.icon} id={p.id} label={p.name} size={24} /> : <ProviderMark provider={p.id} size={24} />}
+        <span className="ap-ct">
+          <b>
+            {p.name}
+            {fresh.includes(p.id) && !added && <i className="ap-new" aria-label={t("ap.newTag")} title={t("ap.newTag")} />}
+          </b>
+          {p.desc && <span>{p.desc}</span>}
+        </span>
+        {added ? (
+          <span className="ap-state">
+            <Check size={13} /> {t("ap.addedTag")}
+          </span>
+        ) : (
+          <ChevronRight size={15} className="ap-go" />
+        )}
       </button>
     );
   };
+  // a provider just added to the list carries a dot until the dialog has
+  // shown it once
+  const [fresh] = useState(() => unseenNew());
+  useEffect(() => markNewSeen(), []);
 
   return (
     <>
@@ -227,8 +243,14 @@ export function AddProviderDialog({ onClose, existing, edit }: { onClose: () => 
                 {platforms.map(card)}
                 {showCustom && (
                   <button type="button" className="ap-card" disabled={!!loadErr} onClick={() => choose(null)}>
-                    <span className="ap-plus">+</span>
-                    <span>{t("ap.custom")}</span>
+                    <span className="ap-plus">
+                      <Plus size={14} />
+                    </span>
+                    <span className="ap-ct">
+                      <b>{t("ap.custom")}</b>
+                      <span>{t("ap.customDesc")}</span>
+                    </span>
+                    <ChevronRight size={15} className="ap-go" />
                   </button>
                 )}
               </div>
@@ -236,6 +258,15 @@ export function AddProviderDialog({ onClose, existing, edit }: { onClose: () => 
             </>
           ) : (
             <>
+              {!showIdent && pre && (
+                <div className="ap-who">
+                  <IconMark icon={pre.icon || pre.id} id={pre.id} label={pre.name} size={36} />
+                  <span className="ap-ct">
+                    <b>{pre.name}</b>
+                    <span className="mono">{pre.baseURL}</span>
+                  </span>
+                </div>
+              )}
               {showIdent && (
                 <div className="ap-ident">
                   <div className="ap-iconpick">
@@ -347,10 +378,20 @@ export function AddProviderDialog({ onClose, existing, edit }: { onClose: () => 
                 </span>
                 <span className="small">{edit ? t("ap.keyKeepNote") : t("ap.keyNote")}</span>
               </label>
-              <label className="fl">
-                <span>{t("ap.base")}</span>
-                <input className="fi sm mono" value={baseURL} placeholder="https://…/v1" onChange={(e) => setBaseURL(e.target.value)} />
-              </label>
+              {showIdent ? (
+                <label className="fl">
+                  <span>{t("ap.base")}</span>
+                  <input className="fi sm mono" value={baseURL} placeholder="https://…/v1" onChange={(e) => setBaseURL(e.target.value)} />
+                </label>
+              ) : (
+                <details className="ap-adv">
+                  <summary>{t("ap.advanced")}</summary>
+                  <label className="fl">
+                    <span>{t("ap.base")}</span>
+                    <input className="fi sm mono" value={baseURL} placeholder="https://…/v1" onChange={(e) => setBaseURL(e.target.value)} />
+                  </label>
+                </details>
+              )}
               {custom && !edit && (
                 <label className="fl">
                   <span>{t("ap.api")}</span>
@@ -427,4 +468,27 @@ export function AddProviderDialog({ onClose, existing, edit }: { onClose: () => 
       </div>
     </>
   );
+}
+
+/** Providers new in this version: a dot on their card until the add
+ *  dialog has been opened once. */
+const NEW_PROVIDERS = ["linkyrouter"];
+const SEEN_KEY = "crewbase.newProvidersSeen";
+
+function unseenNew(): string[] {
+  try {
+    const seen: string[] = JSON.parse(localStorage.getItem(SEEN_KEY) || "[]");
+    return NEW_PROVIDERS.filter((id) => !seen.includes(id));
+  } catch {
+    return [];
+  }
+}
+
+function markNewSeen() {
+  try {
+    const seen: string[] = JSON.parse(localStorage.getItem(SEEN_KEY) || "[]");
+    localStorage.setItem(SEEN_KEY, JSON.stringify([...new Set([...seen, ...NEW_PROVIDERS])]));
+  } catch {
+    /* storage unavailable: the dot shows again next time */
+  }
 }

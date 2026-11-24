@@ -3,7 +3,7 @@ import { Skeleton } from "./Skeleton";
 import { AddProviderDialog } from "./settings/AddProvider";
 import { MagpieModelsDialog, ModelCatalog } from "./settings/ModelSources";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { CheckCheck, ChevronLeft, Info, ListChecks, Pencil, Plus, Search, Workflow } from "lucide-react";
+import { CheckCheck, ChevronLeft, Globe, Info, KeyRound, ListChecks, Pencil, Plus, Search, Trash2, Workflow } from "lucide-react";
 import { NAV, SECTION_ICONS } from "./settings/nav";
 import { API, desktop, type DesktopPermission, type DesktopUpdateState, type UpdateInfo, type ApprovalHistoryItem, type ModelInfo, type ProviderView, type RememberedChoice, type Settings as SettingsData, type UserProvider } from "../api";
 import { getLang, t, type Key, type Lang } from "../i18n";
@@ -929,18 +929,63 @@ function Models() {
           </div>
           {cur && (
             <div className="pvd">
-              <div className="pvh">
-                <ProviderMark provider={cur.id} size={36} />
-                <div className="g">
-                  <b>{pname(cur.id)}</b>
-                  <span>
-                    {cur.id} · {t(`kind.${cur.kind}` as Key)}
-                  </span>
-                </div>
-                <span className={"pill " + (cur.error ? "red" : isEx(cur) ? "red" : "ok")}>
-                  {cur.error ? t("set.errorState") : isEx(cur) ? t("set.exhaustedState") : t("set.connectedState")}
-                </span>
-              </div>
+              {(() => {
+                const up = userProv.find((u) => u.id === cur.id);
+                const remove = async () => {
+                  if (!up || !(await confirmDialog(t("ap.removeQ", { name: up.name || up.id })))) return;
+                  try {
+                    await API.removeProvider(up.id);
+                    toast(t("ap.removed", { name: up.name || up.id }));
+                    await resync();
+                    void loadUser();
+                  } catch (e: any) {
+                    toast(t("ap.failed", { error: e?.message ?? String(e) }));
+                  }
+                };
+                return (
+                  <>
+                    <div className="pvh">
+                      <ProviderMark provider={cur.id} size={40} />
+                      <div className="g">
+                        <b>
+                          {pname(cur.id)}
+                          <span className={"pill sm " + (cur.error || isEx(cur) ? "red" : "ok")}>
+                            {cur.error ? t("set.errorState") : isEx(cur) ? t("set.exhaustedState") : t("set.connectedState")}
+                          </span>
+                        </b>
+                        <span>
+                          {cur.id} · {t(`kind.${cur.kind}` as Key)}
+                        </span>
+                      </div>
+                      {up && (
+                        <span className="pvacts">
+                          <button className="btn sm" type="button" onClick={() => setEditing(up)}>
+                            <Pencil size={13} />
+                            {t("ap.editBtn")}
+                          </button>
+                          <button className="btn sm ghost ib-dng" type="button" aria-label={t("ap.remove")} title={t("ap.remove")} onClick={() => void remove()}>
+                            <Trash2 size={14} />
+                          </button>
+                        </span>
+                      )}
+                    </div>
+                    {up && (
+                      <div className="pvmeta">
+                        <span>
+                          <KeyRound size={13} />
+                          <code>{up.masked || "••••"}</code>
+                        </span>
+                        {up.baseURL && (
+                          <span className="mono" title={up.baseURL}>
+                            <Globe size={13} />
+                            {up.baseURL}
+                          </span>
+                        )}
+                      </div>
+                    )}
+                  </>
+                );
+              })()}
               <div className="pvusers">
                 {users.length ? (
                   <>
@@ -957,41 +1002,6 @@ function Models() {
                 )}
               </div>
               {cur.error && <div className="confirmbar errbar">{cur.error}</div>}
-              {(() => {
-                const up = userProv.find((u) => u.id === cur.id);
-                if (!up) return null;
-                return (
-                  <div className="kv2 upv">
-                    <span className="small">
-                      {t("ap.keyStored")} <code>{up.masked || "••••"}</code>
-                      {up.baseURL ? <> · <span className="mono">{up.baseURL}</span></> : null}
-                    </span>
-                    <span className="upvacts">
-                    <button className="btn sm" type="button" onClick={() => setEditing(up)}>
-                      <Pencil size={13} />
-                      {t("ap.editBtn")}
-                    </button>
-                    <button
-                      className="btn dng sm ghost"
-                      type="button"
-                      onClick={async () => {
-                        if (!(await confirmDialog(t("ap.removeQ", { name: up.name || up.id })))) return;
-                        try {
-                          await API.removeProvider(up.id);
-                          toast(t("ap.removed", { name: up.name || up.id }));
-                          await resync();
-                          void loadUser();
-                        } catch (e: any) {
-                          toast(t("ap.failed", { error: e?.message ?? String(e) }));
-                        }
-                      }}
-                    >
-                      {t("ap.remove")}
-                    </button>
-                    </span>
-                  </div>
-                );
-              })()}
               {exhaustedOf(cur).map((x) => (
                 <div key={x.model} className="confirmbar errbar">
                   {t("set.exhaustedUntil", { model: x.model, time: until(x.until) })}
