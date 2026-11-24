@@ -1,11 +1,11 @@
 import { Skeleton } from "../Skeleton";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Lock, Pencil } from "lucide-react";
-import { API, parseRef, type UsageStats } from "../../api";
+import { API, parseRef, type ModelUse, type UsageStats } from "../../api";
 import { t, type Key } from "../../i18n";
-import { kfmt, modelLabel, providerName } from "../../format";
-import { myName, openSession, patchProfile, useStore } from "../../store";
-import { Avatar, AvatarRaw, colorFor, MeAvatar } from "../Avatar";
+import { kfmt, modelLabel, providerName, shortModelEffort } from "../../format";
+import { myName, patchProfile, useStore } from "../../store";
+import { Avatar, MeAvatar } from "../Avatar";
 import { ProviderMark } from "../ProviderMark";
 import { Head } from "../Settings";
 
@@ -29,7 +29,6 @@ export function Profile() {
   const [err, setErr] = useState<string | null>(null);
   const agents = useStore((s) => s.agents);
   const profile = useStore((s) => s.profile);
-  const models = useStore((s) => s.models);
   const connected = useStore((s) => s.connected);
   useEffect(() => {
     API.usage().then(setU, (e) => setErr(e?.message ?? String(e)));
@@ -88,33 +87,10 @@ export function Profile() {
                 </div>
               </>
             )}
-            <div className="vsec">{t("prof.top")}</div>
-            {u.byAgent.length === 0 ? (
-              <p className="small">{t("prof.none")}</p>
-            ) : (
-              <div className="htable">
-                {u.byAgent.slice(0, 8).map((x) => {
-                  const a = agents[x.agent];
-                  const r = parseRef(x.model);
-                  return (
-                    <button key={x.agent} className="hrow" type="button" disabled={!a} onClick={() => a && openSession(a.session)}>
-                      {a ? <Avatar agent={a} size={28} /> : <AvatarRaw color={colorFor(x.agent)} name={x.name || x.agent} size={28} />}
-                      <span className="g">
-                        <b>
-                          {x.name || a?.name || x.agent}
-                          {a?.role && <span className="tag" style={{ marginLeft: 6 }}>{a.role}</span>}
-                          {!a && <span className="tag" style={{ marginLeft: 6 }}>{t("prof.deleted")}</span>}
-                        </b>
-                        <span>
-                          {r && <ProviderMark provider={r.provider} model={r.model} size={11} />} {r ? modelLabel(models, r) : x.model}
-                        </span>
-                      </span>
-                      <span className="num">{kfmt(x.tokens)}</span>
-                    </button>
-                  );
-                })}
-              </div>
-            )}
+            <div className="vsec">{t("prof.byModel")}</div>
+            <ModelTable rows={u.byModel ?? []} />
+            <div className="vsec">{t("prof.members")}</div>
+            <Members rows={u.byAgent.filter((x) => !x.deleted && agents[x.agent])} />
             <p className="small" style={{ marginTop: 14 }}>
               {t("prof.reference", { i: u.reference.input, o: u.reference.output })}
             </p>
@@ -308,6 +284,120 @@ function Share({ u }: { u: UsageStats }) {
           </div>
         ))}
       </div>
+    </div>
+  );
+}
+
+/** What a model's use cost: spent (API keys, gateways), or the kind of
+ *  account it ran on when that is not billed per token. */
+function costOf(m: { kind: string; spentUsd: number; unpriced?: boolean }): { text: string; muted: boolean } {
+  if (m.kind === "api" || m.kind === "gateway") {
+    if (m.spentUsd > 0) return { text: usd(m.spentUsd), muted: false };
+    return { text: m.unpriced ? t("prof.noPrice") : usd(0), muted: true };
+  }
+  const k = t(`kind.${m.kind}` as Key);
+  return { text: k === `kind.${m.kind}` ? m.kind : k, muted: true };
+}
+
+function usd(n: number) {
+  if (n > 0 && n < 0.01) return "<$0.01";
+  return "$" + n.toFixed(n < 100 ? 2 : 0);
+}
+
+/** 模型用量: each model with its tokens (a bar against the busiest), its
+ *  replies and what it cost. */
+function ModelTable({ rows }: { rows: ModelUse[] }) {
+  const models = useStore((s) => s.models);
+  const [all, setAll] = useState(false);
+  if (!rows.length) return <p className="small">{t("prof.none")}</p>;
+  const max = rows[0].tokens || 1;
+  const shown = all ? rows : rows.slice(0, 8);
+  return (
+    <div className="htable musage">
+      {shown.map((m) => {
+        const r = parseRef(m.model);
+        const c = costOf(m);
+        return (
+          <div key={m.model} className="murow">
+            <ProviderMark provider={m.provider} model={r?.model} size={20} />
+            <span className="g">
+              <b title={m.model}>{r ? modelLabel(models, r) : m.model}</b>
+              <span>
+                {providerName(m.provider)} · {t("prof.replies", { n: m.messages })} · {t("prof.inOut", { i: kfmt(m.input), o: kfmt(m.output) })}
+              </span>
+            </span>
+            <span className="mubar" aria-hidden>
+              <i style={{ width: Math.max(2, (m.tokens / max) * 100) + "%" }} />
+            </span>
+            <span className="num">{kfmt(m.tokens)}</span>
+            <span className={"num mucost" + (c.muted ? " muted" : "")}>{c.text}</span>
+          </div>
+        );
+      })}
+      {rows.length > 8 && (
+        <button type="button" className="mumore" onClick={() => setAll(!all)}>
+          {all ? t("prof.fewer") : t("prof.allModels", { n: rows.length })}
+        </button>
+      )}
+    </div>
+  );
+}
+
+/** 成员: each member's total, and the models it used with their share. */
+function Members({ rows }: { rows: UsageStats["byAgent"] }) {
+  const agents = useStore((s) => s.agents);
+  const models = useStore((s) => s.models);
+  const [open, setOpen] = useState<Record<string, boolean>>({});
+  if (!rows.length) return <p className="small">{t("prof.none")}</p>;
+  return (
+    <div className="mcards">
+      {rows.map((x) => {
+        const a = agents[x.agent]!;
+        const ms = x.models ?? [];
+        const shown = open[x.agent] ? ms : ms.slice(0, 3);
+        const billed = ms.some((m) => m.kind === "api" || m.kind === "gateway");
+        return (
+          <div key={x.agent} className="mcard">
+            <div className="mchead">
+              <Avatar agent={a} size={28} />
+              <span className="g">
+                <b>
+                  {a.name || x.name}
+                  {a.role && <span className="tag">{a.role}</span>}
+                </b>
+                <span>{t("prof.replies", { n: x.messages })} · {t("prof.modelsN", { n: ms.length })}</span>
+              </span>
+              <span className="mctot">
+                <b>{kfmt(x.tokens)}</b>
+                <span>{billed ? usd(x.spentUsd) : "\u00a0"}</span>
+              </span>
+            </div>
+            <div className="mcmodels">
+              {shown.map((m) => {
+                const r = parseRef(m.model);
+                const c = costOf(m);
+                const pct = x.tokens ? Math.round((m.tokens / x.tokens) * 100) : 0;
+                return (
+                  <div key={m.model} className="mcm">
+                    <ProviderMark provider={m.provider} model={r?.model} size={14} />
+                    <span className="mcmn" title={r ? modelLabel(models, r) : m.model}>{r ? shortModelEffort(models, r).name : m.model}</span>
+                    <span className="mubar" aria-hidden>
+                      <i style={{ width: Math.max(2, pct) + "%" }} />
+                    </span>
+                    <span className="num">{kfmt(m.tokens)}</span>
+                    <span className={"num mucost" + (c.muted ? " muted" : "")}>{c.text}</span>
+                  </div>
+                );
+              })}
+              {ms.length > 3 && (
+                <button type="button" className="mumore" onClick={() => setOpen((o) => ({ ...o, [x.agent]: !o[x.agent] }))}>
+                  {open[x.agent] ? t("prof.fewer") : t("prof.moreModels", { n: ms.length - 3 })}
+                </button>
+              )}
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }

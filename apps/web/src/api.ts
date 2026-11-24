@@ -950,6 +950,21 @@ export type BrowserInput =
   | { type: "navigate"; url: string }
   | { type: "scroll"; dy: number };
 
+/** One model's use (features/usage ModelShare). */
+export interface ModelUse {
+  model: string;
+  provider: string;
+  kind: string;
+  tokens: number;
+  input: number;
+  output: number;
+  messages: number;
+  spentUsd: number;
+  savedUsd: number;
+  /** some tokens had no known price */
+  unpriced?: boolean;
+}
+
 export interface UsageStats {
   from: string;
   tokens: number;
@@ -960,7 +975,9 @@ export interface UsageStats {
   peakTokens: number;
   days: Record<string, number>;
   byProvider: { provider: string; kind: string; tokens: number }[];
-  byAgent: { agent: string; name: string; model: string; tokens: number }[];
+  byAgent: { agent: string; name: string; model: string; tokens: number; messages: number; spentUsd: number; models: ModelUse[]; deleted?: boolean }[];
+  /** every model's use, most used first */
+  byModel: ModelUse[];
   switches: number;
   interventions: number;
   /** estimated API spend (direct keys and gateways) */
