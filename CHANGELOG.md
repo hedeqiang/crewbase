@@ -3,6 +3,18 @@
 Each `## <version>` section becomes the release notes of that version,
 shown in the desktop app's update window.
 
+## 0.9.18
+
+切换模型更可靠：重新选回原来的模型也会生效；输入框显示的额度改为所选模型自己的账号额度。
+
+模型
+- 对话因故障切到备用模型后，重新选回排在第一位的模型（通常就是想用的那个）也会生效，不再一直停在备用模型上；选中的模型会立刻重试，不再因为之前的失败被跳过
+- magpie 偶尔响应慢时不再把它的模型全部暂时移除（之前会短暂出现「no connected provider magpie」，选什么都不行）
+
+额度
+- 输入框下方的额度显示所选模型背后那个账号的额度，比如「Codex · 7 days 额度剩余 98%」，鼠标悬停可看到各个时间窗口和重置时间；按量付费的模型（如 DeepSeek、API 余额）不再显示别的账号的额度
+- 同一提供方有多个账号时用套餐名区分；设置 › 模型 › magpie 里逐项列出每个账号的额度
+
 ## 0.9.17
 
 文档库和自动化移到会话列表底部的「工作台」，设置重新分组，输入框和 / 菜单重新排过；修复切换模型一直提示「magpie no longer lists the model」。
