@@ -9,7 +9,7 @@ import { type FeedItem, type Rewind } from "../../projection";
 import { loadSession, setState, useStore, getState, markRead } from "../../store";
 import { TakeoverCard, takeoverReason } from "../Browser";
 import { detailLabel } from "../../format";
-import { Avatar, channelColor, colorFor, ink } from "../Avatar";
+import { Avatar, bubbleColor, bubbleVars } from "../Avatar";
 import { StreamMarkdown } from "../StreamMarkdown";
 import { MsgCtx, SessionCtx } from "./context";
 import { speaker, shortPath } from "./util";
@@ -275,7 +275,6 @@ export function Feed({
   }, [sessionId, loading]);
 
   // your bubbles can take the agent's colour (a channel's own colour)
-  const bubbleColor = channel ? channelColor(channel.id) : agent.kind === "chat" ? channelColor(agent.id) : agent.color || colorFor(agent.id);
   return (
     <div
       className="feed"
@@ -283,7 +282,7 @@ export function Feed({
       data-sess={sessionId}
       onScroll={onScroll}
       data-bubbles={bubbles}
-      style={bubbles === "neutral" ? undefined : ({ "--ac": bubbleColor, "--ac-ink": ink(bubbleColor) } as CSSProperties)}
+      style={bubbleVars(bubbles, bubbleColor(agent, channel)) as CSSProperties | undefined}
     >
       {error && (
         <div className="sys err">

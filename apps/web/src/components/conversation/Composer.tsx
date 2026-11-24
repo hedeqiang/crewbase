@@ -1,7 +1,7 @@
 import { ReplyChip } from "../MsgExtras";
 import { runShortcut } from "../../actions";
 import { keyLabel } from "../../shortcuts";
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { ArrowUp, Check, ChevronDown, ChevronRight, ChevronLeft, Folder, Mic, Minimize2, Monitor, Plus, MicOff, Square, Sparkles, Paperclip } from "lucide-react";
 import { display, enterSends, MAC } from "../../shortcuts";
 import { API, parseRef, refString, type AgentView, type ChannelView, type ModelRef, type SlashPick } from "../../api";
@@ -11,7 +11,7 @@ import { hasModels, setModelOverride, openConnect, setState, toast, useStore, ge
 import { cloudVoice, dictate, dictationSupported, primeVoice } from "../../voice";
 import { addFiles, addLibraryFile, clearFiles, filesFrom, LIB_DRAG, libraryFrom, PendingChips } from "../Attachments";
 import { activeModel, modeLabel, shortModelEffort, isExhausted } from "../../format";
-import { Avatar } from "../Avatar";
+import { Avatar, bubbleColor, bubbleVars } from "../Avatar";
 import { Popover, useMenu } from "../Popover";
 import { ProviderMark } from "../ProviderMark";
 import { ContextMap } from "../ContextMap";
@@ -96,6 +96,7 @@ export function Composer({
   const manage = useStore((s) => s.tier === "desktop");
   const plain = !channel && agent.kind === "chat";
   const viewer = useStore((s) => s.tier === "viewer");
+  const bubbles = useStore((s) => s.bubbles);
   const [sending, setSending] = useState(false);
   const pending = useStore((s) => s.attach[sessionId]) ?? NO_FILES;
   const [dragging, setDragging] = useState(false);
@@ -365,7 +366,7 @@ export function Composer({
       </div>
     );
   return (
-    <div className="cwrap">
+    <div className="cwrap" data-bubbles={bubbles} style={bubbleVars(bubbles, bubbleColor(agent, channel)) as CSSProperties | undefined}>
       {hostConfirm && (
         <div className="confirmbar">
           <p>

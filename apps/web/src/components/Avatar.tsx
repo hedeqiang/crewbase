@@ -67,6 +67,17 @@ const STROKED: Partial<Record<Shape, number>> = { star: 4.5 };
 
 
 /** Readable ink on an identity colour. */
+/** The colour your bubbles (and the send button) take in a conversation:
+ *  a channel's own colour, a chat's, else the agent's. */
+export function bubbleColor(agent: { id: string; kind?: string; color?: string }, channel?: { id: string } | null): string {
+  return channel ? channelColor(channel.id) : agent.kind === "chat" ? channelColor(agent.id) : agent.color || colorFor(agent.id);
+}
+
+/** CSS variables for the bubble colour, unless bubbles are neutral grey. */
+export function bubbleVars(bubbles: string, color: string): Record<string, string> | undefined {
+  return bubbles === "neutral" ? undefined : { "--ac": color, "--ac-ink": ink(color) };
+}
+
 export function ink(hex: string): string {
   const m = /^#?([0-9a-f]{6})$/i.exec(hex);
   if (!m) return "#fff";

@@ -120,3 +120,9 @@
 .slashfoot { position: sticky; bottom: -6px; display: flex; align-items: center; gap: 14px; margin: 4px -6px -6px; padding: 7px 14px 8px; background: var(--surface); border-top: 1px solid var(--border); font-size: var(--fs-11); color: var(--muted); }
 .slashfoot span { white-space: nowrap; }
 .slashfor { padding: 3px 8px 6px; font-size: var(--fs-11); }
+/* the send button follows your bubbles (settings › 通用 › 外观):
+   solid → the colour itself; light → the same tint, the arrow in the colour */
+.cwrap[data-bubbles="solid"] .send.on:not(.stop) { background: var(--ac); color: var(--ac-ink); box-shadow: 0 1px 2px color-mix(in srgb, var(--ac) 45%, transparent); }
+.cwrap[data-bubbles="solid"] .send.on:not(.stop):hover:not(:disabled) { background: color-mix(in srgb, var(--ac), #000 8%); }
+.cwrap[data-bubbles="tint"] .send.on:not(.stop) { background: color-mix(in srgb, var(--ac) 22%, var(--page)); color: color-mix(in srgb, var(--ac), var(--text) 35%); box-shadow: none; }
+.cwrap[data-bubbles="tint"] .send.on:not(.stop):hover:not(:disabled) { background: color-mix(in srgb, var(--ac) 32%, var(--page)); }
