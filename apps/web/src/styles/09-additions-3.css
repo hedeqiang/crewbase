@@ -435,9 +435,7 @@ button.cxblk:focus-visible { outline: 2px solid var(--accent); outline-offset: -
 .m-agent.turn .narr { color: var(--text2); margin: 6px 0 0; }
 .m-agent.turn .narr.fresh { animation: narrfade .35s ease-out; }
 @keyframes narrfade { from { color: var(--text); } }
-.m-agent.turn .narr + .stepsw { margin-top: 2px; }
 .m-agent.turn .tans { margin-top: 6px; }
-.m-agent.turn .thinking p { margin: 0 0 8px; }
 .m-agent.turn .typing.in { padding: 6px 0 0; margin: 0; }
 
 /* a very long message folds; the button shows the rest */

@@ -1,0 +1,84 @@
+/* A turn's work as a timeline (conversation/timeline.tsx): one-line rows
+   with an icon column, a thin rail joining them, details opening in place
+   under their row. Every row is the same height, so things streaming in
+   add rows at the end and never reflow what is above. */
+
+.tl { position: relative; display: flex; flex-direction: column; min-width: 0; margin: 4px 0 2px -4px; }
+.tl.solo { margin-top: 2px; }
+.tl > * { position: relative; }
+/* the rail: from under each item's icon down to the next one */
+.tl:not(.solo) > :not(:last-child)::after { content: ""; position: absolute; left: 13.5px; top: 22px; bottom: -4px; width: 1px; background: var(--border2); pointer-events: none; }
+.tl.tlseg.closed > .seghead::after { display: none; }
+
+.tlitem { min-width: 0; }
+.tlrow { display: flex; align-items: center; gap: 6px; width: 100%; min-height: 26px; padding: 3px 6px 3px 4px; border-radius: var(--r-6); text-align: left; font-size: var(--fs-13); line-height: 20px; color: var(--text2); min-width: 0; }
+button.tlrow:hover { background: var(--hover); }
+button.tlrow:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.tlic { flex: none; width: 20px; height: 20px; display: inline-flex; align-items: center; justify-content: center; color: var(--muted); }
+.tll { flex: none; font-weight: 500; color: var(--text2); white-space: nowrap; }
+.tlx { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--fs-12); color: var(--muted); }
+.tlmeta { margin-left: auto; flex: none; padding-left: 8px; font-size: var(--fs-12); color: var(--muted); font-variant-numeric: tabular-nums; }
+.tlmeta:empty { display: none; }
+.tlrow .ch { flex: none; color: var(--muted); opacity: .5; transition: transform var(--dur-hover), opacity var(--dur-hover); }
+.tlrow:hover .ch, .tlrow:focus-visible .ch { opacity: 1; }
+.tlrow[aria-expanded="true"] .ch { transform: rotate(90deg); }
+
+/* a segment's header: what the run did, in words */
+.seghead .segsum { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.tlmore .tll { font-weight: 400; font-size: var(--fs-12); color: var(--muted); }
+.tldot { width: 5px; height: 5px; border-radius: 50%; background: var(--border2); box-shadow: 0 0 0 1px var(--border2); }
+
+/* a tool call */
+.tlrow.stephead { gap: 6px; padding: 3px 6px 3px 4px; }
+.tlrow.stephead b { color: var(--text); }
+.tlrow.stephead .pv { flex: 0 1 auto; font-size: var(--fs-12); }
+.tlrow.stephead .dtag { margin-left: 0; }
+.tlrow.stephead .steplink { margin-left: 0; }
+.stepexit { flex: none; font-size: var(--fs-11); line-height: 16px; padding: 0 6px; border-radius: var(--r-pill); background: var(--active); color: var(--text2); white-space: nowrap; }
+.steperr { margin: -3px 0 3px 28px; font-size: var(--fs-12); line-height: 18px; color: var(--danger-text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tlitem .cushots { margin-left: 28px; }
+.tlitem .stepbody { padding: 2px 0 8px 28px; animation: tl-open var(--dur-fast, .15s) ease-out; }
+.steplbl { font-size: var(--fs-11); color: var(--muted); margin: 8px 0 2px; }
+.codeblk.tlpre { white-space: pre-wrap; overflow-wrap: anywhere; overflow-x: hidden; overflow-y: auto; max-height: 260px; margin: 2px 0 4px; padding: 6px 10px; font-size: var(--fs-12); line-height: 1.5; }
+.targs { margin: 0; display: flex; flex-direction: column; gap: 2px; font-size: var(--fs-12); line-height: 18px; min-width: 0; }
+.targs > div { display: flex; gap: 8px; align-items: baseline; min-width: 0; }
+.targs > div.blk { flex-direction: column; gap: 0; align-items: stretch; }
+.targs dt { flex: none; font-family: var(--mono); color: var(--muted); }
+.targs dd { margin: 0; min-width: 0; }
+.targs dd > code { font-family: var(--mono); color: var(--text2); overflow-wrap: anywhere; }
+
+/* words said on the way: small, on the rail */
+.m-agent.turn .tlitem.narr, .tlitem.narr { display: flex; gap: 6px; margin: 0; padding: 2px 6px 2px 4px; }
+.tlitem.narr .tlic { height: 22px; }
+.tlbody { flex: 1; min-width: 0; font-size: var(--fs-13); color: var(--text2); }
+.m-agent .tlbody .mt { margin-top: 0; line-height: 1.6; }
+.tlbody .mt > :first-child { margin-top: 0; }
+.tlbody .mt > :last-child { margin-bottom: 0; }
+
+/* a thought: soft and small */
+.m-agent .tl .thinkmd.mt, .tl .thinkmd.mt { margin: 0 0 6px 28px; font-size: var(--fs-13); line-height: 1.65; color: var(--muted); overflow-wrap: anywhere; animation: tl-open var(--dur-fast, .15s) ease-out; }
+.tl .thinkmd.mt p { margin: 0 0 6px; }
+.tl .thinkmd.mt .mdh { font-size: var(--fs-13); margin: 8px 0 2px; color: var(--text2); }
+.tl .thinkmd.mt code { font-size: var(--fs-12); }
+
+/* the thought being written: 思考中, and the text rolling up */
+.tlitem.think.live .tll { background: linear-gradient(90deg, var(--muted) 0%, var(--muted) 40%, var(--text) 50%, var(--muted) 60%, var(--muted) 100%); background-size: 300% 100%; -webkit-background-clip: text; background-clip: text; color: transparent; animation: shimmer 2.2s linear infinite; }
+.thinkpulse { animation: thinkpulse 1.6s ease-in-out infinite; }
+@keyframes thinkpulse { 50% { opacity: .35; } }
+.thinkroll { position: relative; overflow: hidden; height: 0; max-height: 92px; margin: 0 0 4px 28px; transition: height .24s cubic-bezier(.2, .7, .3, 1); }
+.thinkroll.full { -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 40px); mask-image: linear-gradient(to bottom, transparent 0, #000 40px); }
+.m-agent .thinkroll-in.mt, .thinkroll-in.mt { position: absolute; left: 0; right: 0; bottom: 0; margin: 0; font-size: var(--fs-12); line-height: 18px; color: var(--muted); overflow-wrap: anywhere; transition: transform .24s cubic-bezier(.2, .7, .3, 1); }
+.thinkroll-in.mt .smblk + .smblk { margin-top: 4px; }
+.thinkroll-in.mt :is(p, ul, ol, pre, blockquote, .codewrap, .mdtable) { margin: 0; }
+.thinkroll-in.mt .mdh { font-size: inherit; margin: 0; color: var(--text2); }
+.thinkroll-in.mt :is(pre, .codeblk) { font-size: var(--fs-11); padding: 4px 8px; max-height: none; white-space: pre-wrap; }
+.thinkroll-in.mt code { font-size: var(--fs-11); }
+.thinkroll-in .smblk.smlast > :last-child::after, .thinkroll-in .smblk.smlast > ul:last-child > li:last-child::after, .thinkroll-in .smblk.smlast > ol:last-child > li:last-child::after { width: 5px; height: 11px; vertical-align: -1px; background: var(--muted); }
+
+@keyframes tl-open { from { opacity: 0; translate: 0 -2px; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .thinkroll, .thinkroll-in.mt { transition: none !important; }
+  .thinkpulse, .tlitem.think.live .tll, .tlitem .stepbody, .tl .thinkmd.mt { animation: none !important; }
+  .tlitem.think.live .tll { color: var(--text2); background: none; }
+}

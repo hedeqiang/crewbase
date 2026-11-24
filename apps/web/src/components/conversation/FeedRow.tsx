@@ -12,7 +12,7 @@ import { PluginCard, useSlot } from "../UISlots";
 import { speaker } from "./util";
 import { groupFeed } from "./feedUtil";
 import { UserMsg, AgentMsg, TurnMsg } from "./messages";
-import { Steps } from "./steps";
+import { Steps } from "./timeline";
 import { ApprovalCard } from "./approval";
 import { RetryButton } from "./other";
 

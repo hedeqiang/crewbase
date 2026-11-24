@@ -69,14 +69,3 @@ export function tailPath(p: string, n = 34): string {
   while (parts.length && out.length + parts[parts.length - 1].length + 1 <= n - 2) out = parts.pop() + "/" + out;
   return "…/" + out;
 }
-
-/** 思考了 6 秒 / 思考了 3 次 · 共 1 分 10 秒: how long it thought, when the
- *  log knows (the model calls that thought), else 思考过程. */
-export function thinkLabel(ms: (number | undefined)[]): string {
-  const known = ms.filter((x): x is number => typeof x === "number" && x > 0);
-  // a total that leaves some thoughts out would understate it
-  if (!known.length || known.length < ms.length) return ms.length > 1 ? t("chat.thoughtsN", { n: ms.length }) : t("chat.thoughts");
-  const s = Math.max(1, Math.round(known.reduce((a, b) => a + b, 0) / 1000));
-  const dur = s < 60 ? t("dur.s", { n: s }) : t("dur.ms", { m: Math.floor(s / 60), s: s % 60 });
-  return ms.length > 1 ? t("chat.thoughtTimes", { n: ms.length, dur }) : t("chat.thoughtFor", { dur });
-}

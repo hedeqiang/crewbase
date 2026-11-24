@@ -11,6 +11,7 @@ import { TakeoverCard, takeoverReason } from "../Browser";
 import { detailLabel } from "../../format";
 import { Avatar, bubbleColor, bubbleVars } from "../Avatar";
 import { StreamMarkdown } from "../StreamMarkdown";
+import { LiveThought } from "./timeline";
 import { MsgCtx, SessionCtx } from "./context";
 import { speaker, shortPath } from "./util";
 import { scrollMemo, FEED_WINDOW, blocks, groupFeed } from "./feedUtil";
@@ -262,6 +263,31 @@ export function Feed({
     if (stick.current) el.scrollTop = el.scrollHeight;
   });
 
+  // while someone works here, what grows between renders (the reply and the
+  // thinking window revealing at their pace, a row opening) keeps the end in
+  // view when the person is reading the end
+  const busy = useRef(false);
+  busy.current = live.length > 0 || openTurns.size > 0 || typingIds.length > 0;
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(() => {
+      if (stick.current && busy.current) el.scrollTop = el.scrollHeight;
+    });
+    const watch = () => {
+      ro.disconnect();
+      const kids = el.children;
+      for (let i = Math.max(0, kids.length - 3); i < kids.length; i++) ro.observe(kids[i]);
+    };
+    watch();
+    const mo = new MutationObserver(watch);
+    mo.observe(el, { childList: true });
+    return () => {
+      ro.disconnect();
+      mo.disconnect();
+    };
+  }, [sessionId]);
+
   // what is added after the conversation has loaded animates in (lib/motion)
   useEffect(() => {
     const el = ref.current;
@@ -343,7 +369,11 @@ export function Feed({
                 <b>{a?.name ?? k.split("|")[1]}</b>
                 <span className="t">{t("status.running")}</span>
               </div>
-              {v.thinking && !v.text && <div className="thinking small">{v.thinking.slice(-400)}</div>}
+              {v.thinking && (
+                <div className="tl">
+                  <LiveThought thinking={v.thinking} writing={!!v.text} agent={k.split("|")[1]} />
+                </div>
+              )}
               {v.text && (
                 <div className="mt streaming">
                   <StreamMarkdown text={v.text} />
