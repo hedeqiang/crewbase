@@ -161,6 +161,23 @@ func (a *Adapter) Refresh(ctx context.Context) error {
 	return err
 }
 
+// AdjustPricing (llm.PricingAdjuster): a model served by magpie's Codex
+// accounts bills cache writes as ordinary input. OpenAI's pricing lists
+// no cache-write price for Codex, while the same model name on the API
+// has one (1.25× input for the 30-minute cache), which the catalog would
+// otherwise apply.
+func (a *Adapter) AdjustPricing(model string, p *llm.Pricing) {
+	a.mu.RLock()
+	pv := a.modelProv[model]
+	a.mu.RUnlock()
+	if pv == "" {
+		pv, _, _ = strings.Cut(model, "/")
+	}
+	if pv == "codex" {
+		p.CacheWrite = 0
+	}
+}
+
 // AllModels returns everything magpie lists, enabled or not.
 func (a *Adapter) AllModels() []llm.ModelInfo {
 	a.mu.RLock()

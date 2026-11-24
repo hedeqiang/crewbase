@@ -360,3 +360,54 @@ func TestListChangeIsAnnounced(t *testing.T) {
 		t.Fatalf("%+v", ms)
 	}
 }
+
+type priceCatalog map[string]llm.CatalogEntry
+
+func (c priceCatalog) Lookup(id string) (llm.CatalogEntry, bool) {
+	if i := strings.LastIndex(id, "/"); i >= 0 {
+		id = id[i+1:]
+	}
+	e, ok := c[id]
+	return e, ok
+}
+
+// Codex (a ChatGPT subscription) has no cache-write price; OpenAI's API,
+// for the same model name, has one: the catalog's write price is kept
+// for the API and dropped for Codex.
+func TestCodexHasNoCacheWritePrice(t *testing.T) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/hello", func(w http.ResponseWriter, r *http.Request) { fmt.Fprint(w, `{"name":"magpie","version":"1"}`) })
+	mux.HandleFunc("/v1/models", func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, `{"data":[{"id":"codex/gpt-5.6-luna","owned_by":"codex"},{"id":"openai/gpt-5.6-luna","owned_by":"openai"}]}`)
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+	h := kernel.NewHost(nil)
+	defer h.Close()
+	h.Load(llm.Plugin, kernel.LoadOptions{})
+	if _, err := h.Load(magpie.Plugin, kernel.LoadOptions{Config: map[string]any{"baseURL": srv.URL + "/v1", "rescanInterval": "0"}}); err != nil {
+		t.Fatal(err)
+	}
+	reg := kernel.Use[*llm.Registry](h.Root(), llm.ServiceKey)
+	reg.SetCatalog(h.Root(), priceCatalog{"gpt-5.6-luna": {Pricing: &llm.Pricing{Input: 0.2, Output: 1.2, CacheRead: 0.02, CacheWrite: 0.25}}})
+	cx := reg.PriceOf(llm.ModelRef{Provider: "magpie", Model: "codex/gpt-5.6-luna"})
+	api := reg.PriceOf(llm.ModelRef{Provider: "magpie", Model: "openai/gpt-5.6-luna"})
+	if cx == nil || api == nil {
+		t.Fatal("no price")
+	}
+	if cx.CacheWrite != 0 || cx.CacheRead != 0.02 || cx.Input != 0.2 {
+		t.Fatalf("codex %+v", cx)
+	}
+	if api.CacheWrite != 0.25 {
+		t.Fatalf("api %+v", api)
+	}
+	// 1M written to the cache: Codex at the input price, the API at the write price
+	u := llm.Usage{InputTokens: 1_000_000, CacheWrite: 1_000_000}
+	if c, a := cx.Cost(u), api.Cost(u); c != 0.2 || a != 0.25 {
+		t.Fatalf("cost codex %v api %v", c, a)
+	}
+	// the catalog's own entry is not changed by it
+	if e, _ := (priceCatalog{"gpt-5.6-luna": {Pricing: &llm.Pricing{CacheWrite: 0.25}}}).Lookup("x/gpt-5.6-luna"); e.Pricing.CacheWrite != 0.25 {
+		t.Fatal("catalog changed")
+	}
+}

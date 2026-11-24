@@ -92,8 +92,9 @@ func (r *Registry) Enrich(provider string, ms []ModelInfo) []ModelInfo {
 	r.mu.RLock()
 	cat := r.catalog
 	local := false
-	if a, ok := r.adapters[provider]; ok {
-		local = a.Kind() == "local"
+	ad, hasAd := r.adapters[provider]
+	if hasAd {
+		local = ad.Kind() == "local"
 	}
 	r.mu.RUnlock()
 	if cat == nil || len(ms) == 0 {
@@ -115,6 +116,9 @@ func (r *Registry) Enrich(provider string, ms []ModelInfo) []ModelInfo {
 		}
 		if m.Pricing == nil && e.Pricing != nil && !local {
 			p := *e.Pricing
+			if pa, ok := ad.(PricingAdjuster); ok {
+				pa.AdjustPricing(m.ID, &p)
+			}
 			out[i].Pricing = &p
 		}
 	}
@@ -140,6 +144,14 @@ func (r *Registry) ModelsOf(ctx context.Context, a Adapter) ([]ModelInfo, error)
 		}
 	}
 	return ms, nil
+}
+
+// PricingAdjuster is optionally implemented by an adapter whose models'
+// billing differs from the catalog's list price for the same model name:
+// a gateway serving a model through a subscription (magpie's Codex
+// accounts have no cache-write price, unlike OpenAI's API).
+type PricingAdjuster interface {
+	AdjustPricing(model string, p *Pricing)
 }
 
 // Switches turn single models off (Settings › Models): an off model is
