@@ -243,6 +243,11 @@ func (s *Service) Unfurl(ctx context.Context, raw string) (*Card, error) {
 	s.mu.Unlock()
 	select {
 	case <-c.done:
+		// a caller that gave up is told so even when the fetch finished in
+		// the meantime (select picks either when both are ready)
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
 		return c.card, c.err
 	case <-ctx.Done():
 		return nil, ctx.Err()
