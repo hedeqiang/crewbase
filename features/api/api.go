@@ -464,15 +464,30 @@ var Plugin = kernel.Register(kernel.Spec{
 					return nil, err
 				}
 				// a new first model is worth a line in the conversation
-				if ms := a.Spec().Models; b.Models != nil && len(ms) > 0 && ms[0].String() != prevFirst.String() {
+				if ms := a.Spec().Models; b.Models != nil && len(ms) > 0 {
 					ss, err := a.Session()
 					if b.Session != "" {
 						if x, e := sessions.Get(b.Session); e == nil && slices.Contains(x.Meta().Agents, a.ID()) {
 							ss, err = x, nil
 						}
 					}
-					if err == nil {
-						_, _ = ss.Append(session.TypeModelChosen, a.ID(), session.ModelSwitchData{From: prevFirst, To: ms[0], Reason: "chosen"})
+					// a pick is a choice even when the model is already first:
+					// the conversation may be on a model it fell over to, and
+					// stays there until one is chosen
+					from, chosen := prevFirst, ms[0].String() != prevFirst.String()
+					rt, hasRouter := kernel.Lookup[*router.Router](c, agentloop.RouterKey)
+					if !chosen && hasRouter && err == nil {
+						if x, stuck := rt.Stuck(a, ss.ID()); stuck && x.String() != ms[0].String() {
+							from, chosen = x, true
+						}
+					}
+					if chosen && err == nil {
+						_, _ = ss.Append(session.TypeModelChosen, a.ID(), session.ModelSwitchData{From: from, To: ms[0], Reason: "chosen"})
+						// picked by the person: tried again now, not skipped for
+						// a back-off left by an earlier failure
+						if hasRouter {
+							rt.Reset(ms[0].String())
+						}
 					}
 				}
 				if b.Mode != nil && *b.Mode != prevMode {

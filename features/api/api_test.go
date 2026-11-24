@@ -429,3 +429,48 @@ func TestPickWithADroppedFallback(t *testing.T) {
 		t.Fatalf("a new unknown model was accepted: %d %v", code, out)
 	}
 }
+
+// The conversation fell over to its second model and stays there; the
+// person re-picks the model that is already first: that is a choice, the
+// conversation goes back to it, and its back-off is cleared.
+func TestRepickTheFirstModelEndsTheFallback(t *testing.T) {
+	base, h := start(t)
+	reg := kernel.Use[*llm.Registry](h.Root(), llm.ServiceKey)
+	ad, _ := reg.Get("mock")
+	ad.(interface{ AddModel(llm.ModelInfo) }).AddModel(llm.ModelInfo{ID: "second", Provider: "mock", Name: "second", Enabled: true})
+	code, a := do(t, base, tok, "POST", "/api/agents", map[string]any{"name": "Kai", "modelRefs": []string{"mock/default", "mock/second"}})
+	if code != 200 {
+		t.Fatal(code, a)
+	}
+	id := a["id"].(string)
+	ag, _ := kernel.Use[*agent.Registry](h.Root(), agent.ServiceKey).Get(id)
+	ss, _ := ag.Session()
+	first, second := llm.ModelRef{Provider: "mock", Model: "default"}, llm.ModelRef{Provider: "mock", Model: "second"}
+	ss.MustAppend(session.TypeModelSwitched, id, session.ModelSwitchData{From: first, To: second, Reason: "quota_exhausted"})
+	rt, _ := kernel.Lookup[*router.Router](h.Root(), agentloop.RouterKey)
+	rt.Failover(context.Background(), ag, first, &llm.Error{Kind: llm.ErrQuotaExhausted, Message: "spent"})
+	if x, stuck := rt.Stuck(ag, ss.ID()); !stuck || x != second {
+		t.Fatalf("not stuck on the fallback: %v %v", x, stuck)
+	}
+	code, out := do(t, base, tok, "PATCH", "/api/agents/"+id, map[string]any{"modelRefs": []string{"mock/default", "mock/second"}, "session": ss.ID()})
+	if code != 200 {
+		t.Fatal(code, out)
+	}
+	if _, stuck := rt.Stuck(ag, ss.ID()); stuck {
+		t.Fatal("re-picking the first model did not end the fallback")
+	}
+	for _, st := range rt.States() {
+		if st.Model == first.String() {
+			t.Fatalf("the picked model is still backed off: %+v", st)
+		}
+	}
+	if got, _ := rt.SelectFor(ag, agent.Input{Session: ss.ID()}); got != first {
+		t.Fatalf("next turn uses %v, want %v", got, first)
+	}
+	// a plain reorder that changes nothing adds no choice to the conversation
+	n := len(ss.Events())
+	do(t, base, tok, "PATCH", "/api/agents/"+id, map[string]any{"modelRefs": []string{"mock/default", "mock/second"}, "session": ss.ID()})
+	if len(ss.Events()) != n {
+		t.Fatal("an unchanged pick wrote an event")
+	}
+}

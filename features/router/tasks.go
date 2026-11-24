@@ -148,6 +148,16 @@ func (r *Router) stuck(a *agent.Agent, in agent.Input) (llm.ModelRef, bool) {
 	if a == nil || r.c == nil || in.Session == "" || strings.HasPrefix(in.Tag, "routine:") {
 		return llm.ModelRef{}, false // each routine run is a task of its own
 	}
+	return r.Stuck(a, in.Session)
+}
+
+// Stuck is the model the agent's conversation session fell over to and
+// stays on until a model is picked (or the history compacted).
+func (r *Router) Stuck(a *agent.Agent, sessionID string) (llm.ModelRef, bool) {
+	if a == nil || r.c == nil || sessionID == "" {
+		return llm.ModelRef{}, false
+	}
+	in := agent.Input{Session: sessionID}
 	st, ok := kernel.Lookup[*session.Store](r.c, session.ServiceKey)
 	if !ok {
 		return llm.ModelRef{}, false
