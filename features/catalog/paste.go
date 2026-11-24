@@ -49,6 +49,7 @@ import (
 
 	"github.com/hedeqiang/crewbase/features/mcp"
 	"github.com/hedeqiang/crewbase/features/skills"
+	"gopkg.in/yaml.v3"
 )
 
 // Plan is what pasted input installs.
@@ -618,6 +619,17 @@ func frontmatter(b []byte) map[string]string {
 	if end < 0 {
 		return out
 	}
+	// real YAML first: block scalars ("description: >-" and the indented
+	// lines under it) are common in SKILL.md headers
+	var y map[string]any
+	if yaml.Unmarshal([]byte(s[4:4+end]), &y) == nil && len(y) > 0 {
+		for k, v := range y {
+			if str, ok := v.(string); ok {
+				out[k] = strings.Join(strings.Fields(str), " ")
+			}
+		}
+		return out
+	}
 	for _, line := range strings.Split(s[4:4+end], "\n") {
 		k, v, ok := strings.Cut(line, ":")
 		if !ok || strings.HasPrefix(line, " ") {
@@ -859,7 +871,21 @@ func (s *Service) applySkills(ctx context.Context, source string, paths []string
 		}
 		all, err = fetchArchive(ctx, t.archive(), t.dir, false, paths...)
 	} else {
-		all, err = readDir(expandHome(source), false)
+		// only the picked folders: a big library as a whole is larger than one skill may be
+		root := expandHome(source)
+		all = map[string][]byte{}
+		for _, dir := range paths {
+			if slices.Contains(strings.Split(dir, "/"), "..") {
+				return Applied{}, fmt.Errorf("%w: %s is outside the folder", ErrInput, dir)
+			}
+			var files map[string][]byte
+			if files, err = readDir(filepath.Join(root, filepath.FromSlash(dir)), false); err != nil {
+				break
+			}
+			for name, b := range files {
+				all[path.Join(dir, name)] = b
+			}
+		}
 	}
 	if err != nil {
 		return Applied{}, err

@@ -102,8 +102,53 @@
 .pstwhat { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pstvar > .mono { overflow: hidden; text-overflow: ellipsis; }
 .pstvar.need > .mono { color: var(--amber-text); font-weight: 600; }
-.pstskill { align-items: flex-start; }
-.pstskill .pill { margin-left: 6px; }
+/* skills: header and footer stay put, the list scrolls */
+.pstmodal.sk { display: flex; flex-direction: column; overflow: hidden; }
+.pstmodal.sk.tall { width: min(680px, calc(100vw - 32px)); height: min(760px, calc(100% - 40px - var(--modal-top))); }
+.pstmodal.sk > .mhd { flex: none; }
+.pstmodal.sk > .mbd { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
+.pstmodal.sk .pstsrc, .pstmodal.sk .pstErr { flex: none; }
+.pstmodal.sk .pstplan { flex: 1 1 auto; min-height: 0; }
+.pstmodal.sk .pstplan > .fl, .pstmodal.sk .pstplan > .warnline { flex: none; margin: 0; }
+.pstmodal.sk .mft { flex: none; margin-top: 4px; align-items: center; }
+.pstpick { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; gap: 8px; }
+.pstpick input[type="checkbox"] { accent-color: var(--accent); }
+.search.pstq { flex: none; height: 34px; background: var(--raised); }
+.search.pstq input::-webkit-search-cancel-button { display: none; }
+.search.pstq .ix { width: 20px; height: 20px; }
+.pstcount { min-width: 0; margin-right: auto; color: var(--muted); }
+.pstcount b { font-weight: 600; color: var(--text); font-variant-numeric: tabular-nums; }
+.pstall .linkbtn:disabled { color: var(--muted); opacity: .6; text-decoration: none; cursor: default; }
+.psthint { margin: 0; padding: 8px 10px; border-radius: var(--r-8); background: var(--accent-soft); color: var(--accent-text); line-height: 1.5; }
+.pstlist { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; border: 1px solid var(--border); border-radius: var(--r-12); padding: 4px; background: var(--surface); }
+.pstmodal:not(.tall) .pstlist { max-height: 440px; }
+.pstmodal:not(.tall) .pstq ~ .pstlist { min-height: 180px; }
+.pstnone { margin: 0; padding: 24px 8px; text-align: center; }
+.pstskill { display: flex; align-items: center; gap: 8px; min-width: 0; min-height: 32px; padding: 4px 6px 4px 8px; border-radius: var(--r-8); font-size: var(--fs-13); cursor: pointer; }
+.pstskill:hover { background: var(--hover); }
+.pstskill input { flex: none; margin: 0; }
+.pstskill > b { flex: none; max-width: 45%; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pstskill .pill { flex: none; }
+.pstskill.has { cursor: default; }
+.pstskill.has > b { color: var(--muted); }
+.pstfold { flex: none; max-width: 22%; font-size: var(--fs-11); color: var(--muted); padding: 0 6px; line-height: 18px; border-radius: var(--r-pill); background: var(--sunken); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pstdesc { flex: 1 1 auto; min-width: 0; color: var(--muted); font-size: var(--fs-12); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pstmore { width: 20px; height: 20px; transition: transform var(--dur-hover); }
+.pstskill.open { flex-wrap: wrap; align-items: flex-start; background: var(--hover); }
+.pstskill.open > input, .pstskill.open > .pstmore { margin-top: 2px; }
+.pstskill.open .pstdesc { white-space: normal; overflow: visible; line-height: 1.5; order: 9; flex-basis: 100%; padding: 2px 0 2px 24px; color: var(--text2); }
+.pstskill.open .pstmore { transform: rotate(180deg); margin-left: auto; }
+.pstgrp + .pstgrp { border-top: 1px solid var(--border); }
+.pstgh { position: sticky; top: -4px; z-index: 1; display: flex; align-items: center; gap: 8px; min-height: 34px; padding: 0 6px 0 8px; background: var(--surface); }
+.pstgh input { flex: none; margin: 0; }
+.pstgt { flex: 1; min-width: 0; display: flex; align-items: center; gap: 6px; height: 30px; padding: 0 6px; margin-left: -4px; border-radius: var(--r-6); color: var(--text2); font-size: var(--fs-13); text-align: left; }
+.pstgt:hover { background: var(--hover); color: var(--text); }
+.pstgt > svg { flex: none; color: var(--muted); }
+.pstgl { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--fs-12); font-weight: 600; }
+.pstgn { flex: none; margin-left: auto; font-size: var(--fs-11); color: var(--muted); font-variant-numeric: tabular-nums; padding: 0 7px; line-height: 18px; border-radius: var(--r-pill); background: var(--sunken); }
+.pstgn.on { background: var(--accent-soft); color: var(--accent-text); }
+.pstgb { padding: 0 0 4px 18px; }
+.pstneed.none { color: var(--muted); }
 .tlseg { display: flex; width: 100%; } .tlseg button { flex: 1; }
 
 /* ---- 插件与技能 (2026-11 redesign) ---- */
