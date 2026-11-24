@@ -6,6 +6,7 @@ import (
 	"compress/gzip"
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -301,4 +302,43 @@ func TestApplyServersKeepsSecretsInTheVault(t *testing.T) {
 func kernelService(t *testing.T, e *env) *Service {
 	t.Helper()
 	return kernel.Use[*Service](e.h.Root(), ServiceKey)
+}
+
+// a local library larger than one skill may be still installs the picked ones
+func TestApplyLocalPicksFromABigFolder(t *testing.T) {
+	e := newEnv(t)
+	s := kernelService(t, e)
+	dir := t.TempDir()
+	for i := range maxSkillFiles + 10 {
+		sk := filepath.Join(dir, fmt.Sprintf("plug%d", i%3), "skills", fmt.Sprintf("s%03d", i))
+		_ = os.MkdirAll(sk, 0o755)
+		_ = os.WriteFile(filepath.Join(sk, "SKILL.md"), []byte(fmt.Sprintf("---\nname: s%03d\ndescription: >-\n  skill\n  %d\n---\nx", i, i)), 0o644)
+		_ = os.WriteFile(filepath.Join(sk, "notes.txt"), []byte("n"), 0o644)
+	}
+	p, err := s.Detect(context.Background(), dir)
+	if err != nil || len(p.Skills) != maxSkillFiles+10 || p.Skills[0].Description != "skill 0" {
+		t.Fatalf("%d %v %+v", len(p.Skills), err, p.Skills[:1])
+	}
+	got, err := s.Apply(context.Background(), ApplyRequest{Kind: "skill", Source: dir, Skills: []string{"plug0/skills/s000", "plug1/skills/s001"}})
+	if err != nil || len(got.Skills) != 2 {
+		t.Fatalf("apply %+v %v", got, err)
+	}
+	if b, err := os.ReadFile(filepath.Join(got.Skills[0].Dir, "notes.txt")); err != nil || string(b) != "n" {
+		t.Fatalf("file not installed: %v", err)
+	}
+	if _, err := s.Apply(context.Background(), ApplyRequest{Kind: "skill", Source: dir, Skills: []string{"../x"}}); err == nil {
+		t.Fatal("a path outside the folder was read")
+	}
+}
+
+func TestFrontmatterBlockScalars(t *testing.T) {
+	m := frontmatter([]byte("---\nname: advisor\ndescription: >-\n  Reviews a plan\n  before it runs.\nlicense: MIT\n---\nbody"))
+	if m["name"] != "advisor" || m["description"] != "Reviews a plan before it runs." {
+		t.Fatalf("got %q", m)
+	}
+	// not valid YAML: the simple key: value reading still works
+	m = frontmatter([]byte("---\nname: x\ndescription: a: b: [c\n---\n"))
+	if m["name"] != "x" || m["description"] != "a: b: [c" {
+		t.Fatalf("fallback got %q", m)
+	}
 }
