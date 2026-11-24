@@ -82,8 +82,7 @@ func (a *Adapter) fetchQuotas(ctx context.Context) ([]subQuota, error) {
 	if err := json.NewDecoder(http.MaxBytesReader(nil, resp.Body, 4<<20)).Decode(&body); err != nil {
 		return nil, err
 	}
-	// several accounts of one provider are numbered (Codex 1, Codex 2):
-	// magpie's plan ids (self_serve_business_prolite) are not for people
+	// several accounts of one provider are told apart by plan, then index
 	count := map[string]int{}
 	for _, e := range body.Data {
 		if e.Kind == "subscription" {
@@ -102,7 +101,11 @@ func (a *Adapter) fetchQuotas(ctx context.Context) ([]subQuota, error) {
 		}
 		if count[e.Provider] > 1 {
 			seen[e.Provider]++
-			label += fmt.Sprintf(" %d", seen[e.Provider])
+			if e.Plan != "" {
+				label += " (" + e.Plan + ")"
+			} else {
+				label += fmt.Sprintf(" #%d", seen[e.Provider])
+			}
 		}
 		sq := subQuota{provider: e.Provider, label: label}
 		for _, w := range e.Windows {
