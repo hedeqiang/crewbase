@@ -137,7 +137,14 @@ func TestDiscoveryModelsStreamAndDisappear(t *testing.T) {
 
 	// magpie stops → adapter unregistered; a non-magpie server is ignored
 	srv.Close()
-	kernel.Use[*magpie.Discovery](h.Root(), magpie.ServiceKey).Rescan(context.Background())
+	d := kernel.Use[*magpie.Discovery](h.Root(), magpie.ServiceKey)
+	// one missed scan (magpie busy) keeps its models; three in a row drop them
+	d.Rescan(context.Background())
+	if _, ok := reg.Get("magpie"); !ok {
+		t.Fatal("one missed scan dropped magpie")
+	}
+	d.Rescan(context.Background())
+	d.Rescan(context.Background())
 	if _, ok := reg.Get("magpie"); ok {
 		t.Fatal("adapter should be removed when magpie stops")
 	}

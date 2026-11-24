@@ -434,7 +434,13 @@ type Discovery struct {
 	regCtx  *kernel.Context
 	lastErr string
 	enabled []string // nil = every model magpie lists
+	misses  int      // scans in a row magpie did not answer
 }
+
+// dropAfter is how many scans in a row magpie must miss before its models
+// go: one slow /api/hello (magpie busy) must not take every magpie model
+// away until the next scan.
+const dropAfter = 3
 
 // Status describes the gateway for the settings UI.
 type Status struct {
@@ -563,6 +569,11 @@ func (d *Discovery) Rescan(ctx context.Context) {
 	if err != nil {
 		d.lastErr = err.Error()
 	}
+	if up {
+		d.misses = 0
+	} else {
+		d.misses++
+	}
 	switch {
 	case up && d.adapter == nil && err == nil:
 		rc := d.c.Fork("")
@@ -572,7 +583,7 @@ func (d *Discovery) Rescan(ctx context.Context) {
 			return
 		}
 		d.adapter, d.regCtx = a, rc
-	case !up && d.adapter != nil:
+	case !up && d.adapter != nil && d.misses >= dropAfter:
 		d.dropLocked()
 	}
 }
