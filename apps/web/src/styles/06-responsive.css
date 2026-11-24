@@ -38,7 +38,6 @@
   .cwrap { padding: 4px 12px 10px; }
   .qcard { margin-left: 0; }
   .hst { display: none; }
-  .cfoot .quota { display: none; }
   .cbtn:not(.cmodel):not(.envchip) .lbl { display: none; }
   .envchip .envdir { display: none; }
   .cmodel .lbl { max-width: 110px; }
