@@ -97,7 +97,6 @@ var Presets = []Preset{
 	{ID: "volcengine", Name: "火山引擎（豆包）", API: APIOpenAI, BaseURL: "https://ark.cn-beijing.volces.com/api/v3", KeyURL: "https://console.volcengine.com/ark/region:ark+cn-beijing/apiKey", Icon: "volcengine", Desc: "豆包与托管的开源模型",
 		ModelHint: "模型 ID（如 doubao-seed-…）或推理接入点 ID（ep-…）"},
 	// aggregators and inference platforms
-	{ID: "linkyrouter", Name: "LinkyRouter", API: APIOpenAI, BaseURL: "https://api.linkyrouter.ai/v1", KeyURL: "https://console.linkyrouter.ai", Icon: "linkyrouter", Group: "platform", Desc: "一个 Key 用 OpenAI、Anthropic、Google 等 50+ 模型"},
 	{ID: "openrouter", Name: "OpenRouter", API: APIOpenAI, BaseURL: "https://openrouter.ai/api/v1", KeyURL: "https://openrouter.ai/keys", Icon: "openrouter", Group: "platform", Desc: "一个 Key 用数百个模型"},
 	{ID: "siliconflow", Name: "SiliconFlow（硅基流动）", API: APIOpenAI, BaseURL: "https://api.siliconflow.cn/v1", KeyURL: "https://cloud.siliconflow.cn/account/ak", Icon: "siliconcloud", Group: "platform", Desc: "开源模型推理，国内访问快"},
 	{ID: "groq", Name: "Groq", API: APIOpenAI, BaseURL: "https://api.groq.com/openai/v1", KeyURL: "https://console.groq.com/keys", Icon: "groq", Group: "platform", Desc: "推理极快的开源模型"},

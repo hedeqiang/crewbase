@@ -73,7 +73,6 @@ var Presets = map[string]Preset{
 	"qwen":        {BaseURL: "https://dashscope.aliyuncs.com/compatible-mode/v1", APIKeyEnv: "DASHSCOPE_API_KEY", EffortStyle: "qwen", EffortModels: regexp.MustCompile(`qwen3|qwen-plus|qwen-turbo|qwen-flash|qwq`)},
 	"xai":         {BaseURL: "https://api.x.ai/v1", APIKeyEnv: "XAI_API_KEY", EffortStyle: "openai", EffortModels: regexp.MustCompile(`^grok-3-mini`)},
 	"openrouter":  {BaseURL: "https://openrouter.ai/api/v1", APIKeyEnv: "OPENROUTER_API_KEY", EffortStyle: "openrouter"},
-	"linkyrouter": {BaseURL: "https://api.linkyrouter.ai/v1", APIKeyEnv: "LINKY_KEY", EffortStyle: "openai"},
 	"siliconflow": {BaseURL: "https://api.siliconflow.cn/v1", APIKeyEnv: "SILICONFLOW_API_KEY", EffortStyle: "none"},
 	"groq":        {BaseURL: "https://api.groq.com/openai/v1", APIKeyEnv: "GROQ_API_KEY", EffortStyle: "openai", EffortModels: regexp.MustCompile(`gpt-oss`)},
 	"mistral":     {BaseURL: "https://api.mistral.ai/v1", APIKeyEnv: "MISTRAL_API_KEY", EffortStyle: "none", NoStreamUsage: true, ShortToolIDs: true},

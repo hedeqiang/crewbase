@@ -472,7 +472,7 @@ export function AddProviderDialog({ onClose, existing, edit }: { onClose: () => 
 
 /** Providers new in this version: a dot on their card until the add
  *  dialog has been opened once. */
-const NEW_PROVIDERS = ["linkyrouter"];
+const NEW_PROVIDERS: string[] = [];
 const SEEN_KEY = "crewbase.newProvidersSeen";
 
 function unseenNew(): string[] {

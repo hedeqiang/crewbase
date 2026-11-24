@@ -32,7 +32,7 @@ Crewbase runs a team of agents on your own machine or server. Each agent has its
 
 ## Highlights
 
-- **Any model.** Native Anthropic, OpenAI, Gemini, DeepSeek, xAI, Kimi, Zhipu, MiniMax, Qwen and Volcengine providers; aggregators such as [LinkyRouter](https://linkyrouter.ai) (one key for OpenAI, Anthropic, Google and 50+ models), OpenRouter, SiliconFlow and Groq; any OpenAI-compatible endpoint, the [magpie](https://github.com/yetone/magpie) gateway, and local models (Ollama, LM Studio). Routes by task type and fails over to the next model.
+- **Any model.** Native Anthropic, OpenAI, Gemini, DeepSeek, xAI, Kimi, Zhipu, MiniMax, Qwen and Volcengine providers; aggregators such as OpenRouter, SiliconFlow and Groq; any OpenAI-compatible endpoint, the [magpie](https://github.com/yetone/magpie) gateway, and local models (Ollama, LM Studio). Routes by task type and fails over to the next model.
 - **A crew, not a chatbot.** Channels with a single owner and explicit handover, sub-agent delegation, workflows on a visual canvas, and a shared task board (dependency graph) per delegation tree. A blank **New chat** (⌘N) still has every tool.
 - **Code that is reviewed before it lands.** In a Git project, every sub-agent that writes gets its own worktree and branch, so parallel agents never overwrite each other. Agents review each other's branches with line comments and bounded fix rounds; nobody approves their own work, merges are previewed without touching a working tree, frozen lines stay frozen, and pushes ask first. With GitHub: open pull requests from reviewed branches, publish reviews on them, merge when CI is green, get a fix round when it is red — and review pull requests from forks without ever running their code ([details](docs/git.md)).
 - **Webhooks in and out.** GitHub, GitLab, Sentry, Linear and Stripe events are verified, filtered and handed to channels, routines or workflows (even on a laptop behind NAT, through the relay); what happens here — a workflow finished, a routine found something, an approval is waiting — goes out signed, with retries ([details](docs/webhooks.md)).
@@ -141,18 +141,6 @@ Crewbase runs code and calls services on your behalf, so its defaults are conser
 ## Contributing
 
 Issues and pull requests are welcome. Run `make check` and `pnpm build` in `apps/web` before sending a change; CI runs the same checks on Linux and macOS.
-
-## Sponsors
-
-Thanks to the sponsors who support Crewbase.
-
-<p>
-  <a href="https://linkyrouter.ai">
-    <img src="docs/media/sponsor-linkyrouter.svg" width="40" height="40" alt="LinkyRouter" align="left" />
-  </a>
-  <b><a href="https://linkyrouter.ai">LinkyRouter</a></b> — one link to every AI. One API key for OpenAI, Anthropic, Google and 50+ models, with unified billing and instant failover. Built in: <b>Settings › Models › Add provider › LinkyRouter</b>.
-</p>
-<br clear="left" />
 
 ## License
 
