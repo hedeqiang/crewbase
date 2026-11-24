@@ -157,13 +157,6 @@ button.tg:disabled { opacity: .5; cursor: not-allowed; }
 .uchip.static { cursor: default; align-self: start; }
 .warnbox { border-color: color-mix(in srgb, var(--amber) 45%, transparent); background: var(--amber-soft); margin: 0 0 12px; }
 .warnbox .cmd { white-space: normal; overflow-wrap: anywhere; }
-.brief2 { margin-bottom: 6px; background: var(--raised); }
-.brief2 .bh { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.brief2 .bh svg { color: var(--amber); }
-.blist { margin: 8px 0 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 6px; font-size: var(--fs-13); }
-.blist li { display: flex; gap: 8px; align-items: baseline; min-width: 0; }
-.blist li .pill { flex: none; }
-.blist li .bt { min-width: 0; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; }
 .addwf { margin: 0 4px 6px; justify-content: center; flex: none; }
 .sline { display: flex; align-items: center; gap: 6px; min-width: 0; }
 .sline b { font-weight: 500; color: var(--text); flex: none; }

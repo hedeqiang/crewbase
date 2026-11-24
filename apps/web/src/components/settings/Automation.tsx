@@ -1,8 +1,8 @@
 import { EmptyState } from "../EmptyState";
 import { Skeleton } from "../Skeleton";
 import { useEffect, useState } from "react";
-import { CalendarClock, ChevronRight, Pencil, Play, Plus, Sunrise, Trash, X } from "lucide-react";
-import { API, type Brief, type Routine, type RoutineRun } from "../../api";
+import { CalendarClock, ChevronRight, Pencil, Play, Plus, Trash, X } from "lucide-react";
+import { API, type Routine, type RoutineRun } from "../../api";
 import { t, type Key } from "../../i18n";
 import { ago, modeLabel, until } from "../../format";
 import { openSession, toast, useStore } from "../../store";
@@ -143,7 +143,6 @@ function Routines() {
 
   return (
     <div className="vb">
-      <BriefPreview />
       <div className="vsec row">
         <span>{t("auto.routines")}</span>
         <span className="sp" />
@@ -326,60 +325,3 @@ export function RoutineRuns({ r }: { r: Routine }) {
   );
 }
 
-function BriefPreview() {
-  const agents = useStore((s) => s.agents);
-  const [b, setB] = useState<{ preview: Brief; history: Brief[] } | null>(null);
-  useEffect(() => {
-    API.brief().then(setB, () => {});
-  }, []);
-  if (!b) return null;
-  const p = b.preview;
-  const needs = p.needsYou ?? [];
-  const att = p.attention ?? [];
-  const failed = p.failedAgents ?? [];
-  const empty = needs.length + att.length + failed.length === 0;
-  return (
-    <div className="box brief2">
-      <div className="bh">
-        <Sunrise size={16} />
-        <b>{t("auto.brief")}</b>
-        <span className="small">{t("auto.briefSub")}</span>
-      </div>
-      {empty ? (
-        <p className="small" style={{ margin: "6px 0 0" }}>
-          {t("auto.briefEmpty", { n: p.folded })}
-        </p>
-      ) : (
-        <ul className="blist">
-          {needs.length > 0 && (
-            <li>
-              <span className="pill amber">{t("auto.briefNeeds", { n: needs.length })}</span>
-              <span className="bt">
-                {needs
-                  .slice(0, 3)
-                  .map((r) => `${agents[r.agent]?.name ?? (r.agent || t("appr.workflow"))}：${r.summary || r.tool}`)
-                  .join("；")}
-              </span>
-            </li>
-          )}
-          {att.map((r) => (
-            <li key={r.key}>
-              <span className="pill amber">{t("auto.st.attention")}</span>
-              <span className="bt">{r.summary || r.routine}</span>
-            </li>
-          ))}
-          {failed.map((f) => (
-            <li key={f.agent}>
-              <span className="pill red">{t("auto.st.failed")}</span>
-              <span className="bt">
-                {f.name || f.agent}：{f.detail}
-              </span>
-            </li>
-          ))}
-          {p.folded > 0 && <li className="small">{t("auto.briefFolded", { n: p.folded })}</li>}
-        </ul>
-      )}
-      {b.history.length > 0 && <p className="small" style={{ margin: "8px 0 0" }}>{t("auto.briefLast", { time: ago(b.history[b.history.length - 1].time) })}</p>}
-    </div>
-  );
-}
