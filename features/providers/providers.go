@@ -78,27 +78,30 @@ type Preset struct {
 	// ModelHint is shown when the provider cannot list its models and the
 	// person types model ids.
 	ModelHint string `json:"modelHint,omitempty"`
+	// Desc says in a few words what it offers (shown under its name).
+	Desc string `json:"desc,omitempty"`
 }
 
 // Presets are offered in the UI; anything else is "自定义（OpenAI 兼容）".
 var Presets = []Preset{
 	// official model vendors
-	{ID: "anthropic", Name: "Anthropic", API: APIAnthropic, BaseURL: "https://api.anthropic.com", KeyURL: "https://console.anthropic.com/settings/keys", Icon: "anthropic"},
-	{ID: "openai", Name: "OpenAI", API: APIOpenAI, BaseURL: "https://api.openai.com/v1", KeyURL: "https://platform.openai.com/api-keys", Icon: "openai"},
-	{ID: "gemini", Name: "Google Gemini", API: APIGemini, BaseURL: "https://generativelanguage.googleapis.com", KeyURL: "https://aistudio.google.com/apikey", Icon: "gemini"},
-	{ID: "deepseek", Name: "DeepSeek", API: APIOpenAI, BaseURL: "https://api.deepseek.com", KeyURL: "https://platform.deepseek.com/api_keys", Icon: "deepseek"},
-	{ID: "xai", Name: "xAI", API: APIOpenAI, BaseURL: "https://api.x.ai/v1", KeyURL: "https://console.x.ai/", Icon: "xai"},
-	{ID: "moonshot", Name: "Kimi（月之暗面）", API: APIOpenAI, BaseURL: "https://api.moonshot.cn/v1", KeyURL: "https://platform.moonshot.cn/console/api-keys", Icon: "kimi"},
-	{ID: "zhipu", Name: "智谱 GLM", API: APIOpenAI, BaseURL: "https://open.bigmodel.cn/api/paas/v4", KeyURL: "https://open.bigmodel.cn/usercenter/apikeys", Icon: "zhipu"},
-	{ID: "minimax", Name: "MiniMax", API: APIOpenAI, BaseURL: "https://api.minimaxi.com/v1", KeyURL: "https://platform.minimaxi.com/user-center/basic-information/interface-key", Icon: "minimax"},
-	{ID: "qwen", Name: "通义千问（阿里云百炼）", API: APIOpenAI, BaseURL: "https://dashscope.aliyuncs.com/compatible-mode/v1", KeyURL: "https://bailian.console.aliyun.com/", Icon: "qwen"},
-	{ID: "volcengine", Name: "火山引擎（豆包）", API: APIOpenAI, BaseURL: "https://ark.cn-beijing.volces.com/api/v3", KeyURL: "https://console.volcengine.com/ark/region:ark+cn-beijing/apiKey", Icon: "volcengine",
+	{ID: "anthropic", Name: "Anthropic", API: APIAnthropic, BaseURL: "https://api.anthropic.com", KeyURL: "https://console.anthropic.com/settings/keys", Icon: "anthropic", Desc: "Claude 系列，官方 API"},
+	{ID: "openai", Name: "OpenAI", API: APIOpenAI, BaseURL: "https://api.openai.com/v1", KeyURL: "https://platform.openai.com/api-keys", Icon: "openai", Desc: "GPT 与 o 系列，官方 API"},
+	{ID: "gemini", Name: "Google Gemini", API: APIGemini, BaseURL: "https://generativelanguage.googleapis.com", KeyURL: "https://aistudio.google.com/apikey", Icon: "gemini", Desc: "Gemini 系列，Google AI Studio"},
+	{ID: "deepseek", Name: "DeepSeek", API: APIOpenAI, BaseURL: "https://api.deepseek.com", KeyURL: "https://platform.deepseek.com/api_keys", Icon: "deepseek", Desc: "DeepSeek V 与 R 系列，价格低"},
+	{ID: "xai", Name: "xAI", API: APIOpenAI, BaseURL: "https://api.x.ai/v1", KeyURL: "https://console.x.ai/", Icon: "xai", Desc: "Grok 系列"},
+	{ID: "moonshot", Name: "Kimi（月之暗面）", API: APIOpenAI, BaseURL: "https://api.moonshot.cn/v1", KeyURL: "https://platform.moonshot.cn/console/api-keys", Icon: "kimi", Desc: "Kimi 系列，长上下文"},
+	{ID: "zhipu", Name: "智谱 GLM", API: APIOpenAI, BaseURL: "https://open.bigmodel.cn/api/paas/v4", KeyURL: "https://open.bigmodel.cn/usercenter/apikeys", Icon: "zhipu", Desc: "GLM 系列"},
+	{ID: "minimax", Name: "MiniMax", API: APIOpenAI, BaseURL: "https://api.minimaxi.com/v1", KeyURL: "https://platform.minimaxi.com/user-center/basic-information/interface-key", Icon: "minimax", Desc: "MiniMax 系列"},
+	{ID: "qwen", Name: "通义千问（阿里云百炼）", API: APIOpenAI, BaseURL: "https://dashscope.aliyuncs.com/compatible-mode/v1", KeyURL: "https://bailian.console.aliyun.com/", Icon: "qwen", Desc: "Qwen 系列，阿里云百炼"},
+	{ID: "volcengine", Name: "火山引擎（豆包）", API: APIOpenAI, BaseURL: "https://ark.cn-beijing.volces.com/api/v3", KeyURL: "https://console.volcengine.com/ark/region:ark+cn-beijing/apiKey", Icon: "volcengine", Desc: "豆包与托管的开源模型",
 		ModelHint: "模型 ID（如 doubao-seed-…）或推理接入点 ID（ep-…）"},
 	// aggregators and inference platforms
-	{ID: "openrouter", Name: "OpenRouter", API: APIOpenAI, BaseURL: "https://openrouter.ai/api/v1", KeyURL: "https://openrouter.ai/keys", Icon: "openrouter", Group: "platform"},
-	{ID: "siliconflow", Name: "SiliconFlow（硅基流动）", API: APIOpenAI, BaseURL: "https://api.siliconflow.cn/v1", KeyURL: "https://cloud.siliconflow.cn/account/ak", Icon: "siliconcloud", Group: "platform"},
-	{ID: "groq", Name: "Groq", API: APIOpenAI, BaseURL: "https://api.groq.com/openai/v1", KeyURL: "https://console.groq.com/keys", Icon: "groq", Group: "platform"},
-	{ID: "mistral", Name: "Mistral", API: APIOpenAI, BaseURL: "https://api.mistral.ai/v1", KeyURL: "https://console.mistral.ai/api-keys", Icon: "mistral"},
+	{ID: "linkyrouter", Name: "LinkyRouter", API: APIOpenAI, BaseURL: "https://api.linkyrouter.ai/v1", KeyURL: "https://console.linkyrouter.ai", Icon: "linkyrouter", Group: "platform", Desc: "一个 Key 用 OpenAI、Anthropic、Google 等 50+ 模型"},
+	{ID: "openrouter", Name: "OpenRouter", API: APIOpenAI, BaseURL: "https://openrouter.ai/api/v1", KeyURL: "https://openrouter.ai/keys", Icon: "openrouter", Group: "platform", Desc: "一个 Key 用数百个模型"},
+	{ID: "siliconflow", Name: "SiliconFlow（硅基流动）", API: APIOpenAI, BaseURL: "https://api.siliconflow.cn/v1", KeyURL: "https://cloud.siliconflow.cn/account/ak", Icon: "siliconcloud", Group: "platform", Desc: "开源模型推理，国内访问快"},
+	{ID: "groq", Name: "Groq", API: APIOpenAI, BaseURL: "https://api.groq.com/openai/v1", KeyURL: "https://console.groq.com/keys", Icon: "groq", Group: "platform", Desc: "推理极快的开源模型"},
+	{ID: "mistral", Name: "Mistral", API: APIOpenAI, BaseURL: "https://api.mistral.ai/v1", KeyURL: "https://console.mistral.ai/api-keys", Icon: "mistral", Desc: "Mistral 系列"},
 }
 
 func presetByID(id string) (Preset, bool) {

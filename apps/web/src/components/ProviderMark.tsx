@@ -46,12 +46,14 @@ import bedrock from "@lobehub/icons-static-svg/icons/bedrock-color.svg?raw";
 import vertexai from "@lobehub/icons-static-svg/icons/vertexai-color.svg?raw";
 import cloudflare from "@lobehub/icons-static-svg/icons/cloudflare-color.svg?raw";
 import antigravity from "@lobehub/icons-static-svg/icons/antigravity-color.svg?raw";
+// drawn from LinkyRouter's own mark (linkyrouter.ai/favicon.svg)
+import linkyrouter from "../assets/providers/linkyrouter.svg?raw";
 
 const ICONS: Record<string, string> = {
   anthropic, claude, codex, cursor, deepseek, doubao, gemini, grok, groq, kimi, lmstudio, magpie,
   minimax, mistral, moonshot, ollama, openai, opencode, openrouter, qwen, siliconcloud, vllm, zhipu,
   xai, volcengine, baichuan, hunyuan, stepfun, yi, wenxin, spark, together, fireworks, perplexity,
-  cohere, nvidia, azure, bedrock, vertexai, cloudflare, antigravity,
+  cohere, nvidia, azure, bedrock, vertexai, cloudflare, antigravity, linkyrouter,
 };
 
 /** Icons a person can pick for a custom provider (vendor icons, then "mono"). */
@@ -62,7 +64,7 @@ export const PICKABLE: { key: string; name: string }[] = [
   { key: "volcengine", name: "火山引擎" }, { key: "doubao", name: "豆包" }, { key: "hunyuan", name: "混元" },
   { key: "wenxin", name: "文心" }, { key: "baichuan", name: "百川" }, { key: "stepfun", name: "阶跃星辰" },
   { key: "yi", name: "零一万物" }, { key: "spark", name: "讯飞星火" }, { key: "mistral", name: "Mistral" },
-  { key: "openrouter", name: "OpenRouter" }, { key: "siliconcloud", name: "SiliconFlow" }, { key: "groq", name: "Groq" },
+  { key: "linkyrouter", name: "LinkyRouter" }, { key: "openrouter", name: "OpenRouter" }, { key: "siliconcloud", name: "SiliconFlow" }, { key: "groq", name: "Groq" },
   { key: "together", name: "Together" }, { key: "fireworks", name: "Fireworks" }, { key: "perplexity", name: "Perplexity" },
   { key: "cohere", name: "Cohere" }, { key: "nvidia", name: "NVIDIA" }, { key: "azure", name: "Azure" },
   { key: "bedrock", name: "Bedrock" }, { key: "vertexai", name: "Vertex AI" }, { key: "cloudflare", name: "Cloudflare" },
@@ -74,7 +76,7 @@ const BY_HOST: [RegExp, string][] = [
   [/anthropic\.com/, "anthropic"], [/openai\.com|openai\.azure/, "openai"], [/googleapis\.com|google/, "gemini"],
   [/deepseek/, "deepseek"], [/(^|\.)x\.ai$/, "xai"], [/moonshot|kimi/, "kimi"], [/bigmodel|zhipu|z\.ai$/, "zhipu"],
   [/minimax/, "minimax"], [/dashscope|aliyun|bailian/, "qwen"], [/volces|volcengine|ark\./, "volcengine"],
-  [/openrouter/, "openrouter"], [/siliconflow/, "siliconcloud"], [/groq\.com/, "groq"], [/mistral\.ai/, "mistral"],
+  [/linkyrouter/, "linkyrouter"], [/openrouter/, "openrouter"], [/siliconflow/, "siliconcloud"], [/groq\.com/, "groq"], [/mistral\.ai/, "mistral"],
   [/together/, "together"], [/fireworks/, "fireworks"], [/perplexity/, "perplexity"], [/cohere/, "cohere"],
   [/nvidia/, "nvidia"], [/azure/, "azure"], [/bedrock|amazonaws/, "bedrock"], [/cloudflare/, "cloudflare"],
   [/baichuan/, "baichuan"], [/hunyuan|tencent/, "hunyuan"], [/stepfun/, "stepfun"], [/lingyiwanwu|01\.ai/, "yi"],
