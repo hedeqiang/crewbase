@@ -1140,6 +1140,8 @@ const zh = {
   "ctx.newChatDesc": "同一个 {name}，新的上下文",
   "ctx.noData": "还没有数据。发送第一条消息后显示。",
 
+  "panel.resize": "调整面板宽度",
+  "panel.resizeTip": "拖动调整宽度，双击恢复默认",
   "panel.task": "任务",
   "panel.files": "文件",
   "panel.preview": "预览",

@@ -1,12 +1,22 @@
 /* ===== right panel ===== */
-.panel { width: 330px; border-left: 1px solid var(--border); display: flex; flex-direction: column; min-height: 0; background: var(--surface); }
+.panel { position: relative; width: 330px; border-left: 1px solid var(--border); display: flex; flex-direction: column; min-height: 0; background: var(--surface); transition: width var(--dur-med, .22s) var(--ease-out, ease); }
 .ptabs { display: flex; gap: 6px; height: var(--tbh); padding: 0 calc(10px + var(--inset-r)) 0 10px; border-bottom: 1px solid var(--border); align-items: center; flex: none; }
-.ptabsc { flex: 1; min-width: 0; display: flex; gap: 2px; align-items: center; overflow-x: auto; scrollbar-width: none; overscroll-behavior-x: contain; -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 18px), transparent); mask-image: linear-gradient(to right, #000 calc(100% - 18px), transparent); padding-right: 14px; }
-.ptabsc::-webkit-scrollbar { display: none; }
-.ptab { flex: none; height: 28px; padding: 0 10px; border-radius: var(--r-8); font-size: var(--fs-13); color: var(--text2); display: inline-flex; align-items: center; gap: 4px; max-width: 132px; white-space: nowrap; }
-.ptabl { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-.ptab:hover { background: var(--hover); }
-.ptab[aria-selected="true"] { background: var(--active); color: var(--text); font-weight: 500; }
+.ptabsc { flex: 1; min-width: 0; display: flex; gap: 2px; align-items: center; }
+/* the name of a tab on hover (and keyboard focus), below it */
+.ptab::after { content: attr(data-tip); position: absolute; top: calc(100% + 6px); left: 50%; translate: -50% -2px; padding: 3px 8px; border-radius: var(--r-6); background: var(--text); color: var(--surface); font-size: var(--fs-12); font-weight: 500; white-space: nowrap; pointer-events: none; opacity: 0; transition: opacity var(--dur-fast, .12s), translate var(--dur-fast, .12s); z-index: var(--z-popup, 50); }
+.ptab:hover::after, .ptab:focus-visible::after { opacity: 1; translate: -50% 0; transition-delay: .25s; }
+.ptabsc .ptab:first-child::after { left: 0; translate: 0 -2px; }
+.ptabsc .ptab:first-child:hover::after, .ptabsc .ptab:first-child:focus-visible::after { translate: 0 0; }
+/* the drag handle on the panel's left edge */
+.presize { position: absolute; left: -3px; top: 0; bottom: 0; width: 6px; cursor: col-resize; z-index: 5; touch-action: none; }
+.presize::after { content: ""; position: absolute; left: 2px; top: 0; bottom: 0; width: 2px; background: transparent; transition: background var(--dur-hover); }
+.presize:hover::after, .panel[data-resizing] .presize::after { background: var(--accent); }
+.panel[data-resizing] { transition: none; }
+body.col-resizing, body.col-resizing * { cursor: col-resize !important; user-select: none !important; }
+body.col-resizing iframe { pointer-events: none; }
+.ptab { position: relative; flex: none; width: 32px; height: 30px; padding: 0; border-radius: var(--r-8); color: var(--muted); display: inline-grid; place-items: center; transition: background var(--dur-hover), color var(--dur-hover); }
+.ptab:hover { background: var(--hover); color: var(--text); }
+.ptab[aria-selected="true"] { background: var(--active); color: var(--text); }
 .pbody { flex: 1; overflow: auto; padding: 14px 16px; min-height: 0; }
 .pbody > * { min-width: 0; }
 .psec { font-size: var(--fs-12); font-weight: 600; color: var(--muted); margin: 18px 0 8px; letter-spacing: .02em; }
@@ -112,3 +122,12 @@
 .pn-th80 { left: 80%; }
 .pn-del { margin-top: 20px; }
 .pn-tlh { margin: 10px 0 6px; }
+
+/* what a section shows when it is opened comes in, instead of appearing
+   at full height in one frame */
+@keyframes p-reveal { from { opacity: 0; translate: 0 -4px; } to { opacity: 1; translate: 0 0; } }
+.pbody .bdet, .pbody .told, .pbody .runs { animation: p-reveal var(--dur-med, .2s) var(--ease-out, ease) both; }
+@media (prefers-reduced-motion: reduce) {
+  .panel, .pbrief-body { transition: none; }
+  .pbody .bdet, .pbody .told, .pbody .runs { animation: none; }
+}

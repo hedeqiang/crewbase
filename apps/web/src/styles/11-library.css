@@ -145,7 +145,7 @@
 .libpv a.btn { text-decoration: none; }
 
 /* 定时 tab */
-.ptabn { display: inline-grid; place-items: center; min-width: 16px; height: 16px; padding: 0 4px; margin-left: 4px; border-radius: var(--r-8); background: var(--accent-soft); color: var(--accent-text); font-size: var(--fs-11); font-weight: 600; vertical-align: 1px; }
+.ptabn { position: absolute; top: 2px; right: 1px; min-width: 14px; height: 14px; padding: 0 3px; border-radius: var(--r-pill); background: var(--accent); color: #fff; font-size: 10px; font-weight: 600; line-height: 14px; text-align: center; box-shadow: 0 0 0 2px var(--surface); }
 .sched { display: flex; flex-direction: column; }
 .sched > .psec2:first-child { margin-top: 4px; }
 .sched .form .fgrid { grid-template-columns: minmax(0, 1fr); gap: 4px; }

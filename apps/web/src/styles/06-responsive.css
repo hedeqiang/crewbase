@@ -14,6 +14,10 @@
   .inner.nolist { grid-template-columns: minmax(0, 1fr); }
   .panel { position: absolute; right: 0; top: 0; bottom: 0; z-index: var(--z-panel); box-shadow: -12px 0 32px rgb(0 0 0 / .12), -1px 0 0 var(--border); width: min(330px, 100%); }
   .panel-scrim { display: block; position: absolute; inset: 0; z-index: var(--z-panel-scrim); background: transparent; }
+  /* over the conversation: its own width (not the dragged one), no handle */
+  .panel { width: min(330px, 100%) !important; }
+  .panel.wide, .panel.files-wide { width: min(600px, 100%) !important; }
+  .presize { display: none; }
 }
 @media (max-width: 820px) {
   .inner, .inner.nolist { grid-template-columns: minmax(0, 1fr); }

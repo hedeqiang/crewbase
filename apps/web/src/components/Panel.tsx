@@ -1,7 +1,7 @@
 import { TaskBoard } from "./TaskBoard";
 import { WorkNotes, WorkTasks } from "./Working";
-import { useEffect, useMemo, useState, useRef } from "react";
-import { Settings2, Archive, ArrowDown, ArrowUp, Check, ChevronLeft, ChevronRight, CircleMinus, CircleX, Globe, GripVertical, Link2, Minimize2, Pause, Play, Plus, Shuffle, Square, Trash, UserPlus, X, CornerDownRight } from "lucide-react";
+import { useEffect, useMemo, useState, useRef, type ReactNode, type PointerEvent as ReactPointerEvent } from "react";
+import { Settings2, Archive, CalendarClock, Code2, Eye, FileText, FolderTree, Library as LibraryIcon, ListChecks, Puzzle, ArrowDown, ArrowUp, Check, ChevronLeft, ChevronRight, CircleMinus, CircleX, Globe, GripVertical, Link2, Minimize2, Pause, Play, Plus, Shuffle, Square, Trash, UserPlus, X, CornerDownRight } from "lucide-react";
 import { API, refString, type AgentView, type ChannelView, type ContextBreakdown, type ModelRef } from "../api";
 import { t, type Key } from "../i18n";
 import { activeModel, allModels, detailLabel, effortLabel, exhaustedHint, exhaustedLabel, hhmm, isExhausted, kfmt, modeLabel, modelLabel, modelMeta, modelOff, pillTone, sameRef, statusLabel, until } from "../format";
@@ -17,7 +17,7 @@ import { Avatar, LookPicker } from "./Avatar";
 import { Popover, useMenu } from "./Popover";
 import { ProviderMark } from "./ProviderMark";
 import { shortPath, SubFeed } from "./Conversation";
-import { PanelView, useSlot } from "./UISlots";
+import { PanelView, SlotIcon, useSlot } from "./UISlots";
 import { confirmDialog } from "./Confirm";
 import { AgentConnectors } from "./AgentConnectors";
 
@@ -44,6 +44,7 @@ export function Panel() {
   const desktopTier = useStore((s) => s.tier === "desktop");
   const nSched = scheduleCount(sched);
   const tabsRef = useRef<HTMLDivElement>(null);
+  const pw = usePanelWidth(widthKey(tab));
   // the open tab stays in sight
   useEffect(() => {
     const el = tabsRef.current?.querySelector<HTMLElement>(`[data-tab="${CSS.escape(tab)}"]`);
@@ -53,28 +54,42 @@ export function Panel() {
   const chat = agent.kind === "chat";
   const view: typeof tab = (!desktopTier && tab === "files") || (chat && (tab === "files" || tab === "code" || tab === "library" || tab === "schedule" || tab === "docs")) || (tab === "docs" && !docsOn) ? "task" : tab;
   // a plain chat has no workspace to browse (an HTML answer can still be previewed)
-  const tabs: [typeof tab, string][] = [
-    ["task", t("panel.task")],
-    ...(chat ? [] : ([["schedule", t("sched.tab")]] as [typeof tab, string][])),
-    ...(chat || !desktopTier ? [] : ([["files", t("panel.files")]] as [typeof tab, string][])),
-    ...(chat ? [] : ([["code", t("panel.code")]] as [typeof tab, string][])),
-    ["preview", t("panel.preview")],
-    ...(chat ? [] : ([["library", t("lib.title")]] as [typeof tab, string][])),
-    ...(!chat && docsOn ? ([["docs", t("adx.tab")]] as [typeof tab, string][]) : []),
-    ...pluginTabs.map((c): [typeof tab, string] => [`ui:${c.key}`, c.title || c.key]),
+  const tabs: [typeof tab, string, ReactNode][] = [
+    ["task", t("panel.task"), <ListChecks size={16} />],
+    ...(chat ? [] : ([["schedule", t("sched.tab"), <CalendarClock size={16} />]] as [typeof tab, string, ReactNode][])),
+    ...(chat || !desktopTier ? [] : ([["files", t("panel.files"), <FolderTree size={16} />]] as [typeof tab, string, ReactNode][])),
+    ...(chat ? [] : ([["code", t("panel.code"), <Code2 size={16} />]] as [typeof tab, string, ReactNode][])),
+    ["preview", t("panel.preview"), <Eye size={16} />],
+    ...(chat ? [] : ([["library", t("lib.title"), <LibraryIcon size={16} />]] as [typeof tab, string, ReactNode][])),
+    ...(!chat && docsOn ? ([["docs", t("adx.tab"), <FileText size={16} />]] as [typeof tab, string, ReactNode][]) : []),
+    ...pluginTabs.map((c): [typeof tab, string, ReactNode] => [`ui:${c.key}`, c.title || c.key, c.icon ? <SlotIcon name={c.icon} size={16} /> : <Puzzle size={16} />]),
   ];
   // the agent's own settings: a gear at the end, not a tab named after it
   const agentTab = agent.kind === "chat" ? t("chat.settingsTab") : t("panel.agentOf", { name: agent.name || t("panel.agent") });
   const pluginTab = view.startsWith("ui:") ? pluginTabs.find((c) => "ui:" + c.key === view) : undefined;
   return (
-    <aside className={"panel" + (view === "preview" || view === "docs" ? " wide" : view === "files" || view === "code" ? " files-wide" : "")}>
+    <aside
+      className={"panel" + (view === "preview" || view === "docs" ? " wide" : view === "files" || view === "code" ? " files-wide" : "")}
+      style={{ width: pw.width }}
+      data-resizing={pw.dragging || undefined}
+    >
+      {/* drag the edge to widen or narrow the panel; each tab keeps its width */}
+      <div
+        className="presize"
+        role="separator"
+        aria-orientation="vertical"
+        aria-label={t("panel.resize")}
+        title={t("panel.resizeTip")}
+        onPointerDown={pw.start}
+        onDoubleClick={pw.reset}
+      />
       <div className="ptabs">
-        {/* the tabs scroll sideways when the panel is narrow; the close button stays */}
+        {/* icon tabs: all fit, the name on hover */}
         <div className="ptabsc" role="tablist" ref={tabsRef}>
-          {tabs.map(([k, l]) => (
-            <button key={k} className="ptab" type="button" role="tab" aria-selected={view === k} data-tab={k} title={l} onClick={() => setState({ panelTab: k })}>
-              <span className="ptabl">{l}</span>
-              {k === "schedule" && nSched > 0 && <span className="ptabn">{nSched}</span>}
+          {tabs.map(([k, l, ic]) => (
+            <button key={k} className="ptab" type="button" role="tab" aria-selected={view === k} aria-label={l} data-tab={k} data-tip={l} onClick={() => setState({ panelTab: k })}>
+              {ic}
+              {k === "schedule" && nSched > 0 && <span className="ptabn">{nSched > 9 ? "9+" : nSched}</span>}
             </button>
           ))}
         </div>
@@ -958,4 +973,74 @@ function groupLabel(g: { name: string; summary: string }): { name: string; desc:
   }
   const mcp = /^MCP server tools, e\.g\. (.*)$/.exec(g.summary);
   return { name: g.name, desc: mcp ? t("tg.mcp", { names: mcp[1] }) : g.summary };
+}
+
+/** The width groups: the narrow tabs share one, files / code another,
+ *  preview / docs a third (their defaults are the old fixed widths). */
+type WidthKey = "narrow" | "files" | "preview";
+const DEFAULT_W: Record<WidthKey, number> = { narrow: 330, files: 720, preview: 640 };
+const MIN_W = 300;
+
+function widthKey(tab: string): WidthKey {
+  if (tab === "files" || tab === "code") return "files";
+  if (tab === "preview" || tab === "docs") return "preview";
+  return "narrow";
+}
+
+function readWidths(): Partial<Record<WidthKey, number>> {
+  try {
+    return JSON.parse(localStorage.getItem("crewbase.panelWidths") || "{}");
+  } catch {
+    return {};
+  }
+}
+
+/** The panel's width for a tab group: the one dragged to last time, else
+ *  its default, never more than the window leaves for the conversation. */
+function usePanelWidth(key: WidthKey) {
+  const [saved, setSaved] = useState(readWidths);
+  const [drag, setDrag] = useState<number | null>(null);
+  const [win, setWin] = useState(() => window.innerWidth);
+  useEffect(() => {
+    const on = () => setWin(window.innerWidth);
+    window.addEventListener("resize", on);
+    return () => window.removeEventListener("resize", on);
+  }, []);
+  // the conversation keeps at least 520px beside the list (its input box
+  // squeezes its controls below that)
+  const max = Math.max(MIN_W, win - 264 - 520);
+  const clamp = (w: number) => Math.round(Math.min(max, Math.max(MIN_W, w)));
+  const width = clamp(drag ?? saved[key] ?? DEFAULT_W[key]);
+  const store = (w: number | undefined) => {
+    const next = { ...readWidths() };
+    if (w === undefined) delete next[key];
+    else next[key] = w;
+    try {
+      localStorage.setItem("crewbase.panelWidths", JSON.stringify(next));
+    } catch {
+      /* storage unavailable: the width lasts until reload */
+    }
+    setSaved(next);
+  };
+  const start = (e: ReactPointerEvent<HTMLDivElement>) => {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    const x0 = e.clientX, w0 = width;
+    let last = w0;
+    const move = (ev: PointerEvent) => {
+      last = clamp(w0 + (x0 - ev.clientX));
+      setDrag(last);
+    };
+    const up = () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+      document.body.classList.remove("col-resizing");
+      setDrag(null);
+      store(last);
+    };
+    document.body.classList.add("col-resizing");
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+  };
+  return { width, dragging: drag !== null, start, reset: () => store(undefined) };
 }

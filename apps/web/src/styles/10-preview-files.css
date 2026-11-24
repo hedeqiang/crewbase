@@ -1,7 +1,5 @@
 /* ===== 预览 (components/Preview.tsx) ===== */
-.panel.wide { width: min(640px, 46vw); }
 .panel.wide .pbody { padding: 0; display: flex; flex-direction: column; overflow: hidden; }
-@media (max-width: 1100px) { .panel.wide { width: min(600px, 100%); } }
 .prview { display: flex; flex-direction: column; flex: 1; min-height: 0; }
 .prvempty { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 48px 28px; text-align: center; color: var(--muted); }
 .prvempty p { margin: 0; max-width: 300px; line-height: 1.6; }
@@ -54,7 +52,11 @@
 /* the agent's auto-written instructions in the panel */
 .pbrief { display: flex; flex-direction: column; gap: 6px; align-items: flex-start; }
 .pbrief-body { white-space: pre-wrap; font-size: var(--fs-13); line-height: 1.55; color: var(--text2); background: var(--panel2, var(--hover)); border-radius: var(--r-8); padding: 8px 10px; max-height: 7.8em; overflow: hidden; cursor: pointer; width: 100%; box-sizing: border-box; -webkit-mask-image: linear-gradient(#000 70%, transparent); mask-image: linear-gradient(#000 70%, transparent); }
-.pbrief-body.open { max-height: none; cursor: auto; -webkit-mask-image: none; mask-image: none; }
+/* opening grows it smoothly to its full height (interpolate-size where the
+   browser has it; elsewhere a tall max-height, still animated) */
+.pbrief-body { transition: max-height var(--dur-med, .22s) var(--ease-out, ease); }
+.pbrief-body.open { max-height: 60em; max-height: max-content; cursor: auto; -webkit-mask-image: none; mask-image: none; }
+@supports (interpolate-size: allow-keywords) { .pbrief-body { interpolate-size: allow-keywords; } }
 .pbrief-wait { display: flex; align-items: center; gap: 6px; }
 /* a narrow composer (right panel open, small window): the side chips keep
    just their icon so the model name stays readable */
@@ -203,9 +205,7 @@
   --dfh-bg: rgba(56, 139, 253, .15); --dfh-text: #8d96a0;
   --hl-kw: #ff7b72; --hl-str: #a5d6ff; --hl-num: #79c0ff; --hl-fn: #d2a8ff; --hl-cm: #8b949e; --hl-ty: #ffa657; --hl-at: #7ee787; --hl-var: #e6edf3;
 }
-.panel.files-wide { width: min(720px, 52vw); }
 .panel.files-wide .pbody { padding: 0; display: flex; flex-direction: column; overflow: hidden; }
-@media (max-width: 1100px) { .panel.files-wide { width: min(640px, 100%); } }
 .fx { display: flex; flex-direction: column; min-height: 0; flex: 1; container-type: inline-size; }
 .fxbar { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-bottom: 1px solid var(--border); flex: none; }
 .fxseg button { display: inline-flex; align-items: center; gap: 6px; }

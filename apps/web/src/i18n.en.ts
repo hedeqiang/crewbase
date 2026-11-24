@@ -635,6 +635,8 @@ export const en: Partial<Record<Key, string>> = {
   "appr.approve": "Approve",
   "appr.reject": "Reject",
   "appr.always": "Always allow",
+  "panel.resize": "Resize the panel",
+  "panel.resizeTip": "Drag to resize, double-click to reset",
   "panel.task": "Task",
   "panel.files": "Files",
   "panel.preview": "Preview",
