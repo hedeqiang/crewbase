@@ -974,6 +974,8 @@ export interface UsageStats {
   peakDay?: string;
   peakTokens: number;
   days: Record<string, number>;
+  /** each day's spend */
+  daysUsd?: Record<string, number>;
   byProvider: { provider: string; kind: string; tokens: number }[];
   byAgent: { agent: string; name: string; model: string; tokens: number; messages: number; spentUsd: number; models: ModelUse[]; deleted?: boolean }[];
   /** every model's use, most used first */

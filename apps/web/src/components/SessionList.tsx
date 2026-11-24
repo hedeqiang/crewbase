@@ -534,12 +534,27 @@ export function SessionList() {
   );
 }
 
+/** Today as the daemon counts it: the local calendar day (not UTC). */
 function todayKey() {
-  return new Date().toISOString().slice(0, 10);
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
 function usd(n: number) {
+  if (n > 0 && n < 0.01) return "<$0.01";
   return "$" + n.toFixed(n < 10 ? 2 : 0);
+}
+
+/** The last seven days' tokens, oldest first, ending today. */
+function lastWeek(days: Record<string, number> | undefined) {
+  const out: number[] = [];
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date();
+    d.setDate(d.getDate() - i);
+    const k = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    out.push(days?.[k] ?? 0);
+  }
+  return out;
 }
 
 function MeMenu({ close, profile }: { close: () => void; profile: Profile }) {
@@ -573,6 +588,7 @@ function MeMenu({ close, profile }: { close: () => void; profile: Profile }) {
   const version = sys?.version || shell?.version;
   const sub = [version ? t("me.version", { version }) : "", sys?.startedAt ? t("me.uptime", { time: sinceLabel(sys.startedAt) }) : ""].filter(Boolean).join(" · ");
   const today = usage?.days?.[todayKey()] ?? 0;
+  const todaySpent = usage?.daysUsd?.[todayKey()] ?? 0;
 
   return (
     <>
@@ -616,30 +632,27 @@ function MeMenu({ close, profile }: { close: () => void; profile: Profile }) {
         </div>
       </div>
 
+      {/* today's use in one line; the full statistics are in 个人资料 */}
       <button
-        className="mestats"
+        className="mi meuse"
         type="button"
+        title={t("me.usageTitle")}
         onClick={() => {
           close();
           openSettings("profile");
         }}
       >
-        <span className="lbl">
-          {t("me.today")}
-          <ChevronRight size={12} />
+        <span className="spark" aria-hidden>
+          {(() => {
+            const w = lastWeek(usage?.days);
+            const max = Math.max(...w, 1);
+            return w.map((n, i) => <i key={i} className={i === 6 ? "now" : ""} style={{ height: Math.max(2, Math.round((n / max) * 14)) + "px" }} />);
+          })()}
         </span>
-        <span className="st">
-          <b>{usage ? kfmt(today) : "—"}</b>
-          <span>{t("me.todayTokens")}</span>
+        <span className="g">
+          {usage ? t("me.usageLine", { tokens: kfmt(today), spent: usd(todaySpent) }) : t("me.usageLoading")}
         </span>
-        <span className="st">
-          <b>{usage ? usage.switches : "—"}</b>
-          <span>{t("me.totalSwitches")}</span>
-        </span>
-        <span className="st">
-          <b>{usage ? usd(usage.spentUsd) : "—"}</b>
-          <span>{t("me.totalSpent")}</span>
-        </span>
+        <ChevronRight size={14} className="muted" />
       </button>
 
       <hr />

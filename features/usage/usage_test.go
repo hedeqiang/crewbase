@@ -81,6 +81,9 @@ func TestUsageAndSavings(t *testing.T) {
 			t.Fatalf("model %+v", m)
 		}
 	}
+	if today := st.DaysUSD[time.Now().Format("2006-01-02")]; today != st.SpentUSD {
+		t.Fatalf("today's spend %v, total %v", today, st.SpentUSD)
+	}
 	if tokens != st.Tokens || msgs != st.Messages || spent != st.SpentUSD || saved != st.SavedUSD {
 		t.Fatalf("models do not add up: %d/%d %d/%d %v/%v %v/%v", tokens, st.Tokens, msgs, st.Messages, spent, st.SpentUSD, saved, st.SavedUSD)
 	}

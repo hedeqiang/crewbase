@@ -40,6 +40,8 @@ type Stats struct {
 	Days         map[string]int `json:"days"` // YYYY-MM-DD → tokens
 	ByProvider   []Share        `json:"byProvider"`
 	ByAgent      []AgentShare   `json:"byAgent"`
+	// DaysUSD is each day's spend (the host's calendar days, as Days).
+	DaysUSD map[string]float64 `json:"daysUsd"`
 	// ByModel is every model's use, most used first.
 	ByModel       []ModelShare `json:"byModel"`
 	Switches      int          `json:"switches"`
@@ -168,7 +170,7 @@ func (s *Service) Compute() Stats {
 	s.mu.Unlock()
 
 	from := time.Now().UTC().AddDate(0, 0, -7*53)
-	st := Stats{From: from, Days: map[string]int{}, Kinds: map[string]int{}, Reference: s.ref}
+	st := Stats{From: from, Days: map[string]int{}, DaysUSD: map[string]float64{}, Kinds: map[string]int{}, Reference: s.ref}
 	byProv := map[string]int{}
 	byAgent := map[string]*AgentShare{}
 	byModel := map[string]*ModelShare{}
@@ -237,6 +239,9 @@ func (s *Service) Compute() Stats {
 				}
 				st.SpentUSD += spent
 				st.SavedUSD += saved
+				if spent > 0 {
+					st.DaysUSD[e.Time.Local().Format("2006-01-02")] += spent
+				}
 				ref := am.Model.String()
 				ms := byModel[ref]
 				if ms == nil {
