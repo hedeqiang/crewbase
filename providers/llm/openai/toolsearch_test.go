@@ -48,9 +48,9 @@ func TestSearchesTools(t *testing.T) {
 // tool_search_call and tool_search_output with execution "server" and a
 // null call_id, then a call to a loaded, namespaced function.
 const searchOutput = `{"type":"tool_search_call","id":"ts_1","execution":"server","call_id":null,"status":"completed","arguments":{"paths":["github"]}},` +
-	`{"type":"tool_search_output","id":"tso_1","execution":"server","call_id":null,"status":"completed","tools":[{"type":"namespace","name":"github","description":"Tools of github","tools":[` +
+	`{"type":"tool_search_output","id":"tso_1","execution":"server","call_id":null,"status":"completed","tools":[{"type":"namespace","name":"crew_github","description":"Tools of github","tools":[` +
 	`{"type":"function","name":"github__create_issue","description":"Open an issue","parameters":{"type":"object"},"defer_loading":true}]}]},` +
-	`{"type":"function_call","id":"fc_s","call_id":"call_s1","namespace":"github","name":"github__create_issue","arguments":"{\"title\":\"Bug\"}","status":"completed"}`
+	`{"type":"function_call","id":"fc_s","call_id":"call_s1","namespace":"crew_github","name":"github__create_issue","arguments":"{\"title\":\"Bug\"}","status":"completed"}`
 
 func TestToolSearchRequestAndReplay(t *testing.T) {
 	g := &gateway{responses: func(w http.ResponseWriter, _ map[string]any) {
@@ -92,7 +92,7 @@ func TestToolSearchRequestAndReplay(t *testing.T) {
 			shape = append(shape, m["type"].(string))
 		}
 	}
-	if want := "fn:read_file ns:github(9) ns:github_2(1) ns:notion(1) ns:my_server_io(1) tool_search"; strings.Join(shape, " ") != want {
+	if want := "fn:read_file ns:crew_github(9) ns:crew_github_2(1) ns:crew_notion(1) ns:crew_my_server_io(1) tool_search"; strings.Join(shape, " ") != want {
 		t.Fatalf("tools %v", shape)
 	}
 
@@ -110,7 +110,7 @@ func TestToolSearchRequestAndReplay(t *testing.T) {
 		t.Fatalf("summary %+v", sum)
 	}
 	call := resp.Message.Parts[3]
-	if call.ToolCall.Name != "github__create_issue" || call.Meta[MetaNamespace] != "github" || resp.StopReason != "tool_use" {
+	if call.ToolCall.Name != "github__create_issue" || call.Meta[MetaNamespace] != "crew_github" || resp.StopReason != "tool_use" {
 		t.Fatalf("call %+v", call)
 	}
 
@@ -137,7 +137,7 @@ func TestToolSearchRequestAndReplay(t *testing.T) {
 	if o := in[2].(map[string]any); o["execution"] != "server" || len(o["tools"].([]any)) != 1 {
 		t.Fatalf("search output %v", o)
 	}
-	if fc := in[3].(map[string]any); fc["namespace"] != "github" || fc["name"] != "github__create_issue" {
+	if fc := in[3].(map[string]any); fc["namespace"] != "crew_github" || fc["name"] != "github__create_issue" {
 		t.Fatalf("call %v", fc)
 	}
 
@@ -160,9 +160,51 @@ func TestToolSearchRequestAndReplay(t *testing.T) {
 }
 
 func TestNamespaceNotReserved(t *testing.T) {
-	for in, want := range map[string]string{"browser": "crew_browser", "Python": "crew_Python", "git": "git", "my server!": "my_server", "": "tools"} {
+	for in, want := range map[string]string{"browser": "crew_browser", "history": "crew_history", "Python": "crew_Python",
+		"git": "crew_git", "my server!": "crew_my_server", "": "crew_tools"} {
 		if got := namespaceName(in); got != want {
 			t.Errorf("%q: %q, want %q", in, got, want)
 		}
+	}
+	if n := namespaceName(strings.Repeat("x", 80)); len(n) != 48 || !strings.HasPrefix(n, namespacePrefix) {
+		t.Fatalf("long: %q", n)
+	}
+}
+
+// A conversation recorded before namespaces had the prefix (or one whose
+// group was renamed): its search items are left out, its calls stay
+// without the old namespace, and no reserved name reaches the request.
+func TestOldNamespacesAreNotReplayed(t *testing.T) {
+	g := &gateway{responses: func(w http.ResponseWriter, _ map[string]any) {
+		sse(w, completed(`{"type":"message","id":"m1","role":"assistant","status":"completed","content":[{"type":"output_text","text":"ok"}]}`, `{"input_tokens":5,"output_tokens":1}`))
+	}}
+	srv := httptest.NewServer(g)
+	defer srv.Close()
+	a := newAdapter(t, srv.URL, func(pc *ProviderConfig) { pc.Preset = "openai" })
+	old := `{"type":"tool_search_output","id":"tso_0","execution":"server","call_id":null,"status":"completed","tools":[{"type":"namespace","name":"history","tools":[{"type":"function","name":"history_search","parameters":{"type":"object"},"defer_loading":true}]}]}`
+	call := `{"type":"tool_search_call","id":"ts_0","execution":"server","call_id":null,"status":"completed","arguments":{"paths":["history"]}}`
+	asst := llm.Message{Role: llm.RoleAssistant, Parts: []llm.Part{
+		{Type: llm.PartProviderBlock, Meta: map[string]string{MetaBlock: call}},
+		{Type: llm.PartProviderBlock, Meta: map[string]string{MetaBlock: old}},
+		{Type: "tool_call", ToolCall: &llm.ToolCall{ID: "call_h", Name: "history_search", Args: json.RawMessage(`{"q":"x"}`)}, Meta: map[string]string{MetaNamespace: "history"}},
+	}}
+	req := llm.Request{Model: "gpt-6.2-sol", Tools: []llm.ToolSchema{
+		{Name: "read_file", Description: "Read"},
+		{Name: "history_search", Description: "Search history", Deferred: true, Group: "history"},
+		{Name: "browser_click", Description: "Click", Deferred: true, Group: "browser"},
+	}, Messages: []llm.Message{llm.TextMessage(llm.RoleUser, "find it"), asst,
+		{Role: llm.RoleTool, Parts: []llm.Part{{Type: "tool_result", ToolResult: &llm.ToolResult{CallID: "call_h", Name: "history_search", Content: "found"}}}}}}
+	if _, err := a.Stream(context.Background(), req, func(llm.Chunk) error { return nil }); err != nil {
+		t.Fatal(err)
+	}
+	_, b := g.last()
+	s, _ := json.Marshal(b)
+	for _, bad := range []string{`"name":"history"`, `"name":"browser"`, `"namespace":"history"`, "tool_search_output", "tool_search_call"} {
+		if strings.Contains(string(s), bad) {
+			t.Errorf("request carries %s:\n%s", bad, s)
+		}
+	}
+	if !strings.Contains(string(s), `"name":"crew_history"`) || !strings.Contains(string(s), `"call_id":"call_h"`) {
+		t.Fatalf("namespaces or the call missing: %s", s)
 	}
 }

@@ -150,6 +150,7 @@ func (a *Adapter) responsesInput(req llm.Request, namespaces map[string]bool) []
 	for _, m := range msgs {
 		switch m.Role {
 		case llm.RoleAssistant:
+			replaySearch := namespaces != nil && searchReplayable(m, namespaces)
 			var text strings.Builder
 			flush := func() {
 				if text.Len() > 0 {
@@ -170,7 +171,7 @@ func (a *Adapter) responsesInput(req llm.Request, namespaces map[string]bool) []
 					flush()
 					out = append(out, json.RawMessage(raw))
 				case llm.PartProviderBlock:
-					if raw := p.Meta[MetaBlock]; raw != "" && namespaces != nil && json.Valid([]byte(raw)) {
+					if raw := p.Meta[MetaBlock]; raw != "" && replaySearch && json.Valid([]byte(raw)) {
 						flush()
 						out = append(out, json.RawMessage(raw)) // tool search items, in place
 					}

@@ -81,29 +81,57 @@ func (a *Adapter) searchTools(req llm.Request) bool {
 
 var badNamespaceChar = regexp.MustCompile(`[^a-zA-Z0-9_-]+`)
 
-// reservedNamespaces are names OpenAI keeps for its own tools; a request
-// with a function namespace by one of them is refused ("Function
-// 'browser.browser_click' is not allowed in reserved namespace 'browser'").
-var reservedNamespaces = map[string]bool{
-	"browser": true, "python": true, "container": true, "computer": true, "web": true, "web_search": true,
-	"file_search": true, "image_gen": true, "code_interpreter": true, "functions": true, "multi_tool_use": true,
-	"mcp": true, "shell": true, "apply_patch": true, "local_shell": true, "tool_search": true, "openai": true,
-}
+// namespacePrefix starts every namespace Crewbase sends. OpenAI keeps
+// names for its own tools and refuses a function namespace by one of them
+// ("Function 'history.history_search' is not allowed in reserved namespace
+// 'history'", and 'browser' before it); which names it keeps is not
+// published and grows, and groups come from tool names and from MCP server
+// names people choose. A prefix of our own never meets one.
+const namespacePrefix = "crew_"
 
-// namespaceName makes a group name a valid namespace name, never one
-// OpenAI reserves (those get a "crew_" prefix: browser → crew_browser).
+// namespaceName makes a group name a namespace name: the prefix, then
+// the group with characters a namespace may not hold replaced.
 func namespaceName(group string) string {
 	n := strings.Trim(badNamespaceChar.ReplaceAllString(group, "_"), "_")
 	if n == "" {
 		n = "tools"
 	}
-	if reservedNamespaces[strings.ToLower(n)] {
-		n = "crew_" + n
-	}
+	n = namespacePrefix + n
 	if len(n) > 48 {
 		n = n[:48]
 	}
 	return n
+}
+
+// searchReplayable reports whether m's tool search items may be replayed
+// into a request with these namespaces: every namespace a recorded search
+// loaded must still be there. One recorded under another name (before
+// namespacePrefix, or a group since renamed) is left out, with the search
+// call that went with it; the function calls keep their place, without
+// the namespace (responsesInput).
+func searchReplayable(m llm.Message, namespaces map[string]bool) bool {
+	for _, p := range m.Parts {
+		raw := p.Meta[MetaBlock]
+		if p.Type != llm.PartProviderBlock || raw == "" {
+			continue
+		}
+		var it struct {
+			Type  string `json:"type"`
+			Tools []struct {
+				Type string `json:"type"`
+				Name string `json:"name"`
+			} `json:"tools"`
+		}
+		if json.Unmarshal([]byte(raw), &it) != nil {
+			return false
+		}
+		for _, t := range it.Tools {
+			if t.Type == "namespace" && !namespaces[t.Name] {
+				return false
+			}
+		}
+	}
+	return true
 }
 
 // searchToolList maps tools for a tool search request: loaded tools as
