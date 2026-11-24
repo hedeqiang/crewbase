@@ -6,6 +6,8 @@ export interface Step {
   call: ToolCall;
   result?: ToolResult;
   time: string;
+  /** when its result came (tool/result) */
+  doneAt?: string;
   /** An approval card is waiting for this call. */
   awaiting?: boolean;
   /** How the approval card for this call was answered (shown on the step). */
@@ -463,7 +465,10 @@ export function project(events: SessionEvent[], cards?: ReadonlySet<string>): Pr
       case "tool/result": {
         const r: ToolResult = d;
         const st = steps.get(r.callId);
-        if (st) st.result = r;
+        if (st) {
+          st.result = r;
+          st.doneAt = e.time;
+        }
         const name = r.name ?? calls.get(r.callId)?.name;
         // a background delegation: remember its task for the result card
         const dm = /Delegated as (\S+?)\b/.exec(r.content ?? "");

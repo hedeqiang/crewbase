@@ -1,6 +1,6 @@
 import { excerpt } from "../MsgExtras";
-import { useState, type ReactNode } from "react";
-import { Check, ChevronDown, ChevronRight, CircleX, CircleMinus, Hand, ShieldCheck, ShieldX, Wrench, ChevronUp } from "lucide-react";
+import { useEffect, useState, type ReactNode } from "react";
+import { Check, ChevronDown, ChevronRight, CircleX, CircleMinus, Hand, ShieldCheck, ShieldX, ChevronUp } from "lucide-react";
 import { useRawURL } from "../../api";
 import { t, type Key } from "../../i18n";
 import { argsFull, argsPreview, type Decision, type Step, type TurnPart } from "../../projection";
@@ -9,8 +9,8 @@ import { openSubRun } from "../../store";
 /** How a finished step went: a declined approval or a command's non-zero
  *  exit (grep finding nothing, cat of a missing file) is not a failure of
  *  the tool, and is not shown as one. */
-type Outcome = "ok" | "declined" | "exit" | "error";
-function outcome(s: Step): Outcome {
+export type Outcome = "ok" | "declined" | "exit" | "error";
+export function outcome(s: Step): Outcome {
   const r = s.result;
   if (!r || !r.isError) return "ok";
   if (/^not approved \(/.test(r.content)) return "declined";
@@ -18,43 +18,6 @@ function outcome(s: Step): Outcome {
   return "error";
 }
 
-export function Steps({ steps, agent }: { steps: Step[]; agent?: string }) {
-  const [open, setOpen] = useState(false);
-  const running = steps.some((s) => !s.result && !s.awaiting);
-  const awaiting = steps.some((s) => s.awaiting);
-  const errors = steps.filter((s) => outcome(s) === "error").length;
-  const declined = steps.filter((s) => outcome(s) === "declined").length;
-  // one step needs no "ran 1 step" wrapper: the step itself is the line
-  if (steps.length === 1)
-    return (
-      <div className="stepsw one">
-        <StepRow s={steps[0]} agent={agent} />
-      </div>
-    );
-  return (
-    <div className="stepsw">
-      <button className="row-btn" type="button" aria-expanded={open} onClick={() => setOpen(!open)}>
-        {running ? <span className="spin" /> : <Wrench size={14} className="muted" />}
-        {running ? t("chat.stepsRunning", { n: steps.length }) : workSummary(steps)}
-        {awaiting && <span className="pill amber">{t("appr.waiting")}</span>}
-        {declined > 0 && <span className="pill">{t("chat.toolDeclined")}</span>}
-        {errors > 0 && <span className="pill red">{t("chat.toolError")} {errors}</span>}
-        <ChevronRight size={14} className="ch" />
-      </button>
-      {open && (
-        <div className="stepsx">
-          {steps.map((s) => (
-            <StepRow key={s.call.id} s={s} agent={agent} />
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-/** A finished turn's steps in one group: step runs separated only by short
- *  narration ("先看看文件…") become one line; the narration stays above it.
- *  A running turn keeps them apart, so what happens now is visible. */
 /** What an agent said about the pictures it made: one line, the rest a
  *  click away (the pictures are the answer). */
 export function FoldedWords({ text, children }: { text: string; children: ReactNode }) {
@@ -89,37 +52,6 @@ export function withoutMediaSteps(parts: TurnPart[]): TurnPart[] {
   });
 }
 
-export function mergeSteps(parts: TurnPart[], open: boolean): TurnPart[] {
-  if (open) return parts;
-  const runs = parts.filter((p) => p.k === "steps").length;
-  if (runs < 2) return parts;
-  const out: TurnPart[] = [];
-  type StepsPart = Extract<TurnPart, { k: "steps" }>;
-  const g: { cur: StepsPart | null } = { cur: null };
-  const narr: TurnPart[] = [];
-  const flush = () => {
-    out.push(...narr);
-    narr.length = 0;
-    if (g.cur) out.push(g.cur);
-    g.cur = null;
-  };
-  for (const p of parts) {
-    if (p.k === "steps") {
-      g.cur = g.cur ? { k: "steps", id: g.cur.id, steps: [...g.cur.steps, ...p.steps] } : { k: "steps", id: p.id, steps: p.steps };
-      continue;
-    }
-    // short narration between steps rides above the merged group
-    if (g.cur && p.k === "msg" && p.narration && (p.it.text ?? "").length < 240) {
-      narr.push(p);
-      continue;
-    }
-    flush();
-    out.push(p);
-  }
-  flush();
-  return out;
-}
-
 /** What a run of steps did, in words: 写了 3 个文件 · 跑了 2 条命令 · 搜了 1 次
  *  (the kinds that happened, most first; the step count when nothing fits). */
 const WORK_KINDS: { key: Key; tools: string[] }[] = [
@@ -131,7 +63,7 @@ const WORK_KINDS: { key: Key; tools: string[] }[] = [
   { key: "work.made", tools: ["show_page", "image_generate", "video_generate", "preview_open"] },
   { key: "work.handed", tools: ["delegate"] },
 ];
-function workSummary(steps: Step[]): string {
+export function workSummary(steps: Step[]): string | null {
   const counts: { key: Key; n: number }[] = [];
   let other = 0;
   for (const st of steps) {
@@ -144,36 +76,81 @@ function workSummary(steps: Step[]): string {
     if (c) c.n++;
     else counts.push({ key: k.key, n: 1 });
   }
-  if (!counts.length) return t("chat.steps", { n: steps.length });
+  if (!counts.length) return steps.length ? t("chat.steps", { n: steps.length }) : null;
   counts.sort((a, b) => b.n - a.n);
   const parts = counts.slice(0, 3).map((c) => t(c.key, { n: c.n }));
   if (counts.length > 3 || other > 0) parts.push(t("work.more", { n: steps.length }));
   return parts.join(" · ");
 }
 
-function StepRow({ s, agent }: { s: Step; agent?: string }) {
+/** Rerenders every second while on (a running step's clock). */
+export function useTick(on: boolean) {
+  const [, set] = useState(0);
+  useEffect(() => {
+    if (!on) return;
+    const id = setInterval(() => set((n) => n + 1), 1000);
+    return () => clearInterval(id);
+  }, [on]);
+}
+
+/** 3 秒 / 1 分 10 秒; nothing under a second. */
+export function durLabel(ms: number | undefined): string {
+  if (ms === undefined || !(ms >= 1000)) return "";
+  const s = Math.round(ms / 1000);
+  return s < 60 ? t("dur.s", { n: s }) : t("dur.ms", { m: Math.floor(s / 60), s: s % 60 });
+}
+
+/** The first line that says something (for a one-line excerpt). */
+function firstLine(s: string): string {
+  return (
+    s
+      .split("\n")
+      .map((l) => l.trim())
+      .find((l) => l && !/^<\/?\w+>$/.test(l) && !/^Exit code:/.test(l)) ?? ""
+  );
+}
+
+/** One tool call as one line: how it went, what it is, its main argument,
+ *  how long it took (a clock while it runs). Its arguments and result open
+ *  in place below it. live: the turn is still going (a step with no result
+ *  is running; in a finished turn it was cut off). */
+export function StepRow({ s, agent, live = true }: { s: Step; agent?: string; live?: boolean }) {
   const [open, setOpen] = useState(false);
+  const running = !s.result && !s.awaiting && live;
+  useTick(running);
   const cu = computerLabel(s);
   // a command that starts by going to the agent's own folder: that part says nothing
   const pv = cu ? "" : argsPreview(s.call.args).replace(/^cd\s+\S*\/workspaces\/[^/\s]+\/?\s*&&\s*/, "");
   const shots = (s.computer ?? []).filter((c) => c.screenshot).map((c) => c.screenshot!);
+  const oc = s.result ? outcome(s) : null;
+  const exit = oc === "exit" ? /^Exit code: (\d+)/.exec(s.result!.content)?.[1] : undefined;
+  const t0 = Date.parse(s.time);
+  const took = running ? Date.now() - t0 : s.doneAt ? Date.parse(s.doneAt) - t0 : undefined;
+  const parked = !!s.result?.content.startsWith(PARKED);
   return (
-    <div className="step">
-      <button className="stephead" type="button" aria-expanded={open} onClick={() => setOpen(!open)}>
-        {s.awaiting ? (
-          <Hand size={13} className="waitc" />
-        ) : !s.result ? (
-          <span className="spin sm" />
-        ) : outcome(s) === "error" ? (
-          <CircleX size={13} className="errc" />
-        ) : outcome(s) === "ok" ? (
-          <Check size={13} className="okc" />
-        ) : (
-          <CircleMinus size={13} className="muted" />
-        )}
+    <div className={"tlitem step" + (running ? " run" : "") + (oc === "error" ? " bad" : "")}>
+      <button className="tlrow stephead" type="button" aria-expanded={open} onClick={() => setOpen(!open)}>
+        <span className="tlic">
+          {s.awaiting ? (
+            <Hand size={13} className="waitc" />
+          ) : running ? (
+            <span className="spin sm" />
+          ) : !s.result ? (
+            <CircleMinus size={13} className="muted" />
+          ) : oc === "error" ? (
+            <CircleX size={13} className="errc" />
+          ) : oc === "ok" ? (
+            <Check size={13} className="okc" />
+          ) : (
+            <CircleMinus size={13} className="muted" />
+          )}
+        </span>
         {cu ? <b className="cul">{cu}</b> : toolLabel(s.call.name) ? <b>{toolLabel(s.call.name)}</b> : <b className="mono">{s.call.name}</b>}
         {cu && (s.computer ?? []).some((c) => c.foreground) && <span className="pill sm">{t("tool.cu.fg")}</span>}
         <span className={"pv" + (PROSE_ARGS.has(s.call.name) ? "" : " mono")}>{pv}</span>
+        {s.awaiting && <span className="pill sm amber">{t("appr.waiting")}</span>}
+        {exit && <span className="stepexit">{t("step.exit", { n: exit })}</span>}
+        {!s.result && !s.awaiting && !live && <span className="stepexit">{t("step.unfinished")}</span>}
         {s.decision && <DecisionTag d={s.decision} />}
         {s.sub && (
           <span
@@ -194,7 +171,11 @@ function StepRow({ s, agent }: { s: Step; agent?: string }) {
             {t("sub.view")}
           </span>
         )}
+        <ChevronRight size={13} className="ch" />
+        <span className="tlmeta">{durLabel(took)}</span>
       </button>
+      {/* a failure says why without a click */}
+      {oc === "error" && !open && <div className="steperr">{firstLine(s.result!.content)}</div>}
       {shots.length > 0 && agent && (
         <div className="cushots">
           {shots.map((p) => (
@@ -219,12 +200,12 @@ function StepRow({ s, agent }: { s: Step; agent?: string }) {
               {t("appr.noteFrom", { by: decidedBy(s.decision) })}「{s.decision.message}」
             </p>
           )}
-          <pre className="codeblk">{argsFull(s.call.args)}</pre>
+          <ArgsView args={s.call.args} />
           {s.result &&
-            (s.result.content.startsWith(PARKED) ? (
+            (parked ? (
               <p className="small muted">{t("appr.parked")}</p>
             ) : (
-              <pre className={"codeblk" + (outcome(s) === "error" ? " errblk" : "")}>{clip(s.result.content)}</pre>
+              <OutputView content={s.result.content} error={oc === "error"} />
             ))}
         </div>
       )}
@@ -232,6 +213,67 @@ function StepRow({ s, agent }: { s: Step; agent?: string }) {
   );
 }
 
+/** A call's arguments, one per line: short values inline, long or
+ *  multi-line text (a file's content, a script) as a block of its own. */
+function ArgsView({ args }: { args: any }) {
+  const a = parsedArgs(args);
+  const entries = Object.entries(a);
+  if (!entries.length) {
+    const raw = argsFull(args);
+    return raw && raw !== "{}" ? <pre className="codeblk tlpre">{clip(raw)}</pre> : null;
+  }
+  return (
+    <dl className="targs">
+      {entries.map(([k, v]) => {
+        const str = typeof v === "string" ? v : JSON.stringify(v, null, typeof v === "object" && v !== null ? 2 : 0);
+        const block = str.includes("\n") || str.length > 90;
+        return (
+          <div key={k} className={block ? "blk" : ""}>
+            <dt>{k}</dt>
+            <dd>{block ? <pre className="codeblk tlpre">{clip(str)}</pre> : <code>{str}</code>}</dd>
+          </div>
+        );
+      })}
+    </dl>
+  );
+}
+
+const tagged = (s: string, name: string) => new RegExp(`<${name}>\\n?([\\s\\S]*?)\\n?</${name}>`).exec(s)?.[1] ?? null;
+
+/** A result as it reads best: a command's output and its errors apart
+ *  (from its <stdout>/<stderr>), anything else as it came. */
+function OutputView({ content, error }: { content: string; error: boolean }) {
+  const m = /^Exit code: \d+\n([\s\S]*)$/.exec(content);
+  if (m) {
+    const out = tagged(m[1], "stdout");
+    const err = tagged(m[1], "stderr");
+    if (out !== null || err !== null)
+      return (
+        <>
+          {out ? (
+            <>
+              <div className="steplbl">{t("step.result")}</div>
+              <pre className="codeblk tlpre">{clip(out)}</pre>
+            </>
+          ) : null}
+          {err ? (
+            <>
+              <div className="steplbl">{t("step.stderr")}</div>
+              <pre className="codeblk tlpre errblk">{clip(err)}</pre>
+            </>
+          ) : null}
+          {!out && !err && <p className="small muted steplbl">{t("step.noOutput")}</p>}
+        </>
+      );
+  }
+  if (!content.trim()) return <p className="small muted steplbl">{t("step.noOutput")}</p>;
+  return (
+    <>
+      <div className="steplbl">{t("step.result")}</div>
+      <pre className={"codeblk tlpre" + (error ? " errblk" : "")}>{clip(content)}</pre>
+    </>
+  );
+}
 const decidedBy = (d: Decision) => (d.by && d.by !== "desktop" ? d.by : t("common.you"));
 
 /** How an approval was answered, as a small tag on its tool step. */

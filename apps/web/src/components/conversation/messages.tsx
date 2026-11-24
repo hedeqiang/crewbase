@@ -3,7 +3,7 @@ import { FeedCtx, PinBtn, QuoteLine, ReactBtn, Reactions, ReplyBtn } from "../Ms
 import { PageCard } from "../PageCard";
 import { useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useCopy } from "../../clipboard";
-import { Check, ChevronRight, Search as SearchIcon, Info, Volume2, Square, Copy, Pencil, RefreshCw } from "lucide-react";
+import { Check, Search as SearchIcon, Info, Volume2, Square, Copy, Pencil, RefreshCw } from "lucide-react";
 import { MAC } from "../../shortcuts";
 import { type AgentView } from "../../api";
 import { UsedCmds } from "../SlashMenu";
@@ -22,9 +22,10 @@ import { StreamMarkdown } from "../StreamMarkdown";
 import { LinkCards } from "../LinkCards";
 import { DocCards } from "../DocCards";
 import { MsgCtx, SessionCtx } from "./context";
-import { siteOf, speaker, thinkLabel } from "./util";
+import { siteOf, speaker } from "./util";
 import { lastMsg } from "./feedUtil";
-import { Steps, FoldedWords, withoutMediaSteps, mergeSteps } from "./steps";
+import { FoldedWords, withoutMediaSteps } from "./steps";
+import { LiveThought, Segment, ThoughtRow, thoughtMs, timeline } from "./timeline";
 import { splitStarters, Starters } from "./other";
 
 function CopyBtn({ text }: { text: string }) {
@@ -239,7 +240,6 @@ export function UserMsg({ it }: { it: Extract<FeedItem, { k: "user" }> }) {
 
 export function AgentMsg({ it, agent, showModel, bare, opened, extra, fold }: { it: AgentItem; agent?: AgentView; showModel: boolean; bare?: boolean; opened?: string[]; extra?: ReactNode; fold?: boolean }) {
   const models = useStore((s) => s.models);
-  const [showThink, setShowThink] = useState(false);
   const [reading, setReading] = useState(false);
   const acts = useContext(MsgCtx);
   const feedSession = useContext(FeedCtx)?.session;
@@ -262,12 +262,10 @@ export function AgentMsg({ it, agent, showModel, bare, opened, extra, fold }: { 
           )}
         </div>}
         {!bare && it.thinking && (
-          <button className="row-btn think" type="button" aria-expanded={showThink} onClick={() => setShowThink(!showThink)}>
-            {thinkLabel([it.tookMs])}
-            <ChevronRight size={14} className="ch" />
-          </button>
+          <div className="tl solo">
+            <ThoughtRow text={it.thinking} ms={thoughtMs(it.agent, it.thinking, it.tookMs)} />
+          </div>
         )}
-        {showThink && <div className="thinking small">{it.thinking}</div>}
         {it.searches.map((q, i) => (
           <div className="srvtool" key={i}>
             <SearchIcon size={13} />
@@ -365,9 +363,11 @@ function Wrap({ bare, final, agent, seq, children }: { bare?: boolean; final?: b
   );
 }
 
-/** One agent's turn: one header, then its thinking (one toggle), what it
- *  said while working (narration, small), its steps and its answer, in
- *  order; while it runs, the text being written grows at the end. */
+/** One agent's turn: one header, then what it did in order: its work as
+ *  timeline segments (thinking, short narration and tool calls; see
+ *  timeline.tsx), longer words and cards in view, and its answer; while it
+ *  runs, what it thinks rolls at the end of the timeline and the text being
+ *  written grows below it. */
 export function TurnMsg({ it, agent }: { it: Extract<FeedItem, { k: "turn" }>; agent?: AgentView; showModel?: boolean }) {
   const models = useStore((s) => s.models);
   const sid = useContext(SessionCtx);
@@ -377,14 +377,21 @@ export function TurnMsg({ it, agent }: { it: Extract<FeedItem, { k: "turn" }>; a
   const lastPart = it.parts[it.parts.length - 1];
   const stepRunning = lastPart?.k === "steps" && lastPart.steps.some((x) => !x.result);
   const working = it.open && agent?.status === "running" && !waiting && !stepRunning && !live?.text;
-  const [showThink, setShowThink] = useState(false);
   const msgs = it.parts.filter((p): p is Extract<TurnPart, { k: "msg" }> => p.k === "msg");
   // previews this turn already opened: no 在右侧预览 card again for them
   const opened = it.parts.flatMap((p) => (p.k === "preview" ? [p.p.url] : []));
   const last = lastMsg(it);
-  const thoughts = msgs.map((p) => p.it.thinking).filter(Boolean);
   const answer = msgs.find((p) => !p.narration && p.it.stats)?.it;
   const sm = last?.model ? shortModelEffort(models, last.model) : null;
+  const pieces = timeline(withoutMediaSteps(it.parts), !!it.open);
+  const lastPiece = pieces[pieces.length - 1];
+  // what it is doing now, at the end of the timeline: thinking (rolling),
+  // or 思考中 between steps before anything streams
+  const thinkingNow = live?.thinking ?? "";
+  const liveNode =
+    it.open && (thinkingNow || working) ? (
+      <LiveThought key="live" thinking={thinkingNow} writing={!!live?.text} agent={it.agent} label={working && agent ? detailLabel(agent.detail) : ""} />
+    ) : null;
   return (
     <div className={"m-agent turn" + (answer ? " final" : "")}>
       <Avatar agent={agent} size={28} />
@@ -400,23 +407,10 @@ export function TurnMsg({ it, agent }: { it: Extract<FeedItem, { k: "turn" }>; a
             </span>
           )}
         </div>
-        {thoughts.length > 0 && (
-          <>
-            <button className="row-btn think" type="button" aria-expanded={showThink} onClick={() => setShowThink(!showThink)}>
-              {thinkLabel(msgs.filter((p) => p.it.thinking).map((p) => p.it.tookMs))}
-              <ChevronRight size={14} className="ch" />
-            </button>
-            {showThink && (
-              <div className="thinking small">
-                {thoughts.map((x, i) => (
-                  <p key={i}>{x}</p>
-                ))}
-              </div>
-            )}
-          </>
-        )}
-        {mergeSteps(withoutMediaSteps(it.parts), !!it.open).map((p, i, all) =>
-          // after the pictures they made, the words are a click away
+        {pieces.map((p, i, all) =>
+          p.k === "seg" ? (
+            <Segment key={p.id} items={p.items} live={!!it.open} active={!!it.open && i === all.length - 1 && !live?.text} agent={it.agent} tail={i === all.length - 1 ? liveNode : null} after={i < all.length - 1} />
+          ) : // after the pictures they made, the words are a click away
           p.k === "msg" && p.narration && p.it.text && !it.open && all.slice(0, i).some((x) => x.k === "media") ? (
             <FoldedWords key={p.it.id} text={p.it.text}>
               <div className="narr">
@@ -425,9 +419,7 @@ export function TurnMsg({ it, agent }: { it: Extract<FeedItem, { k: "turn" }>; a
                 </div>
               </div>
             </FoldedWords>
-          ) : p.k === "steps" ? (
-            <Steps key={p.id} steps={p.steps} agent={it.agent} />
-          ) : p.k === "media" ? (
+          ) : p.k === "steps" ? null : p.k === "media" ? (
             <MediaCard key={p.id} it={p.m} inTurn />
           ) : p.k === "preview" ? (
             <PreviewLine key={p.id} p={p.p} session={sid} />
@@ -465,24 +457,12 @@ export function TurnMsg({ it, agent }: { it: Extract<FeedItem, { k: "turn" }>; a
             <AgentMsg key={p.it.id} it={p.it} agent={agent} showModel={false} bare opened={opened} fold={!it.open && all.slice(0, i).some((x) => x.k === "media")} />
           ),
         )}
-        {working && !live?.thinking && (
-          <div className="typing in">
-            <span>{detailLabel(agent!.detail) || t("chat.thinking", { name: speaker(agent!) })}</span>
-            <span className="dots">
-              <i />
-              <i />
-              <i />
-            </span>
-          </div>
-        )}
-        {live && (live.text || live.thinking) && (
+        {liveNode && lastPiece?.k !== "seg" && <div className="tl">{liveNode}</div>}
+        {live?.text && (
           <div className="tans">
-            {live.thinking && !live.text && <div className="thinking small">{live.thinking.slice(-400)}</div>}
-            {live.text && (
-              <div className="mt streaming">
-                <StreamMarkdown text={live.text} />
-              </div>
-            )}
+            <div className="mt streaming">
+              <StreamMarkdown text={live.text} />
+            </div>
           </div>
         )}
       </div>
