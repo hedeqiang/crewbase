@@ -69,6 +69,33 @@ func TestUsageAndSavings(t *testing.T) {
 	if len(st.ByAgent) != 1 || st.ByAgent[0].Name != "Kai" || len(st.ByProvider) != 2 {
 		t.Fatalf("%+v %+v", st.ByAgent, st.ByProvider)
 	}
+	// per model, overall and per member: the two models it used, adding up
+	if len(st.ByModel) != 2 {
+		t.Fatalf("by model %+v", st.ByModel)
+	}
+	var tokens, msgs int
+	var spent, saved float64
+	for _, m := range st.ByModel {
+		tokens, msgs, spent, saved = tokens+m.Tokens, msgs+m.Messages, spent+m.SpentUSD, saved+m.SavedUSD
+		if m.Input+m.Output != m.Tokens || m.Messages != 1 {
+			t.Fatalf("model %+v", m)
+		}
+	}
+	if tokens != st.Tokens || msgs != st.Messages || spent != st.SpentUSD || saved != st.SavedUSD {
+		t.Fatalf("models do not add up: %d/%d %d/%d %v/%v %v/%v", tokens, st.Tokens, msgs, st.Messages, spent, st.SpentUSD, saved, st.SavedUSD)
+	}
+	kai := st.ByAgent[0]
+	if kai.Deleted || kai.Messages != 2 || len(kai.Models) != 2 || kai.SpentUSD != st.SpentUSD {
+		t.Fatalf("member %+v", kai)
+	}
+	// a removed agent's use is still counted, and marked
+	if err := kernel.Use[*agent.Registry](r, agent.ServiceKey).Delete(a.ID()); err != nil {
+		t.Fatal(err)
+	}
+	time.Sleep(6 * time.Second) // past the 5 s cache
+	if st := kernel.Use[*usage.Service](r, usage.ServiceKey).Compute(); len(st.ByAgent) != 1 || !st.ByAgent[0].Deleted {
+		t.Fatalf("deleted %+v", st.ByAgent)
+	}
 }
 
 type fakeCatalog map[string]llm.CatalogEntry

@@ -30,20 +30,22 @@ type Price struct {
 
 // Stats is the usage report.
 type Stats struct {
-	From          time.Time      `json:"from"`
-	Tokens        int            `json:"tokens"`
-	InputTokens   int            `json:"inputTokens"`
-	OutputTokens  int            `json:"outputTokens"`
-	Messages      int            `json:"messages"`
-	PeakDay       string         `json:"peakDay,omitempty"`
-	PeakTokens    int            `json:"peakTokens"`
-	Days          map[string]int `json:"days"` // YYYY-MM-DD → tokens
-	ByProvider    []Share        `json:"byProvider"`
-	ByAgent       []AgentShare   `json:"byAgent"`
-	Switches      int            `json:"switches"`
-	Interventions int            `json:"interventions"` // switches that still ended in a failed turn
-	SavedUSD      float64        `json:"savedUsd"`
-	SpentUSD      float64        `json:"spentUsd"` // estimated API spend (direct keys and gateways)
+	From         time.Time      `json:"from"`
+	Tokens       int            `json:"tokens"`
+	InputTokens  int            `json:"inputTokens"`
+	OutputTokens int            `json:"outputTokens"`
+	Messages     int            `json:"messages"`
+	PeakDay      string         `json:"peakDay,omitempty"`
+	PeakTokens   int            `json:"peakTokens"`
+	Days         map[string]int `json:"days"` // YYYY-MM-DD → tokens
+	ByProvider   []Share        `json:"byProvider"`
+	ByAgent      []AgentShare   `json:"byAgent"`
+	// ByModel is every model's use, most used first.
+	ByModel       []ModelShare `json:"byModel"`
+	Switches      int          `json:"switches"`
+	Interventions int          `json:"interventions"` // switches that still ended in a failed turn
+	SavedUSD      float64      `json:"savedUsd"`
+	SpentUSD      float64      `json:"spentUsd"` // estimated API spend (direct keys and gateways)
 	// GatewayUSD is the part of SpentUSD that went through a gateway such
 	// as magpie, valued at the model's list price (the gateway's own
 	// billing may differ).
@@ -82,6 +84,57 @@ type AgentShare struct {
 	Name   string `json:"name"`
 	Model  string `json:"model"` // most recent model
 	Tokens int    `json:"tokens"`
+	// Messages are its replies; SpentUSD what they cost (as Stats.SpentUSD).
+	Messages int     `json:"messages"`
+	SpentUSD float64 `json:"spentUsd"`
+	// Models are the models its replies came from, most used first.
+	Models []ModelShare `json:"models"`
+	// Deleted: the agent no longer exists (removed, or a finished sub-agent).
+	Deleted bool `json:"deleted,omitempty"`
+}
+
+// ModelShare is one model's use: tokens, replies, and what they cost.
+type ModelShare struct {
+	Model    string `json:"model"` // provider/model
+	Provider string `json:"provider"`
+	Kind     string `json:"kind"` // the provider's kind: api | gateway | local | …
+	Tokens   int    `json:"tokens"`
+	Input    int    `json:"input"`
+	Output   int    `json:"output"`
+	Messages int    `json:"messages"`
+	// SpentUSD is what it cost (API keys and gateways, as Stats.SpentUSD);
+	// SavedUSD what local or subscription use would have cost by API.
+	SpentUSD float64 `json:"spentUsd"`
+	SavedUSD float64 `json:"savedUsd"`
+	// Unpriced: some of its tokens had no known price (a gateway model the
+	// catalog does not know counts 0; a direct key falls to the reference).
+	Unpriced bool `json:"unpriced,omitempty"`
+}
+
+func (m *ModelShare) add(am session.AssistantMessage, spent, saved float64, priced bool) {
+	m.Tokens += am.Usage.InputTokens + am.Usage.OutputTokens
+	m.Input += am.Usage.InputTokens
+	m.Output += am.Usage.OutputTokens
+	m.Messages++
+	m.SpentUSD += spent
+	m.SavedUSD += saved
+	if !priced {
+		m.Unpriced = true
+	}
+}
+
+func sortedModels(ms map[string]*ModelShare) []ModelShare {
+	out := make([]ModelShare, 0, len(ms))
+	for _, m := range ms {
+		out = append(out, *m)
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].Tokens != out[j].Tokens {
+			return out[i].Tokens > out[j].Tokens
+		}
+		return out[i].Model < out[j].Model
+	})
+	return out
 }
 
 // Service computes stats (cached briefly; logs are the source of truth).
@@ -118,6 +171,8 @@ func (s *Service) Compute() Stats {
 	st := Stats{From: from, Days: map[string]int{}, Kinds: map[string]int{}, Reference: s.ref}
 	byProv := map[string]int{}
 	byAgent := map[string]*AgentShare{}
+	byModel := map[string]*ModelShare{}
+	agentModels := map[string]map[string]*ModelShare{}
 	gens := map[string]*GenShare{}
 	prices := map[string]*llm.Pricing{} // model → catalog price (nil = unknown)
 	for _, m := range s.sessions.List() {
@@ -147,11 +202,13 @@ func (s *Service) Compute() Stats {
 				// Value the tokens at the model's own list price when the
 				// model catalog knows it, else at the reference price.
 				cost := float64(am.Usage.InputTokens)/1e6*s.ref.Input + float64(am.Usage.OutputTokens)/1e6*s.ref.Output
-				p, priced := prices[am.Model.String()]
-				if !priced {
+				p, cached := prices[am.Model.String()]
+				if !cached {
 					p = s.llms.PriceOf(am.Model)
 					prices[am.Model.String()] = p
 				}
+				var spent, saved float64
+				priced := p != nil
 				switch kind {
 				case "gateway":
 					// billed inside the gateway (e.g. magpie): counted as spent
@@ -159,33 +216,50 @@ func (s *Service) Compute() Stats {
 					// figure the reply footer shows; unknown prices count 0
 					// rather than a guess at the reference price
 					if p != nil {
-						cost = p.Cost(am.Usage)
+						spent = p.Cost(am.Usage)
 						st.PricedTokens += n
-						st.SpentUSD += cost
-						st.GatewayUSD += cost
+						st.GatewayUSD += spent
 					}
 				case "api":
 					if cp, ok := s.prices[am.Model.Provider]; ok {
-						cost = float64(am.Usage.InputTokens)/1e6*cp.Input + float64(am.Usage.OutputTokens)/1e6*cp.Output
+						cost, priced = float64(am.Usage.InputTokens)/1e6*cp.Input+float64(am.Usage.OutputTokens)/1e6*cp.Output, true
 					} else if p != nil {
 						cost = p.Cost(am.Usage)
 						st.PricedTokens += n
 					}
-					st.SpentUSD += cost
+					spent = cost
 				default:
 					if p != nil {
 						cost = p.Cost(am.Usage)
 						st.PricedTokens += n
 					}
-					st.SavedUSD += cost
+					saved = cost
 				}
+				st.SpentUSD += spent
+				st.SavedUSD += saved
+				ref := am.Model.String()
+				ms := byModel[ref]
+				if ms == nil {
+					ms = &ModelShare{Model: ref, Provider: am.Model.Provider, Kind: kind}
+					byModel[ref] = ms
+				}
+				ms.add(am, spent, saved, priced)
 				as := byAgent[e.Agent]
 				if as == nil {
 					as = &AgentShare{Agent: e.Agent}
 					byAgent[e.Agent] = as
+					agentModels[e.Agent] = map[string]*ModelShare{}
 				}
 				as.Tokens += n
-				as.Model = am.Model.String()
+				as.Messages++
+				as.SpentUSD += spent
+				as.Model = ref
+				am2 := agentModels[e.Agent][ref]
+				if am2 == nil {
+					am2 = &ModelShare{Model: ref, Provider: am.Model.Provider, Kind: kind}
+					agentModels[e.Agent][ref] = am2
+				}
+				am2.add(am, spent, saved, priced)
 			case typeGenerated:
 				var g struct {
 					Kind  string `json:"kind"`
@@ -227,9 +301,12 @@ func (s *Service) Compute() Stats {
 	sort.Slice(st.ByProvider, func(i, j int) bool { return st.ByProvider[i].Tokens > st.ByProvider[j].Tokens })
 	names := s.agents.Names()
 	for _, a := range byAgent {
-		a.Name = names[a.Agent]
+		n, ok := names[a.Agent]
+		a.Name, a.Deleted = n, !ok
+		a.Models = sortedModels(agentModels[a.Agent])
 		st.ByAgent = append(st.ByAgent, *a)
 	}
+	st.ByModel = sortedModels(byModel)
 	sort.Slice(st.ByAgent, func(i, j int) bool { return st.ByAgent[i].Tokens > st.ByAgent[j].Tokens })
 	if st.ByProvider == nil {
 		st.ByProvider = []Share{}
