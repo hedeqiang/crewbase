@@ -3,6 +3,13 @@
 Each `## <version>` section becomes the release notes of that version,
 shown in the desktop app's update window.
 
+## 0.9.19
+
+修复从 Anthropic 模型降级到 OpenAI 模型后很多功能不能用。
+
+修复
+- 对话从 Anthropic 模型切到 OpenAI 模型后，带按需加载工具的请求都被拒（「reserved namespace 'history'」，HTTP 400），这一轮直接失败。工具分组的名字撞上了 OpenAI 自己保留的名字；现在所有分组都加上自己的前缀，不会再撞上，以后 OpenAI 新增保留名字也不受影响
+
 ## 0.9.18
 
 切换模型更可靠：重新选回原来的模型也会生效；输入框显示的额度改为所选模型自己的账号额度。
