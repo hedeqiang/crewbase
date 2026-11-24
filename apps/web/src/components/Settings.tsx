@@ -1000,7 +1000,12 @@ function Models() {
               <div className="psec2">{t("set.quota")}</div>
               <div className="box">
                 {cur.quota?.known ? (
-                  <QuotaRow remaining={cur.quota.remaining} resetsAt={cur.quota.resetsAt} />
+                  // a gateway fronts several accounts: each window, named
+                  cur.quota.windows?.length ? (
+                    cur.quota.windows.map((w) => <QuotaRow key={w.label} label={w.label} remaining={w.remaining} resetsAt={w.resetsAt} />)
+                  ) : (
+                    <QuotaRow remaining={cur.quota.remaining} resetsAt={cur.quota.resetsAt} />
+                  )
                 ) : (
                   <span className="small">{t("set.quotaUnknown")}</span>
                 )}

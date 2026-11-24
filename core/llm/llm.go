@@ -273,6 +273,8 @@ type Quota struct {
 	Known     bool      `json:"known"`
 	Remaining float64   `json:"remaining"` // 0..1, the tightest window
 	ResetsAt  time.Time `json:"resetsAt,omitzero"`
+	// Label names the allowance Remaining is of (e.g. "codex · 7 days").
+	Label string `json:"label,omitempty"`
 	// Windows are the individual allowances (e.g. "5h", "week").
 	Windows []QuotaWindow `json:"windows,omitempty"`
 }
@@ -326,6 +328,13 @@ func ModelCap(ms []ModelInfo, model, c string) (has, known bool) {
 // QuotaReporter is optionally implemented by adapters that know their quota.
 type QuotaReporter interface {
 	Quota(ctx context.Context) Quota
+}
+
+// ModelQuotaReporter is optionally implemented by adapters that front
+// several accounts (a gateway): the allowance behind one model, unknown
+// when none is (a pay-as-you-go key, a routing group).
+type ModelQuotaReporter interface {
+	QuotaFor(ctx context.Context, model string) Quota
 }
 
 // ErrorKind classifies provider failures for routing.

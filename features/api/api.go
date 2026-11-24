@@ -85,7 +85,10 @@ type ProviderView struct {
 	Kind   string          `json:"kind"`
 	Models []llm.ModelInfo `json:"models"`
 	Quota  *llm.Quota      `json:"quota,omitempty"`
-	Error  string          `json:"error,omitempty"`
+	// ModelQuota is each model's own allowance, for a provider whose models
+	// draw on different accounts (magpie); a model absent has none known.
+	ModelQuota map[string]llm.Quota `json:"modelQuota,omitempty"`
+	Error      string               `json:"error,omitempty"`
 }
 
 // Access is the `access` service (teams): what the person behind a device
@@ -917,6 +920,16 @@ var Plugin = kernel.Register(kernel.Spec{
 					if q, ok := ad.(llm.QuotaReporter); ok {
 						qq := q.Quota(ctx)
 						pv.Quota = &qq
+					}
+					// a gateway's models draw on different accounts: each
+					// model's own allowance (none for a pay-as-you-go one)
+					if q, ok := ad.(llm.ModelQuotaReporter); ok {
+						pv.ModelQuota = map[string]llm.Quota{}
+						for _, m := range pv.Models {
+							if mq := q.QuotaFor(ctx, m.ID); mq.Known {
+								pv.ModelQuota[m.ID] = mq
+							}
+						}
 					}
 					out = append(out, pv)
 				}

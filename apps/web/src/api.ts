@@ -215,12 +215,18 @@ export interface Quota {
   known: boolean;
   remaining: number;
   resetsAt?: string;
+  /** the allowance remaining is of, e.g. "codex · 7 days" */
+  label?: string;
+  windows?: { label: string; remaining: number; resetsAt?: string }[];
 }
 export interface ProviderView {
   id: string;
   kind: "api" | "local" | string;
   models: ModelInfo[];
   quota?: Quota;
+  /** each model's own allowance (a gateway's models draw on different
+   *  accounts); present = the provider reports per model, absent key = none */
+  modelQuota?: Record<string, Quota>;
   error?: string;
 }
 export interface ModelSwitches {

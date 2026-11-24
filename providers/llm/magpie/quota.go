@@ -200,7 +200,7 @@ func summarize(subs []subQuota) llm.Quota {
 		}
 		if tight.Remaining > best {
 			best = tight.Remaining
-			q.Remaining, q.ResetsAt = tight.Remaining, tight.ResetsAt
+			q.Remaining, q.ResetsAt, q.Label = tight.Remaining, tight.ResetsAt, tight.Label
 		}
 	}
 	q.Known = len(q.Windows) > 0
@@ -241,4 +241,7 @@ func (a *Adapter) QuotaFor(ctx context.Context, model string) llm.Quota {
 	return summarize(subs)
 }
 
-var _ llm.QuotaReporter = (*Adapter)(nil)
+var (
+	_ llm.QuotaReporter      = (*Adapter)(nil)
+	_ llm.ModelQuotaReporter = (*Adapter)(nil)
+)

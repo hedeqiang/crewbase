@@ -83,8 +83,12 @@ func TestQuotas(t *testing.T) {
 
 	// per model
 	mq := ad.(*magpie.Adapter).QuotaFor(context.Background(), "claude/opus")
-	if !mq.Known || len(mq.Windows) != 2 || mq.Remaining != 0.25 {
+	if !mq.Known || len(mq.Windows) != 2 || mq.Remaining != 0.25 || mq.Label != "Claude · 5h" {
 		t.Fatalf("%+v", mq)
+	}
+	// the provider headline says which allowance it is
+	if q.Label != "Codex (prolite) · 7 days" {
+		t.Fatalf("headline label %q", q.Label)
 	}
 	if mq := ad.(*magpie.Adapter).QuotaFor(context.Background(), "auto"); mq.Known {
 		t.Fatalf("routing group: %+v", mq)

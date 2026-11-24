@@ -10,7 +10,7 @@ import { t, type Key } from "../../i18n";
 import { hasModels, setModelOverride, openConnect, setState, toast, useStore, getState, setReply, newChat, openSettings } from "../../store";
 import { cloudVoice, dictate, dictationSupported, primeVoice } from "../../voice";
 import { addFiles, addLibraryFile, clearFiles, filesFrom, LIB_DRAG, libraryFrom, PendingChips } from "../Attachments";
-import { activeModel, findProvider, modeLabel, shortModelEffort, providerName, isExhausted } from "../../format";
+import { activeModel, findProvider, modeLabel, shortModelEffort, providerName, isExhausted, until } from "../../format";
 import { Avatar } from "../Avatar";
 import { Popover, useMenu } from "../Popover";
 import { ProviderMark } from "../ProviderMark";
@@ -138,7 +138,16 @@ export function Composer({
   const kept = target === agent && stuck && !isExhausted(models, stuck) ? stuck : null;
   const shown = overrideRef ?? kept ?? activeModel(models, target) ?? (target === agent ? lastModel : undefined) ?? null;
   const prov = shown ? findProvider(models, shown.provider) : undefined;
-  const quota = prov?.quota?.known ? Math.round(prov.quota.remaining * 100) : null;
+  // the allowance behind the model in use: a gateway (magpie) reports it per
+  // model, and a model with none behind it (a pay-as-you-go key, a routing
+  // group) shows nothing rather than another account's figure
+  const q = !shown || !prov ? undefined : prov.modelQuota ? prov.modelQuota[shown.model] : prov.quota;
+  const quota = q?.known ? Math.round(q.remaining * 100) : null;
+  const quotaTip = q?.known
+    ? (q.windows?.length ? q.windows : [{ label: q.label || providerName(shown!.provider), remaining: q.remaining, resetsAt: q.resetsAt }])
+        .map((w) => `${w.label}: ${t("set.quotaLeft", { pct: Math.round(w.remaining * 100) })}${w.resetsAt && !w.resetsAt.startsWith("0001") ? " · " + t("set.quotaResets", { time: until(w.resetsAt) }) : ""}`)
+        .join("\n")
+    : "";
   const pct = ctx && ctx.window > 0 ? Math.min(100, Math.round((ctx.tokens / ctx.window) * 100)) : null;
 
   const candidates = useMemo(() => {
@@ -702,9 +711,9 @@ export function Composer({
         {/* a plain chat has no tools: say so before a link is sent to it */}
         {plain && /https?:\/\/\S/.test(draft) ? <span className="small muted cnote">{t("chat.plainNoLinks")}</span> : <span className="sp" />}
         {shown && quota !== null && (
-        <span className={"quota" + (quota <= 10 ? " warnq" : "")}>
+        <span className={"quota" + (quota <= 10 ? " warnq" : "")} title={quotaTip}>
         <ProviderMark provider={shown.provider} model={shown.model} size={11} />
-        {t("comp.quota", { model: providerName(shown.provider), pct: quota })}
+        {t("comp.quota", { model: q?.label ? q.label.replace(/\s*\([^)]*\)/, "") : providerName(shown.provider), pct: quota })}
         </span>
         )}
         <button
