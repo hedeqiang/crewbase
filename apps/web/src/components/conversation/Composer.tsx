@@ -713,7 +713,7 @@ export function Composer({
         {shown && quota !== null && (
         <span className={"quota" + (quota <= 10 ? " warnq" : "")} title={quotaTip}>
         <ProviderMark provider={shown.provider} model={shown.model} size={11} />
-        {t("comp.quota", { model: q?.label ? q.label.replace(/\s*\([^)]*\)/, "") : providerName(shown.provider), pct: quota })}
+        {t("comp.quota", { model: q?.label || providerName(shown.provider), pct: quota })}
         </span>
         )}
         <button

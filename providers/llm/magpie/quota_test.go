@@ -69,7 +69,7 @@ func TestQuotas(t *testing.T) {
 		labels = append(labels, fmt.Sprintf("%s=%.2f", w.Label, w.Remaining))
 	}
 	// cursor has no model in the catalog; text-only and image lanes are skipped
-	want := "Claude · 5h=0.25,Claude · week=0.60,Codex (prolite) · 7 days=0.86,Codex (pro) · 7 days=0.00"
+	want := "Claude · 5h=0.25,Claude · week=0.60,Codex 1 · 7 days=0.86,Codex 2 · 7 days=0.00"
 	if got := strings.Join(labels, ","); got != want {
 		t.Fatalf("windows:\n got %s\nwant %s", got, want)
 	}
@@ -87,7 +87,7 @@ func TestQuotas(t *testing.T) {
 		t.Fatalf("%+v", mq)
 	}
 	// the provider headline says which allowance it is
-	if q.Label != "Codex (prolite) · 7 days" {
+	if q.Label != "Codex 1 · 7 days" {
 		t.Fatalf("headline label %q", q.Label)
 	}
 	if mq := ad.(*magpie.Adapter).QuotaFor(context.Background(), "auto"); mq.Known {
