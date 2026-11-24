@@ -168,15 +168,12 @@ export function SlashMenu({ items, sel, query, loading, onPick, onHover, empty, 
               {rows.map((it) => {
                 const k = ++i;
                 return (
-                  <button key={it.key} type="button" role="option" aria-selected={k === sel} className={"mi k-" + it.kind} onMouseEnter={() => onHover(k)} onClick={() => onPick(it)}>
+                  <button key={it.key} type="button" role="option" aria-selected={k === sel} className={"mi k-" + it.kind} title={it.desc || undefined} onMouseEnter={() => onHover(k)} onClick={() => onPick(it)}>
                     <span className="slashic">{it.icon}</span>
-                    <span className="g">
-                      <b>
-                        <span className="slashn">/{marked(it.name, query)}</span>
-                        {it.hint && <span className="slashh">{it.hint}</span>}
-                      </b>
-                      {it.desc && <span>{it.desc}</span>}
-                    </span>
+                    {/* one line: the name, then what it does, cut to fit */}
+                    <span className="slashn">/{marked(it.name, query)}</span>
+                    {it.desc && <span className="slashd">{it.desc}</span>}
+                    {it.hint && <span className="slashh">{it.hint}</span>}
                   </button>
                 );
               })}
@@ -184,19 +181,10 @@ export function SlashMenu({ items, sel, query, loading, onPick, onHover, empty, 
           );
         })
       )}
-      <div className="slashfoot small muted">
-        <span>
-          <kbd>↑↓</kbd>
-          {t("slash.keyNav")}
-        </span>
-        <span>
-          <kbd>↵</kbd>
-          {t("slash.keyPick")}
-        </span>
-        <span>
-          <kbd>Esc</kbd>
-          {t("slash.keyClose")}
-        </span>
+      <div className="slashfoot">
+        <span>↑↓ {t("slash.keyNav")}</span>
+        <span>↵ {t("slash.keyPick")}</span>
+        <span>Esc {t("slash.keyClose")}</span>
       </div>
     </div>
   );

@@ -99,22 +99,24 @@
 .mention .mi:hover:not([aria-selected="true"]) { background: var(--hover); }
 .mention .mlbl { display: flex; align-items: baseline; gap: 6px; font-size: var(--fs-11); font-weight: 600; letter-spacing: .02em; color: var(--muted); padding: 4px 8px; }
 
-.mention.slash { width: min(460px, calc(100% - 12px)); max-height: min(400px, 56vh); overflow: auto; padding: 4px; scroll-padding-block: 28px; animation: m-in var(--dur-fast) var(--ease-out) backwards; }
-.slashg + .slashg { margin-top: 2px; padding-top: 2px; border-top: 1px solid var(--border); }
-/* group headers stay put while the list scrolls */
-.mention.slash .mlbl { position: sticky; top: 0; z-index: 1; background: var(--surface); padding: 6px 8px 3px; }
-.mention.slash .mi { align-items: flex-start; padding: 7px 8px; }
-.mention.slash .mi .g b { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
-.mention.slash .mi .g > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-top: 1px; }
-.slashic { width: 24px; height: 24px; border-radius: var(--r-6); display: grid; place-items: center; flex: none; background: var(--sunken); color: var(--text2); margin-top: 1px; }
-.mention .mi[aria-selected="true"] .slashic { color: var(--accent-text); }
-.slashn { font-family: var(--mono); font-size: var(--fs-13); font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.mention .mi .g .slashh { margin-left: auto; flex: none; font-size: var(--fs-11); font-weight: 500; color: var(--muted); background: var(--sunken); border-radius: var(--r-pill); padding: 1px 7px; }
-.mention .mi[aria-selected="true"] .g .slashh { background: var(--surface); }
-.slashempty { padding: 14px 10px; line-height: 1.6; }
-.slashfoot { position: sticky; bottom: 0; display: flex; align-items: center; gap: 14px; margin: 2px -4px 0; padding: 7px 10px; background: var(--surface); border-top: 1px solid var(--border); font-size: var(--fs-11); color: var(--muted); }
-.slashfoot span { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
-.slashfoot kbd { font-family: var(--mono); font-size: var(--fs-11); line-height: 16px; min-width: 16px; text-align: center; padding: 0 4px; color: var(--text2); background: var(--sunken); border: 1px solid var(--border); border-radius: var(--r-4); }
-.mention .mi .g .slashn mark { background: none; color: var(--accent-text); font-weight: 600; }
-.mention .mi[aria-selected="true"] .g .slashn mark { color: var(--accent-text); }
+/* the / menu: as wide as the input box, one line per entry (icon, name,
+   what it does), the groups' names pinned while their entries scroll */
+.mention.slash { left: 0; right: 0; width: auto; bottom: calc(100% + 8px); max-height: min(380px, 52vh); overflow: auto; padding: 6px; border-radius: var(--r-14); scroll-padding-block: 30px 34px; animation: m-in var(--dur-fast) var(--ease-out) backwards; }
+.slashg + .slashg { margin-top: 4px; }
+.mention.slash .mlbl { position: sticky; top: -6px; z-index: 1; background: var(--surface); margin: -6px -6px 0; padding: 10px 14px 4px; font-size: var(--fs-11); font-weight: 600; color: var(--muted); letter-spacing: .02em; }
+.slashg:first-child .mlbl { margin-top: -6px; }
+.mention.slash .mlbl .mcnt { margin-left: 0; font-weight: 500; opacity: .6; }
+.mention.slash .mi { display: flex; align-items: center; gap: 10px; height: 34px; padding: 0 10px; border-radius: var(--r-8); min-width: 0; }
+.slashic { width: 16px; height: 16px; display: grid; place-items: center; flex: none; color: var(--muted); }
+.slashic svg { width: 15px; height: 15px; }
+.slashn { flex: none; max-width: 45%; font-size: var(--fs-13); font-weight: 500; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.slashd { flex: 1; min-width: 0; font-size: var(--fs-12); color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.slashh { flex: none; margin-left: auto; font-size: var(--fs-11); color: var(--muted); white-space: nowrap; }
+.mention.slash .mi:hover:not([aria-selected="true"]) { background: var(--hover); }
+.mention.slash .mi[aria-selected="true"] { background: var(--active); }
+.mention.slash .mi[aria-selected="true"] .slashic { color: var(--text); }
+.slashn mark { background: none; color: var(--accent-text); font-weight: 600; }
+.slashempty { padding: 14px 10px; line-height: 1.6; color: var(--muted); font-size: var(--fs-13); }
+.slashfoot { position: sticky; bottom: -6px; display: flex; align-items: center; gap: 14px; margin: 4px -6px -6px; padding: 7px 14px 8px; background: var(--surface); border-top: 1px solid var(--border); font-size: var(--fs-11); color: var(--muted); }
+.slashfoot span { white-space: nowrap; }
 .slashfor { padding: 3px 8px 6px; font-size: var(--fs-11); }
