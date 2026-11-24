@@ -47,7 +47,9 @@ type Spec struct {
 	Instructions string         `json:"instructions,omitempty"`
 	Models       []llm.ModelRef `json:"models"`
 	Mode         string         `json:"mode"`
-	// ModeUntil bounds host mode (auto-revert to sandbox).
+	// ModeUntil: a host-mode grant from before grants stopped expiring
+	// (they ran 24h). A past one still reads as sandbox; a grant made now
+	// has none and lasts until the mode is changed.
 	ModeUntil time.Time `json:"modeUntil,omitzero"`
 	Color     string    `json:"color,omitempty"`
 	Shape     string    `json:"shape,omitempty"`
@@ -401,13 +403,9 @@ func (a *Agent) Update(fn func(*Spec)) error {
 	if s.Kind == KindChat {
 		s.Role = "" // a chat stays a chat
 	}
-	wasHost := a.spec.Mode == ModeHost && (a.spec.ModeUntil.IsZero() || time.Now().Before(a.spec.ModeUntil))
-	if s.Mode == ModeHost && !wasHost {
-		s.ModeUntil = time.Time{} // entering host mode restarts the 24h clock
-	}
-	if s.Mode == ModeHost && s.ModeUntil.IsZero() {
-		s.ModeUntil = time.Now().Add(24 * time.Hour)
-	}
+	// host mode lasts until it is changed: no time is stamped on a grant
+	// (runmode.Set and the API clear any for a new one); an old grant's
+	// time is kept, so one that ran out stays out
 	if s.Mode != ModeHost {
 		s.ModeUntil = time.Time{}
 	}
@@ -1236,6 +1234,12 @@ func (r *Registry) loadAll() {
 			s.Models = ms
 			_ = r.persist(s)
 		}
+		// a host grant from when grants ran 24h, still running: it lasts
+		// until the mode is changed now (one that ran out stays out)
+		if s.Mode == ModeHost && !s.ModeUntil.IsZero() && time.Now().Before(s.ModeUntil) {
+			s.ModeUntil = time.Time{}
+			_ = r.persist(s)
+		}
 		r.mu.Lock()
 		r.agents[s.ID] = nil
 		r.mu.Unlock()
@@ -1287,7 +1291,7 @@ func (r *Registry) loadSpec(id string) (Spec, bool) {
 
 // distrustLegacy resets what an agent could have granted itself by editing
 // a spec kept in its own (writable) workspace: host mode (only a person
-// grants it, for 24h, through Update), a project folder outside the checks
+// grants it, through Update), a project folder outside the checks
 // of ProjectDir, the ephemeral flag (lets SharedWorkspace skip them) and
 // its id.
 func (r *Registry) distrustLegacy(id string, s Spec) Spec {

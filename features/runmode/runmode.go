@@ -9,8 +9,9 @@
 //     agent workspace (symlinks resolved).
 //   - host: no guard constraints (rules and approval still apply).
 //
-// The 24h host-mode expiry lives in core/agent (Agent.Mode reverts to
-// sandbox after ModeUntil); this package reads it through Agent.Mode and
+// Host mode lasts until it is changed. A grant from before (they ran 24h)
+// that has run out reads as sandbox in core/agent (Agent.Mode); this
+// package reads it through Agent.Mode and
 // offers helpers to change modes with a `mode/changed` session event.
 package runmode
 
@@ -71,8 +72,8 @@ func Record(ss *session.Session, agentID string, ch Change) error {
 }
 
 // Set switches the agent's run mode and records `mode/changed` in ss (the
-// agent's own session when ss is nil). Host mode is granted for 24h from
-// now (core/agent stamps ModeUntil).
+// agent's own session when ss is nil). Host mode is granted until the
+// mode is changed again.
 func Set(a *agent.Agent, ss *session.Session, mode, by, reason string) (Change, error) {
 	switch mode {
 	case agent.ModeReadOnly, agent.ModeSandbox, agent.ModeHost:
@@ -82,7 +83,7 @@ func Set(a *agent.Agent, ss *session.Session, mode, by, reason string) (Change, 
 	from := Effective(a)
 	if err := a.Update(func(s *agent.Spec) {
 		s.Mode = mode
-		s.ModeUntil = time.Time{} // a new host grant restarts the 24h clock
+		s.ModeUntil = time.Time{} // a new grant has no end
 	}); err != nil {
 		return Change{}, err
 	}

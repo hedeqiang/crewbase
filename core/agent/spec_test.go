@@ -169,3 +169,35 @@ func TestEphemeralSweep(t *testing.T) {
 		t.Fatal("leftover not swept")
 	}
 }
+
+// Host grants used to run 24h. Now one lasts until the mode is changed: a
+// grant from before still running becomes lasting when the agents load; one
+// that already ran out stays sandbox.
+func TestOldHostGrantsOnLoad(t *testing.T) {
+	root := t.TempDir()
+	reg := startAgents(t, root)
+	live, _ := reg.Create(agent.Spec{Name: "Live"})
+	gone, _ := reg.Create(agent.Spec{Name: "Gone"})
+	live.Update(func(s *agent.Spec) { s.Mode, s.ModeUntil = agent.ModeHost, time.Now().Add(3*time.Hour) })
+	gone.Update(func(s *agent.Spec) { s.Mode, s.ModeUntil = agent.ModeHost, time.Now().Add(-time.Hour) })
+	if gone.Mode() != agent.ModeSandbox {
+		t.Fatal("an old grant that ran out reads as host")
+	}
+	// the daemon starts again
+	reg2 := startAgents(t, root)
+	l, _ := reg2.Get(live.ID())
+	g, _ := reg2.Get(gone.ID())
+	if l.Mode() != agent.ModeHost || !l.Spec().ModeUntil.IsZero() {
+		t.Fatalf("live grant: %s %v", l.Mode(), l.Spec().ModeUntil)
+	}
+	if g.Mode() != agent.ModeSandbox {
+		t.Fatalf("expired grant came back: %s", g.Mode())
+	}
+	// a new grant has no end, and keeps none through other changes
+	l.Update(func(s *agent.Spec) { s.Mode = agent.ModeSandbox })
+	l.Update(func(s *agent.Spec) { s.Mode, s.ModeUntil = agent.ModeHost, time.Time{} })
+	l.Update(func(s *agent.Spec) { s.Role = "ops" })
+	if l.Mode() != agent.ModeHost || !l.Spec().ModeUntil.IsZero() {
+		t.Fatal("a new grant got an end")
+	}
+}

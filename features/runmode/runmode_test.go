@@ -219,11 +219,17 @@ func TestModeHelpers(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if ch.From != agent.ModeSandbox || ch.To != agent.ModeHost || time.Until(ch.Until) < 23*time.Hour || time.Until(ch.Until) > 25*time.Hour {
+	// a grant has no end: it lasts until the mode is changed
+	if ch.From != agent.ModeSandbox || ch.To != agent.ModeHost || !ch.Until.IsZero() {
 		t.Fatal(ch)
 	}
-	if until, ok := runmode.HostExpiry(a); !ok || !until.Equal(ch.Until) {
+	if until, ok := runmode.HostExpiry(a); !ok || !until.IsZero() {
 		t.Fatal(until, ok)
+	}
+	// still host a long time on, after other changes to the agent
+	a.Update(func(s *agent.Spec) { s.Role = "writer" })
+	if runmode.Effective(a) != agent.ModeHost || runmode.Expired(a) {
+		t.Fatal("a grant must not expire")
 	}
 	ss, _ := a.Session()
 	e, ok := ss.Last(session.TypeModeChanged)
@@ -231,7 +237,7 @@ func TestModeHelpers(t *testing.T) {
 	if !ok || e.Decode(&got) != nil || got.To != agent.ModeHost || got.By != "ada" || e.Agent != a.ID() {
 		t.Fatal(e)
 	}
-	// expire the grant: Agent.Mode reverts, helpers notice once
+	// a grant from before (they ran 24h) that has run out stays out
 	a.Update(func(s *agent.Spec) { s.ModeUntil = time.Now().Add(-time.Minute) })
 	if !runmode.Expired(a) || runmode.Effective(a) != agent.ModeSandbox {
 		t.Fatal("expired host mode must read as sandbox")
