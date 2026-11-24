@@ -10,7 +10,7 @@ import { loadSession, setState, useStore, getState, markRead } from "../../store
 import { TakeoverCard, takeoverReason } from "../Browser";
 import { detailLabel } from "../../format";
 import { Avatar, channelColor, colorFor, ink } from "../Avatar";
-import { Markdown } from "../Markdown";
+import { StreamMarkdown } from "../StreamMarkdown";
 import { MsgCtx, SessionCtx } from "./context";
 import { speaker, shortPath } from "./util";
 import { scrollMemo, FEED_WINDOW, blocks, groupFeed } from "./feedUtil";
@@ -346,9 +346,8 @@ export function Feed({
               </div>
               {v.thinking && !v.text && <div className="thinking small">{v.thinking.slice(-400)}</div>}
               {v.text && (
-                <div className="mt">
-                  <Markdown text={v.text} />
-                  <span className="caret" />
+                <div className="mt streaming">
+                  <StreamMarkdown text={v.text} />
                 </div>
               )}
             </div>

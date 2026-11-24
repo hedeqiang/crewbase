@@ -50,6 +50,19 @@
 .mt li.task input { margin: 0 6px 0 0; vertical-align: -2px; }
 .codeblk.errblk { border-color: color-mix(in srgb, var(--danger) 40%, transparent); color: var(--danger-text); }
 .caret { display: inline-block; width: 7px; height: 15px; background: var(--text2); vertical-align: -2px; margin-left: 2px; border-radius: var(--r-4); animation: blink 1s steps(2) infinite; }
+/* a streaming reply: its blocks sit as one flow (the parts of a list or a
+   table split across blocks join up), a finished block settles in, and the
+   caret follows the last line instead of a line of its own */
+.mt.streaming .smblk > :first-child { margin-top: 0; }
+.mt.streaming .smblk + .smblk { margin-top: .75em; }
+/* the caret sits after the text of the block being written */
+.mt.streaming > .caret { display: none; }
+.smblk.smlast > :last-child::after { content: ""; display: inline-block; width: 7px; height: 15px; background: var(--text2); vertical-align: -2px; margin-left: 2px; border-radius: var(--r-4); animation: blink 1s steps(2) infinite; }
+.smblk.smlast > pre:last-child::after, .smblk.smlast > .codewrap:last-child::after, .smblk.smlast > .mdtable:last-child::after, .smblk.smlast > ul:last-child::after, .smblk.smlast > ol:last-child::after { display: none; }
+.smblk.smlast > ul:last-child > li:last-child::after, .smblk.smlast > ol:last-child > li:last-child::after { content: ""; display: inline-block; width: 7px; height: 15px; background: var(--text2); vertical-align: -2px; margin-left: 2px; border-radius: var(--r-4); animation: blink 1s steps(2) infinite; }
+.smnew { animation: sm-in .28s ease-out both; }
+@keyframes sm-in { from { opacity: .35; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .smnew { animation: none; } }
 @keyframes blink { to { opacity: 0; } }
 .thinking { white-space: pre-wrap; border-left: 2px solid var(--border2); padding: 2px 0 2px 10px; margin: 4px 0; color: var(--muted); max-height: 200px; overflow: auto; }
 .sys { align-self: center; display: flex; align-items: center; gap: 6px; font-size: var(--fs-12); line-height: 18px; color: var(--muted); flex-wrap: wrap; justify-content: center; text-align: center; max-width: 100%; }

@@ -18,6 +18,7 @@ import { ArtifactCard } from "../ArtifactCard";
 import { detailLabel, hhmm, modelLabel, shortModelEffort, replyUsage, tokfmt, costfmt } from "../../format";
 import { Avatar } from "../Avatar";
 import { Markdown } from "../Markdown";
+import { StreamMarkdown } from "../StreamMarkdown";
 import { LinkCards } from "../LinkCards";
 import { DocCards } from "../DocCards";
 import { MsgCtx, SessionCtx } from "./context";
@@ -478,9 +479,8 @@ export function TurnMsg({ it, agent }: { it: Extract<FeedItem, { k: "turn" }>; a
           <div className="tans">
             {live.thinking && !live.text && <div className="thinking small">{live.thinking.slice(-400)}</div>}
             {live.text && (
-              <div className="mt">
-                <Markdown text={live.text} />
-                <span className="caret" />
+              <div className="mt streaming">
+                <StreamMarkdown text={live.text} />
               </div>
             )}
           </div>
