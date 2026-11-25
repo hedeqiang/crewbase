@@ -3,6 +3,15 @@
 Each `## <version>` section becomes the release notes of that version,
 shown in the desktop app's update window.
 
+## 0.9.24
+
+修复电脑操作开启时，经 magpie 使用 GPT 模型整轮失败的问题。
+
+电脑操作
+- 修复：开启电脑操作后，经 magpie 使用 GPT 模型时，这一轮会失败并提示「Unsupported tool type: computer」。现在只在 OpenAI 官方接口，以及模型明确支持时，才附加 OpenAI 自带的电脑操作工具；其他情况通过截图、点击、输入等普通工具完成电脑操作
+- 某个服务商不支持这个工具时，会自动去掉它重试一次，并记住这个模型以后不再附加
+- 对话中途从 OpenAI 官方接口切换到其他服务商时，之前的电脑操作记录不会再导致请求失败
+
 ## 0.9.23
 
 新增网络代理：模型、插件、GitHub 和更新下载都可以通过 HTTP / HTTPS / SOCKS5 代理访问网络。
