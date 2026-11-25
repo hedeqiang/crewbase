@@ -2743,6 +2743,7 @@ const zh = {
   "px.scope.github": "GitHub：拉取请求、推送和代码评审",
   "px.scope.previews": "链接预览、Webhook 投递和中继连接",
   "px.scope.commands": "Agent 运行的命令（git、curl、npm、pip 等）",
+  "px.scope.updates": "Crewbase 自身的更新检查和下载",
   "px.scopeLocal": "本机和局域网地址始终直连，比如本地的 Ollama 和 magpie（magpie 自己的网络按它的设置走）。",
   "set.webhooks": "Webhook",
   "sub.webhooks": "接收外部系统的事件交给 Agent 处理，也把这里发生的事推送出去",

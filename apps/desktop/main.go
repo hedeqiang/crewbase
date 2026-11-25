@@ -182,6 +182,9 @@ func (s *shell) ready() {
 
 func (s *shell) boot() {
 	d, err := startDaemon()
+	if err == nil {
+		proxyDaemon.Store(d) // updates follow its proxy setting (proxy.go)
+	}
 	if err != nil {
 		slog.Error("desktop: daemon", "err", err)
 		_, _ = mygo.Dialog.Message(mygo.MessageOptions{

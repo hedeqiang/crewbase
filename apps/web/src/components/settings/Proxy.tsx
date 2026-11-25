@@ -305,7 +305,7 @@ export function ProxyPage() {
         <section className="pxscope">
           <b>{t("px.scope")}</b>
           <ul>
-            {(["models", "downloads", "github", "previews", "commands"] as const).map((k) => (
+            {(["models", "downloads", "github", "previews", "commands", "updates"] as const).map((k) => (
               <li key={k}>
                 <Check size={13} />
                 {t(`px.scope.${k}` as Key)}

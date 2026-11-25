@@ -73,14 +73,19 @@ func Set(p *Proxy) {
 	} else {
 		q := *p
 		q.Bypass = NormalizeBypass(q.Bypass)
-		u := q.URL()
-		no := strings.Join(q.Bypass, ",")
-		cfg := httpproxy.Config{HTTPProxy: u.String(), HTTPSProxy: u.String(), NoProxy: no}
-		cur.Store(&active{p: q, addr: u.Host, match: cfg.ProxyFunc(), env: envOf(q, no)})
+		cur.Store(&active{p: q, addr: q.URL().Host, match: Matcher(q), env: envOf(q, strings.Join(q.Bypass, ","))})
 	}
 	if t, ok := http.DefaultTransport.(*http.Transport); ok {
 		t.CloseIdleConnections()
 	}
+}
+
+// Matcher is p's choice for a URL: p, or nil (direct) for a bypassed or
+// loopback address.
+func Matcher(p Proxy) func(*url.URL) (*url.URL, error) {
+	u := p.URL().String()
+	cfg := httpproxy.Config{HTTPProxy: u, HTTPSProxy: u, NoProxy: strings.Join(NormalizeBypass(p.Bypass), ",")}
+	return cfg.ProxyFunc()
 }
 
 // Current is the proxy that is set, if any.

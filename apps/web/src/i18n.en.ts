@@ -2700,6 +2700,7 @@ export const en: Partial<Record<Key, string>> = {
   "px.scope.github": "GitHub: pull requests, pushes and code review",
   "px.scope.previews": "Link previews, webhook deliveries and the relay",
   "px.scope.commands": "Commands agents run (git, curl, npm, pip…)",
+  "px.scope.updates": "Crewbase's own update checks and downloads",
   "px.scopeLocal": "This machine and the local network always go direct, such as a local Ollama or magpie (magpie's own traffic follows its own settings).",
   "set.webhooks": "Webhooks",
   "sub.webhooks": "Events from other systems for your agents to handle, and what happens here pushed out",
