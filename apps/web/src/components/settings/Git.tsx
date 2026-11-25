@@ -63,7 +63,6 @@ export function GitPage() {
               <div className="gsrh small">
                 <span>{t("gitset.host")}</span>
                 <span>{t("gitset.cred")}</span>
-                <span>{t("git.set.apiPh")}</span>
                 <span />
               </div>
             )}
@@ -71,7 +70,6 @@ export function GitPage() {
               <div key={i} className="gsr">
                 <input className="fi sm" value={r.host} placeholder="github.com" aria-label={t("gitset.host")} onChange={(e) => remote(i, { host: e.target.value.trim() })} />
                 <input className="fi sm mono" value={r.credential} placeholder="vault:github/token" aria-label={t("gitset.cred")} onChange={(e) => remote(i, { credential: e.target.value.trim() })} />
-                <input className="fi sm mono" value={r.api ?? ""} placeholder="https://api.github.com" title={t("git.set.apiHint")} aria-label={t("git.set.apiPh")} onChange={(e) => remote(i, { api: e.target.value.trim() || undefined })} />
                 <button type="button" className="ix" aria-label={t("common.delete")} title={t("common.delete")} onClick={() => setS({ ...s, remotes: s.remotes.filter((_, j) => j !== i) })}>
                   <X size={13} />
                 </button>
@@ -89,6 +87,7 @@ export function GitPage() {
 
         <div className="vsec">{t("git.set.github")}</div>
         <div className="sbox">
+          <p className="small gsnote gspad">{t("git.set.viaGH")}</p>
           <Row title={t("git.set.prReviewer")} desc={t("git.set.prReviewerHint")}>
             <span className="ssel">
               <select value={s.prReviewer ?? ""} onChange={(e) => setS({ ...s, prReviewer: e.target.value || undefined })}>
@@ -100,9 +99,6 @@ export function GitPage() {
                   ))}
               </select>
             </span>
-          </Row>
-          <Row title={t("git.set.allowPrivate")} desc={t("git.set.allowPrivateHint")}>
-            <input className="fi sm mono gsw" value={(s.allowPrivate ?? []).join(", ")} placeholder="10.0.0.0/8" onChange={(e) => setS({ ...s, allowPrivate: e.target.value.split(",").map((x) => x.trim()).filter(Boolean) })} />
           </Row>
           <p className="small gsnote gspad">{t("git.set.forkHint")}</p>
         </div>

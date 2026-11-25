@@ -1,11 +1,13 @@
 package git
 
 // A small GitHub REST v3 client (github.com and GitHub Enterprise Server),
-// only what pull requests need. Requests go through netguard: public
-// addresses only, unless the admin allowed a private range (an internal
-// GHE) in Settings › Git.
+// only what pull requests need. Every request goes through the local GitHub
+// CLI (gh api): its login (gh auth login), its hosts and its network setup,
+// so no token is kept in Crewbase for it. Tests swap the transport
+// (Service.ghCallFor) for a fake server.
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -14,19 +16,25 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"os"
+	"os/exec"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
-	"github.com/hedeqiang/crewbase/internal/netguard"
+	"github.com/hedeqiang/crewbase/internal/netproxy"
 	"github.com/hedeqiang/crewbase/providers/gitcli"
 )
 
+// ghCall answers one REST request (path from the API root): the HTTP
+// status and the body.
+type ghCall func(ctx context.Context, method, path string, body []byte) (int, []byte, error)
+
 type ghClient struct {
-	base  string // https://api.github.com | https://<host>/api/v3
-	token string
-	http  *http.Client
-	repo  gitcli.Remote
+	host string
+	repo gitcli.Remote
+	call ghCall
 }
 
 // GHError is an error answer from GitHub.
@@ -138,48 +146,22 @@ type ghFile struct {
 	Deletions int    `json:"deletions"`
 }
 
-// apiBase is the REST root for a host (an explicit API URL wins).
-func apiBase(host, explicit string) string {
-	if explicit != "" {
-		return strings.TrimRight(explicit, "/")
-	}
-	if host == "github.com" {
-		return "https://api.github.com"
-	}
-	return "https://" + host + "/api/v3"
-}
-
 func (c *ghClient) do(ctx context.Context, method, path string, in, out any) error {
-	var body io.Reader
+	var body []byte
 	if in != nil {
 		b, err := json.Marshal(in)
 		if err != nil {
 			return err
 		}
-		body = bytes.NewReader(b)
+		body = b
 	}
 	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
-	req, err := http.NewRequestWithContext(ctx, method, c.base+path, body)
+	status, b, err := c.call(ctx, method, path, body)
 	if err != nil {
 		return err
 	}
-	req.Header.Set("Accept", "application/vnd.github+json")
-	req.Header.Set("X-GitHub-Api-Version", "2022-11-28")
-	req.Header.Set("User-Agent", "Crewbase")
-	if in != nil {
-		req.Header.Set("Content-Type", "application/json")
-	}
-	if c.token != "" {
-		req.Header.Set("Authorization", "Bearer "+c.token)
-	}
-	resp, err := c.http.Do(req)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-	b, _ := io.ReadAll(io.LimitReader(resp.Body, 8<<20))
-	if resp.StatusCode >= 300 {
+	if status >= 300 {
 		var e struct {
 			Message string `json:"message"`
 			Errors  []struct {
@@ -198,12 +180,9 @@ func (c *ghClient) do(ctx context.Context, method, path string, in, out any) err
 			}
 		}
 		if msg == "" {
-			msg = http.StatusText(resp.StatusCode)
+			msg = http.StatusText(status)
 		}
-		if c.token != "" {
-			msg = strings.ReplaceAll(msg, c.token, "***")
-		}
-		return &GHError{Status: resp.StatusCode, Msg: msg}
+		return &GHError{Status: status, Msg: msg}
 	}
 	if out != nil && len(b) > 0 {
 		return json.Unmarshal(b, out)
@@ -211,14 +190,128 @@ func (c *ghClient) do(ctx context.Context, method, path string, in, out any) err
 	return nil
 }
 
+// ErrNoGH: the GitHub CLI is not installed on this machine.
+var ErrNoGH = errors.New("the GitHub CLI (gh) is not installed: install it (https://cli.github.com) and run gh auth login")
+
+// ghLoginError: gh is not signed in to the host.
+type ghLoginError struct{ host string }
+
+func (e *ghLoginError) Error() string {
+	return fmt.Sprintf("gh is not signed in to %s: run gh auth login --hostname %s", e.host, e.host)
+}
+
+// ghCLI is the transport through the local gh: gh api --include, the
+// status line and headers read off the top of its output.
+func ghCLI(host string) ghCall {
+	return func(ctx context.Context, method, path string, body []byte) (int, []byte, error) {
+		bin, err := exec.LookPath("gh")
+		if err != nil {
+			return 0, nil, ErrNoGH
+		}
+		args := []string{"api", "--hostname", host, "--method", method, "--include",
+			"-H", "Accept: application/vnd.github+json", "-H", "X-GitHub-Api-Version: 2022-11-28", strings.TrimPrefix(path, "/")}
+		if body != nil {
+			args = append(args, "--input", "-")
+		}
+		cmd := exec.CommandContext(ctx, bin, args...)
+		// its own login and config; the proxy Crewbase is set to (Settings › 网络代理)
+		cmd.Env = append(os.Environ(), "GH_PROMPT_DISABLED=1", "GH_NO_UPDATE_NOTIFIER=1", "NO_COLOR=1")
+		cmd.Env = append(cmd.Env, netproxy.Env()...)
+		if body != nil {
+			cmd.Stdin = bytes.NewReader(body)
+		}
+		var stdout, stderr bytes.Buffer
+		cmd.Stdout, cmd.Stderr = &stdout, &stderr
+		runErr := cmd.Run()
+		status, rest, ok := parseIncluded(stdout.Bytes())
+		if !ok {
+			msg := strings.TrimSpace(stderr.String())
+			if strings.Contains(msg, "gh auth login") || strings.Contains(msg, "not logged") || strings.Contains(msg, "authentication") {
+				return 0, nil, &ghLoginError{host: host}
+			}
+			if ctx.Err() != nil {
+				return 0, nil, ctx.Err()
+			}
+			if msg == "" && runErr != nil {
+				msg = runErr.Error()
+			}
+			return 0, nil, fmt.Errorf("gh api: %s", msg)
+		}
+		return status, rest, nil
+	}
+}
+
+// parseIncluded splits gh api --include output: "HTTP/2.0 404 Not Found",
+// headers, a blank line, the body.
+func parseIncluded(out []byte) (int, []byte, bool) {
+	r := bufio.NewReader(bytes.NewReader(out))
+	line, err := r.ReadString('\n')
+	if err != nil && line == "" {
+		return 0, nil, false
+	}
+	f := strings.Fields(line)
+	if len(f) < 2 || !strings.HasPrefix(f[0], "HTTP/") {
+		return 0, nil, false
+	}
+	status, err := strconv.Atoi(f[1])
+	if err != nil {
+		return 0, nil, false
+	}
+	for {
+		h, err := r.ReadString('\n')
+		if strings.TrimSpace(h) == "" || err != nil {
+			break
+		}
+	}
+	rest, _ := io.ReadAll(r)
+	return status, rest, true
+}
+
+// ghReach is whether the local gh can reach a host: "ok", "missing" (not
+// installed) or "login" (not signed in to it).
+func ghReach(ctx context.Context, host string) string {
+	ghStatusCache.Lock()
+	if e, ok := ghStatusCache.m[host]; ok && time.Since(e.at) < time.Minute {
+		ghStatusCache.Unlock()
+		return e.st
+	}
+	ghStatusCache.Unlock()
+	st := "ok"
+	if bin, err := exec.LookPath("gh"); err != nil {
+		st = "missing"
+	} else {
+		cctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+		defer cancel()
+		cmd := exec.CommandContext(cctx, bin, "auth", "status", "--hostname", host)
+		cmd.Env = append(os.Environ(), "GH_PROMPT_DISABLED=1", "GH_NO_UPDATE_NOTIFIER=1", "NO_COLOR=1")
+		if err := cmd.Run(); err != nil {
+			st = "login"
+		}
+	}
+	ghStatusCache.Lock()
+	if ghStatusCache.m == nil {
+		ghStatusCache.m = map[string]ghStatusEntry{}
+	}
+	ghStatusCache.m[host] = ghStatusEntry{st: st, at: time.Now()}
+	ghStatusCache.Unlock()
+	return st
+}
+
+type ghStatusEntry struct {
+	st string
+	at time.Time
+}
+
+var ghStatusCache struct {
+	sync.Mutex
+	m map[string]ghStatusEntry
+}
+
 func (c *ghClient) repoPath() string {
 	return "/repos/" + url.PathEscape(c.repo.Owner) + "/" + url.PathEscape(c.repo.Repo)
 }
 
 func (c *ghClient) me(ctx context.Context) (string, error) {
-	if c.token == "" {
-		return "", errors.New("no token")
-	}
 	var u ghUser
 	err := c.do(ctx, "GET", "/user", nil, &u)
 	return u.Login, err
@@ -364,17 +457,16 @@ func (c *ghClient) merge(ctx context.Context, n int, method, sha, title, msg str
 	return out.SHA, nil
 }
 
-// ---------------------------------------------------------------- client for a folder
-
-// Origin is where a repository's origin remote points, as the 代码 panel
-// needs it: a GitHub repository gets pull requests, anything else only
-// commits and pushes.
+// Origin is a folder's origin remote, as much of it as the 代码 panel
+// needs: a GitHub repository gets its pull requests followed, anything
+// else only commits and pushes.
 type Origin struct {
 	Host   string `json:"host"`
 	Repo   string `json:"repo,omitempty"` // owner/name
 	GitHub bool   `json:"github"`
-	// Token: a credential for the host is set up (Settings › Git).
-	Token bool `json:"token"`
+	// GH: whether the local GitHub CLI reaches the host: ok, missing (not
+	// installed), login (not signed in to it). GitHub repositories only.
+	GH string `json:"gh,omitempty"`
 }
 
 // originOf is dir's origin remote (nil when there is none).
@@ -389,23 +481,30 @@ func (s *Service) originOf(ctx context.Context, dir string) *Origin {
 	}
 	o := &Origin{Host: gitcli.HostOf(u)}
 	rm, ok := gitcli.ParseRemote(u)
-	if ok {
-		o.Host, o.Repo = rm.Host, rm.Slug()
+	if !ok {
+		return o
 	}
-	for _, r := range s.st.settings().Remotes {
-		if o.Host != "" && strings.EqualFold(r.Host, o.Host) {
-			o.Token = r.Credential != ""
-			// a host with an API root set is a GitHub Enterprise Server
-			o.GitHub = ok && r.API != ""
-		}
-	}
-	if ok && (o.Host == "github.com" || strings.Contains(o.Host, "github")) {
-		o.GitHub = true
+	o.Host, o.Repo = rm.Host, rm.Slug()
+	st := s.reach(ctx, rm.Host)
+	// github.com, a host named like one, or a GitHub Enterprise Server gh
+	// is signed in to
+	o.GitHub = rm.Host == "github.com" || strings.Contains(rm.Host, "github") || st == "ok"
+	if o.GitHub {
+		o.GH = st
 	}
 	return o
 }
 
-// github is the GitHub client for the repository dir lies in (its origin).
+// reach is whether the local gh reaches host (tests swap it).
+func (s *Service) reach(ctx context.Context, host string) string {
+	if s.ghReachFor != nil {
+		return s.ghReachFor(host)
+	}
+	return ghReach(ctx, host)
+}
+
+// github is the GitHub client for the repository dir lies in (its origin),
+// through the local gh.
 func (s *Service) github(ctx context.Context, dir string) (*ghClient, error) {
 	g, err := s.vcs()
 	if err != nil {
@@ -419,31 +518,11 @@ func (s *Service) github(ctx context.Context, dir string) (*ghClient, error) {
 	if !ok {
 		return nil, fmt.Errorf("origin (%s) is not a GitHub repository address", u)
 	}
-	c := &ghClient{repo: rm, base: apiBase(rm.Host, "")}
-	set := s.st.settings()
-	for _, r := range set.Remotes {
-		if !strings.EqualFold(r.Host, rm.Host) {
-			continue
-		}
-		c.base = apiBase(rm.Host, r.API)
-		if r.Credential != "" {
-			cs, ok := s.creds()
-			if !ok {
-				return nil, errors.New("the vault is not available")
-			}
-			tok, err := cs.Resolve(ctx, r.Credential)
-			if err != nil {
-				return nil, fmt.Errorf("credential %s for %s: %w", r.Credential, rm.Host, err)
-			}
-			c.token = tok
-		}
-		break
-	}
-	allow, _ := netguard.ParsePrefixes(set.AllowPrivate)
-	if s.httpFor != nil {
-		c.http = s.httpFor(allow)
+	c := &ghClient{host: rm.Host, repo: rm}
+	if s.ghCallFor != nil {
+		c.call = s.ghCallFor(rm.Host)
 	} else {
-		c.http = (&netguard.Guard{Allow: allow}).Client(20*time.Second, 3)
+		c.call = ghCLI(rm.Host)
 	}
 	return c, nil
 }

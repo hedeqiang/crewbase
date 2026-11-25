@@ -1405,8 +1405,9 @@ export interface GitOrigin {
   /** owner/name */
   repo?: string;
   github: boolean;
-  /** a credential for the host is set up (设置 › Git) */
-  token: boolean;
+  /** whether the local GitHub CLI reaches the host: ok, missing (gh not
+   *  installed), login (not signed in to it); GitHub repositories only */
+  gh?: "ok" | "missing" | "login";
 }
 export interface GitPRLink {
   number: number;
@@ -1466,8 +1467,7 @@ export interface GitSettings {
   maxAutoRounds: number;
   approvals: number;
   autoReview: boolean;
-  remotes: { host: string; credential: string; username?: string; api?: string }[];
-  allowPrivate?: string[];
+  remotes: { host: string; credential: string; username?: string }[];
   prReviewer?: string;
 }
 export interface GitCommentInput {

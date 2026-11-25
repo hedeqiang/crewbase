@@ -2,18 +2,20 @@
 // merged pull request. One view that follows where the work stands:
 //
 //   no pull request   the changes (a file opens to its diff; a line takes a
-//                     comment for the agent), then 创建 PR · 只提交 · 推送
+//                     comment for the agent), then 提交 · 推送; the agent
+//                     opens the pull request, in the conversation
 //   pull request open its state, checks (a failed one → the agent), review
 //                     comments (→ the agent), 合并, and what changed since
 //   merged / closed   done, and the worktree to clean up
 //
 // Below, folded to a line each: sub-agents' worktrees and frozen files, the
-// repository's other pull requests, the recent commits. Git settings live
-// in 设置 › Git. Everything refreshes when the daemon says the repository
+// repository's other pull requests, the recent commits. GitHub is reached
+// through the local GitHub CLI (gh) and its login; Git settings live in
+// 设置 › Git. Everything refreshes when the daemon says the repository
 // changed (git.changed over SSE).
 
 import { useEffect, useMemo, useState } from "react";
-import { FolderGit2, GitBranch, RefreshCw, Send, Settings2, ShieldCheck, TriangleExclamationPoint, X } from "lucide-react";
+import { Check, Copy, FolderGit2, GitBranch, RefreshCw, Send, Settings2, ShieldCheck, Terminal, TriangleExclamationPoint, X } from "lucide-react";
 import { API, type AgentView, type GitCommit, type GitPRSummary, type GitRepoView } from "../api";
 import { t } from "../i18n";
 import { openSettings, toast, useStore } from "../store";
@@ -71,7 +73,8 @@ function Repo({ agent, session, view, n, reload, review, setReview, showAll, set
   }, [reviews, branch, session]);
   const draftReview = reviews.find((r) => r.source === branch && !r.pr && r.state !== "merged" && r.state !== "closed");
   // a pull request opened another way (gh, the web): found on GitHub by its branch
-  const found = useBranchPR(agent.id, branch, github && !!view.origin?.token && !onBase && !mine, n);
+  const ghOK = github && view.origin?.gh === "ok";
+  const found = useBranchPR(agent.id, branch, ghOK && !onBase && !mine, n);
   const pr: ThePR | undefined = mine ? prOfReview(mine) : found ? { number: found.number, url: found.url, state: found.state, draft: found.draft, title: found.title } : undefined;
   const commits = useBranchCommits(agent.id, base, branch, !onBase && !pr, n);
   const others = reviews.filter((r) => r.id !== mine?.id && r.id !== draftReview?.id && r.state !== "merged" && r.state !== "closed");
@@ -118,6 +121,7 @@ function Repo({ agent, session, view, n, reload, review, setReview, showAll, set
         ) : (
           <>
             {st.merging && <p className="cdbanner small"><TriangleExclamationPoint size={13} />{t("git.merging")}</p>}
+            {github && !ghOK && <GHNeeded host={view.origin!.host} state={view.origin?.gh} />}
             {pr && live ? (
               <PullRequest agent={agent} session={session} view={view} pr={pr} worktree={mine && mine.source !== branch ? wt : undefined} diffs={diffs} n={n} notes={notes} reload={reload} />
             ) : (
@@ -133,7 +137,7 @@ function Repo({ agent, session, view, n, reload, review, setReview, showAll, set
             )}
             <div className="cdmore">
               <TeamFold agent={agent} view={view} reviews={others} reload={reload} onReview={setReview} showAll={showAll} setShowAll={setShowAll} />
-              {github && <OtherPRsFold agent={agent} mine={pr?.number} onReview={setReview} />}
+              {ghOK && <OtherPRsFold agent={agent} mine={pr?.number} onReview={setReview} />}
               <LogFold log={view.log ?? []} />
             </div>
           </>
@@ -218,6 +222,38 @@ function NoRepo({ agent, reason, onDone }: { agent: AgentView; reason?: string; 
           {t("code.init")}
         </button>
       )}
+    </div>
+  );
+}
+
+/** The panel follows pull requests through the local GitHub CLI: what to do
+ *  when it is not installed, or not signed in to the host. */
+function GHNeeded({ host, state }: { host: string; state?: string }) {
+  const cmd = state === "missing" ? "brew install gh && gh auth login" : host === "github.com" ? "gh auth login" : `gh auth login --hostname ${host}`;
+  const [done, setDone] = useState(false);
+  return (
+    <div className="cdgh">
+      <Terminal size={14} />
+      <div className="g">
+        <b>{t(state === "missing" ? "code.gh.missing" : "code.gh.login", { host })}</b>
+        <span className="small">{t("code.gh.why")}</span>
+        <span className="cdghcmd">
+          <code>{cmd}</code>
+          <button
+            type="button"
+            className="ix"
+            aria-label={t("code.gh.copy")}
+            title={t("code.gh.copy")}
+            onClick={() => {
+              void navigator.clipboard?.writeText(cmd);
+              setDone(true);
+              setTimeout(() => setDone(false), 1200);
+            }}
+          >
+            {done ? <Check size={12} /> : <Copy size={12} />}
+          </button>
+        </span>
+      </div>
     </div>
   );
 }

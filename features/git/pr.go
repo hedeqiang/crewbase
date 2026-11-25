@@ -290,7 +290,7 @@ func (s *Service) CheckoutPR(ctx context.Context, dir string, n int, holder, act
 		main = info.Root
 	}
 	ref := fmt.Sprintf("refs/crewbase/pr/%d", n)
-	if _, err := g.Fetch(ctx, main, vcs.FetchRequest{RefSpecs: []string{fmt.Sprintf("+refs/pull/%d/head:%s", n, ref)}, Token: c.token}); err != nil {
+	if _, err := g.Fetch(ctx, main, vcs.FetchRequest{RefSpecs: []string{fmt.Sprintf("+refs/pull/%d/head:%s", n, ref)}}); err != nil {
 		return Worktree{}, fmt.Errorf("fetch pull request #%d: %w", n, err)
 	}
 	s.changed(vcs.Event{Type: "git/fetch", Repo: info.ID, Actor: actor, Session: session, Data: map[string]any{"pr": n, "ref": ref}})
@@ -417,8 +417,11 @@ func (s *Service) CreatePR(ctx context.Context, q CreatePRRequest) (Review, erro
 	if err != nil {
 		return Review{}, err
 	}
-	if c.token == "" {
-		return Review{}, fmt.Errorf("no credential for %s: add one in Settings › Git (push credentials)", c.repo.Host)
+	switch s.reach(ctx, c.repo.Host) {
+	case "missing":
+		return Review{}, ErrNoGH
+	case "login":
+		return Review{}, &ghLoginError{host: c.repo.Host}
 	}
 	if _, err := s.Push(ctx, PushRequest{Dir: r.RepoRoot, Branch: r.Source, Actor: q.Actor, Session: q.Session}); err != nil {
 		return Review{}, fmt.Errorf("push %s: %w", r.Source, err)

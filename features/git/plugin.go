@@ -13,7 +13,6 @@ import (
 	"github.com/hedeqiang/crewbase/core/agent"
 	"github.com/hedeqiang/crewbase/core/tools"
 	"github.com/hedeqiang/crewbase/features/audit"
-	"github.com/hedeqiang/crewbase/internal/netguard"
 	"github.com/hedeqiang/crewbase/kernel"
 )
 
@@ -145,14 +144,6 @@ func (s *Service) SetSettings(x Settings) (Settings, error) {
 		rs = []Remote{}
 	}
 	x.Remotes = rs
-	for _, r := range x.Remotes {
-		if r.API != "" && !strings.HasPrefix(r.API, "https://") && !strings.HasPrefix(r.API, "http://") {
-			return Settings{}, fmt.Errorf("%s: the API address must be http(s)://…", r.Host)
-		}
-	}
-	if _, err := netguard.ParsePrefixes(x.AllowPrivate); err != nil {
-		return Settings{}, err
-	}
 	if x.PRReviewer != "" {
 		if a, ok := s.agents.Get(x.PRReviewer); !ok || a.Spec().Ephemeral {
 			return Settings{}, fmt.Errorf("unknown reviewer agent %q", x.PRReviewer)

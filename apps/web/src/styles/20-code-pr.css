@@ -226,3 +226,12 @@
   .gitset .gsr .ix { grid-row: 1; grid-column: 2; }
 }
 .cd a.btn { text-decoration: none; }
+
+/* GitHub through the local gh: install or sign in */
+.cdgh { display: flex; gap: 10px; padding: 11px 12px; border-radius: var(--r-12); background: var(--amber-soft); color: var(--amber-text); }
+.cdgh > svg { flex: none; margin-top: 2px; }
+.cdgh .g { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.cdgh b { font-size: var(--fs-13); font-weight: 600; }
+.cdgh .small { color: var(--text2); line-height: 1.5; }
+.cdghcmd { display: flex; align-items: center; gap: 6px; margin-top: 2px; padding: 4px 4px 4px 9px; border-radius: var(--r-8); background: var(--surface); border: 1px solid var(--border); min-width: 0; }
+.cdghcmd code { flex: 1; min-width: 0; font-size: var(--fs-12); color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

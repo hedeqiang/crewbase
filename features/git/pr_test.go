@@ -1,6 +1,7 @@
 package git
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -8,7 +9,6 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
-	"net/netip"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -18,14 +18,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/hedeqiang/crewbase/capabilities/credentials"
 	"github.com/hedeqiang/crewbase/capabilities/fs"
 	"github.com/hedeqiang/crewbase/capabilities/sandbox"
 	"github.com/hedeqiang/crewbase/capabilities/vcs"
 	"github.com/hedeqiang/crewbase/core/agent"
 	"github.com/hedeqiang/crewbase/core/tools"
 	"github.com/hedeqiang/crewbase/features/toolsbasic"
-	"github.com/hedeqiang/crewbase/kernel"
 )
 
 // fakeGitHub is the part of the GitHub REST API pull requests use.
@@ -197,20 +195,40 @@ func setupPR(t *testing.T) *prRig {
 	gh.prs[7] = fork
 	srv := httptest.NewServer(gh.handler(t))
 	t.Cleanup(srv.Close)
-	cs, _ := kernel.Lookup[*credentials.Service](r.h.Root(), credentials.ServiceKey)
-	if err := cs.Set("vault:github/token", "gh-test-token"); err != nil {
-		t.Fatal(err)
-	}
-	set := r.s.Settings()
-	set.Remotes = []Remote{{Host: "127.0.0.1", Credential: "vault:github/token", API: srv.URL}}
-	set.AllowPrivate = []string{"127.0.0.1"}
-	if _, err := r.s.SetSettings(set); err != nil {
-		t.Fatal(err)
+	// the local gh, swapped for the fake GitHub (signed in to its host only)
+	r.s.ghCallFor = func(string) ghCall { return fakeCall(srv.URL) }
+	r.s.ghReachFor = func(host string) string {
+		if host == "127.0.0.1" {
+			return "ok"
+		}
+		return "missing"
 	}
 	return &prRig{rig: r, gh: gh, upstream: upstream}
 }
 
 func ptr[T any](v T) *T { return &v }
+
+// fakeCall is a ghCall against a fake GitHub at base.
+func fakeCall(base string) ghCall {
+	return func(ctx context.Context, method, path string, body []byte) (int, []byte, error) {
+		var rd io.Reader
+		if body != nil {
+			rd = bytes.NewReader(body)
+		}
+		req, err := http.NewRequestWithContext(ctx, method, base+path, rd)
+		if err != nil {
+			return 0, nil, err
+		}
+		req.Header.Set("Authorization", "Bearer gh-test-token")
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			return 0, nil, err
+		}
+		defer resp.Body.Close()
+		b, _ := io.ReadAll(resp.Body)
+		return resp.StatusCode, b, nil
+	}
+}
 
 func run(t *testing.T, dir string, args ...string) string {
 	t.Helper()
@@ -427,19 +445,6 @@ func TestGitHubReviewAndAutoReview(t *testing.T) {
 	}
 }
 
-func TestGitHubGoesThroughNetguard(t *testing.T) {
-	r := setupPR(t)
-	set := r.s.Settings()
-	set.AllowPrivate = nil
-	r.s.SetSettings(set)
-	_, err := r.s.ListPRs(context.Background(), r.repo, "open")
-	if err == nil || !strings.Contains(err.Error(), "not public") {
-		t.Fatal("reached a private address without it being allowed:", err)
-	}
-	_ = netip.Addr{}
-	_ = io.EOF
-}
-
 type fakeDocker struct{}
 
 func (fakeDocker) Name() string { return "docker" }
@@ -477,7 +482,7 @@ func TestPanelBranchOriginAndPersonMerge(t *testing.T) {
 	r := setupPR(t)
 	ctx := context.Background()
 	o := r.s.originOf(ctx, r.repo)
-	if o == nil || !o.GitHub || o.Repo != "acme/api" || !o.Token {
+	if o == nil || !o.GitHub || o.Repo != "acme/api" || o.GH != "ok" {
 		t.Fatalf("%+v", o)
 	}
 	// work on main moves to a new branch, the change with it

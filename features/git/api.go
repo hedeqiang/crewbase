@@ -595,12 +595,16 @@ var APIPlugin = kernel.Register(kernel.Spec{
 			if errors.As(err, &he) {
 				st := he.Status
 				if st == 401 || st == 403 {
-					return &gateway.Error{Status: 400, Code: "GITHUB_AUTH", Message: he.Error() + " (check the credential for this host in Settings › Git)"}
+					return &gateway.Error{Status: 400, Code: "GITHUB_AUTH", Message: he.Error() + " (check gh's login for this host: gh auth status)"}
 				}
 				if st == 404 {
 					return &gateway.Error{Status: 404, Code: "GITHUB_NOT_FOUND", Message: he.Error()}
 				}
 				return &gateway.Error{Status: 502, Code: "GITHUB", Message: he.Error()}
+			}
+			var le *ghLoginError
+			if errors.Is(err, ErrNoGH) || errors.As(err, &le) {
+				return &gateway.Error{Status: 400, Code: "GITHUB_CLI", Message: err.Error()}
 			}
 			return apiErr(err)
 		}

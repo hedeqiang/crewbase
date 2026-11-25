@@ -187,9 +187,6 @@ type Remote struct {
 	Host       string `json:"host"`               // github.com
 	Credential string `json:"credential"`         // vault:<id>
 	Username   string `json:"username,omitempty"` // default x-access-token
-	// API overrides the REST root (default https://api.github.com, or
-	// https://<host>/api/v3 for GitHub Enterprise Server).
-	API string `json:"api,omitempty"`
 }
 
 // Settings are the git feature's settings (Settings › Git).
@@ -205,11 +202,10 @@ type Settings struct {
 	// Approvals needed before a merge.
 	Approvals int `json:"approvals"`
 	// AutoReview: agents named as reviewers are asked to review at once.
-	AutoReview bool     `json:"autoReview"`
-	Remotes    []Remote `json:"remotes"`
-	// AllowPrivate: private address ranges the GitHub API may be reached
-	// at (an internal GitHub Enterprise Server).
-	AllowPrivate []string `json:"allowPrivate,omitempty"`
+	AutoReview bool `json:"autoReview"`
+	// Remotes: push credentials per host (optional: without one, git's own
+	// login is used). GitHub's API goes through the local gh (github.go).
+	Remotes []Remote `json:"remotes"`
 	// PRReviewer: an agent asked to review pull requests others open (on
 	// GitHub webhook events; "" = none).
 	PRReviewer string `json:"prReviewer,omitempty"`
