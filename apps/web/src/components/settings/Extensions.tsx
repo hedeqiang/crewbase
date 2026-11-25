@@ -15,7 +15,7 @@ import { setState, toast, useStore, refreshAgentDocs } from "../../store";
 import { Head } from "../Settings";
 import { MonoMark } from "../ProviderMark";
 import { PasteInstall } from "./PasteInstall";
-import { ApproveDialog, errMsg, MCP_TONE, McpForm, McpSkills, McpTools, PluginCards, settle, signInWindow, stateLabel } from "./ExtParts";
+import { ApproveDialog, errMsg, MCP_TONE, McpForm, McpTools, PluginCards, settle, signInWindow, stateLabel } from "./ExtParts";
 
 // Brand icons from LobeHub Icons (@lobehub/icons-static-svg, MIT), as in
 // ProviderMark, where the package has the mark; the others are the
@@ -1315,7 +1315,6 @@ function InstalledView({ d, q, reload, reloadMarket, onApprove, onSignIn, onScop
   }, [d.catalog]);
   const builtinSkills = useMemo(() => new Map((d.catalog?.items ?? []).filter((it) => it.kind === "skill").map((it) => [it.name, it])), [d.catalog]);
   const sharedDir = (d.skills ?? []).find((s) => !s.agent)?.source;
-  const localSkillNames = useMemo(() => new Set((d.skills ?? []).map((s) => s.name)), [d.skills]);
   useEffect(() => {
     if (focus) document.getElementById("mk-srv-" + focus)?.scrollIntoView({ block: "center" });
   }, [focus, d.servers === null]);
@@ -1392,14 +1391,6 @@ function InstalledView({ d, q, reload, reloadMarket, onApprove, onSignIn, onScop
                       <span className="mkmeta">
                         {s.status?.version && <span className="mkver">{verLabel(s.status.version)}</span>}
                         {scopeLabel(s.scope)} · {t("ext.toolsN", { n: s.status?.tools ?? 0 })}
-                        {(s.status?.skills ?? 0) > 0 && (
-                          <>
-                            {" · "}
-                            <button className="linkbtn" type="button" onClick={() => setOpen(s.name)}>
-                              {t("ext.skillsN", { n: s.status.skills ?? 0 })}
-                            </button>
-                          </>
-                        )}
                         {(s.transport === "http" || (s.command ?? []).some((a) => /@latest$/.test(a))) && (
                           <span className="autoupd" title={s.transport === "http" ? t("aup.autoRemote") : t("aup.autoNpx")}>
                             {" · "}
@@ -1462,7 +1453,6 @@ function InstalledView({ d, q, reload, reloadMarket, onApprove, onSignIn, onScop
                   {open === s.name && (
                     <div className="mkdetail">
                       <McpTools name={s.name} server={s} onProbed={reload} />
-                      {(s.status?.skills ?? 0) > 0 && <McpSkills name={s.name} count={s.status.skills} localNames={localSkillNames} />}
                     </div>
                   )}
                 </div>
