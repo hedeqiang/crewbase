@@ -3,6 +3,22 @@
 Each `## <version>` section becomes the release notes of that version,
 shown in the desktop app's update window.
 
+## 0.9.23
+
+新增网络代理：模型、插件、GitHub 和更新下载都可以通过 HTTP / HTTPS / SOCKS5 代理访问网络。
+
+网络代理（设置 › 网络代理）
+- 支持 HTTP、HTTPS 和 SOCKS5 代理，可以设置用户名和密码；密码存进保管库，不会明文保存在设置里
+- 开启后经过代理的有：模型请求、插件 / 技能 / MCP 服务器的安装和更新、GitHub 拉取请求与推送、链接预览、Webhook 投递、中继连接、Crewbase 自身的更新检查和下载，以及 Agent 运行的命令（git、curl、npm、pip 等）
+- 本机和局域网地址始终直连（本地的 Ollama、magpie 等），也可以自己添加不走代理的地址，比如公司内网域名
+- 自动发现本机已有的代理：系统代理、环境变量，以及 Clash、Surge、v2rayN 等常用端口，点一下就填好
+- 可以直接粘贴完整地址，比如 socks5://127.0.0.1:7891
+- 保存前可以测试连接；失败时说明原因：连不上代理、用户名或密码不对、超时、类型选错了等
+- 关闭代理时和以前一样（跟随系统或环境变量的代理）
+
+文档
+- Webhook 文档新增 GitHub Issue 和 PR 的完整接入示例
+
 ## 0.9.22
 
 Webhook 页面重新设计；思考和工具调用连成一条时间线，思考过程滚动输出；插件安装支持搜索大量技能。
