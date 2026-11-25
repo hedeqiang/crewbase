@@ -1871,7 +1871,6 @@ export const API = {
   restoreLibrary: (team: string, id: number, version: number) => api<LibItem>("POST", `/api/library/${id}/restore?${libQS(team)}`, { version }),
   gitRepo: (agent: string, all = false) => api<GitRepoView>("GET", `/api/git/repo?${gq({ agent, all: all ? "1" : undefined })}`),
   gitInit: (agent: string) => api<GitRepoInfo>("POST", "/api/git/init", { agent }),
-  gitBranch: (b: { agent: string; worktree?: string; name: string }) => api<GitRepoInfo>("POST", "/api/git/branch", b),
   gitDiff: (agent: string, o: { worktree?: string; side?: string; base?: string; path?: string }) => api<{ files: GitFileDiff[] }>("GET", `/api/git/diff?${gq({ agent, ...o })}`),
   gitLog: (agent: string, worktree?: string, rev?: string) => api<{ commits: GitCommit[] }>("GET", `/api/git/log?${gq({ agent, worktree, rev })}`),
   gitHunk: (b: { agent: string; worktree?: string; path: string; hunk: string; action: "stage" | "unstage" | "discard" }) => api("POST", "/api/git/hunk", b),

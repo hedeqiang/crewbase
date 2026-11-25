@@ -20,7 +20,6 @@ import (
 //
 //	GET    /api/git/repo?agent=                      repository, status, worktrees, reviews, locks, origin
 //	POST   /api/git/init          {agent}                   a folder in no repository becomes one
-//	POST   /api/git/branch        {agent, worktree, name}   a new branch, the changes with it
 //	GET    /api/git/diff?agent=&worktree=&side=&base=&path=
 //	GET    /api/git/log?agent=&worktree=&rev=
 //	POST   /api/git/hunk          {agent, worktree, path, hunk, action}
@@ -179,25 +178,6 @@ var APIPlugin = kernel.Register(kernel.Spec{
 			}})
 
 		// a new branch from where the folder (or a worktree) is, the changes with it
-		g.Handle(c, gateway.Route{Method: "POST", Path: "/api/git/branch",
-			Handle: func(ctx context.Context, r *gateway.Request) (any, error) {
-				var b struct {
-					target
-					Name string `json:"name"`
-				}
-				if err := r.Decode(&b); err != nil {
-					return nil, gateway.BadRequest("%v", err)
-				}
-				d, _, _, err := dirOf(ctx, r, b.Agent, b.Worktree, true)
-				if err != nil {
-					return nil, err
-				}
-				info, err := s.NewBranch(ctx, d, b.Name, person(r))
-				if err != nil {
-					return nil, gateway.BadRequest("%v", err)
-				}
-				return info, nil
-			}})
 
 		g.Handle(c, gateway.Route{Method: "GET", Path: "/api/git/diff", Devices: mobile,
 			Handle: func(ctx context.Context, r *gateway.Request) (any, error) {

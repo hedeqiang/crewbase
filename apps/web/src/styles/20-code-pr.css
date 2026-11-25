@@ -31,19 +31,12 @@
 .cdstatt b { font-size: var(--fs-14); font-weight: 600; line-height: 1.35; }
 .cdstatt .small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cdstatt code { font-size: var(--fs-11); padding: 0 5px; border-radius: var(--r-4); background: var(--active); color: var(--text2); }
-.cdship { display: flex; flex-direction: column; gap: 6px; }
-.btn.cdprimary { height: 34px; justify-content: center; font-size: var(--fs-13); width: 100%; }
-.cdwait { display: flex; align-items: center; gap: 8px; min-height: 34px; padding: 0 12px; border-radius: var(--r-pill); background: var(--accent-soft); color: var(--accent-text); font-size: var(--fs-13); }
-.cdwait .g { flex: 1; min-width: 0; }
 .cdnote { display: flex; align-items: center; gap: 6px; margin: 0; line-height: 1.5; flex-wrap: wrap; }
 .cdnote .g { flex: 1 1 160px; min-width: 0; }
 .cdnote > svg { flex: none; }
 .cdnote .linkbtn { display: inline-flex; align-items: center; gap: 4px; font-size: var(--fs-12); }
 .cdnote.warn { color: var(--amber-text); }
-.cdnogh { padding-top: 8px; border-top: 1px solid var(--border); flex-wrap: nowrap; align-items: flex-start; }
-.cdnogh > svg { margin-top: 3px; }
 .cdsecondary { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
-.cdship + .cdsecondary { justify-content: center; }
 .cdcount { font-family: var(--mono); font-size: var(--fs-11); color: var(--muted); }
 .cderr { margin: 0; padding: 7px 10px; border-radius: var(--r-8); background: var(--danger-soft); color: var(--danger-text); overflow-wrap: anywhere; white-space: pre-wrap; line-height: 1.5; }
 

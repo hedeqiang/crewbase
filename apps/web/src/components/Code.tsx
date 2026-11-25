@@ -125,7 +125,7 @@ function Repo({ agent, session, view, n, reload, review, setReview, showAll, set
                 {pr && <Done agent={agent} pr={pr} worktree={wt} compact={!!diffs && diffs.work.length + diffs.staged.length > 0} reload={reload} />}
                 {(!pr || (diffs && diffs.work.length + diffs.staged.length > 0)) && (
                   <>
-                    <Ship agent={agent} session={session} view={view} diffs={diffs} commits={commits} review={draftReview} reload={reload} />
+                    <Ship agent={agent} view={view} diffs={diffs} commits={commits} reload={reload} />
                     <Changes agent={agent} diffs={diffs} reload={reload} notes={notes} title={t("code.changes")} />
                   </>
                 )}
