@@ -508,7 +508,10 @@ func (s *Service) newClient(onChange func()) *sdk.Client {
 	if onChange != nil {
 		opts.ToolListChangedHandler = func(context.Context, *sdk.ToolListChangedRequest) { onChange() }
 	}
-	return sdk.NewClient(&sdk.Implementation{Name: "crewbase", Version: "1.0.0"}, opts)
+	s.skillsClientOptions(opts, onChange) // MCP skills (skills.go)
+	cl := sdk.NewClient(&sdk.Implementation{Name: "crewbase", Version: "1.0.0"}, opts)
+	addSkillMethods(cl)
+	return cl
 }
 
 // dial connects and initializes a session for srv.
