@@ -18,7 +18,9 @@ import (
 // must be able to see that agent (to read) or work with it (to change),
 // and worktrees, reviews and locks are those of that agent's repository.
 //
-//	GET    /api/git/repo?agent=                      repository, status, worktrees, reviews, locks
+//	GET    /api/git/repo?agent=                      repository, status, worktrees, reviews, locks, origin
+//	POST   /api/git/init          {agent}                   a folder in no repository becomes one
+//	POST   /api/git/branch        {agent, worktree, name}   a new branch, the changes with it
 //	GET    /api/git/diff?agent=&worktree=&side=&base=&path=
 //	GET    /api/git/log?agent=&worktree=&rev=
 //	POST   /api/git/hunk          {agent, worktree, path, hunk, action}
@@ -36,6 +38,7 @@ import (
 //	POST   /api/git/reviews/{id}/merge    {strategy, message}
 //	POST   /api/git/locks         {agent, path, start, end, reason}
 //	DELETE /api/git/locks/{id}?agent=
+//	GET    /api/git/prs | prs/{num}, POST prs | prs/{num}/checkout | review | sync | merge {approve}
 //	GET    /api/git/settings, PUT /api/git/settings
 var APIPlugin = kernel.Register(kernel.Spec{
 	Name:        "@crewbase/git-api",
@@ -109,6 +112,10 @@ var APIPlugin = kernel.Register(kernel.Spec{
 			return rv, nil
 		}
 		q := func(r *gateway.Request, k string) string { return r.HTTP.URL.Query().Get(k) }
+		type target struct {
+			Agent    string `json:"agent"`
+			Worktree string `json:"worktree"`
+		}
 		vcsOr := func() (vcs.Provider, error) { return s.vcs() }
 
 		g.Handle(c, gateway.Route{Method: "GET", Path: "/api/git/repo", Devices: mobile,
@@ -142,8 +149,54 @@ var APIPlugin = kernel.Register(kernel.Spec{
 						}
 					}
 				}
+				main := info.Main
+				if main == "" {
+					main = info.Root
+				}
 				return map[string]any{"repo": info, "status": st, "worktrees": wts, "reviews": reviews, "locks": s.Locks(info.ID), "log": log,
-					"protected": s.protectedBranch(info.Branch), "here": a.Workspace()}, nil
+					"protected": s.protectedBranch(info.Branch), "here": a.Workspace(),
+					"defaultBranch": s.defaultBranch(ctx, main), "origin": s.originOf(ctx, a.Workspace())}, nil
+			}})
+
+		// a folder in no repository becomes one
+		g.Handle(c, gateway.Route{Method: "POST", Path: "/api/git/init",
+			Handle: func(ctx context.Context, r *gateway.Request) (any, error) {
+				var b struct {
+					Agent string `json:"agent"`
+				}
+				if err := r.Decode(&b); err != nil {
+					return nil, gateway.BadRequest("%v", err)
+				}
+				a, err := reach(r, b.Agent, true)
+				if err != nil {
+					return nil, err
+				}
+				info, err := s.Init(ctx, a.Workspace(), person(r))
+				if err != nil {
+					return nil, gateway.BadRequest("%v", err)
+				}
+				return info, nil
+			}})
+
+		// a new branch from where the folder (or a worktree) is, the changes with it
+		g.Handle(c, gateway.Route{Method: "POST", Path: "/api/git/branch",
+			Handle: func(ctx context.Context, r *gateway.Request) (any, error) {
+				var b struct {
+					target
+					Name string `json:"name"`
+				}
+				if err := r.Decode(&b); err != nil {
+					return nil, gateway.BadRequest("%v", err)
+				}
+				d, _, _, err := dirOf(ctx, r, b.Agent, b.Worktree, true)
+				if err != nil {
+					return nil, err
+				}
+				info, err := s.NewBranch(ctx, d, b.Name, person(r))
+				if err != nil {
+					return nil, gateway.BadRequest("%v", err)
+				}
+				return info, nil
 			}})
 
 		g.Handle(c, gateway.Route{Method: "GET", Path: "/api/git/diff", Devices: mobile,
@@ -188,10 +241,6 @@ var APIPlugin = kernel.Register(kernel.Spec{
 				return map[string]any{"commits": cs}, nil
 			}})
 
-		type target struct {
-			Agent    string `json:"agent"`
-			Worktree string `json:"worktree"`
-		}
 		g.Handle(c, gateway.Route{Method: "POST", Path: "/api/git/hunk",
 			Handle: func(ctx context.Context, r *gateway.Request) (any, error) {
 				var b struct {
@@ -706,10 +755,11 @@ var APIPlugin = kernel.Register(kernel.Spec{
 					return nil, gateway.NotFound()
 				}
 				var b struct {
-					Method string `json:"method"`
+					Method  string `json:"method"`
+					Approve bool   `json:"approve"`
 				}
 				_ = r.Decode(&b)
-				out, sha, err := s.MergePR(ctx, MergePRRequest{Review: rv.ID, Method: b.Method, Actor: person(r)})
+				out, sha, err := s.MergePR(ctx, MergePRRequest{Review: rv.ID, Method: b.Method, Actor: person(r), Approve: b.Approve})
 				if err != nil {
 					return nil, ghErr(err)
 				}

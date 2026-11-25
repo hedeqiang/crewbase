@@ -1,0 +1,235 @@
+/* 代码 (Code.tsx, components/code): this conversation's work on its way to a
+   merged pull request. One column that reads top-down: where it stands (a
+   card with one primary action), what changed, then the quiet folds.
+   The pieces it shares with local reviews (files, diffs, comments) are in
+   15-code.css. */
+
+.cd { display: flex; flex-direction: column; height: 100%; min-height: 0; min-width: 0; }
+.cdhead { display: flex; align-items: center; gap: 8px; padding: 10px 12px 10px 14px; min-width: 0; border-bottom: 1px solid var(--border); }
+.cdrepo { display: inline-flex; align-items: center; gap: 6px; min-width: 0; flex: 0 0 auto; max-width: 45%; color: var(--text2); }
+.cdrepo b { color: var(--text); font-weight: 600; font-size: var(--fs-14); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cdbranch { display: inline-flex; align-items: center; gap: 4px; min-width: 0; flex: 0 1 auto; max-width: max-content; overflow: hidden; padding: 0 8px; line-height: 20px; border-radius: var(--r-pill); background: var(--active); color: var(--text2); font: var(--fs-12)/20px var(--mono); }
+.cdbranch span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.cdbranch.prot { background: var(--amber-soft); color: var(--amber-text); }
+.cdab { flex: none; font-family: var(--mono); }
+.cdbody { flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; padding: 12px 0 16px; display: flex; flex-direction: column; gap: 14px; }
+.cdbody > * { min-width: 0; }
+.cdpad { padding: 14px; }
+.cdbanner { display: flex; align-items: center; gap: 6px; margin: 0 12px; padding: 7px 10px; border-radius: var(--r-8); background: var(--amber-soft); color: var(--amber-text); }
+
+/* a path that loses its middle */
+.cdmid { display: inline-flex; min-width: 0; overflow: hidden; white-space: nowrap; }
+.cdmidh { flex: 0 1 auto; min-width: 1ch; overflow: hidden; text-overflow: ellipsis; }
+.cdmidt { flex: none; }
+
+/* where the work stands: one card, the status on top, one primary action */
+.cdcard { margin: 0 12px; padding: 12px; border-radius: var(--r-12); border: 1px solid var(--border2); background: var(--surface); display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.cdstat { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.cdstatic { flex: none; width: 30px; height: 30px; border-radius: var(--r-8); display: grid; place-items: center; background: var(--ok-soft); color: var(--ok-text); }
+.cdstatic.live { background: var(--accent-soft); color: var(--accent-text); }
+.cdstatt { display: flex; flex-direction: column; min-width: 0; }
+.cdstatt b { font-size: var(--fs-14); font-weight: 600; line-height: 1.35; }
+.cdstatt .small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cdstatt code { font-size: var(--fs-11); padding: 0 5px; border-radius: var(--r-4); background: var(--active); color: var(--text2); }
+.cdship { display: flex; flex-direction: column; gap: 6px; }
+.btn.cdprimary { height: 34px; justify-content: center; font-size: var(--fs-13); width: 100%; }
+.cdwait { display: flex; align-items: center; gap: 8px; min-height: 34px; padding: 0 12px; border-radius: var(--r-pill); background: var(--accent-soft); color: var(--accent-text); font-size: var(--fs-13); }
+.cdwait .g { flex: 1; min-width: 0; }
+.cdnote { display: flex; align-items: center; gap: 6px; margin: 0; line-height: 1.5; flex-wrap: wrap; }
+.cdnote .g { flex: 1 1 160px; min-width: 0; }
+.cdnote > svg { flex: none; }
+.cdnote .linkbtn { display: inline-flex; align-items: center; gap: 4px; font-size: var(--fs-12); }
+.cdnote.warn { color: var(--amber-text); }
+.cdnogh { padding-top: 8px; border-top: 1px solid var(--border); flex-wrap: nowrap; align-items: flex-start; }
+.cdnogh > svg { margin-top: 3px; }
+.cdsecondary { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.cdship + .cdsecondary { justify-content: center; }
+.cdcount { font-family: var(--mono); font-size: var(--fs-11); color: var(--muted); }
+.cderr { margin: 0; padding: 7px 10px; border-radius: var(--r-8); background: var(--danger-soft); color: var(--danger-text); overflow-wrap: anywhere; white-space: pre-wrap; line-height: 1.5; }
+
+/* forms that open in place (commit, PR, worktree, lock) */
+.cdform { display: flex; flex-direction: column; gap: 8px; padding: 10px; border-radius: var(--r-8); background: var(--raised); border: 1px solid var(--border); animation: cd-open var(--dur-normal) var(--ease-out) both; }
+.cdform textarea, .cdform input:not([type="checkbox"]):not([type="radio"]) { width: 100%; min-width: 0; padding: 7px 10px; border-radius: var(--r-8); border: 1px solid var(--border2); background: var(--surface); font: inherit; font-size: var(--fs-13); line-height: 1.5; color: var(--text); }
+.cdform textarea { resize: vertical; min-height: 52px; }
+.cdform textarea:focus, .cdform input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.cdform .mono { font-family: var(--mono); font-size: var(--fs-12); }
+.cdfl { display: flex; flex-direction: column; gap: 4px; }
+.cdformi { margin: 0; line-height: 1.5; }
+.cdflow { display: flex; align-items: center; gap: 5px; min-width: 0; flex-wrap: wrap; color: var(--text2); }
+.cdflow .mono { font-size: var(--fs-12); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
+.cdflow > svg { flex: none; color: var(--muted); }
+
+/* sections: a quiet title row, then rows; a file's actions come over its
+   counts on hover instead of holding an empty gutter */
+.cdsec .gxfrow { position: relative; }
+.cdsec .gxfacts { position: absolute; right: 2px; top: 3px; padding: 1px 2px 1px 10px; background: linear-gradient(90deg, transparent, var(--surface) 10px); pointer-events: none; }
+.cdsec .gxfrow:hover .gxfacts, .cdsec .gxfacts:focus-within { pointer-events: auto; }
+.cdsec .gxfile.open .gxfacts { background: linear-gradient(90deg, transparent, var(--raised) 10px); }
+.cdsec .gxfile:not(.open) .gxfrow:not(:hover) .gxfacts:not(:focus-within) { opacity: 0; }
+.cdsec .gxfile.open .gxfacts { opacity: 1; pointer-events: auto; position: static; background: none; padding: 0 4px 0 0; }
+.cdsec { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.cdsech { display: flex; align-items: center; gap: 6px; padding: 0 14px 4px; min-height: 26px; }
+.cdsect { font-size: var(--fs-12); font-weight: 600; color: var(--text2); letter-spacing: .01em; }
+.cdsub { display: flex; align-items: center; gap: 6px; padding: 8px 14px 2px; color: var(--muted); }
+.cdnone { margin: 0; padding: 4px 14px; color: var(--muted); }
+.cdhint { margin: 4px 14px 0; color: var(--muted); }
+.gxcmc.on { color: var(--accent-text); }
+.gxdiff tr.writing .lc, .gxdiff tr.writing .ln { background: var(--accent-soft) !important; }
+.cdlist { display: flex; flex-direction: column; gap: 6px; padding: 0 12px; }
+
+/* the pull request */
+.cdprh { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.cdprn { display: inline-flex; align-items: center; gap: 3px; font-weight: 600; font-size: var(--fs-13); color: var(--text); text-decoration: none; }
+.cdprn:hover { color: var(--accent-text); }
+.cdprn svg { color: var(--muted); }
+.cdtag { font-size: var(--fs-11); font-weight: 600; padding: 0 8px; line-height: 19px; border-radius: var(--r-pill); background: var(--active); color: var(--text2); white-space: nowrap; }
+.cdtag.st-open { background: var(--ok-soft); color: var(--ok-text); }
+.cdtag.st-draft { background: var(--active); color: var(--muted); }
+.cdtag.st-merged { background: color-mix(in srgb, #8250df 15%, transparent); color: #8250df; }
+.cdtag.st-closed { background: var(--danger-soft); color: var(--danger-text); }
+:root[data-theme="dark"] .cdtag.st-merged, :root[data-theme="dark"] .prst.merged, :root[data-theme="dark"] .cddone.merged .cddoneic { color: #b392f0; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .cdtag.st-merged, :root:not([data-theme="light"]) .prst.merged, :root:not([data-theme="light"]) .cddone.merged .cddoneic { color: #b392f0; } }
+.cdprt { margin: -2px 0 0; font-size: var(--fs-16); font-weight: 600; line-height: 1.4; letter-spacing: -.005em; overflow-wrap: anywhere; }
+.cdgate { list-style: none; margin: 0; padding: 8px 10px; border-radius: var(--r-8); background: var(--raised); display: flex; flex-direction: column; gap: 5px; font-size: var(--fs-13); min-height: 78px; }
+.cdgate li { display: flex; align-items: flex-start; gap: 8px; color: var(--text2); line-height: 1.45; }
+.cdgate li > svg { margin-top: 2px; color: var(--muted); }
+.cdgate li.ok > svg { color: var(--ok-text); }
+.cdgate li.bad { color: var(--danger-text); }
+.cdgate li.bad > svg { color: var(--danger-text); }
+.cdgate li.wait > svg { color: var(--amber-text); }
+.cdmerge { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.cdmethod { flex: 0 1 auto; min-width: 0; }
+.cdmethod button { padding: 3px 8px; }
+.cdwhy { margin: -4px 0 0; color: var(--muted); text-align: right; }
+.cdwhy.cderr { text-align: left; margin: 0; }
+
+/* checks */
+.cdchecks { margin: 0 12px; border: 1px solid var(--border2); border-radius: var(--r-12); background: var(--surface); overflow: hidden; }
+.cdcheck { min-width: 0; }
+.cdcheck + .cdcheck { border-top: 1px solid var(--border); }
+.cdcheck.failure { background: color-mix(in srgb, var(--danger) 4%, var(--surface)); }
+.cdcheckh { display: flex; align-items: center; gap: 4px; padding-right: 6px; min-width: 0; }
+.cdcheckm { flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; padding: 7px 4px 7px 10px; text-align: left; font-size: var(--fs-13); }
+.cdcheckm:not(:disabled):hover { background: var(--hover); }
+.cdcheckm:disabled { cursor: default; }
+.cdcheckm .g { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cdcheckm .small { flex: none; }
+.cdcheckb { padding: 0 10px 10px; display: flex; flex-direction: column; gap: 4px; }
+.cdcheckb .whpre { max-height: 180px; }
+.btn.cdfix { flex: none; color: var(--danger-text); border-color: color-mix(in srgb, var(--danger) 35%, transparent); }
+.btn.cdfix:hover:not(:disabled) { background: var(--danger-soft); }
+.cddone-chip { flex: none; display: inline-flex; align-items: center; gap: 4px; padding: 0 8px; line-height: 22px; border-radius: var(--r-pill); background: var(--ok-soft); color: var(--ok-text); font-weight: 500; }
+.prck.neutral { background: var(--active); color: var(--muted); }
+.cddot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+
+/* review comments */
+.cdfb { padding: 9px 10px 6px 12px; border: 1px solid var(--border); border-radius: var(--r-8); background: var(--surface); display: flex; flex-direction: column; gap: 4px; min-width: 0; transition: opacity var(--dur-normal) var(--ease-out); }
+.cdfb.ask { box-shadow: inset 3px 0 0 var(--danger); }
+.cdfb.done { opacity: .62; }
+.cdfbh { display: flex; align-items: center; gap: 6px; min-width: 0; font-size: var(--fs-13); }
+.cdfbh b { font-weight: 600; flex: none; }
+.cdfbp { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 0 6px; border-radius: var(--r-4); background: var(--active); }
+.cdfbb { font-size: var(--fs-13); line-height: 1.55; overflow-wrap: anywhere; }
+.cdfbb > :first-child { margin-top: 0; }
+.cdfbb > :last-child { margin-bottom: 0; }
+.cdfba { display: flex; align-items: center; gap: 6px; margin: 0 -4px 0 0; }
+.cdfbl { display: inline-flex; align-items: center; gap: 4px; color: var(--muted); text-decoration: none; }
+.cdfbl:hover { color: var(--accent-text); }
+.btn.cdhand { color: var(--accent-text); padding: 0 8px; }
+.btn.cdhand:hover:not(:disabled) { background: var(--accent-soft); color: var(--accent-text); }
+.pill.sm { line-height: 18px; font-size: var(--fs-11); padding: 0 6px; }
+
+/* what changed since the PR, and pushing it */
+.cdupd { margin: 2px 12px 0; }
+.cdpushu { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: var(--r-8); background: var(--accent-soft); }
+.cdpushu .g { flex: 1; min-width: 0; color: var(--accent-text); }
+
+/* merged / closed */
+.cddone { flex-direction: row; flex-wrap: wrap; align-items: center; gap: 10px 12px; }
+.cddoneic { flex: none; width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center; }
+.cddone.merged { border-color: color-mix(in srgb, #8250df 30%, var(--border2)); background: color-mix(in srgb, #8250df 5%, var(--surface)); }
+.cddone.merged .cddoneic { background: color-mix(in srgb, #8250df 15%, transparent); color: #8250df; }
+.cddone.closed .cddoneic { background: var(--active); color: var(--muted); }
+.cddonet { flex: 1 1 160px; min-width: 0; display: flex; flex-direction: column; }
+.cddonet b { font-size: var(--fs-14); font-weight: 600; }
+.cddonet .small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cddonet a { color: var(--text2); font-weight: 600; text-decoration: none; }
+.cddonea { display: flex; gap: 6px; flex-wrap: wrap; width: 100%; }
+.cddonen { width: 100%; margin: -4px 0 0; }
+.cddone.compact { padding: 8px 12px; }
+.cddone.compact .cddoneic { width: 26px; height: 26px; }
+
+/* the folds below: one quiet line each, opening in place */
+.cdmore { margin-top: 4px; padding: 6px 0 0; border-top: 1px solid var(--border); display: flex; flex-direction: column; }
+.cdfold { min-width: 0; }
+.cdfoldh { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 34px; padding: 6px 14px; text-align: left; font-size: var(--fs-13); color: var(--text2); }
+.cdfoldh:hover { background: var(--hover); color: var(--text); }
+.cdfoldh > svg { flex: none; color: var(--muted); }
+.cdfoldi { flex: none; display: inline-grid; place-items: center; color: var(--muted); }
+.cdfoldt { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cdfoldn { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cdfoldn.hot { flex: none; padding: 0 8px; line-height: 19px; border-radius: var(--r-pill); background: var(--accent-soft); color: var(--accent-text); font-weight: 600; }
+.cdfold.open > .cdfoldh { color: var(--text); }
+.cdfoldb { padding: 2px 0 10px; display: flex; flex-direction: column; gap: 8px; animation: cd-open var(--dur-normal) var(--ease-out) both; }
+.cdgroup { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.cdgroup > .cdform, .cdgroup > .gxlogi { margin: 0 14px; }
+.cdgroup .gxwt, .cdgroup .gxrv { margin: 0 12px; width: auto; }
+.cdgroup .gxlock { margin: 0 12px; }
+.cdgrouph { display: flex; align-items: center; gap: 8px; padding: 2px 14px 0; color: var(--muted); min-width: 0; }
+.cdgrouph .g { flex: 1; min-width: 0; line-height: 1.5; }
+.cdgrouph .gxga { flex: none; display: inline-flex; align-items: center; gap: 4px; }
+.cdshowall { padding: 0 14px; }
+.cdwtdiff { margin: 0 -12px -11px; padding: 6px 0 4px; border-top: 1px solid var(--border); background: var(--raised); border-radius: 0 0 var(--r-12) var(--r-12); }
+.cdprrow { margin: 0 12px; padding: 8px 10px; border-radius: var(--r-8); border: 1px solid var(--border); display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.cdprrowh { display: flex; align-items: center; gap: 8px; min-width: 0; font-size: var(--fs-13); }
+.cdprrowh a { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); font-weight: 500; text-decoration: none; }
+.cdprrowh a:hover { color: var(--accent-text); }
+.cdprrowm { display: flex; align-items: center; gap: 6px; min-width: 0; flex-wrap: wrap; }
+.cdprrowm .gxflow { max-width: 100%; font-size: var(--fs-11); }
+
+/* comments for the agent, waiting to go */
+.cdnotes { display: flex; align-items: center; gap: 8px; padding: 9px 12px; border-top: 1px solid var(--border); background: var(--surface); animation: cd-up var(--dur-normal) var(--ease-out) both; }
+.cdnotes .g { flex: 1; min-width: 0; color: var(--text2); }
+.cdnotesn { flex: none; min-width: 20px; height: 20px; padding: 0 6px; border-radius: var(--r-pill); display: grid; place-items: center; background: var(--accent); color: #fff; font-size: var(--fs-11); font-weight: 700; }
+
+/* empty and error states */
+.cdempty { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; padding: 48px 28px; text-align: center; color: var(--muted); min-height: 260px; }
+.cdempty b { color: var(--text); font-size: var(--fs-14); font-weight: 600; }
+.cdempty > .small { max-width: 300px; line-height: 1.55; }
+.cdempty .btn { margin-top: 6px; }
+.cdemptyic { width: 44px; height: 44px; border-radius: var(--r-12); display: grid; place-items: center; background: var(--raised); border: 1px solid var(--border); color: var(--text2); margin-bottom: 4px; }
+.cdemptyp { max-width: 100%; font-size: var(--fs-11); padding: 2px 8px; border-radius: var(--r-6); background: var(--sunken); color: var(--text2); }
+
+.cdspin { animation: cd-spin 1s linear infinite; }
+@keyframes cd-spin { to { rotate: 360deg; } }
+@keyframes cd-open { from { opacity: 0; translate: 0 -4px; } }
+@keyframes cd-up { from { opacity: 0; translate: 0 6px; } }
+@media (prefers-reduced-motion: reduce) {
+  .cdspin, .cdform, .cdfoldb, .cdnotes { animation: none; }
+  .cdfb { transition: none; }
+}
+
+/* 设置 › Git */
+.gitset .gsremotes { padding: 14px 16px; display: flex; flex-direction: column; gap: 8px; }
+.gitset .gsnote { margin: 0; line-height: 1.6; color: var(--muted); }
+.gitset .gspad { padding: 10px 16px 14px; }
+.gitset .gsrh, .gitset .gsr { display: grid; grid-template-columns: minmax(110px, 1fr) minmax(150px, 1.4fr) minmax(150px, 1.4fr) 22px; gap: 8px; align-items: center; }
+.gitset .gsrh { color: var(--muted); padding: 4px 0 0; }
+.gitset .gsr input { min-width: 0; }
+.gitset .gsadd { display: flex; align-items: center; gap: 12px; padding-top: 4px; }
+.gitset .gsw { width: 240px; max-width: 100%; }
+.gitset .gsnum { width: 80px; }
+.gitset .gsopts { padding: 8px; display: flex; flex-direction: column; gap: 4px; }
+.gitset .gsopt { display: flex; align-items: flex-start; gap: 10px; padding: 10px 12px; border-radius: var(--r-8); cursor: pointer; border: 1px solid transparent; }
+.gitset .gsopt:hover { background: var(--hover); }
+.gitset .gsopt.on { border-color: color-mix(in srgb, var(--accent) 40%, transparent); background: var(--accent-soft); }
+.gitset .gsopt input { margin-top: 4px; }
+.gitset .gsopt .g { display: flex; flex-direction: column; gap: 2px; font-size: var(--fs-13); }
+.gitset .gsopt .small { line-height: 1.5; }
+@media (max-width: 720px) {
+  .gitset .gsrh { display: none; }
+  .gitset .gsr { grid-template-columns: 1fr 22px; }
+  .gitset .gsr input:nth-child(2), .gitset .gsr input:nth-child(3) { grid-column: 1; }
+  .gitset .gsr .ix { grid-row: 1; grid-column: 2; }
+}
+.cd a.btn { text-decoration: none; }

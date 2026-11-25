@@ -281,6 +281,11 @@ type FetchRequest struct {
 type Provider interface {
 	// Probe returns the repository dir lies in (ErrNotRepo outside one).
 	Probe(ctx context.Context, dir string) (RepoInfo, error)
+	// Init makes dir (a folder in no repository) a new repository.
+	Init(ctx context.Context, dir string) error
+	// NewBranch creates branch at dir's HEAD and switches dir to it; the
+	// uncommitted changes come along.
+	NewBranch(ctx context.Context, dir, branch string) error
 	Worktrees(ctx context.Context, repo string) ([]Worktree, error)
 	// AddWorktree checks out a new branch (from base) in path.
 	AddWorktree(ctx context.Context, repo, path, branch, base string) error

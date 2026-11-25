@@ -1395,6 +1395,18 @@ export interface GitRepoView {
   log?: GitCommit[];
   protected?: boolean;
   here?: string;
+  /** the branch pull requests go into (main, master …) */
+  defaultBranch?: string;
+  /** where origin points; null: no origin remote */
+  origin?: GitOrigin | null;
+}
+export interface GitOrigin {
+  host: string;
+  /** owner/name */
+  repo?: string;
+  github: boolean;
+  /** a credential for the host is set up (设置 › Git) */
+  token: boolean;
 }
 export interface GitPRLink {
   number: number;
@@ -1444,7 +1456,7 @@ export interface GitPRView extends GitPRSummary {
   mergeableState?: string;
   checks: { state: "success" | "failure" | "pending" | "none"; runs: GitCheck[] };
   reviews: { id: number; user: { login: string }; state: string; body: string; submitted_at: string; html_url: string }[];
-  comments: { id: number; user: { login: string }; path: string; line: number; body: string }[];
+  comments: { id: number; user: { login: string }; path: string; line: number; body: string; html_url?: string; created_at?: string }[];
   merged?: boolean;
   me?: string;
 }
@@ -1858,6 +1870,8 @@ export const API = {
   deleteLibrary: (team: string, id: number) => api("DELETE", `/api/library/${id}?${libQS(team)}`),
   restoreLibrary: (team: string, id: number, version: number) => api<LibItem>("POST", `/api/library/${id}/restore?${libQS(team)}`, { version }),
   gitRepo: (agent: string, all = false) => api<GitRepoView>("GET", `/api/git/repo?${gq({ agent, all: all ? "1" : undefined })}`),
+  gitInit: (agent: string) => api<GitRepoInfo>("POST", "/api/git/init", { agent }),
+  gitBranch: (b: { agent: string; worktree?: string; name: string }) => api<GitRepoInfo>("POST", "/api/git/branch", b),
   gitDiff: (agent: string, o: { worktree?: string; side?: string; base?: string; path?: string }) => api<{ files: GitFileDiff[] }>("GET", `/api/git/diff?${gq({ agent, ...o })}`),
   gitLog: (agent: string, worktree?: string, rev?: string) => api<{ commits: GitCommit[] }>("GET", `/api/git/log?${gq({ agent, worktree, rev })}`),
   gitHunk: (b: { agent: string; worktree?: string; path: string; hunk: string; action: "stage" | "unstage" | "discard" }) => api("POST", "/api/git/hunk", b),
@@ -1883,7 +1897,9 @@ export const API = {
   gitPRCreate: (agent: string, review: string, b: { title?: string; body?: string; draft?: boolean }) => api<GitReview>("POST", "/api/git/prs", { agent, review, ...b }),
   gitPRReview: (agent: string, review: string, n: number) => api<{ review: GitReview; event: string }>("POST", `/api/git/prs/${n}/review`, { agent, review }),
   gitPRSync: (agent: string, review: string, n: number) => api<GitReview>("POST", `/api/git/prs/${n}/sync`, { agent, review }),
-  gitPRMerge: (agent: string, review: string, n: number, method: string) => api<{ review: GitReview; commit: string }>("POST", `/api/git/prs/${n}/merge`, { agent, review, method }),
+  /** approve: the person's 合并 approves the review's head in the same step */
+  gitPRMerge: (agent: string, review: string, n: number, method: string, approve = false) =>
+    api<{ review: GitReview; commit: string }>("POST", `/api/git/prs/${n}/merge`, { agent, review, method, approve: approve || undefined }),
   gitSettings: () => api<GitSettings>("GET", "/api/git/settings"),
   setGitSettings: (b: GitSettings) => api<GitSettings>("PUT", "/api/git/settings", b),
   webhooks: (team: string) => api<{ endpoints: WhEndpoint[]; subscriptions: WhSubscription[]; providers: string[]; events: string[] }>("GET", `/api/webhooks?${tq(team)}`),

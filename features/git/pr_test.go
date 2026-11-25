@@ -470,3 +470,70 @@ func TestForkPRRunsOnlyInDockerOffline(t *testing.T) {
 		t.Fatal("an offline call has network", p.Network)
 	}
 }
+
+// The 代码 panel: the origin decides what it offers, a change on main moves
+// to a branch of its own, and the person's 合并 approves and merges at once.
+func TestPanelBranchOriginAndPersonMerge(t *testing.T) {
+	r := setupPR(t)
+	ctx := context.Background()
+	o := r.s.originOf(ctx, r.repo)
+	if o == nil || !o.GitHub || o.Repo != "acme/api" || !o.Token {
+		t.Fatalf("%+v", o)
+	}
+	// work on main moves to a new branch, the change with it
+	os.WriteFile(filepath.Join(r.repo, "panel.txt"), []byte("from the panel\n"), 0o644)
+	info, err := r.s.NewBranch(ctx, r.repo, "crew/panel", "person:owner")
+	if err != nil || info.Branch != "crew/panel" {
+		t.Fatal(err, info.Branch)
+	}
+	g, _ := r.s.vcs()
+	if _, err := g.Commit(ctx, r.repo, vcs.CommitRequest{Message: "panel", All: true}); err != nil {
+		t.Fatal(err)
+	}
+	rv, err := r.s.Open(ctx, OpenRequest{Dir: r.repo, Author: "agent:lead", Title: "Panel"})
+	if err != nil || rv.Source != "crew/panel" || rv.Target != "main" || len(rv.Reviewers) != 1 || rv.Reviewers[0] != "person:owner" {
+		t.Fatalf("%v %+v", err, rv)
+	}
+	if rv, err = r.s.CreatePR(ctx, CreatePRRequest{Review: rv.ID, Actor: "person:owner"}); err != nil {
+		t.Fatal(err)
+	}
+	n := rv.PR.Number
+	r.gh.mu.Lock()
+	r.gh.prs[n].Head.SHA = strings.TrimSpace(run(t, r.repo, "rev-parse", "HEAD"))
+	r.gh.prs[n].Mergeable = ptr(true)
+	r.gh.mu.Unlock()
+	// not approved: merging needs the approval
+	if _, _, err := r.s.MergePR(ctx, MergePRRequest{Review: rv.ID, Actor: "person:owner"}); !isCode(err, CodeNotApproved) {
+		t.Fatal(err)
+	}
+	// an agent cannot approve by merging
+	if _, _, err := r.s.MergePR(ctx, MergePRRequest{Review: rv.ID, Actor: "agent:lead", Approve: true}); !isCode(err, CodeNotApproved) {
+		t.Fatal(err)
+	}
+	// the person's 合并 approves the head and merges, telling nobody
+	out, sha, err := r.s.MergePR(ctx, MergePRRequest{Review: rv.ID, Method: "squash", Actor: "person:owner", Approve: true})
+	if err != nil || sha != "mergedsha1234" || out.State != RvMerged {
+		t.Fatal(err, sha, out.State)
+	}
+	if len(r.handedTo("git-approved:")) != 0 {
+		t.Fatal("the agent was told to merge what the person merged")
+	}
+	// another folder's origin: not GitHub, no pull requests
+	other := t.TempDir()
+	gitRun(t, other, "init", "-q")
+	gitRun(t, other, "remote", "add", "origin", "https://gitlab.example.com/acme/api.git")
+	if o := r.s.originOf(ctx, other); o == nil || o.GitHub || o.Host != "gitlab.example.com" {
+		t.Fatalf("%+v", o)
+	}
+	if o := r.s.originOf(ctx, t.TempDir()); o != nil {
+		t.Fatalf("no repository, an origin: %+v", o)
+	}
+	// a folder in no repository becomes one
+	fresh := t.TempDir()
+	if info, err := r.s.Init(ctx, fresh, "person:owner"); err != nil || info.Branch != "main" {
+		t.Fatal(err, info)
+	}
+	if _, err := r.s.Init(ctx, fresh, "person:owner"); err == nil {
+		t.Fatal("initialised twice")
+	}
+}

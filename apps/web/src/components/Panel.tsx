@@ -112,7 +112,7 @@ export function Panel() {
           </>
         )}
         {view === "files" && <FilesTab agent={agent} />}
-        {view === "code" && <CodeTab key={"code:" + agent.id} agent={agent} />}
+        {view === "code" && <CodeTab key={"code:" + agent.id} agent={agent} session={channel ? agent.session : current ?? agent.session} />}
         {view === "library" && <LibraryTab />}
         {view === "docs" && <DocsTab />}
         {view === "schedule" && <ScheduleTab key={"sched:" + agent.id} agent={agent} data={sched} />}

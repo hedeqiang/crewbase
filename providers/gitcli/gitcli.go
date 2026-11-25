@@ -264,6 +264,30 @@ func (g *Git) key(ctx context.Context, dir string) string {
 	return real(trim(r.out))
 }
 
+// Init implements vcs.Provider: a new repository on main (a folder
+// already in one is refused, not nested).
+func (g *Git) Init(ctx context.Context, dir string) error {
+	if _, err := g.Probe(ctx, dir); err == nil {
+		return errors.New("the folder is already in a git repository")
+	} else if !errors.Is(err, vcs.ErrNotRepo) {
+		return err
+	}
+	_, err := g.run(ctx, dir, opts{write: true, lock: dir}, "init", "--quiet")
+	return err
+}
+
+// NewBranch implements vcs.Provider.
+func (g *Git) NewBranch(ctx context.Context, dir, branch string) error {
+	if err := checkRev(branch); err != nil {
+		return err
+	}
+	if _, err := g.run(ctx, dir, opts{}, "check-ref-format", "--branch", branch); err != nil {
+		return fmt.Errorf("%q is not a branch name", branch)
+	}
+	_, err := g.run(ctx, dir, opts{write: true, lock: g.key(ctx, dir)}, "switch", "--quiet", "--create", branch)
+	return err
+}
+
 // Worktrees implements vcs.Provider.
 func (g *Git) Worktrees(ctx context.Context, repo string) ([]vcs.Worktree, error) {
 	r, err := g.run(ctx, repo, opts{}, "worktree", "list", "--porcelain")

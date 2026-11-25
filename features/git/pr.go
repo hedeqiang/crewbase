@@ -607,6 +607,10 @@ type MergePRRequest struct {
 	Method  string // merge | squash | rebase
 	Actor   string
 	Session string
+	// Approve: a person merging from the 代码 panel approves the review's
+	// current head in the same step (their click is the approval); the
+	// other gates still apply.
+	Approve bool
 }
 
 // MergePR merges the review's pull request on GitHub: the local review must
@@ -619,6 +623,11 @@ func (s *Service) MergePR(ctx context.Context, q MergePRRequest) (Review, string
 	}
 	if r.PR == nil {
 		return r, "", errors.New("the review has no pull request")
+	}
+	if q.Approve && r.State != RvApproved && strings.HasPrefix(q.Actor, "person:") {
+		if r, err = s.approveAsPerson(r, q.Actor); err != nil {
+			return r, "", err
+		}
 	}
 	if r.State != RvApproved {
 		return r, "", fail(CodeNotApproved, 409, "review %s is %s: it merges once approved", r.ID, r.State)
@@ -687,6 +696,27 @@ func (s *Service) MergePR(ctx context.Context, q MergePRRequest) (Review, string
 	s.changed(vcs.Event{Type: "git/pr.merged", Repo: r.Repo, ID: r.ID, Actor: q.Actor, Session: q.Session, Data: map[string]any{"pr": p.Number, "commit": sha, "method": method}})
 	s.changed(vcs.Event{Type: "git/merged", Repo: r.Repo, ID: r.ID, Actor: q.Actor, Session: q.Session, Data: map[string]any{"commit": sha, "strategy": "github-" + method, "target": r.Target, "source": r.Source}})
 	return out, sha, err
+}
+
+// approveAsPerson records a person's approval of the review's current
+// head, quietly: they merge next, so nobody is told it was approved.
+func (s *Service) approveAsPerson(r Review, actor string) (Review, error) {
+	if r.State == RvDraft || r.State == RvMerged || r.State == RvClosed {
+		return r, fail(CodeNotApproved, 409, "review %s is %s", r.ID, r.State)
+	}
+	if err := s.mayJudge(r, actor); err != nil {
+		return r, err
+	}
+	out, err := s.mutate(r.ID, func(x *Review) error {
+		x.Verdicts = append(x.Verdicts, Verdict{Reviewer: actor, Decision: VApprove, Commit: x.Head, Round: x.Round, At: time.Now().UTC()})
+		s.recompute(x)
+		return nil
+	})
+	if err != nil {
+		return r, err
+	}
+	s.changed(vcs.Event{Type: "git/review.submitted", Repo: out.Repo, ID: out.ID, Actor: actor, Data: map[string]any{"decision": VApprove, "state": out.State, "comments": 0}})
+	return out, nil
 }
 
 // RefreshPR reads a review's pull request again (state, head, whether it

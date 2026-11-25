@@ -369,3 +369,38 @@ func TestParseRemote(t *testing.T) {
 		t.Fatal("a path parsed")
 	}
 }
+
+func TestInitAndNewBranch(t *testing.T) {
+	g := newGit(t)
+	ctx := context.Background()
+	dir := t.TempDir()
+	if _, err := g.Probe(ctx, dir); !errors.Is(err, vcs.ErrNotRepo) {
+		t.Fatalf("a fresh folder: %v", err)
+	}
+	if err := g.Init(ctx, dir); err != nil {
+		t.Fatal(err)
+	}
+	info, err := g.Probe(ctx, dir)
+	if err != nil || info.Branch != "main" {
+		t.Fatalf("%v %+v", err, info)
+	}
+	if err := g.Init(ctx, dir); err == nil {
+		t.Fatal("initialised a repository twice")
+	}
+	// a new branch keeps the uncommitted change
+	main := repo(t, g)
+	write(t, main, "app.go", "package app\n\nfunc A() int { return 10 }\n\nfunc B() int { return 2 }\n")
+	if err := g.NewBranch(ctx, main, "crew/fix-a"); err != nil {
+		t.Fatal(err)
+	}
+	info, _ = g.Probe(ctx, main)
+	st, _ := g.Status(ctx, main)
+	if info.Branch != "crew/fix-a" || len(st.Files) != 1 {
+		t.Fatalf("%+v %+v", info, st)
+	}
+	for _, bad := range []string{"", "-x", "a b", "a..b", "crew/fix-a"} {
+		if err := g.NewBranch(ctx, main, bad); err == nil {
+			t.Fatalf("made branch %q", bad)
+		}
+	}
+}
