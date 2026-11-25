@@ -51,6 +51,51 @@ A computer without a public address can receive webhooks through its relay. Turn
 
 Unlike device traffic, the sender cannot encrypt end to end, so **the event passes through the relay in plain text**, over TLS in transit. That is why the address is opt-in per endpoint and its token can be reset. The host still verifies every signature. A relay operator can switch the intake off with `crew-relay --no-hooks`.
 
+## Example: GitHub issues and pull requests
+
+A walkthrough that has an agent review new pull requests and triage new issues.
+
+**1. A public address.** GitHub must reach this computer, and `127.0.0.1` is not reachable from outside. Either:
+- use the relay: connect to one in 设置 › 主机与设备 › 远程连接, then turn on 经中继接收公网事件 under the endpoint's 限流与权限. Crewbase runs no public relay; you need your own.
+- or use a tunnel (cloudflared, ngrok) to `127.0.0.1:7788`, with `https://<tunnel>/api/webhooks/ingest/<endpoint id>` as the address. This exposes the whole port. The other routes still need the token, but the relay is the cleaner way.
+
+**2. One endpoint per kind of work.** Reviewing a PR and triaging an issue need different instructions, so make two endpoints. In 设置 › Webhook › 新建入站, pick GitHub and:
+- leave 密钥 empty. One is generated and shown once; copy it.
+- under 事件, pick `pull_request` for one endpoint and `issues` for the other.
+- set 条件 to keep only the actions you care about:
+  ```
+  action in ["opened", "reopened", "ready_for_review"] && !pull_request.draft && pull_request.base.ref == "main"
+  ```
+  ```
+  action == "opened" || (action == "labeled" && issue.labels contains "bug")
+  ```
+  `labels contains "bug"` matches GitHub's label objects by name.
+- under 交给, pick a channel. The event goes to its owner, or to the member you choose.
+- write 让 Agent 做什么. `{{path}}` takes a value from the event, and the whole event is attached after it:
+  ```
+  {{repository.full_name}} has a new PR #{{pull_request.number}}: {{pull_request.title}}
+  {{pull_request.html_url}}
+  Check out the branch, review it, and report the main problems in the channel.
+  ```
+  ```
+  New issue #{{issue.number}}: {{issue.title}} ({{issue.html_url}})
+  Decide whether it is a bug or a feature request, estimate its reach, and post the triage in the channel.
+  ```
+- for a busy repository, set a cooldown under 限流与权限 with `pull_request.number` as its key, so pushes to the same PR are handled once.
+
+**3. GitHub's side.** In the repository, open Settings → Webhooks → Add webhook and fill in:
+- **Payload URL:** the address from step 1.
+- **Content type:** `application/json`. With the form encoding, the body is not JSON, and neither conditions nor `{{path}}` can read it.
+- **Secret:** the one you copied.
+- **Which events:** Let me select individual events, then Pull requests or Issues.
+
+**4. Check it.**
+- GitHub first sends a `ping`. 投递记录 shows it as 已过滤 · 不在关注的事件里（ping）, which means the address and the signature both work. 签名不符 means the secrets differ.
+- Open a test PR or issue. It should show 已处理, and the agent starts in the channel.
+- While adjusting a condition, open a delivery in 投递记录 and use 试运行 to see where it would go without running anything, then 重新处理. GitHub's Recent Deliveries can send one again too.
+
+For the agent to comment or push on GitHub as well, give github.com a token under 推送凭据 in Git settings ([git](git.md)). Without one it reports in the channel only.
+
 ## Outbound
 
 A subscription sends internal events to a URL:
