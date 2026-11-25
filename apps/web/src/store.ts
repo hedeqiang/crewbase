@@ -53,6 +53,7 @@ export type SettingsSection =
   | "computer"
   | "webhooks"
   | "proxy"
+  | "git"
   | "approvals"
   | "hosts"
   | "teams"
