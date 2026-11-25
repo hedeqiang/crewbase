@@ -26,7 +26,9 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/openai/openai-go/v3/option"
@@ -47,16 +49,44 @@ const (
 )
 
 // computerTool reports whether req goes through the Responses API with
-// the computer tool.
+// the computer tool: on OpenAI's own API for the models that have it, and
+// elsewhere only for a model whose capabilities list computer_use.
+// Gateways and compatible servers do not all take it: magpie's Codex
+// accounts answer "Unsupported tool type: computer". One that refuses it
+// anyway is remembered per model (refusedComputer). Without it computer
+// use goes on through the function tools.
 func (a *Adapter) computerTool(req llm.Request) bool {
-	if a.respMode == ResponsesNever || !req.Wants(llm.NativeComputer) {
+	if a.respMode == ResponsesNever || !req.Wants(llm.NativeComputer) || a.routes.computerRefused(req.Model) {
 		return false
 	}
 	var caps []string
 	if s, ok := findSpec(a.static, req.Model); ok {
 		caps = s.Capabilities
 	}
-	return llm.ComputerTool(req.Model, caps) == "computer"
+	if llm.ComputerTool(req.Model, caps) != "computer" {
+		return false
+	}
+	return a.official || slices.Contains(caps, "computer_use")
+}
+
+// refusedComputer reports whether err says the provider does not take the
+// computer tool ("Codex: Unsupported tool type: computer", "tool type
+// 'computer' is not supported").
+func refusedComputer(err error) bool {
+	var le *llm.Error
+	if !errors.As(err, &le) || le.Kind != llm.ErrBadRequest {
+		return false
+	}
+	m := strings.ToLower(le.Message)
+	if !strings.Contains(m, "computer") {
+		return false
+	}
+	for _, w := range []string{"unsupported tool", "tool type", "not supported", "unknown tool", "invalid tool", "not available"} {
+		if strings.Contains(m, w) {
+			return true
+		}
+	}
+	return false
 }
 
 // reasoningFrom tags reasoning items of this provider and model.
@@ -137,11 +167,16 @@ func functionTool(t llm.ToolSchema, deferred bool) map[string]any {
 // namespace is kept only when the request still has it.
 func (a *Adapter) responsesInput(req llm.Request, namespaces map[string]bool) []any {
 	msgs := req.Messages
+	// recorded computer calls go as computer_call items only with the
+	// computer tool; without it (another provider, or one that refused it)
+	// as plain function calls, as Chat Completions sends them
 	native := map[string]llm.ComputerCall{}
-	for _, m := range msgs {
-		for _, tc := range m.ToolCalls() {
-			if c, ok := llm.DecodeComputerCall(tc); ok && c.Vendor == llm.ComputerOpenAI {
-				native[tc.ID] = c
+	if a.computerTool(req) {
+		for _, m := range msgs {
+			for _, tc := range m.ToolCalls() {
+				if c, ok := llm.DecodeComputerCall(tc); ok && c.Vendor == llm.ComputerOpenAI {
+					native[tc.ID] = c
+				}
 			}
 		}
 	}

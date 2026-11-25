@@ -73,6 +73,22 @@ type routeState struct {
 	mu          sync.Mutex
 	noResponses bool            // the endpoint is missing (404 / 405)
 	needs       map[string]bool // models Chat Completions refused (400 above)
+	noComputer  map[string]bool // models whose requests refused the computer tool
+}
+
+func (r *routeState) computerRefused(model string) bool {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.noComputer[model]
+}
+
+func (r *routeState) setComputerRefused(model string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.noComputer == nil {
+		r.noComputer = map[string]bool{}
+	}
+	r.noComputer[model] = true
 }
 
 func (r *routeState) responsesMissing() bool {

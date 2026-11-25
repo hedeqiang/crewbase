@@ -573,7 +573,17 @@ func (a *Adapter) paramsWith(req llm.Request, files map[string]string) (sdk.Chat
 // with the fallbacks described in responses.go.
 func (a *Adapter) Stream(ctx context.Context, req llm.Request, onChunk func(llm.Chunk) error) (llm.Response, error) {
 	if a.useResponses(req) {
-		return a.streamResponsesOrChat(ctx, req, onChunk)
+		withComputer := a.computerTool(req)
+		sent := false
+		resp, err := a.streamResponsesOrChat(ctx, req, func(c llm.Chunk) error { sent = true; return onChunk(c) })
+		// the provider does not take the computer tool: once more without
+		// it (computer use goes on through the function tools), and not
+		// again for this model
+		if err != nil && withComputer && !sent && refusedComputer(err) {
+			a.routes.setComputerRefused(req.Model)
+			return a.Stream(ctx, req, onChunk)
+		}
+		return resp, err
 	}
 	resp, err := a.streamChat(ctx, req, onChunk)
 	if err != nil && a.canSelfHeal(err) {
