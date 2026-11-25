@@ -14,7 +14,7 @@ require (
 	github.com/gorilla/websocket v1.5.3
 	github.com/larksuite/oapi-sdk-go/v3 v3.12.2
 	github.com/ledongthuc/pdf v0.0.0-20261020125853-5e46805f718e
-	github.com/modelcontextprotocol/go-sdk v1.8.0
+	github.com/modelcontextprotocol/go-sdk v1.9.0-pre.1
 	github.com/mozillazg/go-pinyin v0.21.0
 	github.com/openai/openai-go/v3 v3.99.0
 	github.com/slack-go/slack v0.35.0
