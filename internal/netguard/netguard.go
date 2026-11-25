@@ -12,8 +12,11 @@ import (
 	"net"
 	"net/http"
 	"net/netip"
+	"net/url"
 	"strings"
 	"time"
+
+	"github.com/hedeqiang/crewbase/internal/netproxy"
 )
 
 // ErrBlocked: the address is not a public one (and not allowed).
@@ -118,13 +121,18 @@ func (g *Guard) Resolve(ctx context.Context, host string) ([]netip.Addr, error) 
 	return ips, nil
 }
 
-// Client is an HTTP client whose connections only reach allowed addresses,
-// never through a proxy (a proxy's address is not the site's).
+// Client is an HTTP client whose connections only reach allowed addresses.
+// With a proxy set (Settings › 网络代理) the site is checked before the
+// request goes to the proxy (whose own address is not the site's), and a
+// site at an allowed private address is reached directly.
 func (g *Guard) Client(timeout time.Duration, maxRedirects int) *http.Client {
 	dialer := &net.Dialer{Timeout: timeout, KeepAlive: 30 * time.Second}
 	tr := &http.Transport{
-		Proxy: nil,
+		Proxy: g.Proxy,
 		DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+			if netproxy.IsProxyAddr(addr) {
+				return dialer.DialContext(ctx, network, addr)
+			}
 			host, port, err := net.SplitHostPort(addr)
 			if err != nil {
 				return nil, err
@@ -162,6 +170,29 @@ func (g *Guard) Client(timeout time.Duration, maxRedirects int) *http.Client {
 			return nil
 		},
 	}
+}
+
+// Proxy is the transport's Proxy: the proxy set in Crewbase (never the
+// environment's), once the site checks out. An allowed private site is not
+// sent to the proxy, which may not reach it.
+//
+// The proxy resolves the name again itself; a name answering it with a
+// private address it can reach is the one thing this cannot see.
+func (g *Guard) Proxy(req *http.Request) (*url.URL, error) {
+	p, err := netproxy.Configured(req)
+	if err != nil || p == nil {
+		return nil, err
+	}
+	ips, err := g.Resolve(req.Context(), req.URL.Hostname())
+	if err != nil {
+		return nil, err
+	}
+	for _, ip := range ips {
+		if Blocked(ip) {
+			return nil, nil
+		}
+	}
+	return p, nil
 }
 
 // ParsePrefixes reads "10.0.0.0/8, 192.168.1.5" (a bare address is /32 or /128).

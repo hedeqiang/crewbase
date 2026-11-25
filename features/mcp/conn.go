@@ -18,6 +18,7 @@ import (
 
 	"github.com/hedeqiang/crewbase/capabilities/sandbox"
 	"github.com/hedeqiang/crewbase/core/tools"
+	"github.com/hedeqiang/crewbase/internal/netproxy"
 	"github.com/hedeqiang/crewbase/kernel"
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -537,7 +538,8 @@ func baseEnv() []string {
 			out = append(out, kv)
 		}
 	}
-	return out
+	// Settings › 网络代理: servers (npx, uvx…) go the same way
+	return append(out, netproxy.Env()...)
 }
 
 func mergeEnv(base []string, extra map[string]string) []string {

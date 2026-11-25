@@ -49,6 +49,7 @@ import (
 
 	"github.com/hedeqiang/crewbase/features/mcp"
 	"github.com/hedeqiang/crewbase/features/skills"
+	"github.com/hedeqiang/crewbase/internal/netproxy"
 	"gopkg.in/yaml.v3"
 )
 
@@ -125,7 +126,7 @@ var (
 	// a skill library is a whole repository download (several MB): the
 	// connection must answer quickly, the body may take a while
 	pasteClient = &http.Client{Timeout: 3 * time.Minute, Transport: &http.Transport{
-		Proxy:                 http.ProxyFromEnvironment,
+		Proxy:                 netproxy.Func,
 		DialContext:           (&net.Dialer{Timeout: 30 * time.Second}).DialContext,
 		TLSHandshakeTimeout:   30 * time.Second,
 		ResponseHeaderTimeout: 30 * time.Second,

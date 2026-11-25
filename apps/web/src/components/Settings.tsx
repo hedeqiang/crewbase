@@ -10,6 +10,7 @@ import { getLang, t, type Key, type Lang } from "../i18n";
 import { ago, kfmt, modeLabel, modelKind, priceLong, priceShort, providerName, until } from "../format";
 import { openSession, refreshModels, setBubbles, setLang, setLinkCards, setState, toast, useStore, type Bubbles, type SettingsSection, resync } from "../store";
 import { Webhooks } from "./settings/Webhooks";
+import { ProxyPage } from "./settings/Proxy";
 import { Extensions } from "./settings/Extensions";
 import { Profile } from "./settings/Profile";
 import { Vault } from "./settings/Vault";
@@ -111,6 +112,7 @@ export function Settings() {
         {manage && sec === "models" && <Models />}
         {sec === "approvals" && <Approvals />}
         {manage && sec === "webhooks" && <Webhooks />}
+        {manage && sec === "proxy" && <ProxyPage />}
         {manage && sec === "market" && <Extensions />}
         {manage && sec === "docs" && <DocsPage />}
         {manage && sec === "artifacts" && <OpenArtifactPage />}
@@ -123,7 +125,7 @@ export function Settings() {
         {manage && sec === "teams" && <Teams />}
         {manage && sec === "im" && <Im />}
         {manage && sec === "computer" && <Computer />}
-        {manage && !["general", "models", "approvals", "webhooks", "market", "docs", "artifacts", "profile", "vault", "keys", "notify", "hosts", "team", "teams", "im", "computer"].includes(sec) && <Soon sec={sec} />}
+        {manage && !["general", "models", "approvals", "webhooks", "proxy", "market", "docs", "artifacts", "profile", "vault", "keys", "notify", "hosts", "team", "teams", "im", "computer"].includes(sec) && <Soon sec={sec} />}
       </div>
     </div>
   );

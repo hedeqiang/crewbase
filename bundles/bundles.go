@@ -50,6 +50,7 @@ import (
 	_ "github.com/hedeqiang/crewbase/features/plugins"
 	_ "github.com/hedeqiang/crewbase/features/preview"
 	_ "github.com/hedeqiang/crewbase/features/providers"
+	_ "github.com/hedeqiang/crewbase/features/proxy"
 	_ "github.com/hedeqiang/crewbase/features/reactions"
 	_ "github.com/hedeqiang/crewbase/features/redact"
 	_ "github.com/hedeqiang/crewbase/features/relay"
@@ -100,6 +101,8 @@ var Base = kernel.Bundle{Name: "base", Entries: []kernel.Entry{
 	{ID: "approval", Name: "@crewbase/approval"},
 	{ID: "rules", Name: "@crewbase/rules", Config: map[string]any{"dir": "${root}"}},
 	{ID: "credentials", Name: "@crewbase/credentials", Config: map[string]any{"root": "${root}"}},
+	// Settings › 网络代理: every outbound connection after this point follows it
+	{ID: "proxy", Name: "@crewbase/proxy", Config: map[string]any{"dir": "${root}"}},
 	{ID: "redact", Name: "@crewbase/redact"},
 	{ID: "llm", Name: "@crewbase/llm"},
 	// Local models; API providers (llm-openai / llm-anthropic / llm-gemini)
@@ -204,6 +207,7 @@ var Desktop = kernel.Bundle{Name: "desktop", Entries: []kernel.Entry{
 	{ID: "catalog-api", Name: "@crewbase/catalog-api"},
 	{ID: "skills-api", Name: "@crewbase/skills-api"},
 	{ID: "vault-api", Name: "@crewbase/vault-api"},
+	{ID: "proxy-api", Name: "@crewbase/proxy-api"},
 	{ID: "browser-api", Name: "@crewbase/browser-api"},
 	// Operating native apps (docs/computer-use.md): the permissions are
 	// given to Crewbase.app, so only the desktop process has it. Provides
@@ -259,6 +263,7 @@ var Server = kernel.Bundle{Name: "server", Entries: []kernel.Entry{
 	{ID: "members", Name: "@crewbase/members", Config: map[string]any{"dir": "${root}"}},
 	{ID: "teams", Name: "@crewbase/teams", Config: map[string]any{"dir": "${root}"}},
 	{ID: "taskboard-api", Name: "@crewbase/taskboard-api"},
+	{ID: "proxy-api", Name: "@crewbase/proxy-api"},
 	{ID: "relay", Name: "@crewbase/relay", Config: map[string]any{"dir": "${root}"}, Disabled: true},
 }}
 

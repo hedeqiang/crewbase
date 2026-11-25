@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"github.com/hedeqiang/crewbase/capabilities/vcs"
+	"github.com/hedeqiang/crewbase/internal/netproxy"
 	"github.com/hedeqiang/crewbase/kernel"
 )
 
@@ -168,7 +169,9 @@ func baseEnv() []string {
 		}
 		out = append(out, kv)
 	}
-	return append(out, "LC_ALL=C", "GIT_TERMINAL_PROMPT=0", "GIT_ASKPASS=", "SSH_ASKPASS=", "GCM_INTERACTIVE=never")
+	out = append(out, "LC_ALL=C", "GIT_TERMINAL_PROMPT=0", "GIT_ASKPASS=", "SSH_ASKPASS=", "GCM_INTERACTIVE=never")
+	// Settings › 网络代理: fetch and push go the same way (last wins)
+	return append(out, netproxy.Env()...)
 }
 
 func scrub(s string, secrets []string) string {

@@ -28,6 +28,7 @@ import (
 	"time"
 
 	"github.com/hedeqiang/crewbase/capabilities/sandbox"
+	"github.com/hedeqiang/crewbase/internal/netproxy"
 	"github.com/hedeqiang/crewbase/kernel"
 	"github.com/hedeqiang/crewbase/providers/sandbox/internal/protect"
 )
@@ -346,7 +347,8 @@ func (d *Docker) Confine(ctx context.Context, argv []string, cwd string, env []s
 	for _, kv := range env {
 		k, _, _ := strings.Cut(kv, "=")
 		if !hostOnly[k] && !strings.HasPrefix(k, "DOCKER_") {
-			cenv = append(cenv, kv)
+			// a proxy on 127.0.0.1 is this machine, not the container
+			cenv = append(cenv, netproxy.ForContainer(kv))
 		}
 	}
 	c := sandbox.Confined{

@@ -52,6 +52,7 @@ export type SettingsSection =
   | "artifacts"
   | "computer"
   | "webhooks"
+  | "proxy"
   | "approvals"
   | "hosts"
   | "teams"

@@ -22,6 +22,7 @@ import (
 
 	"github.com/hedeqiang/crewbase/capabilities/sandbox"
 	"github.com/hedeqiang/crewbase/capabilities/shell"
+	"github.com/hedeqiang/crewbase/internal/netproxy"
 	"github.com/hedeqiang/crewbase/kernel"
 )
 
@@ -98,7 +99,8 @@ func (l *Local) baseEnv() []string {
 			out = append(out, kv)
 		}
 	}
-	return out
+	// Settings › 网络代理: commands (curl, git, npm…) go the same way
+	return append(out, netproxy.Env()...)
 }
 
 // mergeEnv appends extra over base; later keys win.

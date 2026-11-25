@@ -7,6 +7,7 @@ package linkpreview
 
 import (
 	"github.com/hedeqiang/crewbase/internal/netguard"
+	"github.com/hedeqiang/crewbase/internal/netproxy"
 
 	"container/list"
 	"context"
@@ -100,10 +101,22 @@ func New() *Service {
 	}
 	dialer := &net.Dialer{Timeout: fetchTimeout, KeepAlive: 30 * time.Second}
 	tr := &http.Transport{
-		// never a proxy: the check below would see the proxy's address,
-		// not the site's
-		Proxy: nil,
+		// with a proxy set (Settings › 网络代理) the site is checked before
+		// the request goes to the proxy, whose own address is not the site's
+		Proxy: func(req *http.Request) (*url.URL, error) {
+			p, err := netproxy.Configured(req)
+			if err != nil || p == nil {
+				return nil, err
+			}
+			if _, err := s.resolve(req.Context(), req.URL.Hostname()); err != nil {
+				return nil, err
+			}
+			return p, nil
+		},
 		DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+			if netproxy.IsProxyAddr(addr) {
+				return dialer.DialContext(ctx, network, addr)
+			}
 			host, port, err := net.SplitHostPort(addr)
 			if err != nil {
 				return nil, err

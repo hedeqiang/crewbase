@@ -1484,6 +1484,45 @@ export interface WhDelivery {
   at: string;
   updated: string;
 }
+/** Settings › 网络代理 (features/proxy). The password is never sent back:
+ *  hasPassword says the vault has one. */
+export type ProxyType = "http" | "https" | "socks5";
+export interface ProxySettings {
+  enabled: boolean;
+  type: ProxyType;
+  host: string;
+  port: number;
+  username?: string;
+  hasPassword: boolean;
+  bypass: string[];
+}
+/** a change: password "" keeps the saved one */
+export interface ProxyInput extends ProxySettings {
+  password?: string;
+  clearPassword?: boolean;
+}
+export interface ProxyView {
+  settings: ProxySettings;
+  /** the environment's proxy, used while off */
+  env?: string;
+}
+export interface ProxyCheck {
+  ok: boolean;
+  ms: number;
+  status?: number;
+  code?: "unreachable" | "auth" | "timeout" | "tls" | "type" | "status" | "other";
+  error?: string;
+  target: string;
+}
+export interface ProxyFound {
+  type: ProxyType;
+  host: string;
+  port: number;
+  source: "system" | "env" | "port";
+  /** socks5: the port speaks both */
+  also?: string;
+}
+
 export interface WhSettings {
   allowPrivate: string[];
   maxAttempts: number;
@@ -1810,6 +1849,10 @@ export const API = {
   replayDelivery: (team: string, id: string, dry: boolean) => api<WhDelivery>("POST", `/api/webhooks/deliveries/${id}/replay?${tq(team)}`, { dry }),
   webhookSettings: () => api<WhSettings>("GET", "/api/webhooks/settings"),
   setWebhookSettings: (b: WhSettings) => api<WhSettings>("PUT", "/api/webhooks/settings", b),
+  proxySettings: () => api<ProxyView>("GET", "/api/settings/proxy"),
+  setProxy: (b: ProxyInput) => api<ProxyView>("PUT", "/api/settings/proxy", b),
+  testProxy: (b: ProxyInput) => api<ProxyCheck>("POST", "/api/settings/proxy/test", b),
+  detectProxy: () => api<{ found: ProxyFound[] }>("GET", "/api/settings/proxy/detect"),
   publishToLibrary: (team: string, b: { agent: string; path: string; session?: string; seq?: number; title?: string }) =>
     api<{ link: LibLink; item: LibItem }>("POST", `/api/library/publish?${libQS(team)}`, b),
   libraryLinks: (team: string, agent: string) => api<{ links: LibFileLink[] }>("GET", `/api/library/links?${libQS(team, { agent })}`),

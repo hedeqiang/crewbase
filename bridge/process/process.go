@@ -59,6 +59,7 @@ import (
 	"github.com/hedeqiang/crewbase/capabilities/ui"
 	"github.com/hedeqiang/crewbase/core/prompt"
 	"github.com/hedeqiang/crewbase/core/tools"
+	"github.com/hedeqiang/crewbase/internal/netproxy"
 	"github.com/hedeqiang/crewbase/kernel"
 	"github.com/hedeqiang/crewbase/sdk"
 )
@@ -406,7 +407,8 @@ func safeEnv() []string {
 			env = append(env, k+"="+v)
 		}
 	}
-	return env
+	// Settings › 网络代理
+	return append(env, netproxy.Env()...)
 }
 
 func (p *proxy) command() (argv, env []string, err error) {

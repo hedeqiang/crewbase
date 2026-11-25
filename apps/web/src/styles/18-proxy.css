@@ -1,0 +1,69 @@
+/* 设置 › 网络代理 (settings/Proxy.tsx) */
+.px { display: flex; flex-direction: column; gap: 14px; }
+.px > * { flex-shrink: 0; }
+.px .sp { flex: 1; }
+.pxspin { animation: spin 1s linear infinite; flex: none; }
+@media (prefers-reduced-motion: reduce) { .pxspin { animation: none; } }
+
+/* the switch, and what is happening now */
+.pxhero { display: flex; align-items: center; gap: 12px; padding: 14px 16px; border-radius: var(--r-12); border: 1px solid var(--border2); background: var(--surface); transition: border-color var(--dur-hover), background var(--dur-hover); }
+.pxhero.on { border-color: color-mix(in srgb, var(--ok) 40%, var(--border2)); background: color-mix(in srgb, var(--ok) 5%, var(--surface)); }
+.pxic { flex: none; width: 38px; height: 38px; border-radius: 10px; display: grid; place-items: center; background: var(--active); color: var(--text2); transition: background var(--dur-hover), color var(--dur-hover); }
+.pxhero.on .pxic { background: var(--ok-soft); color: var(--ok-text); }
+.pxhero .g { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.pxhero .g b { font-size: var(--fs-14); font-weight: 600; }
+.pxhero .g span { font-size: var(--fs-13); color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pxhero.on .g span { color: var(--ok-text); }
+
+/* proxies found on this machine */
+.pxfound { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; min-height: 28px; }
+.pxfoundh { margin-right: 2px; }
+.pxchip { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: var(--r-pill); border: 1px solid var(--border2); background: var(--surface); font-size: var(--fs-12); color: var(--text); }
+.pxchip:hover { border-color: var(--accent); }
+.pxchip.on { border-color: var(--accent); background: var(--accent-soft); color: var(--accent-text); }
+.pxchip .src { color: var(--muted); }
+.pxchip.on .src { color: inherit; opacity: .8; }
+.pxchip b { font-weight: 600; font-size: var(--fs-11); letter-spacing: .02em; }
+.pxchip .also { font-size: var(--fs-11); color: var(--muted); }
+.pxre { margin-left: 2px; }
+
+/* the form */
+.pxcard { display: flex; flex-direction: column; gap: 12px; padding: 14px 16px 16px; border-radius: var(--r-12); border: 1px solid var(--border2); background: var(--surface); }
+.pxcard h4 { margin: 0; display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: var(--fs-13); font-weight: 600; }
+.pxcard h4 .linkbtn { display: inline-flex; align-items: center; gap: 4px; font-weight: 400; }
+.pxcard .fl { margin: 0; }
+.pxtypes { align-self: flex-start; width: fit-content; }
+.pxaddr { display: flex; align-items: flex-end; gap: 8px; }
+.pxaddr > .fl { flex: 1; min-width: 0; }
+.pxaddr > .pxport { flex: 0 0 110px; }
+.pxcolon { padding-bottom: 10px; color: var(--muted); font-family: var(--mono); }
+.pxpaste { margin-top: -6px; }
+.pxaddlogin { align-self: flex-start; display: inline-flex; align-items: center; gap: 4px; }
+.pxlogin { display: flex; flex-direction: column; gap: 10px; padding: 12px; border-radius: var(--r-8); background: var(--raised); }
+.pxloginh { display: flex; align-items: center; gap: 6px; font-size: var(--fs-13); font-weight: 500; color: var(--text2); }
+.pxlogin .fi { background: var(--surface); }
+.pxbypass { resize: vertical; min-height: 92px; line-height: 1.6; font-size: var(--fs-12); }
+@media (max-width: 560px) {
+  .pxaddr { flex-wrap: wrap; }
+  .pxaddr > .fl { flex: 1 1 100%; }
+  .pxaddr > .pxport { flex: 1 1 100%; }
+  .pxcolon { display: none; }
+}
+
+/* the test */
+.pxres { display: flex; align-items: flex-start; gap: 8px; margin: 0; padding: 10px 12px; border-radius: var(--r-8); font-size: var(--fs-13); line-height: 1.5; }
+.pxres > svg { flex: none; margin-top: 2px; }
+.pxres.ok { background: var(--ok-soft); color: var(--ok-text); }
+.pxres.bad { background: var(--danger-soft); color: var(--danger-text); }
+.pxres.bad > div { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.pxres.bad code { font-size: var(--fs-11); color: var(--text2); opacity: .85; overflow-wrap: anywhere; }
+.pxerr { display: flex; align-items: center; gap: 6px; margin: 0; font-size: var(--fs-13); color: var(--danger-text); }
+.pxfoot { display: flex; align-items: center; gap: 8px; }
+.pxfoot .btn svg { margin-right: 5px; }
+
+/* what goes through it */
+.pxscope { display: flex; flex-direction: column; gap: 6px; padding: 12px 14px; border-radius: var(--r-12); background: var(--raised); font-size: var(--fs-13); }
+.pxscope b { font-weight: 500; }
+.pxscope ul { margin: 0; padding: 0; list-style: none; display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 4px 16px; color: var(--text2); }
+.pxscope li { display: flex; align-items: flex-start; gap: 6px; line-height: 1.5; }
+.pxscope li svg { flex: none; margin-top: 3px; color: var(--ok-text); }
