@@ -73,6 +73,7 @@ func (c *conn) installExtras(tc *kernel.Context, sess *session, f *ToolFilter) i
 		})
 		n++
 	}
+	n += c.installSkills(tc, sess, f)
 	return n
 }
 

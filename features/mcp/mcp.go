@@ -47,6 +47,7 @@ import (
 	"github.com/hedeqiang/crewbase/capabilities/sandbox"
 	"github.com/hedeqiang/crewbase/core/agent"
 	"github.com/hedeqiang/crewbase/core/agentloop"
+	"github.com/hedeqiang/crewbase/core/prompt"
 	"github.com/hedeqiang/crewbase/core/tools"
 	"github.com/hedeqiang/crewbase/kernel"
 )
@@ -346,6 +347,8 @@ type Status struct {
 	LoginURL string `json:"loginUrl,omitempty"`
 	// Version is what the server says it is when it connects (serverInfo).
 	Version string `json:"version,omitempty"`
+	// Skills is how many skills the server publishes (MCP skills extension).
+	Skills int `json:"skills,omitempty"`
 }
 
 // ToolInfo describes one MCP tool as registered.
@@ -454,6 +457,7 @@ type Service struct {
 	logins       logins
 	large        sync.Map // "<server>/<tool>" of large schemas already logged
 	flight       inflight // tool calls under way, per server (elicit.go)
+	skills       skillsHost
 }
 
 func (s *Service) agents() *agent.Registry {
@@ -832,6 +836,7 @@ func (s *Service) Remove(name string) error {
 		return err
 	}
 	_ = s.SignOut(name) // a removed server's sign-in token goes too
+	s.skills.drop(name) // and its cached skill files
 	s.dropOwnSecrets(e.srv)
 	s.emit(name)
 	return nil
@@ -1045,7 +1050,7 @@ func (s *Service) close() {
 var Plugin = kernel.Register(kernel.Spec{
 	Name:        "@crewbase/mcp",
 	Inject:      []string{tools.ServiceKey},
-	Optional:    []string{sandbox.ServiceKey, credentials.ServiceKey, agent.ServiceKey},
+	Optional:    []string{sandbox.ServiceKey, credentials.ServiceKey, agent.ServiceKey, prompt.ServiceKey},
 	Description: "MCP connectors: stdio (sandboxed) and Streamable HTTP servers as namespaced tools (mcp service).",
 	Apply: func(c *kernel.Context) error {
 		cfg, err := kernel.Decode[Config](c)
@@ -1084,6 +1089,11 @@ var Plugin = kernel.Register(kernel.Spec{
 		}
 		s.tools.AddConnectors(c, s.connectorInfos)
 		agentloop.ResolveUse.Use(c, s.resolvePrompts)
+		// MCP skills: the resident catalog, and the acting-window gate
+		if pa, ok := kernel.Lookup[*prompt.Assembler](c, prompt.ServiceKey); ok {
+			pa.Register(c, &prompt.Fragment{Name: "mcp-skills-catalog", Order: 31, Render: s.skillsCatalog})
+		}
+		tools.PreExecute.Use(c, s.skillGate)
 		s.op.Lock()
 		s.mu.Lock()
 		es := make([]*entry, 0, len(s.entries))
