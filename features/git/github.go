@@ -366,6 +366,45 @@ func (c *ghClient) merge(ctx context.Context, n int, method, sha, title, msg str
 
 // ---------------------------------------------------------------- client for a folder
 
+// Origin is where a repository's origin remote points, as the 代码 panel
+// needs it: a GitHub repository gets pull requests, anything else only
+// commits and pushes.
+type Origin struct {
+	Host   string `json:"host"`
+	Repo   string `json:"repo,omitempty"` // owner/name
+	GitHub bool   `json:"github"`
+	// Token: a credential for the host is set up (Settings › Git).
+	Token bool `json:"token"`
+}
+
+// originOf is dir's origin remote (nil when there is none).
+func (s *Service) originOf(ctx context.Context, dir string) *Origin {
+	g, err := s.vcs()
+	if err != nil {
+		return nil
+	}
+	u, err := g.RemoteURL(ctx, dir, "origin")
+	if err != nil || strings.TrimSpace(u) == "" {
+		return nil
+	}
+	o := &Origin{Host: gitcli.HostOf(u)}
+	rm, ok := gitcli.ParseRemote(u)
+	if ok {
+		o.Host, o.Repo = rm.Host, rm.Slug()
+	}
+	for _, r := range s.st.settings().Remotes {
+		if o.Host != "" && strings.EqualFold(r.Host, o.Host) {
+			o.Token = r.Credential != ""
+			// a host with an API root set is a GitHub Enterprise Server
+			o.GitHub = ok && r.API != ""
+		}
+	}
+	if ok && (o.Host == "github.com" || strings.Contains(o.Host, "github")) {
+		o.GitHub = true
+	}
+	return o
+}
+
 // github is the GitHub client for the repository dir lies in (its origin).
 func (s *Service) github(ctx context.Context, dir string) (*ghClient, error) {
 	g, err := s.vcs()

@@ -124,6 +124,48 @@ func (s *Service) Repo(ctx context.Context, dir string) (vcs.RepoInfo, error) {
 
 func (s *Service) forget(dir string) { s.probe.Delete(dir) }
 
+// Init makes dir, a folder in no repository, a new one (on main).
+func (s *Service) Init(ctx context.Context, dir, actor string) (vcs.RepoInfo, error) {
+	g, err := s.vcs()
+	if err != nil {
+		return vcs.RepoInfo{}, err
+	}
+	if fi, err := os.Stat(dir); err != nil || !fi.IsDir() {
+		return vcs.RepoInfo{}, fmt.Errorf("no folder %s", dir)
+	}
+	if err := g.Init(ctx, dir); err != nil {
+		return vcs.RepoInfo{}, err
+	}
+	s.forget(dir)
+	info, err := s.Repo(ctx, dir)
+	if err != nil {
+		return vcs.RepoInfo{}, err
+	}
+	s.changed(vcs.Event{Type: "git/init", Repo: info.ID, Actor: actor, Data: map[string]any{"dir": dir}})
+	return info, nil
+}
+
+// NewBranch starts branch at dir's HEAD and switches dir to it, the
+// uncommitted changes with it (work on a protected branch moves off it
+// before it is committed).
+func (s *Service) NewBranch(ctx context.Context, dir, branch, actor string) (vcs.RepoInfo, error) {
+	g, err := s.vcs()
+	if err != nil {
+		return vcs.RepoInfo{}, err
+	}
+	branch = strings.TrimSpace(branch)
+	if err := g.NewBranch(ctx, dir, branch); err != nil {
+		return vcs.RepoInfo{}, err
+	}
+	s.forget(dir)
+	info, err := s.Repo(ctx, dir)
+	if err != nil {
+		return vcs.RepoInfo{}, err
+	}
+	s.changed(vcs.Event{Type: "git/branch.created", Repo: info.ID, Actor: actor, Data: map[string]any{"branch": branch, "dir": dir}})
+	return info, nil
+}
+
 // ---------------------------------------------------------------- actors
 
 // Actors are agent:<id> or person:<id> ("person:owner" for the host's owner).
