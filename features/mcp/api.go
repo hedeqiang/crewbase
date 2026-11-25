@@ -203,6 +203,16 @@ var APIPlugin = kernel.Register(kernel.Spec{
 				}
 				return map[string]any{"prompts": list}, nil
 			}})
+		// the skills a server publishes (MCP skills extension): names and
+		// descriptions only, nothing of their content is fetched for this
+		g.Handle(c, gateway.Route{Method: "GET", Path: "/api/mcp/{name}/skills",
+			Handle: func(_ context.Context, r *gateway.Request) (any, error) {
+				list, errMsg, ok := s.Skills(r.Params["name"])
+				if !ok {
+					return nil, gateway.NotFound()
+				}
+				return map[string]any{"skills": list, "error": errMsg}, nil
+			}})
 		g.Handle(c, gateway.Route{Method: "GET", Path: "/api/mcp/{name}/tools",
 			Handle: func(_ context.Context, r *gateway.Request) (any, error) {
 				list, ok := s.Tools(r.Params["name"])

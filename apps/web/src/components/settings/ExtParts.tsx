@@ -4,7 +4,7 @@
 import { Skeleton } from "../Skeleton";
 import { useEffect, useState } from "react";
 import { Plus, RefreshCw, X } from "lucide-react";
-import { API, desktop, openExternal, type McpServer, type McpTool, type McpToolFilter, type Permissions, type PluginView } from "../../api";
+import { API, desktop, openExternal, type McpServer, type McpSkill, type McpTool, type McpToolFilter, type Permissions, type PluginView } from "../../api";
 import { t, type Key } from "../../i18n";
 import { toast } from "../../store";
 import { catLabel } from "../Settings";
@@ -230,6 +230,62 @@ export function McpTools({ name, server, onProbed }: { name: string; server?: Mc
                 aria-label={t("ext.toolSwitch", { name: x.original })}
                 onClick={() => toggle(x, x.enabled === false)}
               />
+            )}
+          </div>
+        ))
+      )}
+    </div>
+  );
+}
+
+/** The skills a server publishes (MCP skills extension): what it ships,
+ *  listed by name; their content is only fetched when an agent loads one.
+ *  localNames: this computer's own skills, to flag same-named ones. */
+export function McpSkills({ name, count, localNames }: { name: string; count?: number; localNames: Set<string> }) {
+  const [skills, setSkills] = useState<McpSkill[] | null>(null);
+  const [err, setErr] = useState("");
+  useEffect(() => {
+    API.mcpSkills(name).then(
+      (r) => {
+        setSkills(r.skills ?? []);
+        setErr(r.error ?? "");
+      },
+      (e) => {
+        setSkills([]);
+        setErr(errMsg(e));
+      },
+    );
+  }, [name, count]);
+  return (
+    <div className="runs">
+      <div className="acts sm" style={{ marginTop: 0 }}>
+        <b className="small">{t("ext.mcpSkills")}</b>
+        {skills && skills.length > 0 && <span className="small">{t("ext.skillsN", { n: skills.length })}</span>}
+      </div>
+      <p className="small">{t("ext.mcpSkillsHint")}</p>
+      {err && <p className="small errt">{t("ext.mcpSkillsErr", { error: err })}</p>}
+      {skills === null ? (
+        <Skeleton />
+      ) : skills.length === 0 ? (
+        <p className="small">{t("ext.mcpSkillsNone")}</p>
+      ) : (
+        skills.map((x) => (
+          <div className={"runrow" + (x.invalid ? " off" : "")} key={x.uri} title={x.uri}>
+            <code>{x.name}</code>
+            <span className="g small" title={x.invalid ? t("ext.mcpSkillInvalid", { why: x.invalid }) : x.description}>
+              {x.invalid ? t("ext.mcpSkillInvalid", { why: x.invalid }) : x.description}
+            </span>
+            {(x.collides || localNames.has(x.name)) && (
+              <span className="pill amber sm" title={t("ext.mcpSkillSameNameTip")}>
+                {t("ext.mcpSkillSameName")}
+              </span>
+            )}
+            {x.dynamic ? (
+              <span className="pill amber sm" title={t("ext.mcpSkillDynamicTip")}>
+                {t("ext.mcpSkillDynamic")}
+              </span>
+            ) : (
+              !x.invalid && <span className="pill sm">{t("ext.mcpSkillFiles", { n: x.files })}</span>
             )}
           </div>
         ))

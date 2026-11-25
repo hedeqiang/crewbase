@@ -852,6 +852,20 @@ export interface McpStatus {
   loginUrl?: string;
   /** what the server says it is when it connects */
   version?: string;
+  /** skills the server publishes (MCP skills extension) */
+  skills?: number;
+}
+/** A skill an MCP server publishes (names and descriptions only). */
+export interface McpSkill {
+  server: string;
+  uri: string;
+  name: string;
+  description?: string;
+  files: number;
+  size: number;
+  dynamic?: boolean;
+  invalid?: string;
+  collides?: boolean;
 }
 export interface McpServer {
   name: string;
@@ -2083,6 +2097,7 @@ export const API = {
   patchMcp: (name: string, b: Partial<McpServer>) => api<McpServer>("PATCH", `/api/mcp/${enc(name)}`, b),
   deleteMcp: (name: string) => api("DELETE", `/api/mcp/${enc(name)}`),
   probeMcp: (name: string) => api<{ ok: boolean; error?: string; tools: McpTool[] }>("POST", `/api/mcp/${enc(name)}/probe`),
+  mcpSkills: (name: string) => api<{ skills: McpSkill[] | null; error?: string }>("GET", `/api/mcp/${enc(name)}/skills`),
   mcpTools: (name: string) => api<{ tools: McpTool[] | null; status: McpStatus }>("GET", `/api/mcp/${enc(name)}/tools`),
   connectors: () => api<{ connectors: ConnectorInfo[] | null }>("GET", "/api/connectors"),
 
