@@ -6,6 +6,7 @@ package approval
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"sync"
 	"time"
@@ -52,6 +53,23 @@ type Request struct {
 	// (external payment); ConfirmRemember asks for a second confirmation.
 	Rememberable    bool `json:"rememberable"`
 	ConfirmRemember bool `json:"confirmRemember"`
+	// Elicit is set when the request is a question for the person rather
+	// than a yes or no on the call: an MCP server asking for input mid-call
+	// (MCP elicitation). CallID is then its own id, and Parent the tool
+	// call it belongs to.
+	Elicit *Elicitation `json:"elicit,omitempty"`
+	Parent string       `json:"parent,omitempty"`
+}
+
+// Elicitation is what an MCP server asks the person (MCP elicitation):
+// a form (Schema: a flat JSON Schema of strings, numbers, booleans and
+// enums) or a link to open (URL), with why it asks.
+type Elicitation struct {
+	Server  string          `json:"server"` // the MCP server, as configured here
+	Mode    string          `json:"mode"`   // form | url
+	Message string          `json:"message"`
+	Schema  json.RawMessage `json:"schema,omitempty"`
+	URL     string          `json:"url,omitempty"`
 }
 
 // Decision is a responder's answer.
@@ -64,6 +82,8 @@ type Decision struct {
 	// dropped by the service.
 	Confirmed bool   `json:"confirmed,omitempty"`
 	By        string `json:"by,omitempty"` // responder / person
+	// Values are what the person filled in, for an elicitation form.
+	Values map[string]any `json:"values,omitempty"`
 }
 
 // Responder answers approval requests. ok=false means "not mine".
@@ -160,8 +180,11 @@ func (s *Service) Ask(ctx context.Context, ss *session.Session, req Request) Dec
 	if d.Outcome != OutcomeAllowedOnce {
 		d.Remember = false
 	}
-	if !req.Rememberable || (req.ConfirmRemember && !d.Confirmed) {
+	if !req.Rememberable || (req.ConfirmRemember && !d.Confirmed) || req.Elicit != nil {
 		d.Remember = false
+	}
+	if req.Elicit == nil || d.Outcome != OutcomeAllowedOnce {
+		d.Values = nil
 	}
 	dd := DecidedData{CallID: req.CallID, Decision: d}
 	if _, err := ss.Append(session.TypeApprovalDecided, req.Agent, dd); err != nil {

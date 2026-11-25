@@ -58,8 +58,9 @@ export function ConvHeader({ draftColor, draftShape, draftFace }: { draftColor: 
   let state: { cls: string; text: string } | null = null;
   if (view === "chat" && agent && !isChannel) {
     const tk = takeoverReason(agent);
-    const pend = approvals.some((r) => r.agent === agent.id);
-    if (pend) state = { cls: "amber", text: t("hd.waitApprove") };
+    const pend = approvals.filter((r) => r.agent === agent.id);
+    // only questions from servers: 等你回答
+    if (pend.length) state = { cls: "amber", text: t(pend.every((r) => r.elicit) ? "el.waiting" : "hd.waitApprove") };
     else if (tk) state = { cls: "amber", text: t("hd.waitTakeover") };
     else if (agent.status === "running") state = { cls: "blue", text: t("hd.running") };
     else if (agent.paused) state = { cls: "muted", text: t("hd.paused") };

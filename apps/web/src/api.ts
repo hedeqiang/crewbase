@@ -184,6 +184,41 @@ export interface ApprovalRequest {
   asked: string;
   rememberable: boolean;
   confirmRemember: boolean;
+  /** an MCP server asking the person mid-call (MCP elicitation): a form or a
+   *  link to open; parent is the tool call it belongs to */
+  elicit?: Elicitation;
+  parent?: string;
+}
+
+/** What an MCP server asks for (features/mcp/elicit.go). */
+export interface Elicitation {
+  server: string;
+  mode: "form" | "url";
+  message: string;
+  /** form: a flat JSON Schema (strings, numbers, booleans, enums) */
+  schema?: ElicitSchema;
+  url?: string;
+}
+export interface ElicitSchema {
+  type?: "object";
+  properties?: Record<string, ElicitField>;
+  required?: string[];
+}
+export interface ElicitField {
+  type?: "string" | "number" | "integer" | "boolean" | "array";
+  title?: string;
+  description?: string;
+  format?: "email" | "uri" | "date" | "date-time" | string;
+  minLength?: number;
+  maxLength?: number;
+  minimum?: number;
+  maximum?: number;
+  enum?: string[];
+  oneOf?: { const: string; title?: string }[];
+  minItems?: number;
+  maxItems?: number;
+  items?: { type?: string; enum?: string[]; anyOf?: { const: string; title?: string }[] };
+  default?: unknown;
 }
 
 export interface ModelInfo {
@@ -1934,7 +1969,7 @@ export const API = {
   events: (id: string, since: number) =>
     api<{ meta: SessionMeta; events: SessionEvent[] }>("GET", `/api/sessions/${enc(id)}/events?since=${since}`),
   approvals: () => api<{ pending: ApprovalRequest[] }>("GET", "/api/approvals"),
-  decide: (callId: string, b: { outcome: "allowed-once" | "rejected"; message?: string; remember?: boolean; confirmed?: boolean }) =>
+  decide: (callId: string, b: { outcome: "allowed-once" | "rejected" | "cancelled"; message?: string; remember?: boolean; confirmed?: boolean; values?: Record<string, unknown> }) =>
     api("POST", `/api/approvals/${enc(callId)}`, b),
   models: () => api<ModelsResponse>("GET", "/api/models"),
 

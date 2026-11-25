@@ -7,6 +7,7 @@ import { argsPreview, type FeedItem } from "../../projection";
 import { useStore } from "../../store";
 import { ago, modeLabel } from "../../format";
 import { ApprovalActions } from "../Approval";
+import { ElicitHead } from "../Elicit";
 import { Markdown } from "../Markdown";
 import { toolLabel } from "./steps";
 
@@ -26,6 +27,7 @@ export function ApprovalCard({ it, agent }: { it: Extract<FeedItem, { k: "approv
   const req = useStore((s) => s.approvals.find((a) => a.callId === it.req.callId)) ?? it.req;
   const name = agent?.name ?? it.req.agent;
   const summary = it.req.summary || it.req.tool;
+  if (it.req.elicit) return <ElicitCard it={it} pending={pending} req={req} name={name} />;
   if (it.decided) {
     const d = it.decided;
     const by = d.by && d.by !== "desktop" ? d.by + " " : t("common.you");
@@ -106,6 +108,30 @@ function RoutineAsk({ it, name, pending, req }: { it: Extract<FeedItem, { k: "ap
       )}
       {a.prompt && <blockquote className="raprompt">{a.prompt}</blockquote>}
       <p className="small">{t("sched.askNote")}</p>
+      {pending ? <ApprovalActions req={req} /> : <p className="small" style={{ margin: "10px 0 0" }}>{t("appr.expired")}</p>}
+    </div>
+  );
+}
+
+/** An MCP server's question during a call: its form or link while it
+ *  waits; afterwards one line saying how it was answered (never what). */
+function ElicitCard({ it, pending, req, name }: { it: Extract<FeedItem, { k: "approval" }>; pending: boolean; req: ApprovalRequest; name: string }) {
+  const el = it.req.elicit!;
+  if (it.decided) {
+    const d = it.decided;
+    const by = d.by && d.by !== "desktop" ? d.by + " " : t("common.you");
+    const key: Key =
+      d.outcome === "allowed-once" ? (el.mode === "url" ? "el.doneOpened" : "el.doneAnswered") : d.outcome === "rejected" ? "el.doneDeclined" : d.outcome === "cancelled" ? "el.doneDismissed" : "el.doneExpired";
+    return (
+      <div className={"sys" + (d.outcome === "allowed-once" ? "" : " muted")}>
+        {d.outcome === "allowed-once" ? <Check size={14} /> : <CircleX size={14} />}
+        <span>{t(key, { by, server: el.server })}</span>
+      </div>
+    );
+  }
+  return (
+    <div className={"qcard elcard" + (pending ? " wait" : "")}>
+      <ElicitHead req={it.req} agentName={name} />
       {pending ? <ApprovalActions req={req} /> : <p className="small" style={{ margin: "10px 0 0" }}>{t("appr.expired")}</p>}
     </div>
   );

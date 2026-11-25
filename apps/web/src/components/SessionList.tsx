@@ -313,7 +313,7 @@ export function SessionList() {
                     <span className="ct">
                       <span className="l1">
                         <b>{a?.name ?? (r.agent || t("appr.workflow"))}</b>
-                        <span className="waitchip">{t("list.waitApprove")}</span>
+                        <span className="waitchip">{t(r.elicit ? "el.waiting" : "list.waitApprove")}</span>
                         <span className="tm">{listTime(r.asked)}</span>
                       </span>
                       <span className="l2">{approvalLine(r.summary, r.tool)}</span>
@@ -321,7 +321,15 @@ export function SessionList() {
                   </button>
                   {/* right here, without opening the conversation (a reason
                       to say no is written there) */}
-                  {canApprove(myself, r.category) && (
+                  {/* a server's question is answered in the conversation (a
+                      form or a link), never with a bare yes here */}
+                  {r.elicit ? (
+                    <span className="aprq">
+                      <button type="button" className="btn sm pri" onClick={() => openSession(r.session)}>
+                        {t("el.answer")}
+                      </button>
+                    </span>
+                  ) : canApprove(myself, r.category) && (
                     <span className="aprq">
                       <button type="button" className="btn sm pri" onClick={() => void quickDecide(r, "allowed-once")}>
                         {t("appr.approve")}

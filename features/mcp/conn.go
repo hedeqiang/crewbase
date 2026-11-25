@@ -332,10 +332,19 @@ func (c *conn) execute(original string) func(context.Context, tools.Call) (tools
 		if len(args) == 0 || string(args) == "null" {
 			args = json.RawMessage("{}")
 		}
-		cctx, cancel := context.WithTimeout(ctx, c.s.t.call)
-		defer cancel()
-		res, err := sess.cs.CallTool(cctx, &sdk.CallToolParams{Name: original, Arguments: args})
+		// the timeout stops while the server asks the person (elicit.go)
+		cctx, clock, stop := newCallClock(ctx, c.s.t.call)
+		defer stop()
+		a := &activeCall{call: call, clock: clock, started: time.Now()}
+		if t, ok := c.s.tools.Get(call.Agent, call.Name); ok {
+			a.category = t.Category
+		}
+		defer c.s.flight.add(c.srv.Name, a)()
+		res, err := sess.cs.CallTool(withActive(cctx, a), &sdk.CallToolParams{Name: original, Arguments: args})
 		if err != nil {
+			if context.Cause(cctx) == errCallTimeout {
+				err = errCallTimeout
+			}
 			return tools.Errorf("MCP %s: %v", call.Name, sess.scrubErr(err)), nil
 		}
 		return ConvertResult(res), nil
@@ -503,8 +512,10 @@ func (s *Service) workdir(srv Server) (string, error) {
 	return d, nil
 }
 
-func (s *Service) newClient(onChange func()) *sdk.Client {
-	opts := &sdk.ClientOptions{Capabilities: &sdk.ClientCapabilities{}}
+func (s *Service) newClient(server string, onChange func()) *sdk.Client {
+	// forms and links the server may ask the person for (elicit.go)
+	opts := &sdk.ClientOptions{Capabilities: &sdk.ClientCapabilities{Elicitation: elicitationCaps()},
+		ElicitationHandler: s.elicitHandler(server)}
 	if onChange != nil {
 		opts.ToolListChangedHandler = func(context.Context, *sdk.ToolListChangedRequest) { onChange() }
 	}
@@ -660,7 +671,7 @@ func (s *Service) dialStdio(ctx context.Context, srv Server, ws string, onChange
 		sess.waitErr = cmd.Wait()
 		close(sess.exited)
 	}()
-	cs, err := s.newClient(onChange).Connect(ctx, &sdk.IOTransport{Reader: outR, Writer: inW}, nil)
+	cs, err := s.newClient(srv.Name, onChange).Connect(ctx, &sdk.IOTransport{Reader: outR, Writer: inW}, nil)
 	if err != nil {
 		inW.Close()
 		outR.Close()
@@ -719,7 +730,7 @@ func (s *Service) dialHTTP(ctx context.Context, c *conn, srv Server, onChange fu
 		}
 		t.OAuthHandler = h
 	}
-	cs, err := s.newClient(onChange).Connect(ctx, t, nil)
+	cs, err := s.newClient(srv.Name, onChange).Connect(ctx, t, nil)
 	if err != nil {
 		return nil, sess.scrubErr(fmt.Errorf("initialize: %w", err))
 	}

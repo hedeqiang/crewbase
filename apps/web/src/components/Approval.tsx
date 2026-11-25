@@ -2,6 +2,7 @@ import { useState } from "react";
 import { API, type ApprovalRequest } from "../api";
 import { t } from "../i18n";
 import { refreshApprovals, toast, useStore, canApprove } from "../store";
+import { ElicitAnswer } from "./Elicit";
 
 /** 批准 / 拒绝(填原因) / 以后都允许 — shared by the card, the 需要你 menu and settings. */
 export function ApprovalActions({ req, small = false, extra }: { req: ApprovalRequest; small?: boolean; extra?: React.ReactNode }) {
@@ -27,6 +28,9 @@ export function ApprovalActions({ req, small = false, extra }: { req: ApprovalRe
       void refreshApprovals();
     }
   };
+
+  // an MCP server's question: its form or link, not yes and no
+  if (req.elicit) return <ElicitAnswer req={req} />;
 
   if (mode === "reject")
     return (

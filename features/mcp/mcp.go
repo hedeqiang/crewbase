@@ -453,6 +453,7 @@ type Service struct {
 	redirectBase string // gateway origin for OAuth callbacks
 	logins       logins
 	large        sync.Map // "<server>/<tool>" of large schemas already logged
+	flight       inflight // tool calls under way, per server (elicit.go)
 }
 
 func (s *Service) agents() *agent.Registry {

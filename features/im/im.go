@@ -780,6 +780,11 @@ func ApprovalCard(req approval.Request, agentName, token string) Message {
 // agent of the gateway's team, not someone's personal chat. A request of
 // a sub-agent or a workflow is judged by its session's agents.
 func (g *Gateway) approvable(req approval.Request) bool {
+	// an MCP server's question (a form, a link to open) needs the app:
+	// a chat card has only yes and no
+	if req.Elicit != nil {
+		return false
+	}
 	r, ok := kernel.Lookup[*agent.Registry](g.c, agent.ServiceKey)
 	if !ok {
 		return g.cfg.Team == ""

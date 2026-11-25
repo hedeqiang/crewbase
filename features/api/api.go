@@ -174,6 +174,8 @@ type decideBody struct {
 	Message   string           `json:"message,omitempty"`
 	Remember  bool             `json:"remember,omitempty"`
 	Confirmed bool             `json:"confirmed,omitempty"`
+	// Values: an elicitation form's answers
+	Values map[string]any `json:"values,omitempty"`
 }
 
 // Plugin registers the core API.
@@ -876,6 +878,17 @@ var Plugin = kernel.Register(kernel.Spec{
 				if err := r.Decode(&b); err != nil {
 					return err
 				}
+				// an elicitation may also be dismissed (cancelled): the server
+				// tells it apart from an explicit no
+				if b.Outcome == approval.OutcomeCancelled {
+					if in, ok := kernel.Lookup[*approval.Inbox](c, approval.InboxKey); ok {
+						for _, p := range in.Pending() {
+							if p.CallID == r.Params["callId"] && p.Elicit != nil {
+								return nil
+							}
+						}
+					}
+				}
 				if b.Outcome != approval.OutcomeAllowedOnce && b.Outcome != approval.OutcomeRejected {
 					return gateway.BadRequest("outcome must be allowed-once or rejected")
 				}
@@ -912,7 +925,7 @@ var Plugin = kernel.Register(kernel.Spec{
 						by = name
 					}
 				}
-				if !in.Decide(r.Params["callId"], approval.Decision{Outcome: b.Outcome, Message: b.Message, Remember: b.Remember, Confirmed: b.Confirmed, By: by}) {
+				if !in.Decide(r.Params["callId"], approval.Decision{Outcome: b.Outcome, Message: b.Message, Remember: b.Remember, Confirmed: b.Confirmed, By: by, Values: b.Values}) {
 					return nil, gateway.NotFound()
 				}
 				return nil, nil

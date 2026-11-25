@@ -10,6 +10,8 @@ export interface Step {
   doneAt?: string;
   /** An approval card is waiting for this call. */
   awaiting?: boolean;
+  /** what it waits for is a server's question, not an approval */
+  asking?: boolean;
   /** How the approval card for this call was answered (shown on the step). */
   decision?: Decision;
   /** delegate: the sub-agent run it started (its session) */
@@ -492,8 +494,12 @@ export function project(events: SessionEvent[], cards?: ReadonlySet<string>): Pr
         const req: ApprovalRequest = { ...d, session: d.session ?? e.session, agent: d.agent ?? e.agent ?? "" };
         const it: Extract<FeedItem, { k: "approval" }> = { k: "approval", id, req, call: calls.get(req.callId), time: e.time };
         approvals.set(req.callId, it);
-        const st = steps.get(req.callId);
-        if (st) st.awaiting = true;
+        // a server's question waits on the call it belongs to
+        const st = steps.get(req.parent || req.callId);
+        if (st) {
+          st.awaiting = true;
+          st.asking = !!req.elicit;
+        }
         push(it, e.time);
         break;
       }
@@ -501,6 +507,13 @@ export function project(events: SessionEvent[], cards?: ReadonlySet<string>): Pr
         const it = approvals.get(d.callId);
         const dec: Decision = { outcome: d.outcome, message: d.message, remember: d.remember, by: d.by };
         if (it) it.decided = dec;
+        // a question stays in the feed, saying how it was answered; the
+        // call it belongs to carries on (no decision of its own)
+        if (it?.req.elicit) {
+          const ps = it.req.parent ? steps.get(it.req.parent) : undefined;
+          if (ps) ps.awaiting = ps.asking = false;
+          break;
+        }
         const st = steps.get(d.callId);
         if (st) {
           st.awaiting = false;

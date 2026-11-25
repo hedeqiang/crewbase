@@ -297,7 +297,7 @@ export function Segment({ items, live, active, agent, tail, after }: { items: Tl
           )}
         </span>
         <span className="tll segsum">{segSummary(items)}</span>
-        {awaiting && <span className="pill sm amber">{t("appr.waiting")}</span>}
+        {awaiting && <span className="pill sm amber">{t(steps.some((s) => s.awaiting && s.asking) ? "el.waiting" : "appr.waiting")}</span>}
         {declined > 0 && <span className="pill sm">{t("chat.toolDeclined")}</span>}
         {errors > 0 && (
           <span className="pill sm red">
