@@ -203,26 +203,26 @@
 }
 
 /* 设置 › Git */
-.gitset .gsremotes { padding: 14px 16px; display: flex; flex-direction: column; gap: 8px; }
-.gitset .gsnote { margin: 0; line-height: 1.6; color: var(--muted); }
-.gitset .gspad { padding: 10px 16px 14px; }
-.gitset .gsrh, .gitset .gsr { display: grid; grid-template-columns: minmax(110px, 1fr) minmax(150px, 1.4fr) minmax(150px, 1.4fr) 22px; gap: 8px; align-items: center; }
-.gitset .gsrh { color: var(--muted); padding: 4px 0 0; }
-.gitset .gsr input { min-width: 0; }
-.gitset .gsadd { display: flex; align-items: center; gap: 12px; padding-top: 4px; }
 .gitset .gsw { width: 240px; max-width: 100%; }
 .gitset .gsnum { width: 80px; }
-.gitset .gsopts { padding: 8px; display: flex; flex-direction: column; gap: 4px; }
-.gitset .gsopt { display: flex; align-items: flex-start; gap: 10px; padding: 10px 12px; border-radius: var(--r-8); cursor: pointer; border: 1px solid transparent; }
-.gitset .gsopt:hover { background: var(--hover); }
-.gitset .gsopt.on { border-color: color-mix(in srgb, var(--accent) 40%, transparent); background: var(--accent-soft); }
-.gitset .gsopt input { margin-top: 4px; }
-.gitset .gsopt .g { display: flex; flex-direction: column; gap: 2px; font-size: var(--fs-13); }
-.gitset .gsopt .small { line-height: 1.5; }
-@media (max-width: 720px) {
-  .gitset .gsrh { display: none; }
-  .gitset .gsr { grid-template-columns: 1fr 22px; }
-  .gitset .gsr input:nth-child(2), .gitset .gsr input:nth-child(3) { grid-column: 1; }
+/* push credentials: one row per host, aligned with the rows above */
+.gitset .gsr { display: grid; grid-template-columns: minmax(120px, 1fr) minmax(160px, 1.6fr) 24px; gap: 8px; }
+.gitset .gsr input { min-width: 0; }
+.gitset .gsfoot { padding: 10px 0; }
+.gitset .gscmd { font-family: var(--mono); font-size: var(--fs-12); padding: 3px 8px; border-radius: var(--r-6); background: var(--sunken); border: 1px solid var(--border); color: var(--text2); white-space: nowrap; }
+.gitset .gstag { font-size: var(--fs-12); padding: 2px 9px; border-radius: var(--r-pill); background: var(--active); color: var(--text2); white-space: nowrap; }
+/* where sub-agents work: rows with a radio, the chosen one in bold */
+.gitset .gsopt { cursor: pointer; }
+.gitset .gsopt .g b { font-weight: 500; }
+.gitset .gsopt.on .g b { font-weight: 600; }
+.gitset .gsopt input { width: 16px; height: 16px; accent-color: var(--accent); cursor: pointer; }
+/* a choice keeps its radio on the right even where rows stack */
+@media (max-width: 640px) {
+  .gitset .srow.gsopt { flex-direction: row; align-items: center; }
+}
+@media (max-width: 560px) {
+  .gitset .gsr { grid-template-columns: 1fr 24px; }
+  .gitset .gsr input:nth-child(2) { grid-column: 1; }
   .gitset .gsr .ix { grid-row: 1; grid-column: 2; }
 }
 .cd a.btn { text-decoration: none; }

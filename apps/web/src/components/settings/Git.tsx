@@ -1,6 +1,7 @@
-// 设置 › Git (features/git): where sub-agents work, how local reviews go,
-// protected branches, push credentials per host (vault references only),
-// and GitHub pull requests (the first-pass reviewer, private GHE ranges).
+// 设置 › Git (features/git): push credentials per host (optional, vault
+// references only), GitHub (through the local gh), protected branches,
+// where sub-agents work, and how local reviews go. Every box is made of
+// rows (title, description, control), like the other settings pages.
 
 import { useEffect, useState } from "react";
 import { Plus, X } from "lucide-react";
@@ -57,37 +58,33 @@ export function GitPage() {
       <div className="vb gitset">
         <div className="vsec">{t("git.set.remotes")}</div>
         <div className="sbox">
-          <div className="gsremotes">
-            <p className="small gsnote">{t("git.set.remotesHint")}</p>
-            {s.remotes.length > 0 && (
-              <div className="gsrh small">
-                <span>{t("gitset.host")}</span>
-                <span>{t("gitset.cred")}</span>
-                <span />
-              </div>
-            )}
-            {s.remotes.map((r, i) => (
-              <div key={i} className="gsr">
-                <input className="fi sm" value={r.host} placeholder="github.com" aria-label={t("gitset.host")} onChange={(e) => remote(i, { host: e.target.value.trim() })} />
-                <input className="fi sm mono" value={r.credential} placeholder="vault:github/token" aria-label={t("gitset.cred")} onChange={(e) => remote(i, { credential: e.target.value.trim() })} />
-                <button type="button" className="ix" aria-label={t("common.delete")} title={t("common.delete")} onClick={() => setS({ ...s, remotes: s.remotes.filter((_, j) => j !== i) })}>
-                  <X size={13} />
-                </button>
-              </div>
-            ))}
-            <div className="gsadd">
-              <button type="button" className="btn sm" onClick={() => setS({ ...s, remotes: [...s.remotes, { host: "github.com", credential: "vault:" }] })}>
-                <Plus size={12} />
-                {t("git.set.addRemote")}
+          <Row title={t("gitset.remotesTitle")} desc={t("git.set.remotesHint")}>
+            <button type="button" className="btn sm" onClick={() => setS({ ...s, remotes: [...s.remotes, { host: "github.com", credential: "vault:" }] })}>
+              <Plus size={12} />
+              {t("git.set.addRemote")}
+            </button>
+          </Row>
+          {s.remotes.map((r, i) => (
+            <div key={i} className="srow gsr">
+              <input className="fi sm" value={r.host} placeholder="github.com" aria-label={t("gitset.host")} onChange={(e) => remote(i, { host: e.target.value.trim() })} />
+              <input className="fi sm mono" value={r.credential} placeholder="vault:github/token" aria-label={t("gitset.cred")} onChange={(e) => remote(i, { credential: e.target.value.trim() })} />
+              <button type="button" className="ix" aria-label={t("common.delete")} title={t("common.delete")} onClick={() => setS({ ...s, remotes: s.remotes.filter((_, j) => j !== i) })}>
+                <X size={13} />
               </button>
+            </div>
+          ))}
+          {s.remotes.length > 0 && (
+            <div className="srow gsfoot">
               <button type="button" className="linkbtn small" onClick={() => setState({ settings: "vault" })}>{t("gitset.toVault")}</button>
             </div>
-          </div>
+          )}
         </div>
 
         <div className="vsec">{t("git.set.github")}</div>
         <div className="sbox">
-          <p className="small gsnote gspad">{t("git.set.viaGH")}</p>
+          <Row title={t("gitset.ghTitle")} desc={t("git.set.viaGH")}>
+            <code className="gscmd">gh auth login</code>
+          </Row>
           <Row title={t("git.set.prReviewer")} desc={t("git.set.prReviewerHint")}>
             <span className="ssel">
               <select value={s.prReviewer ?? ""} onChange={(e) => setS({ ...s, prReviewer: e.target.value || undefined })}>
@@ -100,24 +97,28 @@ export function GitPage() {
               </select>
             </span>
           </Row>
-          <p className="small gsnote gspad">{t("git.set.forkHint")}</p>
+          <Row title={t("gitset.forkTitle")} desc={t("git.set.forkHint")}>
+            <span className="gstag">{t("gitset.readOnly")}</span>
+          </Row>
         </div>
 
         <div className="vsec">{t("git.set.protected")}</div>
         <div className="sbox">
-          <Row title={t("git.set.protected")} desc={t("git.set.protectedHint")}>
+          <Row title={t("gitset.protectedTitle")} desc={t("git.set.protectedHint")}>
             <input className="fi sm mono gsw" value={s.protected.join(", ")} placeholder="main, release/*" onChange={(e) => setS({ ...s, protected: e.target.value.split(",").map((x) => x.trim()) })} />
           </Row>
         </div>
 
         <div className="vsec">{t("git.set.isolation")}</div>
-        <div className="sbox gsopts">
+        <div className="sbox" role="radiogroup" aria-label={t("git.set.isolation")}>
           {ISO.map((k) => (
-            <label key={k} className={"gsopt" + (s.isolation === k ? " on" : "")}>
-              <input type="radio" name="iso" checked={s.isolation === k} onChange={() => setS({ ...s, isolation: k })} />
+            <label key={k} className={"srow gsopt" + (s.isolation === k ? " on" : "")}>
               <span className="g">
                 <b>{t(`git.iso.${k}` as Key)}</b>
-                <span className="small">{t(`git.iso.${k}.hint` as Key)}</span>
+                <span>{t(`git.iso.${k}.hint` as Key)}</span>
+              </span>
+              <span className="c">
+                <input type="radio" name="iso" checked={s.isolation === k} onChange={() => setS({ ...s, isolation: k })} />
               </span>
             </label>
           ))}
@@ -125,13 +126,13 @@ export function GitPage() {
 
         <div className="vsec">{t("git.set.review")}</div>
         <div className="sbox">
-          <Row title={t("git.set.rounds")}>
+          <Row title={t("git.set.rounds")} desc={t("gitset.roundsHint")}>
             <input className="fi sm gsnum" type="number" min={0} max={10} value={s.maxAutoRounds} onChange={(e) => setS({ ...s, maxAutoRounds: Number(e.target.value) })} />
           </Row>
-          <Row title={t("git.set.approvals")}>
+          <Row title={t("git.set.approvals")} desc={t("gitset.approvalsHint")}>
             <input className="fi sm gsnum" type="number" min={1} max={5} value={s.approvals} onChange={(e) => setS({ ...s, approvals: Number(e.target.value) })} />
           </Row>
-          <Row title={t("git.set.autoReview")}>
+          <Row title={t("git.set.autoReview")} desc={t("gitset.autoReviewHint")}>
             <button type="button" className="tg" role="switch" aria-checked={s.autoReview} aria-label={t("git.set.autoReview")} onClick={() => setS({ ...s, autoReview: !s.autoReview })} />
           </Row>
         </div>
