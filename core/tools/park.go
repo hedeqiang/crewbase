@@ -169,9 +169,12 @@ func (r *Registry) ask(ctx context.Context, agent, callID string, run func(conte
 	// use the turn's context; cancelling the turn still cancels it.
 	actx, cancel := context.WithCancel(context.WithoutCancel(ctx))
 	res := make(chan approval.Decision, 1)
-	go func() { res <- run(actx) }()
+	// waiting before the request is sent: a background result queued as
+	// soon as the card shows must find the call to park (registering after
+	// starting the request raced with it and left the turn stuck)
 	park := r.park.wait(agent, callID)
 	defer r.park.done(agent, park)
+	go func() { res <- run(actx) }()
 	select {
 	case dd = <-res:
 		cancel()
