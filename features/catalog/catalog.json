@@ -22,6 +22,9 @@
     {"id": "addyosmani-agent-skills", "name": "Agent Skills", "author": "addyosmani", "repo": "https://github.com/addyosmani/agent-skills/tree/main/skills",
      "desc": {"zh": "生产级工程技能：前端工程、性能优化、安全加固、无障碍、API 设计、CI/CD（MIT）", "en": "Production engineering: frontend, performance, security hardening, accessibility, API design, CI/CD (MIT)"},
      "picks": ["frontend-ui-engineering", "performance-optimization", "security-and-hardening", "api-and-interface-design", "accessibility-engineering"]},
+    {"id": "cursor-plugins", "name": "Cursor Plugins", "author": "Cursor", "repo": "https://github.com/cursor/plugins",
+     "desc": {"zh": "Cursor 官方插件里的技能：修 CI、处理合并冲突、整理 PR 便于审查、拉取并处理 PR 评论、清理 AI 写的冗余代码、发布前审查等（各插件 MIT）", "en": "Skills from Cursor's official plugins: fixing CI, merge conflicts, making PRs easy to review, handling PR comments, cleaning up AI-written slop, reviewing before shipping and more (each plugin MIT)"},
+     "picks": ["fix-ci", "fix-merge-conflicts", "make-pr-easy-to-review", "get-pr-comments", "deslop", "review-and-ship"]},
     {"id": "ui-ux-pro-max", "name": "UI/UX Pro Max", "author": "nextlevelbuilder", "repo": "https://github.com/nextlevelbuilder/ui-ux-pro-max-skill/tree/main/.claude/skills",
      "desc": {"zh": "界面与视觉设计：设计系统、UI 风格、品牌、横幅与演示稿（MIT）", "en": "Interface and visual design: design systems, UI styling, brand, banners and slides (MIT)"},
      "picks": ["ui-ux-pro-max", "design-system", "ui-styling"]}
