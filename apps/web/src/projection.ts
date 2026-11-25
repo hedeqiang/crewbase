@@ -18,6 +18,8 @@ export interface Step {
   sub?: string;
   /** computer_*: what it did in the app, from computer/action events */
   computer?: ComputerAction[];
+  /** where it stands while it runs (tool/progress, e.g. an MCP task's status) */
+  progress?: string;
 }
 
 /** One computer/action event (features/computertools ActionLog). */
@@ -643,6 +645,11 @@ export function project(events: SessionEvent[], cards?: ReadonlySet<string>): Pr
       case "preview/opened":
         if (d.url) turnFor(e.agent ?? "", id, e.time).parts.push({ k: "preview", id, p: { ...d, agent: d.agent || e.agent, time: d.time || e.time } });
         break;
+      case "tool/progress": {
+        const st = d.callId ? steps.get(d.callId) : undefined;
+        if (st) st.progress = d.text || undefined;
+        break;
+      }
       case "computer/action": {
         const st = d.call ? steps.get(d.call) : undefined;
         if (st) (st.computer ??= []).push(d as ComputerAction);

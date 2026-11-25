@@ -349,6 +349,9 @@ type Status struct {
 	Version string `json:"version,omitempty"`
 	// Skills is how many skills the server publishes (MCP skills extension).
 	Skills int `json:"skills,omitempty"`
+	// Tasks: the server runs long calls as tasks (MCP tasks extension),
+	// polled until they finish.
+	Tasks bool `json:"tasks,omitempty"`
 }
 
 // ToolInfo describes one MCP tool as registered.
@@ -396,26 +399,30 @@ var (
 type Config struct {
 	Dir     string   `json:"dir"` // mcp.json and per-server dirs live here
 	Servers []Server `json:"servers"`
-	// Durations (Go syntax). Defaults: 30s, 5m, 10s, 500ms, 30s.
+	// Durations (Go syntax). Defaults: 30s, 5m, 10s, 500ms, 30s, 2h.
 	ConnectTimeout string `json:"connectTimeout,omitempty"`
 	CallTimeout    string `json:"callTimeout,omitempty"`
 	ReadyWait      string `json:"readyWait,omitempty"` // agent/created bound
 	BackoffMin     string `json:"backoffMin,omitempty"`
 	BackoffMax     string `json:"backoffMax,omitempty"`
+	// TaskTimeout caps how long a call the server runs as a task (MCP
+	// tasks extension) may take; within it the task's own ttlMs applies.
+	TaskTimeout string `json:"taskTimeout,omitempty"`
 }
 
 type timing struct {
-	connect, call, readyWait, backoffMin, backoffMax time.Duration
+	connect, call, readyWait, backoffMin, backoffMax, task time.Duration
 }
 
 func (cfg Config) timing() (timing, error) {
-	t := timing{30 * time.Second, 5 * time.Minute, 10 * time.Second, 500 * time.Millisecond, 30 * time.Second}
+	t := timing{30 * time.Second, 5 * time.Minute, 10 * time.Second, 500 * time.Millisecond, 30 * time.Second, 2 * time.Hour}
 	for _, x := range []struct {
 		s   string
 		dst *time.Duration
 		key string
 	}{{cfg.ConnectTimeout, &t.connect, "connectTimeout"}, {cfg.CallTimeout, &t.call, "callTimeout"},
-		{cfg.ReadyWait, &t.readyWait, "readyWait"}, {cfg.BackoffMin, &t.backoffMin, "backoffMin"}, {cfg.BackoffMax, &t.backoffMax, "backoffMax"}} {
+		{cfg.ReadyWait, &t.readyWait, "readyWait"}, {cfg.BackoffMin, &t.backoffMin, "backoffMin"}, {cfg.BackoffMax, &t.backoffMax, "backoffMax"},
+		{cfg.TaskTimeout, &t.task, "taskTimeout"}} {
 		if x.s == "" {
 			continue
 		}

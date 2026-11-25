@@ -36,6 +36,7 @@ const (
 	TypeToolCall         = "tool/call"
 	TypeToolResult       = "tool/result"
 	TypeToolPruned       = "tool/pruned"
+	TypeToolProgress     = "tool/progress" // where a running call stands (tools.Progress)
 	TypeTurnStart        = "turn/start"
 	TypeTurnEnd          = "turn/end"
 	TypeStepStart        = "step/start"

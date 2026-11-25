@@ -104,7 +104,7 @@ func (c *conn) setStatus(fn func(*Status)) {
 
 func (c *conn) setError(err error) {
 	c.setStatus(func(st *Status) {
-		st.State, st.Error, st.PID, st.Since = StateError, err.Error(), 0, time.Now().UTC()
+		st.State, st.Error, st.PID, st.Tasks, st.Since = StateError, err.Error(), 0, false, time.Now().UTC()
 	})
 }
 
@@ -160,7 +160,7 @@ func (c *conn) run(ctx context.Context) {
 		c.cur = sess
 		c.mu.Unlock()
 		c.setStatus(func(st *Status) {
-			st.State, st.Error, st.RefreshError, st.PID, st.Enforcement, st.Since = StateReady, "", "", sess.pid, sess.enforcement, time.Now().UTC()
+			st.State, st.Error, st.RefreshError, st.PID, st.Enforcement, st.Tasks, st.Since = StateReady, "", "", sess.pid, sess.enforcement, sess.tasks, time.Now().UTC()
 		})
 		c.settle.Do(func() { close(c.settled) })
 		up := time.Now()
@@ -340,12 +340,33 @@ func (c *conn) execute(original string) func(context.Context, tools.Call) (tools
 			a.category = t.Category
 		}
 		defer c.s.flight.add(c.srv.Name, a)()
-		res, err := sess.cs.CallTool(withActive(cctx, a), &sdk.CallToolParams{Name: original, Arguments: args})
+		callCtx := withActive(cctx, a)
+		var slot *taskSlot
+		if sess.tasks { // the server may answer with a task (tasks.go)
+			slot = &taskSlot{}
+			callCtx = withTaskSlot(callCtx, slot)
+		}
+		res, err := sess.cs.CallTool(callCtx, &sdk.CallToolParams{Name: original, Arguments: args})
+		if slot != nil {
+			slot.close()
+		}
 		if err != nil {
 			if context.Cause(cctx) == errCallTimeout {
 				err = errCallTimeout
 			}
 			return tools.Errorf("MCP %s: %v", call.Name, sess.scrubErr(err)), nil
+		}
+		if slot != nil {
+			t, terr := slot.get()
+			if terr != nil {
+				return tools.Errorf("MCP %s: %v", call.Name, sess.scrubErr(terr)), nil
+			}
+			if t != nil {
+				return c.awaitTask(cctx, sess, a, t), nil
+			}
+		}
+		if resultIsTask(res) {
+			return tools.Errorf("MCP %s: the server answered with a task, which could not be read", call.Name), nil
 		}
 		return ConvertResult(res), nil
 	}
@@ -416,6 +437,7 @@ type session struct {
 	kill        func()
 	once        sync.Once
 	policy      sandbox.Policy // the sandbox policy a confined server runs under
+	tasks       bool           // the server runs long calls as tasks (tasks.go)
 }
 
 func (p *session) scrubErr(err error) error {
@@ -522,6 +544,7 @@ func (s *Service) newClient(server string, onChange func()) *sdk.Client {
 	s.skillsClientOptions(opts, onChange) // MCP skills (skills.go)
 	cl := sdk.NewClient(&sdk.Implementation{Name: "crewbase", Version: "1.0.0"}, opts)
 	addSkillMethods(cl)
+	addTaskMethods(cl) // MCP tasks (tasks.go)
 	return cl
 }
 
@@ -674,7 +697,7 @@ func (s *Service) dialStdio(ctx context.Context, srv Server, ws string, onChange
 		sess.waitErr = cmd.Wait()
 		close(sess.exited)
 	}()
-	cs, err := s.newClient(srv.Name, onChange).Connect(ctx, &sdk.IOTransport{Reader: outR, Writer: inW}, nil)
+	cs, err := s.newClient(srv.Name, onChange).Connect(ctx, taskTransport{&sdk.IOTransport{Reader: outR, Writer: inW}}, nil)
 	if err != nil {
 		inW.Close()
 		outR.Close()
@@ -682,6 +705,7 @@ func (s *Service) dialStdio(ctx context.Context, srv Server, ws string, onChange
 		return nil, errors.New(scrub(fmt.Sprintf("initialize: %v (%s)", err, sess.exitReason()), sess.secrets))
 	}
 	sess.cs = cs
+	sess.tasks = declaresTasks(cs)
 	return sess, nil
 }
 
@@ -721,7 +745,7 @@ func (s *Service) dialHTTP(ctx context.Context, c *conn, srv Server, onChange fu
 			base = s.HTTPClient.Transport
 		}
 	}
-	hc.Transport = &headerTransport{base: base, headers: hdrs}
+	hc.Transport = &taskHTTP{base: &headerTransport{base: base, headers: hdrs}}
 	t := &sdk.StreamableClientTransport{Endpoint: u, HTTPClient: hc}
 	if srv.OAuth != nil {
 		if c == nil {
@@ -738,6 +762,7 @@ func (s *Service) dialHTTP(ctx context.Context, c *conn, srv Server, onChange fu
 		return nil, sess.scrubErr(fmt.Errorf("initialize: %w", err))
 	}
 	sess.cs = cs
+	sess.tasks = declaresTasks(cs)
 	return sess, nil
 }
 

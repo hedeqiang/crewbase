@@ -23,6 +23,10 @@ const serverEnv = "CREWBASE_MCP_TEST_SERVER"
 
 func TestMain(m *testing.M) {
 	if os.Getenv(serverEnv) != "" {
+		if os.Getenv(tasksEnv) != "" {
+			runTaskStdioServer() // tasks_test.go
+			os.Exit(0)
+		}
 		runStdioServer()
 		os.Exit(0)
 	}

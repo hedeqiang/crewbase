@@ -101,6 +101,26 @@ func Errorf(format string, a ...any) Result {
 	return Result{Content: fmt.Sprintf(format, a...), IsError: true}
 }
 
+// ProgressData is the data of a tool/progress session event: where a
+// running call stands, as a line the person reads on its step until the
+// result comes.
+type ProgressData struct {
+	CallID string `json:"callId"`
+	Text   string `json:"text"`
+}
+
+// Progress records in the call's session where the running call stands
+// (no-op outside a session). Call it when that changes, not on every poll.
+func Progress(call Call, text string) {
+	if call.Session == nil || call.ID == "" {
+		return
+	}
+	if r := []rune(text); len(r) > 500 {
+		text = string(r[:500]) + "…"
+	}
+	_, _ = call.Session.Append(session.TypeToolProgress, call.Agent, ProgressData{CallID: call.ID, Text: text})
+}
+
 // Tool is a model-callable tool.
 type Tool struct {
 	Name        string

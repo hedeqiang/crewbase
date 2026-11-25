@@ -154,6 +154,44 @@ func (k *callClock) resume() {
 	}
 }
 
+// set gives the call d from now on (a task's own time, tasks.go). Time the
+// person is asked still does not count.
+func (k *callClock) set(d time.Duration) {
+	if k == nil {
+		return
+	}
+	k.mu.Lock()
+	defer k.mu.Unlock()
+	if k.expired {
+		return
+	}
+	k.left, k.since = d, time.Now()
+	if k.paused == 0 {
+		k.timer.Reset(max(d, time.Millisecond))
+	}
+}
+
+// extend moves the call's deadline by d (a task's ttlMs changed).
+func (k *callClock) extend(d time.Duration) {
+	if k == nil || d == 0 {
+		return
+	}
+	k.mu.Lock()
+	defer k.mu.Unlock()
+	if k.expired {
+		return
+	}
+	if k.paused == 0 {
+		now := time.Now()
+		k.left -= now.Sub(k.since)
+		k.since = now
+	}
+	k.left += d
+	if k.paused == 0 {
+		k.timer.Reset(max(k.left, time.Millisecond))
+	}
+}
+
 // elicitationCaps: forms and links.
 func elicitationCaps() *sdk.ElicitationCapabilities {
 	return &sdk.ElicitationCapabilities{Form: &sdk.FormElicitationCapabilities{}, URL: &sdk.URLElicitationCapabilities{}}

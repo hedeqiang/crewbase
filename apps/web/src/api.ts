@@ -854,6 +854,8 @@ export interface McpStatus {
   version?: string;
   /** skills the server publishes (MCP skills extension) */
   skills?: number;
+  /** the server runs long calls as tasks (MCP tasks extension) */
+  tasks?: boolean;
 }
 /** A skill an MCP server publishes (names and descriptions only). */
 export interface McpSkill {
