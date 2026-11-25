@@ -6,7 +6,7 @@ import { OpenArtifactDialog, OpenArtifactIcon, oaInstalled, useOpenArtifact } fr
 import { createPortal } from "react-dom";
 import {
   BadgeCheck, Bug, CalendarDays, Check, ClipboardPaste, Copy, ExternalLink, GitCommitHorizontal, Globe, ListChecks, LogIn, Megaphone,
-  MoreHorizontal, Plug, Plus, Search, SearchCode, ShieldAlert, Sparkles, Table, X,
+  MoreHorizontal, Plug, Plus, Search, SearchCode, ShieldAlert, Sparkles, Table, Timer, X,
 } from "lucide-react";
 import { API, api, openExternal, DEFAULT_TEAM, type AgentView, type MarketEntry, type McpServer, type PluginView } from "../../api";
 import { canUse, connectorsFor, nextConnectors, useConnectors } from "../AgentConnectors";
@@ -1399,6 +1399,12 @@ function InstalledView({ d, q, reload, reloadMarket, onApprove, onSignIn, onScop
                               {t("ext.skillsN", { n: s.status.skills ?? 0 })}
                             </button>
                           </>
+                        )}
+                        {s.status?.tasks && (
+                          <span className="mktasks" title={t("ext.mcpTasksHint")}>
+                            {" · "}
+                            <Timer size={11} aria-hidden /> {t("ext.mcpTasks")}
+                          </span>
                         )}
                         {(s.transport === "http" || (s.command ?? []).some((a) => /@latest$/.test(a))) && (
                           <span className="autoupd" title={s.transport === "http" ? t("aup.autoRemote") : t("aup.autoNpx")}>

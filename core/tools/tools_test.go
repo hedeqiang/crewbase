@@ -286,3 +286,26 @@ func TestSessionKindScopedTool(t *testing.T) {
 		t.Fatal(exe.Result)
 	}
 }
+
+// Progress lands in the call's session as tool/progress, cut to 500
+// characters (whole runes); outside a session it does nothing.
+func TestProgress(t *testing.T) {
+	_, _, ss := setup(t)
+	c := call(ss, "a1", "slow", nil)
+	tools.Progress(c, "第 1 步")
+	tools.Progress(c, strings.Repeat("长", 600))
+	tools.Progress(tools.Call{ID: "x"}, "nowhere")
+	var got []tools.ProgressData
+	for _, ev := range ss.Events() {
+		if ev.Type == session.TypeToolProgress {
+			var d tools.ProgressData
+			if err := ev.Decode(&d); err != nil {
+				t.Fatal(err)
+			}
+			got = append(got, d)
+		}
+	}
+	if len(got) != 2 || got[0].CallID != c.ID || got[0].Text != "第 1 步" || []rune(got[1].Text)[499] != '长' || !strings.HasSuffix(got[1].Text, "…") || len([]rune(got[1].Text)) != 501 {
+		t.Fatalf("%+v", got)
+	}
+}

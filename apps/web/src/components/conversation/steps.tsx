@@ -148,6 +148,11 @@ export function StepRow({ s, agent, live = true }: { s: Step; agent?: string; li
         {cu ? <b className="cul">{cu}</b> : toolLabel(s.call.name) ? <b>{toolLabel(s.call.name)}</b> : <b className="mono">{s.call.name}</b>}
         {cu && (s.computer ?? []).some((c) => c.foreground) && <span className="pill sm">{t("tool.cu.fg")}</span>}
         <span className={"pv" + (PROSE_ARGS.has(s.call.name) ? "" : " mono")}>{pv}</span>
+        {running && s.progress && (
+          <span className="stepexit prog" title={s.progress}>
+            {t("step.progress", { text: s.progress })}
+          </span>
+        )}
         {s.awaiting && <span className="pill sm amber">{t(s.asking ? "el.waiting" : "appr.waiting")}</span>}
         {exit && <span className="stepexit">{t("step.exit", { n: exit })}</span>}
         {!s.result && !s.awaiting && !live && <span className="stepexit">{t("step.unfinished")}</span>}
