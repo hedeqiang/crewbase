@@ -3,7 +3,7 @@
 // server):
 //
 //   #/c/<session>[?panel=<tab>&file=<path>&doc=<url>&sub=<session>]
-//   #/settings/<section>
+//   #/settings/<section>       (switching sections replaces the entry)
 //   #/desk/<library|auto|memory>[?item=<library id>]   (工作台)
 //   #/new-agent
 //   #/                       (nothing open)
@@ -139,6 +139,10 @@ const here = () => location.pathname + location.search;
  *  the same place with the panel opened or closed. */
 function isNewPlace(a: Loc | null, b: Loc): boolean {
   if (!a) return false;
+  // one settings section to another is a menu, not a place: back / a
+  // trackpad swipe leaves 设置 instead of stepping through the sections
+  // (on a phone, the list → a section is still a step: back is the list)
+  if (a.view === "settings" && b.view === "settings" && a.section && b.section) return false;
   if (a.view !== b.view || a.session !== b.session || a.section !== b.section || a.desk !== b.desk || a.item !== b.item) return true;
   // the panel opened or closed: the same place, except on a phone-width
   // window, where the panel is a sheet over it (back closes it)
