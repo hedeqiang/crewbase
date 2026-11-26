@@ -2343,6 +2343,8 @@ export const ArenaAPI = {
   rerun: (session: string, arena: string, index: number) => api("POST", `/api/sessions/${encodeURIComponent(session)}/arena/${encodeURIComponent(arena)}/rerun`, { index }),
   stats: () => api<ArenaStats>("GET", "/api/arena/stats"),
   suggest: (text: string) => api<ArenaSuggestion>("GET", `/api/arena/suggest?text=${encodeURIComponent(text.slice(0, 2000))}`),
+};
+
 // ---- 记忆 page and agent 档案 (features/memory panel.go, features/usage profile.go)
 
 /** One thing an agent or a team knows: a MEMORY.md / TEAM.md line, a task
