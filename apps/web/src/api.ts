@@ -2322,6 +2322,7 @@ export const ArenaAPI = {
   start: (session: string, body: { text: string; models: string[]; agent?: string }) => api<{ id: string; category: string }>("POST", `/api/sessions/${encodeURIComponent(session)}/arena`, body),
   pick: (session: string, arena: string, index: number) => api("POST", `/api/sessions/${encodeURIComponent(session)}/arena/${encodeURIComponent(arena)}/pick`, { index }),
   stop: (session: string, arena: string) => api("POST", `/api/sessions/${encodeURIComponent(session)}/arena/${encodeURIComponent(arena)}/stop`),
+  rerun: (session: string, arena: string, index: number) => api("POST", `/api/sessions/${encodeURIComponent(session)}/arena/${encodeURIComponent(arena)}/rerun`, { index }),
   stats: () => api<ArenaStats>("GET", "/api/arena/stats"),
   suggest: (text: string) => api<ArenaSuggestion>("GET", `/api/arena/suggest?text=${encodeURIComponent(text.slice(0, 2000))}`),
 };

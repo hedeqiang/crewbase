@@ -262,12 +262,23 @@ func (s *Service) Start(sid string, req StartRequest) (StartedData, error) {
 		s.c.Log().Warn("arena: record", "err", err)
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
-	s.mu.Lock()
-	s.running[d.ID] = cancel
-	s.mu.Unlock()
-	var wg sync.WaitGroup
+	all := make(map[int]llm.ModelRef, len(refs))
 	for i, r := range refs {
+		all[i] = r
+	}
+	s.mu.Lock()
+	s.launchLocked(ss, d, conv, all)
+	s.mu.Unlock()
+	return d, nil
+}
+
+// launchLocked runs the models of arena d given by index, in parallel
+// (s.mu held: the arena counts as running from here on).
+func (s *Service) launchLocked(ss *session.Session, d StartedData, conv *agent.Agent, runs map[int]llm.ModelRef) {
+	ctx, cancel := context.WithCancel(context.Background())
+	s.running[d.ID] = cancel
+	var wg sync.WaitGroup
+	for i, r := range runs {
 		wg.Add(1)
 		s.c.Go(func(host context.Context) {
 			defer wg.Done()
@@ -283,7 +294,113 @@ func (s *Service) Start(sid string, req StartRequest) (StartedData, error) {
 		s.mu.Unlock()
 		cancel()
 	})
-	return d, nil
+}
+
+// StatusInterrupted is a run that a restart of Crewbase cut off.
+const StatusInterrupted = "interrupted"
+
+// Interrupted is the error of an interrupted run.
+const Interrupted = "Crewbase restarted while it ran"
+
+// SweepInterrupted ends the runs a restart cut off: every run of a
+// recorded arena with no result and no live sub-agent gets an
+// arena/result "interrupted" (its finished runs can still be picked, an
+// interrupted one run again). Called when the plugin starts.
+func (s *Service) SweepInterrupted() int {
+	n := 0
+	for _, rec := range s.store.Records() {
+		open := false
+		for _, r := range rec.Runs {
+			if r.Status == "" {
+				open = true
+			}
+		}
+		if !open {
+			continue
+		}
+		s.mu.Lock()
+		_, live := s.running[rec.ID]
+		s.mu.Unlock()
+		if live {
+			continue
+		}
+		ss, err := s.sessions.Get(rec.Session)
+		if err != nil {
+			continue
+		}
+		st, results, _ := find(ss, rec.ID)
+		if st == nil {
+			continue
+		}
+		for i, m := range st.Models {
+			if _, done := results[i]; done {
+				if r := results[i]; i < len(rec.Runs) && rec.Runs[i].Status == "" {
+					_ = s.store.SetRun(rec.ID, i, RunStat{Model: r.Model, Status: r.Status, Ms: r.Ms, Input: r.Input, Output: r.Output, CostUSD: r.CostUSD, Priced: r.Priced})
+				}
+				continue
+			}
+			res := ResultData{ID: rec.ID, Index: i, Model: m, Status: StatusInterrupted, Error: Interrupted, Priced: true}
+			if run, ok := lastRun(ss, rec.ID, i); ok {
+				s.measure(&res, run.Child, run.ChildSession)
+			}
+			if _, err := ss.Append(TypeResult, "", res); err != nil {
+				continue
+			}
+			_ = s.store.SetRun(rec.ID, i, RunStat{Model: m, Status: StatusInterrupted, Input: res.Input, Output: res.Output, CostUSD: res.CostUSD, Priced: res.Priced})
+			n++
+		}
+	}
+	return n
+}
+
+// lastRun is the latest arena/run of model i of arena id.
+func lastRun(ss *session.Session, id string, i int) (RunData, bool) {
+	evs := ss.Events()
+	for k := len(evs) - 1; k >= 0; k-- {
+		if evs[k].Type != TypeRun {
+			continue
+		}
+		var r RunData
+		if evs[k].Decode(&r) == nil && r.ID == id && r.Index == i {
+			return r, true
+		}
+	}
+	return RunData{}, false
+}
+
+// Rerun runs model i of arena id again (one that was interrupted, failed
+// or stopped), while nothing is picked yet.
+func (s *Service) Rerun(sid, id string, i int) error {
+	ss, err := s.sessions.Get(sid)
+	if err != nil {
+		return gateway.NotFound()
+	}
+	st, results, picked := find(ss, id)
+	if st == nil || i < 0 || i >= len(st.Models) {
+		return gateway.NotFound()
+	}
+	if picked != nil {
+		return gateway.Conflict("an answer was already picked")
+	}
+	if r, ok := results[i]; !ok || r.Status == subagent.StopCompleted {
+		return gateway.BadRequest("that model's run has not ended or has an answer")
+	}
+	ref, err := llm.ParseRef(st.Models[i])
+	if err != nil {
+		return gateway.BadRequest("%v", err)
+	}
+	conv, ok := s.agents.Get(st.Agent)
+	if !ok {
+		return gateway.BadRequest("agent %s is gone", st.Agent)
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if _, busy := s.running[id]; busy {
+		return gateway.Conflict("the arena is still running")
+	}
+	_ = s.store.SetRun(id, i, RunStat{Model: st.Models[i]})
+	s.launchLocked(ss, *st, conv, map[int]llm.ModelRef{i: ref})
+	return nil
 }
 
 // memberFor is the channel member that runs on r (its first model), or "".
@@ -326,6 +443,9 @@ func (s *Service) run(ctx context.Context, ss *session.Session, d StartedData, c
 	switch {
 	case err != nil:
 		res.Status, res.Error = subagent.StopFailed, err.Error()
+	case ctx.Err() != nil && s.c.Context().Err() != nil:
+		// Crewbase is shutting down, not the person stopping it
+		res.Status, res.Error = StatusInterrupted, Interrupted
 	case ctx.Err() != nil:
 		res.Status, res.Error = subagent.StopCancelled, "stopped"
 	default:
@@ -518,6 +638,9 @@ var Plugin = kernel.Register(kernel.Spec{
 			subs:     kernel.Use[*subagent.Service](c, subagent.ServiceKey),
 			llms:     kernel.Use[*llm.Registry](c, llm.ServiceKey),
 		}
+		if n := s.SweepInterrupted(); n > 0 {
+			c.Log().Info("arena: runs cut off by a restart marked interrupted", "runs", n)
+		}
 		g := kernel.Use[*gateway.Gateway](c, gateway.ServiceKey)
 		dev := []string{"mobile"}
 		g.Handle(c, gateway.Route{Method: "POST", Path: "/api/sessions/{id}/arena", Devices: dev,
@@ -537,6 +660,16 @@ var Plugin = kernel.Register(kernel.Spec{
 					return nil, err
 				}
 				return s.Pick(r.Params["id"], r.Params["arena"], b.Index)
+			}})
+		g.Handle(c, gateway.Route{Method: "POST", Path: "/api/sessions/{id}/arena/{arena}/rerun", Devices: dev,
+			Handle: func(_ context.Context, r *gateway.Request) (any, error) {
+				var b struct {
+					Index int `json:"index"`
+				}
+				if err := r.Decode(&b); err != nil {
+					return nil, err
+				}
+				return nil, s.Rerun(r.Params["id"], r.Params["arena"], b.Index)
 			}})
 		g.Handle(c, gateway.Route{Method: "POST", Path: "/api/sessions/{id}/arena/{arena}/stop", Devices: dev,
 			Handle: func(_ context.Context, r *gateway.Request) (any, error) {

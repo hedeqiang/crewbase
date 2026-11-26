@@ -405,7 +405,8 @@ export function project(events: SessionEvent[], cards?: ReadonlySet<string>): Pr
       }
       case "arena/run": {
         const r = arenas.get(d.id)?.runs[d.index];
-        if (r) Object.assign(r, { child: d.child, session: d.childSession, started: e.time });
+        // (again: a run started over replaces the one before)
+        if (r) Object.assign(r, { child: d.child, session: d.childSession, started: e.time, result: undefined });
         if (d.childSession) arenaSessions.add(d.childSession);
         break;
       }

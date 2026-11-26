@@ -7,14 +7,14 @@
 //    选这个; the picked answer goes on as the conversation's reply
 
 import { useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { Check, ChevronDown, ChevronUp, Clock, Lightbulb, Plus, Search, Square, Swords, X } from "lucide-react";
+import { Check, RotateCcw, ChevronDown, ChevronUp, Clock, Lightbulb, Plus, Search, Square, Swords, X } from "lucide-react";
 import { ArenaAPI, parseRef, refString, type AgentView, type ArenaSuggestion, type ChannelView, type ModelRef, type ModelsResponse } from "../../api";
 import { t, type Key } from "../../i18n";
-import { allModels, costfmt, modelOff, providerName, sameRef, shortModel, tokfmt } from "../../format";
+import { allModels, findModel, costfmt, modelOff, providerName, sameRef, shortModel, tokfmt } from "../../format";
 import { loadSession, openSubRun, toast, useStore } from "../../store";
 import type { ArenaItem, ArenaRun } from "../../projection";
 import { modelMark, VendorTile } from "../Avatar";
-import { makersOf } from "../Roundtable";
+import { makersOf, type Maker } from "../Roundtable";
 import { Markdown } from "../Markdown";
 import { StreamMarkdown } from "../StreamMarkdown";
 import { ApprovalCard } from "./approval";
@@ -55,6 +55,31 @@ const usable = (models: ModelsResponse | null, s: string) => {
   return !!r && !modelOff(models, r) && allModels(models).some((m) => sameRef(m.ref, r));
 };
 
+// a maker's mid or fast tier (good value) and its flagships, by model id
+const VALUE_TIER = /sonnet|haiku|mini|luna|flash|lite|nano|air|turbo|small|fast/i;
+const FLAGSHIP = /opus|fable|astra|ultra|\bmax\b|-pro\b|\bpro\b/i;
+/** Output price ($ per million tokens) a default pick stays under. */
+const VALUE_OUTPUT_USD = 12;
+
+/** The good-value model of a maker: within the price line when prices
+ *  are known (the mid or fast tier first, the best of those), else its
+ *  cheapest priced one; without prices the mid or fast tier by name, then
+ *  anything that is not a flagship, then whatever it has. */
+export function valueModel(models: ModelsResponse | null, mk: Maker): ModelRef {
+  const all = mk.models.map((m) => ({ ref: m.ref, out: findModel(models, m.ref)?.pricing?.output }));
+  const priced = all.filter((m) => (m.out ?? 0) > 0);
+  if (priced.length) {
+    const under = priced.filter((m) => m.out! <= VALUE_OUTPUT_USD);
+    if (under.length) {
+      const tier = under.filter((m) => VALUE_TIER.test(m.ref.model));
+      // within the line, the strongest (dearest) of the mid tier
+      return (tier.length ? tier : under).reduce((a, b) => (b.out! > a.out! ? b : a)).ref;
+    }
+    return priced.reduce((a, b) => (b.out! < a.out! ? b : a)).ref;
+  }
+  return (all.find((m) => VALUE_TIER.test(m.ref.model)) ?? all.find((m) => !FLAGSHIP.test(m.ref.model)) ?? all[0]).ref;
+}
+
 /** A 模型圆桌: a channel whose members each wear their model's mark. */
 export function isRoundtable(channel: ChannelView | undefined, agents: Record<string, AgentView>): boolean {
   if (!channel || channel.members.length < 2) return false;
@@ -74,11 +99,11 @@ export function defaultArena(models: ModelsResponse | null, current: ModelRef | 
   for (const s of remembered()) add(s);
   if (out.length >= ARENA_MIN) return out;
   out.length = 0;
-  if (current) add(plain(current));
-  for (const mk of makersOf(models)) {
+  // one good-value model per maker, the maker of the model in use first
+  const mine = (mk: Maker) => !!current && mk.models.some((m) => sameRef(m.ref, current));
+  for (const mk of makersOf(models).sort((a, b) => Number(mine(b)) - Number(mine(a)))) {
     if (out.length >= 3) break;
-    if (current && mk.models.some((m) => sameRef(m.ref, current))) continue;
-    add(plain(mk.models[0].ref));
+    add(plain(valueModel(models, mk)));
   }
   return out;
 }
@@ -120,7 +145,7 @@ export function ArenaBar({ picked, setPicked, draft, onClose }: { picked: string
     if (suggested && !out.includes(suggested)) out.push(suggested);
     for (const mk of makersOf(models)) {
       if (out.length >= 7) break;
-      const s = plain(mk.models[0].ref);
+      const s = plain(valueModel(models, mk));
       if (!out.includes(s)) out.push(s);
     }
     return out;
@@ -248,8 +273,10 @@ function useLive(run: ArenaRun): { text: string; streaming: boolean; tool?: stri
 }
 
 const FOLD_PX = 340;
+/** a run with no result and no sub-agent this long after it started was cut off */
+const STALE_MS = 30_000;
 
-function Column({ it, run, i, badges, onPick, picking }: { it: ArenaItem; run: ArenaRun; i: number; badges: string[]; onPick: () => void; picking: boolean }) {
+function Column({ it, run, i, badges, onPick, picking, onRerun }: { it: ArenaItem; run: ArenaRun; i: number; badges: string[]; onPick: () => void; picking: boolean; onRerun?: () => void }) {
   const models = useStore((s) => s.models);
   const agents = useStore((s) => s.agents);
   const approvals = useStore((s) => s.approvals);
@@ -310,8 +337,8 @@ function Column({ it, run, i, badges, onPick, picking }: { it: ArenaItem; run: A
       <div ref={body} className={"arbody" + (open ? " open" : "") + (tall && !open ? " folded" : "") + (running ? " live" : "")} style={open ? undefined : { maxHeight: FOLD_PX }}>
         {failed ? (
           <p className="arerr">
-            {res!.status === "cancelled" ? t("arena.stopped") : t("arena.failed")}
-            {res!.error && res!.status !== "cancelled" ? <span className="small" title={res!.error}>{res!.error}</span> : null}
+            {res!.status === "cancelled" ? t("arena.stopped") : res!.status === "interrupted" ? t("arena.interrupted") : t("arena.failed")}
+            {res!.error && res!.status !== "cancelled" && res!.status !== "interrupted" ? <span className="small" title={res!.error}>{res!.error}</span> : null}
           </p>
         ) : live.text ? (
           live.streaming ? <StreamMarkdown text={live.text} /> : <Markdown text={live.text} />
@@ -357,6 +384,12 @@ function Column({ it, run, i, badges, onPick, picking }: { it: ArenaItem; run: A
             {t("arena.process")}
           </button>
         )}
+        {failed && onRerun && (
+          <button type="button" className="btn sm arpick" onClick={onRerun}>
+            <RotateCcw size={13} />
+            {t("arena.rerun")}
+          </button>
+        )}
         {res && !failed && !decided && (
           <button type="button" className="btn sm arpick" disabled={picking} onClick={onPick}>
             <Check size={13} />
@@ -372,10 +405,24 @@ export function ArenaCard({ it }: { it: ArenaItem }) {
   const session = useContext(SessionCtx);
   const models = useStore((s) => s.models);
   const [picking, setPicking] = useState(false);
-  const n = it.runs.length;
-  const done = it.runs.filter((r) => r.result).length;
+  const agents = useStore((s) => s.agents);
+  // a run with no result whose sub-agent is gone (or that never started)
+  // a while ago was cut off: Crewbase stopped while it ran
+  const [, tick] = useState(0);
+  const now = Date.now();
+  const cutOff = (r: ArenaRun) =>
+    !r.result && Object.keys(agents).length > 0 && (r.child ? !agents[r.child] : true) && now - new Date(r.started ?? it.time).getTime() > STALE_MS;
+  const runs = it.runs.map((r) => (cutOff(r) ? { ...r, result: { status: "interrupted", ms: 0, calls: 0, input: 0, output: 0, costUsd: 0, priced: true, time: "" } } : r));
+  const waiting = it.runs.some((r) => !r.result && !cutOff(r));
+  useEffect(() => {
+    if (!waiting) return;
+    const id = setInterval(() => tick((x) => x + 1), 5000);
+    return () => clearInterval(id);
+  }, [waiting]);
+  const n = runs.length;
+  const done = runs.filter((r) => r.result).length;
   const running = done < n;
-  const ok = it.runs.map((r, i) => ({ r, i })).filter((x) => x.r.result?.status === "completed");
+  const ok = runs.map((r, i) => ({ r, i })).filter((x) => x.r.result?.status === "completed");
   // the fastest and the cheapest of the answers, once there are two to compare
   const badges = (i: number): string[] => {
     if (ok.length < 2 || running) return [];
@@ -402,7 +449,10 @@ export function ArenaCard({ it }: { it: ArenaItem }) {
   const stop = () => {
     if (session) ArenaAPI.stop(session, it.arena).catch((e) => toast(e?.message ?? String(e)));
   };
-  const winner = it.picked !== undefined ? it.runs[it.picked] : undefined;
+  const winner = it.picked !== undefined ? runs[it.picked] : undefined;
+  const rerun = (i: number) => {
+    if (session) ArenaAPI.rerun(session, it.arena, i).catch((e) => toast(e?.message ?? String(e)));
+  };
   return (
     <div className="arena" data-n={n}>
       <div className="arhead">
@@ -429,8 +479,8 @@ export function ArenaCard({ it }: { it: ArenaItem }) {
         )}
       </div>
       <div className="argrid">
-        {it.runs.map((r, i) => (
-          <Column key={i} it={it} run={r} i={i} badges={badges(i)} picking={picking} onPick={() => void pick(i)} />
+        {runs.map((r, i) => (
+          <Column key={i} it={it} run={r} i={i} badges={badges(i)} picking={picking} onPick={() => void pick(i)} onRerun={!running && it.picked === undefined && it.runs[i].result ? () => rerun(i) : undefined} />
         ))}
       </div>
       {winner && <p className="arnote small muted">{t("arena.continues", { model: shortModel(models, winner.model) })}</p>}

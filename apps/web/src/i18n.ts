@@ -3401,6 +3401,8 @@ const zh = {
   "arena.badge.fast": "最快",
   "arena.badge.cheap": "最省",
   "arena.stopped": "已停止",
+  "arena.interrupted": "已中断（Crewbase 重启）",
+  "arena.rerun": "重跑这一个",
   "arena.failed": "没有答完",
   "arena.foldUp": "收起",
   "arena.foldOpen": "展开全文",

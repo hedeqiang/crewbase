@@ -3358,6 +3358,8 @@ export const en: Partial<Record<Key, string>> = {
   "arena.badge.fast": "Fastest",
   "arena.badge.cheap": "Cheapest",
   "arena.stopped": "Stopped",
+  "arena.interrupted": "Interrupted (Crewbase restarted)",
+  "arena.rerun": "Run it again",
   "arena.failed": "Did not finish",
   "arena.foldUp": "Fold",
   "arena.foldOpen": "Show all",

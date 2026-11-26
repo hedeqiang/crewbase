@@ -193,3 +193,88 @@ func waitResults(t *testing.T, ss *session.Session, id string, n int) []ResultDa
 	t.Fatalf("results did not come")
 	return nil
 }
+
+// A restart in the middle of an arena: the run that was still going is
+// marked interrupted when the service starts again, the finished one can
+// still be picked, and the interrupted one can be run again.
+func TestRestartMarksInterrupted(t *testing.T) {
+	h := kernel.NewHost(nil)
+	t.Cleanup(h.Close)
+	root := t.TempDir()
+	for _, x := range []struct {
+		s   kernel.Spec
+		cfg map[string]any
+	}{
+		{session.Plugin, map[string]any{"dir": root + "/sessions"}}, {prompt.Plugin, nil}, {tools.Plugin, nil},
+		{llm.Plugin, nil}, {mock.Plugin, map[string]any{"ids": []string{"ma", "mb"}}}, {router.Plugin, nil},
+		{agent.Plugin, map[string]any{"root": root, "defaultModels": []string{"ma/default"}}},
+		{agentloop.Plugin, nil},
+		{capsub.Plugin, nil}, {subagent.RunnerPlugin, nil}, {subagent.LocalPlugin, nil},
+	} {
+		if _, err := h.Load(x.s, kernel.LoadOptions{Config: x.cfg}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	r := h.Root()
+	open := func() *Service {
+		st, err := OpenStore(root)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return &Service{c: r, store: st, running: map[string]context.CancelFunc{},
+			agents: kernel.Use[*agent.Registry](r, agent.ServiceKey), sessions: kernel.Use[*session.Store](r, session.ServiceKey),
+			subs: kernel.Use[*capsub.Service](r, capsub.ServiceKey), llms: kernel.Use[*llm.Registry](r, llm.ServiceKey)}
+	}
+	kai, _ := open().agents.Create(agent.Spec{Name: "Kai"})
+	ss, _ := kai.Session()
+
+	// what the log and the store hold when the daemon stopped: model 0
+	// answered, model 1 was still running in a sub-agent now gone
+	d := StartedData{ID: "arx", Task: "光速是多少？", Category: CatQA, Models: []string{"ma/default", "mb/default"}, Agent: kai.ID()}
+	ss.Append(TypeStarted, "", d)
+	ss.Append(TypeRun, "", RunData{ID: "arx", Index: 0, Model: "ma/default", Child: "kai-sub-1", ChildSession: "s_x"})
+	ss.Append(TypeRun, "", RunData{ID: "arx", Index: 1, Model: "mb/default", Child: "kai-sub-2", ChildSession: "s_y"})
+	ss.Append(TypeResult, "", ResultData{ID: "arx", Index: 0, Model: "ma/default", Status: "completed", Answer: "299792 km/s", Ms: 900})
+	before := open()
+	before.store.Add(Record{ID: "arx", Session: ss.ID(), Task: d.Task, Category: d.Category, Models: d.Models,
+		Runs: []RunStat{{Model: "ma/default", Status: "completed", Ms: 900}, {Model: "mb/default"}}})
+
+	// the restart
+	s := open()
+	if n := s.SweepInterrupted(); n != 1 {
+		t.Fatalf("swept %d", n)
+	}
+	_, res, _ := find(ss, "arx")
+	if res[1].Status != StatusInterrupted || res[0].Status != "completed" {
+		t.Fatalf("results %+v", res)
+	}
+	if got := s.store.Records()[0].Runs[1].Status; got != StatusInterrupted {
+		t.Fatalf("store %q", got)
+	}
+	if n := open().SweepInterrupted(); n != 0 {
+		t.Fatalf("swept again: %d", n)
+	}
+	// run the interrupted one again; it answers and can be picked
+	if err := s.Rerun(ss.ID(), "arx", 0); err == nil {
+		t.Fatal("reran a finished run")
+	}
+	if err := s.Rerun(ss.ID(), "arx", 1); err != nil {
+		t.Fatal(err)
+	}
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		if _, res, _ := find(ss, "arx"); res[1].Status == "completed" {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("rerun did not answer")
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	if p, err := s.Pick(ss.ID(), "arx", 1); err != nil || p.Model != "mb/default" {
+		t.Fatalf("pick %+v %v", p, err)
+	}
+	if st := s.store.Records()[0]; st.Winner != "mb/default" || st.Runs[1].Status != "completed" {
+		t.Fatalf("record %+v", st)
+	}
+}
