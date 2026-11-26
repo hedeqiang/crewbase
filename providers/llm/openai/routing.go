@@ -71,9 +71,26 @@ func (m *ResponsesMode) UnmarshalJSON(b []byte) error {
 // state on (InheritRoutes), so it lives behind a pointer.
 type routeState struct {
 	mu          sync.Mutex
-	noResponses bool            // the endpoint is missing (404 / 405)
-	needs       map[string]bool // models Chat Completions refused (400 above)
-	noComputer  map[string]bool // models whose requests refused the computer tool
+	noResponses bool             // the endpoint is missing (404 / 405)
+	needs       map[string]bool  // models Chat Completions refused (400 above)
+	noComputer  map[string]bool  // models whose requests refused the computer tool
+	noPrefix    map[string]bool  // models whose requests refused append-only items (prefix.go)
+	drops       map[string]int64 // reasoning items withheld, by reason (input_transformations)
+}
+
+func (r *routeState) prefixRefused(model string) bool {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.noPrefix[model]
+}
+
+func (r *routeState) setPrefixRefused(model string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.noPrefix == nil {
+		r.noPrefix = map[string]bool{}
+	}
+	r.noPrefix[model] = true
 }
 
 func (r *routeState) computerRefused(model string) bool {

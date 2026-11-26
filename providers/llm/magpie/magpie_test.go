@@ -298,6 +298,13 @@ func TestResponsesThroughMagpie(t *testing.T) {
 		}
 	}
 
+	// OpenAI's newer models through Responses are built append-only;
+	// other vendors' models are not
+	pk, ok := ad.(llm.PrefixKeeper)
+	if !ok || !pk.KeepsPrefix("openai/gpt-6.1-sol") || !pk.KeepsPrefix("codex/gpt-6.1-sol") || pk.KeepsPrefix("deepseek/deepseek-v4-pro") || pk.KeepsPrefix("claude/claude-opus-5-5") {
+		t.Fatal("magpie: wrong models keep the prefix")
+	}
+
 	codexRefuses.Store(true)
 	err := send("codex/gpt-6.1-sol")
 	var le *llm.Error

@@ -583,6 +583,12 @@ func (a *Adapter) Stream(ctx context.Context, req llm.Request, onChunk func(llm.
 			a.routes.setComputerRefused(req.Model)
 			return a.Stream(ctx, req, onChunk)
 		}
+		// the provider does not take an item of append-only requests
+		// (prefix.go): once more as before, and not again for this model
+		if err != nil && !sent && req.Store != nil && a.KeepsPrefix(req.Model) && refusedPrefix(err) {
+			a.routes.setPrefixRefused(req.Model)
+			return a.Stream(ctx, req, onChunk)
+		}
 		return resp, err
 	}
 	resp, err := a.streamChat(ctx, req, onChunk)

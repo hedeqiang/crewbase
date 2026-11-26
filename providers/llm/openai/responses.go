@@ -106,12 +106,26 @@ func responsesEffort(e string) string {
 
 // responsesBody is the Responses request (besides the model).
 func (a *Adapter) responsesBody(req llm.Request) map[string]any {
+	body, _ := a.responsesBodyPlan(req)
+	return body
+}
+
+// responsesBodyPlan is responsesBody with how it keeps the conversation's
+// prefix (nil when it is not built append-only; see prefix.go).
+func (a *Adapter) responsesBodyPlan(req llm.Request) (map[string]any, *prefixPlan) {
 	tl, namespaces := a.responsesTools(req)
 	if a.computerTool(req) {
 		tl = append(tl, map[string]any{"type": "computer"})
 	}
+	plan := a.planPrefix(req, tl)
+	if plan != nil {
+		namespaces = plan.namespaces
+		if len(namespaces) == 0 {
+			namespaces = nil
+		}
+	}
 	body := map[string]any{
-		"input": a.responsesInput(req, namespaces),
+		"input": a.responsesInputWith(req, namespaces, plan),
 		"store": false,
 	}
 	if len(tl) > 0 {
@@ -137,7 +151,11 @@ func (a *Adapter) responsesBody(req llm.Request) map[string]any {
 		}
 		body["reasoning"] = r
 	}
-	return body
+	if plan != nil {
+		plan.apply(body, body["input"].([]any))
+	}
+	a.setCacheDiag(req, body)
+	return body, plan
 }
 
 // responsesTools maps the function tools; namespaces names the tool
@@ -166,12 +184,24 @@ func functionTool(t llm.ToolSchema, deferred bool) map[string]any {
 // namespaces are the tool namespaces of this request: a recorded call's
 // namespace is kept only when the request still has it.
 func (a *Adapter) responsesInput(req llm.Request, namespaces map[string]bool) []any {
+	return a.responsesInputWith(req, namespaces, nil)
+}
+
+// responsesInputWith is responsesInput for a request that keeps its
+// prefix by plan (nil: it does not): the items earlier requests appended
+// are replayed where they were sent, and recorded computer calls keep
+// their form while the computer tool is declared.
+func (a *Adapter) responsesInputWith(req llm.Request, namespaces map[string]bool, plan *prefixPlan) []any {
 	msgs := req.Messages
 	// recorded computer calls go as computer_call items only with the
 	// computer tool; without it (another provider, or one that refused it)
 	// as plain function calls, as Chat Completions sends them
 	native := map[string]llm.ComputerCall{}
-	if a.computerTool(req) {
+	withComputer := a.computerTool(req)
+	if plan != nil {
+		_, withComputer = plan.declared["computer:"]
+	}
+	if withComputer {
 		for _, m := range msgs {
 			for _, tc := range m.ToolCalls() {
 				if c, ok := llm.DecodeComputerCall(tc); ok && c.Vendor == llm.ComputerOpenAI {
@@ -206,6 +236,13 @@ func (a *Adapter) responsesInput(req llm.Request, namespaces map[string]bool) []
 					flush()
 					out = append(out, json.RawMessage(raw))
 				case llm.PartProviderBlock:
+					if plan != nil {
+						if pr, ok := a.preludeOf(p, plan.base.ID); ok {
+							flush()
+							out = insertItems(out, pr.Items) // appended by an earlier request, in place
+							continue
+						}
+					}
 					if raw := p.Meta[MetaBlock]; raw != "" && replaySearch && json.Valid([]byte(raw)) {
 						flush()
 						out = append(out, json.RawMessage(raw)) // tool search items, in place
@@ -390,7 +427,10 @@ type rEvent struct {
 		Incomplete *struct {
 			Reason string `json:"reason"`
 		} `json:"incomplete_details"`
-		Usage *struct {
+		// input_transformations: reasoning items withheld (prefix.go)
+		Transformations []json.RawMessage `json:"input_transformations"`
+		CacheDiag       json.RawMessage   `json:"prompt_cache_diagnostics"`
+		Usage           *struct {
 			Input   int `json:"input_tokens"`
 			Output  int `json:"output_tokens"`
 			Details struct {
@@ -408,7 +448,9 @@ func (a *Adapter) streamResponses(ctx context.Context, req llm.Request, onChunk 
 	}
 	svc := responses.NewResponseService(opts...)
 	var extra []option.RequestOption
-	for k, v := range a.responsesBody(req) {
+	body, plan := a.responsesBodyPlan(req)
+	dumpBody(body)
+	for k, v := range body {
 		extra = append(extra, option.WithJSONSet(k, v))
 	}
 	stream := svc.NewStreaming(ctx, responses.ResponseNewParams{Model: shared.ResponsesModel(req.Model)}, extra...)
@@ -510,6 +552,14 @@ func (a *Adapter) streamResponses(ctx context.Context, req llm.Request, onChunk 
 		output = items
 	}
 	msg := llm.Message{Role: llm.RoleAssistant}
+	// what this request appended to keep its prefix leads the reply, to be
+	// replayed in place (prefix.go)
+	if p := plan.record(a.id); p != nil {
+		msg.Parts = append(msg.Parts, *p)
+	}
+	a.noteTransformations(req, r.Transformations)
+	dumpResponse(r.ID, r.Usage, r.Transformations, r.CacheDiag)
+	a.noteCacheDiag(req, r.ID, r.CacheDiag)
 	refused := false
 	from := a.reasoningFrom(req.Model)
 	query := "" // of the last tool_search_call
@@ -590,5 +640,6 @@ func (a *Adapter) streamResponses(ctx context.Context, req llm.Request, onChunk 
 	case r.Status == "incomplete":
 		return llm.Response{}, &llm.Error{Kind: llm.ErrBadRequest, Provider: a.id, Message: fmt.Sprintf("response incomplete: %s", reason)}
 	}
+	plan.done(a, req)
 	return llm.Response{Message: msg, Usage: estimateUsage(usage, req, msg), StopReason: stop}, nil
 }
