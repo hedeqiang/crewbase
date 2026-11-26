@@ -772,6 +772,13 @@ function Models() {
   const [adding, setAdding] = useState(false);
   const [editing, setEditing] = useState<UserProvider | null>(null);
   const [choosingMagpie, setChoosingMagpie] = useState(false);
+  // 额度 changes while you look (and was read when the app started, maybe
+  // before a gateway had it): fresh on opening, then every minute
+  useEffect(() => {
+    void refreshModels();
+    const iv = window.setInterval(() => document.visibilityState === "visible" && void refreshModels(), 60_000);
+    return () => window.clearInterval(iv);
+  }, []);
   const [userProv, setUserProv] = useState<UserProvider[]>([]);
   const pname = (id: string) => userProv.find((u) => u.id === id)?.name || providerName(id);
   const loadUser = () =>

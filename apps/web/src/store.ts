@@ -777,7 +777,19 @@ export function hasModels(s: State = state): boolean | null {
 
 export const openConnect = () => setState({ connecting: true });
 
+// 额度 is read lazily by the daemon (a gateway asks its vendors, which takes
+// seconds): the list fetched at start may come before it. Fetch again
+// shortly after, then every few minutes while the window is shown.
+let modelsTicking = false;
+function tickModels() {
+  if (modelsTicking) return;
+  modelsTicking = true;
+  window.setTimeout(() => void refreshModels(), 8_000);
+  window.setInterval(() => document.visibilityState === "visible" && void refreshModels(), 180_000);
+}
+
 export async function refreshModels() {
+  if (typeof window !== "undefined") tickModels();
   try {
     // names and icons of providers added from the UI (older daemons lack
     // the route), fetched alongside the models rather than before them
