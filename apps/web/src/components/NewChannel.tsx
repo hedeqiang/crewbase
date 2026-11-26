@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Folder, Hash, X } from "lucide-react";
+import { Boxes, Folder, Hash, Users, X } from "lucide-react";
 import { API, teamOf } from "../api";
 import { t } from "../i18n";
-import { openSession, refreshChannels, refreshSessions, setState, toast, useFolders, useStore, getState } from "../store";
+import { openSession, refreshAgents, refreshChannels, refreshSessions, setState, toast, useFolders, useStore, getState } from "../store";
 import { Avatar } from "./Avatar";
+import { RoundtablePicker, createSeats, defaultSeats, makersOf, type Seat } from "./Roundtable";
 
 /** 新建频道: name, members (first selected = owner), folder (docs/03 §5.2). */
 export function NewChannel() {
@@ -22,6 +23,14 @@ function Dialog() {
   const [confirm, setConfirm] = useState(false);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  // 选成员 (existing agents) or 模型圆桌 (new members, one per model)
+  const [kind, setKind] = useState<"members" | "roundtable">("members");
+  const models = useStore((s) => s.models);
+  const defaults = useStore((s) => s.profile.defaultModels);
+  const makers = useMemo(() => makersOf(models, defaults ?? []), [models, defaults]);
+  const [seats, setSeats] = useState<Seat[] | null>(null);
+  const table = seats ?? defaultSeats(models, makers);
+  const [made, setMade] = useState(0);
   const nameRef = useRef<HTMLInputElement>(null);
   // a channel lives in one team: the team the sidebar shows
   const list = useMemo(() => Object.values(agents).filter((a) => a.kind !== "chat" && !a.ephemeral && teamOf(a) === team).sort((a, b) => a.name.localeCompare(b.name)), [agents, team]);
@@ -50,21 +59,36 @@ function Dialog() {
       nameRef.current?.focus();
       return;
     }
-    if (members.length === 0) {
+    const round = kind === "roundtable";
+    if (!round && members.length === 0) {
       setErr(t("nc.needMember"));
+      return;
+    }
+    if (round && table.length === 0) {
+      setErr(t("rt.needModel"));
+      return;
+    }
+    if (round && table.some((s) => !s.name.trim())) {
+      setErr(t("na.needName"));
       return;
     }
     setBusy(true);
     try {
-      const ch = await API.createChannel({ name: n, members, folder: folder.trim() || undefined, handoverConfirm: confirm || undefined });
+      let ids = members;
+      if (round) {
+        ids = await createSeats(models, table, folder.trim() || undefined, setMade);
+        await refreshAgents();
+      }
+      const ch = await API.createChannel({ name: n, members: ids, folder: folder.trim() || undefined, handoverConfirm: confirm || undefined });
       setState((s) => ({ channels: { ...s.channels, [ch.id]: ch }, sessions: { ...s.sessions, [ch.id]: ch }, newChannel: false }));
       await Promise.allSettled([refreshSessions(), refreshChannels()]);
       openSession(ch.id);
-      toast(t("nc.created", { name: n }));
+      toast(round ? t("rt.created", { name: n, n: ids.length }) : t("nc.created", { name: n }));
     } catch (e: any) {
       setErr(e?.message ?? String(e));
     } finally {
       setBusy(false);
+      setMade(0);
     }
   };
 
@@ -85,6 +109,36 @@ function Dialog() {
             void create();
           }}
         >
+          <div className="seg nckind" role="radiogroup" aria-label={t("nc.kind")}>
+            <button
+              type="button"
+              role="radio"
+              aria-checked={kind === "members"}
+              aria-pressed={kind === "members"}
+              onClick={() => {
+                setKind("members");
+                setErr(null);
+                if (name === t("rt.defaultName")) setName("");
+              }}
+            >
+              <Users size={13} />
+              {t("nc.kindMembers")}
+            </button>
+            <button
+              type="button"
+              role="radio"
+              aria-checked={kind === "roundtable"}
+              aria-pressed={kind === "roundtable"}
+              onClick={() => {
+                setKind("roundtable");
+                setErr(null);
+                if (!name.trim()) setName(t("rt.defaultName"));
+              }}
+            >
+              <Boxes size={13} />
+              {t("nc.kindRoundtable")}
+            </button>
+          </div>
           <label className="fl" htmlFor="ncName">
             {t("nc.name")} <i>*</i>
           </label>
@@ -101,6 +155,24 @@ function Dialog() {
               }}
             />
           </label>
+          {kind === "roundtable" ? (
+            <>
+              <div className="fl rtfl">
+                {t("rt.models")} <span className="muted rtcount">{t("rt.count", { n: table.length })}</span>
+              </div>
+              <p className="small muted ncnote">{t("rt.hint")}</p>
+              <RoundtablePicker
+                models={models}
+                makers={makers}
+                seats={table}
+                setSeats={(s) => {
+                  setSeats(s);
+                  setErr(null);
+                }}
+              />
+            </>
+          ) : (
+          <>
           <div className="fl">{t("nc.members")}</div>
           <p className="small muted ncnote">{t("nc.membersHint")}</p>
           <div className="mpick" role="listbox" aria-multiselectable="true">
@@ -145,6 +217,8 @@ function Dialog() {
               );
             })}
           </div>
+          </>
+          )}
           <label className="fl" htmlFor="ncFolder">
             {t("na.folder")}
           </label>
@@ -173,7 +247,7 @@ function Dialog() {
               {t("common.cancel")}
             </button>
             <button className="btn pri" type="submit" disabled={busy}>
-              {busy ? t("na.creating") : t("nc.create")}
+              {busy ? (made ? t("rt.creating", { n: made, total: table.length }) : t("na.creating")) : kind === "roundtable" ? t("rt.create", { n: table.length }) : t("nc.create")}
             </button>
           </div>
         </form>

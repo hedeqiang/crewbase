@@ -6,7 +6,7 @@ import { ImportRoleDialog } from "./ImportRole";
 import { t, type Key } from "../i18n";
 import { allModels, effortLabel, findModel, modeLabel, modelMeta, providerName, sameRef, shortModel } from "../format";
 import { openSession, refreshAgents, refreshSessions, setState, toast, useFolders, useStore, currentTeam, teamMode } from "../store";
-import { AvatarRaw, COLORS, FACES, SHAPES } from "./Avatar";
+import { AvatarEditor, AvatarRaw, COLORS, FACES, LookAvatar, SHAPES } from "./Avatar";
 import { Popover, useMenu } from "./Popover";
 import { ProviderMark } from "./ProviderMark";
 import { effortsFor } from "./ModelPicker";
@@ -18,6 +18,9 @@ export interface Draft {
   color: string;
   shape: string;
   face: string;
+  /** "" the character above, "vendor" a model's mark (vendor "" = follow the model) */
+  avatar: string;
+  vendor: string;
   mode: "read-only" | "sandbox";
   folder: string;
   model: ModelRef | null;
@@ -25,7 +28,7 @@ export interface Draft {
 }
 
 export function emptyDraft(): Draft {
-  return { name: "", role: "", desc: "", color: COLORS[0], shape: "sq", face: "eyes", mode: teamMode("sandbox"), folder: "", model: null, effort: "" };
+  return { name: "", role: "", desc: "", color: COLORS[0], shape: "sq", face: "eyes", avatar: "", vendor: "", mode: teamMode("sandbox"), folder: "", model: null, effort: "" };
 }
 
 export type TemplateKey =
@@ -99,6 +102,25 @@ export function ShuffleButton({ page, onNext, cat = "" }: { page: number; onNext
       </span>
     </button>
   );
+}
+
+/** The model a new agent starts on: the first of Settings › 路由与切换's
+ *  order that is connected, else a strong one, else the first listed. */
+export function usePreferredModel(): ModelRef | null {
+  const models = useStore((s) => s.models);
+  const settingsDefault = useStore((s) => s.profile.defaultModels)?.[0];
+  return useMemo(() => {
+    const all = allModels(models);
+    if (settingsDefault) {
+      const hit = all.find((m) => refString(m.ref) === settingsDefault || refString({ ...m.ref, effort: undefined }) === settingsDefault.split("@")[0]);
+      if (hit) return hit.ref;
+    }
+    for (const want of ["claude-opus-5-5", "claude-sonnet-5-5", "gpt-6.2", "gpt-6.1", "gpt-6", "deepseek-v4-pro", "deepseek-flash"]) {
+      const hit = all.find((m) => m.ref.model.includes(want));
+      if (hit) return hit.ref;
+    }
+    return all[0]?.ref ?? null;
+  }, [models, settingsDefault]);
 }
 
 export function NewAgent({ draft: f, setDraft }: { draft: Draft; setDraft: (d: Draft) => void }) {
@@ -175,18 +197,7 @@ export function NewAgent({ draft: f, setDraft }: { draft: Draft; setDraft: (d: D
   // Default: the same preference the daemon uses for new agents (a strong
   // model from what is available), not simply the first listed.
   const defaultOrder = useStore((s) => s.profile.defaultModels);
-  const settingsDefault = defaultOrder?.[0];
-  const preferred = useMemo(() => {
-    if (settingsDefault) {
-      const hit = all.find((m) => refString(m.ref) === settingsDefault || refString({ ...m.ref, effort: undefined }) === settingsDefault.split("@")[0]);
-      if (hit) return hit.ref;
-    }
-    for (const want of ["claude-opus-5-5", "claude-sonnet-5-5", "gpt-6.2", "gpt-6.1", "gpt-6", "deepseek-v4-pro", "deepseek-flash"]) {
-      const hit = all.find((m) => m.ref.model.includes(want));
-      if (hit) return hit.ref;
-    }
-    return all[0]?.ref ?? null;
-  }, [all, settingsDefault]);
+  const preferred = usePreferredModel();
   const primary = f.model ?? preferred;
   const primaryLevels = effortsFor(primary ? findModel(models, primary) : undefined);
   // Fallbacks follow the default order (Settings › 路由与切换), not the next
@@ -230,6 +241,8 @@ export function NewAgent({ draft: f, setDraft }: { draft: Draft; setDraft: (d: D
         color: f.color,
         shape: f.shape,
         face: f.face,
+        avatar: f.avatar || undefined,
+        vendor: (f.avatar && f.vendor) || undefined,
         folder: f.folder.trim() || undefined,
         team: currentTeam(),
         modelRefs: refs.length ? refs : undefined,
@@ -298,7 +311,7 @@ export function NewAgent({ draft: f, setDraft }: { draft: Draft; setDraft: (d: D
                   type="button"
                   className="na-heroav"
                   ref={lookM.ref}
-                  key={f.color + f.shape + poke}
+                  key={f.color + f.shape + f.avatar + f.vendor + poke}
                   title={t("na.changeLook")}
                   aria-label={t("na.changeLook")}
                   aria-haspopup="dialog"
@@ -307,11 +320,13 @@ export function NewAgent({ draft: f, setDraft }: { draft: Draft; setDraft: (d: D
                     lookM.toggle();
                   }}
                 >
-                  <AvatarRaw color={f.color} shape={f.shape} face={f.face} size={64} name={f.name} />
+                  <LookAvatar look={f} model={primary} size={64} name={f.name} />
                 </button>
-                <button type="button" className="btn sm ghost na-dice" onClick={randomLook} title={t("na.random")} aria-label={t("na.random")}>
-                  <Dices size={13} />
-                </button>
+                {f.avatar !== "vendor" && (
+                  <button type="button" className="btn sm ghost na-dice" onClick={randomLook} title={t("na.random")} aria-label={t("na.random")}>
+                    <Dices size={13} />
+                  </button>
+                )}
               </div>
               <div className="na-two">
                 <div>
@@ -344,34 +359,18 @@ export function NewAgent({ draft: f, setDraft }: { draft: Draft; setDraft: (d: D
               </div>
             </div>
             <Popover anchor={lookM.anchor} open={lookM.open} onClose={lookM.close} width={360} className="na-lookpop">
-              <div className="na-look">
-                <div className="na-lookh">
-                  <span className="small muted">{t("na.look")}</span>
+              <AvatarEditor
+                look={f}
+                name={f.name}
+                live={primary}
+                onChange={(p) => set(p as Partial<Draft>)}
+                extra={
                   <button type="button" className="btn sm ghost na-dice" onClick={randomLook}>
                     <Dices size={13} />
                     {t("na.random")}
                   </button>
-                </div>
-                <div className="na-shapes" role="radiogroup" aria-label={t("na.shape")}>
-                  {SHAPES.map((sh) => (
-                    <button key={sh} type="button" className="shp" aria-pressed={f.shape === sh} aria-label={sh} onClick={() => set({ shape: sh })}>
-                      <AvatarRaw color={f.color} shape={sh} face={f.face} size={26} name={f.name} />
-                    </button>
-                  ))}
-                </div>
-                <div className="na-shapes" role="radiogroup" aria-label={t("na.face")}>
-                  {FACES.map((fc) => (
-                    <button key={fc} type="button" className="shp" aria-pressed={(f.face || "eyes") === fc} aria-label={t(`face.${fc}` as Key)} title={t(`face.${fc}` as Key)} onClick={() => set({ face: fc })}>
-                      <AvatarRaw color={f.color} shape={f.shape} face={fc} size={26} name={f.name} />
-                    </button>
-                  ))}
-                </div>
-                <div className="na-colors" role="radiogroup" aria-label={t("na.color")}>
-                  {COLORS.map((c) => (
-                    <button key={c} type="button" className="dotc" style={{ ["--c" as any]: c }} aria-pressed={f.color === c} aria-label={c} onClick={() => set({ color: c })} />
-                  ))}
-                </div>
-              </div>
+                }
+              />
             </Popover>
 
             <div className="na-card rows">

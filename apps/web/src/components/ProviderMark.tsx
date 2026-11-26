@@ -46,13 +46,52 @@ import bedrock from "@lobehub/icons-static-svg/icons/bedrock-color.svg?raw";
 import vertexai from "@lobehub/icons-static-svg/icons/vertexai-color.svg?raw";
 import cloudflare from "@lobehub/icons-static-svg/icons/cloudflare-color.svg?raw";
 import antigravity from "@lobehub/icons-static-svg/icons/antigravity-color.svg?raw";
+import meta from "@lobehub/icons-static-svg/icons/meta-color.svg?raw";
 
 const ICONS: Record<string, string> = {
   anthropic, claude, codex, cursor, deepseek, doubao, gemini, grok, groq, kimi, lmstudio, magpie,
   minimax, mistral, moonshot, ollama, openai, opencode, openrouter, qwen, siliconcloud, vllm, zhipu,
   xai, volcengine, baichuan, hunyuan, stepfun, yi, wenxin, spark, together, fireworks, perplexity,
-  cohere, nvidia, azure, bedrock, vertexai, cloudflare, antigravity,
+  cohere, nvidia, azure, bedrock, vertexai, cloudflare, antigravity, meta,
 };
+
+/** The raw SVG of an icon key (undefined when there is none). */
+export function markSvg(key: string): string | undefined {
+  return ICONS[key];
+}
+
+/** Vendor marks an agent can wear as its avatar, in groups: model makers
+ *  abroad, model makers in China, then platforms, tools and local runners. */
+export const AVATAR_VENDORS: { group: "intl" | "cn" | "platform"; keys: string[] }[] = [
+  { group: "intl", keys: ["claude", "anthropic", "openai", "codex", "gemini", "grok", "xai", "meta", "mistral", "cohere", "perplexity"] },
+  { group: "cn", keys: ["deepseek", "qwen", "kimi", "moonshot", "zhipu", "minimax", "doubao", "volcengine", "hunyuan", "wenxin", "baichuan", "stepfun", "yi", "spark"] },
+  {
+    group: "platform",
+    keys: ["openrouter", "siliconcloud", "groq", "together", "fireworks", "nvidia", "azure", "bedrock", "vertexai", "cloudflare", "cursor", "opencode", "antigravity", "ollama", "lmstudio", "vllm"],
+  },
+];
+
+const MARK_NAMES: Record<string, string> = {
+  claude: "Claude", codex: "Codex", grok: "Grok", moonshot: "Moonshot", cursor: "Cursor", opencode: "OpenCode",
+  antigravity: "Antigravity", meta: "Meta", magpie: "Magpie",
+};
+
+/** A mark's display name (the vendor or product it stands for). */
+export function markName(key: string): string {
+  return MARK_NAMES[key] ?? PICKABLE.find((p) => p.key === key)?.name ?? key;
+}
+
+// Marks of one maker: a fixed avatar of one stands for the others too.
+const FAMILY: Record<string, string> = {
+  claude: "anthropic", codex: "openai", grok: "xai", kimi: "moonshot", doubao: "bytedance", volcengine: "bytedance",
+  vertexai: "google", gemini: "google", antigravity: "google",
+};
+
+/** The maker an icon key belongs to ("claude" and "anthropic" are one). */
+export function vendorFamily(key: string): string {
+  return FAMILY[key] ?? key;
+}
+
 
 /** Icons a person can pick for a custom provider (vendor icons, then "mono"). */
 export const PICKABLE: { key: string; name: string }[] = [
@@ -189,6 +228,7 @@ const BY_MODEL: [RegExp, string][] = [
   [/doubao/i, "doubao"],
   [/minimax/i, "minimax"],
   [/composer|cursor/i, "cursor"],
+  [/llama/i, "meta"],
 ];
 
 const GATEWAYS = new Set(["magpie", "openrouter"]);
@@ -203,6 +243,15 @@ export function vendorIcon(provider: string, model?: string): string | undefined
   const u = userProvider(provider)?.icon;
   if (u) return u;
   return BY_PROVIDER[provider];
+}
+
+/** The mark of who made a model: its id says so first ("cursor/claude-…"
+ *  is Claude, "qwen3" on Ollama is Qwen), else the provider's mark
+ *  (vendorIcon). An agent's vendor avatar wears this one. */
+export function modelMaker(provider: string, model?: string): string | undefined {
+  const id = model?.split("/").pop() ?? "";
+  if (id) for (const [re, key] of BY_MODEL) if (re.test(id)) return key;
+  return vendorIcon(provider, model);
 }
 
 /** Renders an icon key directly (pickers, previews). */

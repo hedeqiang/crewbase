@@ -3,11 +3,12 @@ import { PanelLeft, PanelRight, ShieldCheck } from "lucide-react";
 import { t } from "../i18n";
 import { ago } from "../format";
 import { chatTitle, isChat, openSession, sessionAgent, setState, useStore } from "../store";
-import { Avatar, AvatarRaw } from "./Avatar";
+import { Avatar, LookAvatar } from "./Avatar";
+import { usePreferredModel } from "./NewAgent";
 import { ApprovalActions } from "./Approval";
 import { takeoverReason } from "./Browser";
 import { Popover, useMenu } from "./Popover";
-import { desktop } from "../api";
+import { desktop, type ModelRef } from "../api";
 
 /** Toggle for the session list; lives in the sidebar's title-bar area or, when
  *  the sidebar is hidden, at the left of the conversation header. */
@@ -37,7 +38,8 @@ export function useNeedsYou() {
 
 /** The 44px strip on top of the main column: who this conversation is with,
  *  the 需要你 pill (only when something waits) and the right-panel toggle. */
-export function ConvHeader({ draftColor, draftShape, draftFace }: { draftColor: string; draftShape: string; draftFace?: string }) {
+export function ConvHeader({ draftColor, draftShape, draftFace, draftLook }: { draftColor: string; draftShape: string; draftFace?: string; draftLook?: { avatar?: string; vendor?: string; model?: ModelRef | null } }) {
+  const preferred = usePreferredModel();
   const current = useStore((s) => s.current);
   const view = useStore((s) => s.view);
   const sessions = useStore((s) => s.sessions);
@@ -105,7 +107,7 @@ export function ConvHeader({ draftColor, draftShape, draftFace }: { draftColor: 
         )}
         {view === "newAgent" && (
           <>
-            <AvatarRaw color={draftColor} shape={draftShape} face={draftFace} size={24} />
+            <LookAvatar look={{ color: draftColor, shape: draftShape, face: draftFace, avatar: draftLook?.avatar, vendor: draftLook?.vendor }} model={draftLook?.model ?? preferred} size={24} />
             <b className="nm">{t("tb.newAgent")}</b>
           </>
         )}

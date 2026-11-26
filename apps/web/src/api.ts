@@ -47,6 +47,10 @@ export interface AgentView {
   color?: string;
   shape?: string;
   face?: string;
+  /** avatar style: unset = the crew character (color/shape/face), "vendor" = a model vendor's mark */
+  avatar?: string;
+  /** with avatar "vendor": unset = follow the model in use, else an icon key (ProviderMark) */
+  vendor?: string;
   folder?: string;
   host?: string;
   created: string;

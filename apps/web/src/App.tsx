@@ -214,7 +214,7 @@ function Shell() {
               </Suspense>
             ) : (
               <div className="center">
-                <ConvHeader draftColor={draft.color} draftShape={draft.shape} draftFace={draft.face} />
+                <ConvHeader draftColor={draft.color} draftShape={draft.shape} draftFace={draft.face} draftLook={draft} />
                 {view === "newAgent" ? (
                   <NewAgent draft={draft} setDraft={setDraft} />
                 ) : (

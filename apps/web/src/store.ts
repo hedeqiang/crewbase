@@ -18,6 +18,7 @@ import {
   type ChannelView,
   type SessionSummary,
   type ModelsResponse,
+  type ModelRef,
   type SessionEvent,
   type SessionMeta,
   type StreamChunk,
@@ -124,6 +125,10 @@ export interface State {
   ui: UIContribution[];
   connected: boolean;
   agents: Record<string, AgentView>;
+  /** The model each agent last ran on, from any conversation's events
+   *  (a reply, a failover, a pick), with the first model of its order at
+   *  the time: a vendor avatar follows it while that order holds. */
+  liveModel: Record<string, LiveModel>;
   /** the agent list has arrived once (until then nothing is "empty") */
   agentsLoaded: boolean;
   /** the conversation list has arrived once */
@@ -292,6 +297,7 @@ let state: State = {
   settingsTab: null,
   connected: false,
   agents: {},
+  liveModel: {},
   agentsLoaded: false,
   sessionsLoaded: false,
   routed: false,
@@ -806,6 +812,7 @@ function loadSessionNow(id: string): Promise<void> {
         const cur = s.events[id] ?? [];
         const last = cur.length ? cur[cur.length - 1].seq : 0;
         const add = r.events.filter((e) => e.seq > last);
+        queueMicrotask(() => noteLiveModels(add));
         const { [id]: _, ...loadErr } = s.loadErr;
         return {
           events: add.length || !s.events[id] ? { ...s.events, [id]: [...cur, ...add] } : s.events,
@@ -945,6 +952,36 @@ function clearStream(session: string, agent?: string) {
   });
 }
 
+export interface LiveModel {
+  ref: ModelRef;
+  time: string;
+  /** the agent's first model (provider/model) when it ran on ref */
+  first: string;
+  /** a failover moved it there (the router keeps it until a new task) */
+  switched?: boolean;
+}
+
+const LIVE_TYPES = new Set(["message/assistant", "model/switched", "model/chosen"]);
+
+/** Notes, from session events, which model each agent is running on. */
+function noteLiveModels(evs: SessionEvent[]) {
+  let next: Record<string, LiveModel> | null = null;
+  for (const ev of evs) {
+    if (!ev.agent || !LIVE_TYPES.has(ev.type)) continue;
+    const a = state.agents[ev.agent];
+    const first = a?.models?.[0];
+    if (!first) continue;
+    const cur = (next ?? state.liveModel)[ev.agent];
+    if (cur && cur.time > ev.time) continue;
+    const d = ev.data ?? {};
+    const ref: ModelRef | undefined = ev.type === "message/assistant" ? d.model : d.to;
+    if (!ref?.provider) continue;
+    next ??= { ...state.liveModel };
+    next[ev.agent] = { ref: { provider: ref.provider, model: ref.model }, time: ev.time, first: `${first.provider}/${first.model}`, switched: ev.type === "model/switched" || (ev.type === "message/assistant" && !!cur?.switched && cur.ref.provider === ref.provider && cur.ref.model === ref.model) };
+  }
+  if (next) setState({ liveModel: next });
+}
+
 const SUMMARY_TYPES = new Set(["message/user", "message/assistant", "approval/asked", "session/meta"]);
 
 function applySessionEvent(ev: SessionEvent) {
@@ -953,6 +990,7 @@ function applySessionEvent(ev: SessionEvent) {
   if ((ev.type === "input/claimed" || ev.type === "input/cancelled") && ev.agent && ev.data?.id) dropQueued(ev.agent, ev.data.id);
   if (!state.sessions[ev.session]) void refreshSessions();
   if (SUMMARY_TYPES.has(ev.type)) scheduleSummaries();
+  if (LIVE_TYPES.has(ev.type)) noteLiveModels([ev]);
   if (ev.type.startsWith("channel/")) void refreshChannel(ev.session);
   if (ev.type === "session/meta") void refreshSessions();
   if (ev.type === "message/assistant" || ev.type === "turn/end") clearStream(ev.session, ev.agent);
