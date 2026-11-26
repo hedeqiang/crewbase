@@ -1,9 +1,10 @@
-import { MessageSquare } from "lucide-react";
+import { Boxes, MessageSquare, RefreshCw, Smile } from "lucide-react";
 import { useEffect, type CSSProperties, type ReactNode } from "react";
-import type { AgentView } from "../api";
-import { statusTone } from "../format";
+import type { AgentView, ModelRef } from "../api";
+import { activeModel, isExhausted, providerName, sameRef, shortModel, statusTone } from "../format";
 import { useStore } from "../store";
 import { t, type Key } from "../i18n";
+import { AVATAR_VENDORS, markName, markSvg, modelMaker, vendorFamily } from "./ProviderMark";
 
 // 18 identity colours × 7 shapes (docs/03 §4). Identity colours never mix
 // with status colours.
@@ -237,12 +238,79 @@ export function AvatarRaw({ color, shape, face, size = 30, title, name }: { colo
   );
 }
 
+/** The model an agent is running on now: a failover it is still on
+ *  (features/router keeps it until a new task), else the first usable
+ *  model of its order (activeModel skips one that is off or used up). */
+export function useLiveModel(agent?: AgentView): ModelRef | null {
+  const models = useStore((s) => s.models);
+  const live = useStore((s) => (agent ? s.liveModel[agent.id] : undefined));
+  if (!agent) return null;
+  const first = agent.models?.[0];
+  if (live?.switched && first && live.first === `${first.provider}/${first.model}` && agent.models?.some((r) => sameRef(r, live.ref)) && !isExhausted(models, live.ref)) return live.ref;
+  return activeModel(models, agent) ?? live?.ref ?? null;
+}
+
+/** The vendor mark (icon key) of who made a model; undefined when none is known. */
+export function modelMark(ref: ModelRef | null | undefined): string | undefined {
+  if (!ref) return undefined;
+  const k = modelMaker(ref.provider, ref.model);
+  return k && k !== "mono" && markSvg(k) ? k : undefined;
+}
+
+/** A vendor mark worn as an avatar: the logo as it is, on a neutral tile the
+ *  size and corner of a character avatar, so lists stay aligned. Without a
+ *  mark: the provider's (or name's) first letter on the same tile. */
+export function VendorTile({ icon, size = 30, letter, title, auto = false }: { icon?: string; size?: number; letter?: string; title?: string; auto?: boolean }) {
+  const svg = icon ? markSvg(icon) : undefined;
+  return (
+    <span
+      className={"av vav" + (size < 22 ? " xs" : "") + (auto ? " auto" : "")}
+      style={{ "--s": `${size}px` } as CSSProperties}
+      role={title ? "img" : undefined}
+      aria-label={title}
+      aria-hidden={title ? undefined : true}
+      title={title}
+    >
+      <span className="vavt">
+        {svg ? <span className="vavm" dangerouslySetInnerHTML={{ __html: svg }} /> : <span className="vavl">{letter || "?"}</span>}
+      </span>
+      {auto && (
+        <span className="vauto" aria-hidden>
+          <RefreshCw strokeWidth={2.6} />
+        </span>
+      )}
+    </span>
+  );
+}
+
+/** An agent's look as stored (and as a new agent's draft has it). */
+export type Look = {
+  color?: string;
+  shape?: string;
+  face?: string;
+  avatar?: string;
+  vendor?: string;
+}
+
+/** A look not yet saved (the 新建 Agent form): the character, or the vendor
+ *  mark of the model it will run on. */
+export function LookAvatar({ look, model, size = 30, name }: { look: Look; model?: ModelRef | null; size?: number; name?: string }) {
+  if (look.avatar !== "vendor") return <AvatarRaw color={look.color || COLORS[0]} shape={look.shape} face={look.face} size={size} name={name} />;
+  const icon = look.vendor || modelMark(model);
+  return <VendorTile icon={icon} size={size} letter={model ? providerName(model.provider).charAt(0).toUpperCase() : monogram(name)} />;
+}
+
 export function Avatar({ agent, size = 30, status = false }: { agent?: AgentView; size?: number; status?: boolean }) {
   const pending = useStore((s) => !!agent && s.approvals.some((a) => a.agent === agent.id));
+  const models = useStore((s) => s.models);
+  const vendorStyle = agent?.avatar === "vendor" && agent.kind !== "chat";
+  const live = useLiveModel(vendorStyle ? agent : undefined);
   const color = agent?.color || colorFor(agent?.id ?? "?");
-  // blank chats have no persona: a neutral speech-bubble tile
-  const raw =
-    agent?.kind === "chat" ? (
+  let mismatch = "";
+  let raw: ReactNode;
+  if (agent?.kind === "chat") {
+    // blank chats have no persona: a neutral speech-bubble tile
+    raw = (
       <span
         className="chatav"
         style={{ width: size, height: size, borderRadius: Math.round(size * 0.3), ["--c" as string]: channelColor(agent.id) } as CSSProperties}
@@ -250,19 +318,29 @@ export function Avatar({ agent, size = 30, status = false }: { agent?: AgentView
       >
         <MessageSquare size={Math.round(size * 0.5)} strokeWidth={2.2} />
       </span>
-    ) : (
-      <AvatarRaw color={color} shape={agent?.shape} face={agent?.face} size={size} name={agent?.name} />
     );
-  if (!status || !agent) return raw;
+  } else if (vendorStyle && agent) {
+    const liveKey = modelMark(live);
+    const icon = agent.vendor || liveKey;
+    const model = live ? shortModel(models, live) : "";
+    // a fixed mark of another maker than the model in use says so
+    if (agent.vendor && liveKey && vendorFamily(agent.vendor) !== vendorFamily(liveKey)) mismatch = t("av.mismatch", { mark: markName(agent.vendor), model });
+    const title = mismatch || (model ? t(agent.vendor ? "av.fixedTitle" : "av.followTitle", { model, mark: agent.vendor ? markName(agent.vendor) : "" }) : undefined);
+    raw = <VendorTile icon={icon} size={size} title={title} letter={live ? providerName(live.provider).charAt(0).toUpperCase() : monogram(agent.name)} />;
+  } else {
+    raw = <AvatarRaw color={color} shape={agent?.shape} face={agent?.face} size={size} name={agent?.name} />;
+  }
   // Waiting on an approval is shown as amber even while the turn is "running".
-  const tone = pending && agent.status !== "failed" ? "wait" : statusTone(agent.status);
+  const tone = !status || !agent ? "idle" : pending && agent.status !== "failed" ? "wait" : statusTone(agent.status);
   // idle is the normal state: no dot, so a list of resting agents stays calm
-  if (tone === "idle") return raw;
+  if (tone === "idle" && !mismatch) return raw;
   const dot = Math.max(8, Math.round(size * 0.36));
+  const mm = Math.min(10, Math.max(6, Math.round(size * 0.22)));
   return (
-    <span className={"avw " + tone}>
+    <span className={"avw " + tone} title={mismatch || undefined}>
       {raw}
-      <span className={`sd ${tone}`} style={{ width: dot, height: dot }} />
+      {mismatch && <span className="mmd" style={{ width: mm, height: mm }} aria-label={mismatch} role="img" />}
+      {tone !== "idle" && <span className={`sd ${tone}`} style={{ width: dot, height: dot }} />}
     </span>
   );
 }
@@ -275,35 +353,103 @@ export function MeAvatar({ size = 26, label = "•" }: { size?: number; label?: 
   );
 }
 
-/** Shape, face and colour choices for an existing agent; each click saves. */
-export function LookPicker({ agent, onChange }: { agent: AgentView; onChange: (p: { color?: string; shape?: string; face?: string }) => void }) {
-  const color = agent.color || colorFor(agent.id);
-  const shape = agent.shape || "sq";
-  const face = agent.face || "eyes";
+/** The avatar editor: a style switch (角色: shape, face and colour | 模型:
+ *  a vendor mark, or 跟随模型), then that style's choices. Each choice is
+ *  reported at once; switching style keeps the other style's picks. */
+export function AvatarEditor({ look, name, live, onChange, extra }: { look: Look; name?: string; live: ModelRef | null; onChange: (p: Look) => void; extra?: ReactNode }) {
+  const models = useStore((s) => s.models);
+  const vendorStyle = look.avatar === "vendor";
+  const color = look.color || COLORS[0];
+  const shape = look.shape || "sq";
+  const face = look.face || "eyes";
+  const liveKey = modelMark(live);
+  const liveName = live ? shortModel(models, live) : "";
+  const letter = live ? providerName(live.provider).charAt(0).toUpperCase() : monogram(name);
+  const mismatch = !!look.vendor && !!liveKey && vendorFamily(look.vendor) !== vendorFamily(liveKey);
   return (
     <div className="lookpick">
-      <div className="lookhero">
-        <AvatarRaw color={color} shape={shape} face={face} size={64} name={agent.name} />
-      </div>
-      <div className="na-shapes" role="radiogroup" aria-label={t("na.shape")}>
-        {SHAPES.map((sh) => (
-          <button key={sh} type="button" className="shp" aria-pressed={shape === sh} aria-label={sh} onClick={() => onChange({ shape: sh })}>
-            <AvatarRaw color={color} shape={sh} face={face} size={24} name={agent.name} />
+      <div className="avstyle">
+        <div className="seg" role="radiogroup" aria-label={t("av.style")}>
+          <button type="button" role="radio" aria-checked={!vendorStyle} aria-pressed={!vendorStyle} onClick={() => vendorStyle && onChange({ avatar: "" })}>
+            <Smile size={13} />
+            {t("av.styleRole")}
           </button>
-        ))}
-      </div>
-      <div className="na-shapes" role="radiogroup" aria-label={t("na.face")}>
-        {FACES.map((fc) => (
-          <button key={fc} type="button" className="shp" aria-pressed={face === fc} aria-label={t(`face.${fc}` as Key)} title={t(`face.${fc}` as Key)} onClick={() => onChange({ face: fc })}>
-            <AvatarRaw color={color} shape={shape} face={fc} size={24} name={agent.name} />
+          <button type="button" role="radio" aria-checked={vendorStyle} aria-pressed={vendorStyle} onClick={() => !vendorStyle && onChange({ avatar: "vendor" })}>
+            <Boxes size={13} />
+            {t("av.styleModel")}
           </button>
-        ))}
+        </div>
+        {!vendorStyle && extra}
       </div>
-      <div className="na-colors" role="radiogroup" aria-label={t("na.color")}>
-        {COLORS.map((c) => (
-          <button key={c} type="button" className="dotc" style={{ ["--c" as string]: c } as CSSProperties} aria-pressed={color === c} aria-label={c} onClick={() => onChange({ color: c })} />
-        ))}
-      </div>
+      {!vendorStyle ? (
+        <>
+          <div className="lookhero">
+            <AvatarRaw color={color} shape={shape} face={face} size={64} name={name} />
+          </div>
+          <div className="na-shapes" role="radiogroup" aria-label={t("na.shape")}>
+            {SHAPES.map((sh) => (
+              <button key={sh} type="button" className="shp" aria-pressed={shape === sh} aria-label={sh} onClick={() => onChange({ shape: sh })}>
+                <AvatarRaw color={color} shape={sh} face={face} size={24} name={name} />
+              </button>
+            ))}
+          </div>
+          <div className="na-shapes" role="radiogroup" aria-label={t("na.face")}>
+            {FACES.map((fc) => (
+              <button key={fc} type="button" className="shp" aria-pressed={face === fc} aria-label={t(`face.${fc}` as Key)} title={t(`face.${fc}` as Key)} onClick={() => onChange({ face: fc })}>
+                <AvatarRaw color={color} shape={shape} face={fc} size={24} name={name} />
+              </button>
+            ))}
+          </div>
+          <div className="na-colors" role="radiogroup" aria-label={t("na.color")}>
+            {COLORS.map((c) => (
+              <button key={c} type="button" className="dotc" style={{ ["--c" as string]: c } as CSSProperties} aria-pressed={color === c} aria-label={c} onClick={() => onChange({ color: c })} />
+            ))}
+          </div>
+        </>
+      ) : (
+        <>
+          <div className="lookhero vhero">
+            <VendorTile icon={look.vendor || liveKey} size={64} letter={letter} />
+            <div className="vcap">
+              <b>{look.vendor ? markName(look.vendor) : t("av.follow")}</b>
+              <span className={mismatch ? "warn" : undefined}>
+                {look.vendor
+                  ? mismatch
+                    ? t("av.mismatchShort", { model: liveName })
+                    : t("av.fixedHint")
+                  : liveName
+                    ? t("av.followNow", { model: liveName })
+                    : t("av.followNone")}
+              </span>
+            </div>
+          </div>
+          <button type="button" className="vfollow" aria-pressed={!look.vendor} onClick={() => onChange({ vendor: "" })}>
+            <VendorTile icon={liveKey} size={30} letter={letter} auto />
+            <span className="g">
+              <b>{t("av.follow")}</b>
+              <span>{t("av.followDesc")}</span>
+            </span>
+          </button>
+          {AVATAR_VENDORS.map((g) => (
+            <div className="vgrp" key={g.group}>
+              <div className="vgrph">{t(`av.group.${g.group}` as Key)}</div>
+              <div className="vgrid" role="radiogroup" aria-label={t(`av.group.${g.group}` as Key)}>
+                {g.keys.map((k) => (
+                  <button key={k} type="button" className="shp vpick" aria-pressed={look.vendor === k} aria-label={markName(k)} title={markName(k)} onClick={() => onChange({ vendor: k })}>
+                    <VendorTile icon={k} size={26} />
+                  </button>
+                ))}
+              </div>
+            </div>
+          ))}
+        </>
+      )}
     </div>
   );
+}
+
+/** The look of an existing agent; each click saves. */
+export function LookPicker({ agent, onChange }: { agent: AgentView; onChange: (p: Look) => void }) {
+  const live = useLiveModel(agent);
+  return <AvatarEditor look={{ ...agent, color: agent.color || colorFor(agent.id) }} name={agent.name} live={live} onChange={onChange} />;
 }
