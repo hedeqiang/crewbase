@@ -159,6 +159,53 @@ func (s *Service) kindOf(provider string) string {
 	return "api"
 }
 
+// valuation is what one reply cost: the provider's kind, the estimated API
+// spend (direct keys and gateways), what local or subscription use saved,
+// whether a price was known, and whether it was the catalog's list price.
+type valuation struct {
+	kind            string
+	spent, saved    float64
+	priced, catalog bool
+}
+
+// value prices one reply; prices caches catalog prices by model (nil =
+// unknown).
+func (s *Service) value(am session.AssistantMessage, prices map[string]*llm.Pricing) valuation {
+	kind := s.kindOf(am.Model.Provider)
+	// Value the tokens at the model's own list price when the model catalog
+	// knows it, else at the reference price.
+	cost := float64(am.Usage.InputTokens)/1e6*s.ref.Input + float64(am.Usage.OutputTokens)/1e6*s.ref.Output
+	p, cached := prices[am.Model.String()]
+	if !cached {
+		p = s.llms.PriceOf(am.Model)
+		prices[am.Model.String()] = p
+	}
+	v := valuation{kind: kind, priced: p != nil}
+	switch kind {
+	case "gateway":
+		// billed inside the gateway (e.g. magpie): counted as spent at the
+		// model's list price when it is known, the same figure the reply
+		// footer shows; unknown prices count 0 rather than a guess at the
+		// reference price
+		if p != nil {
+			v.spent, v.catalog = p.Cost(am.Usage), true
+		}
+	case "api":
+		if cp, ok := s.prices[am.Model.Provider]; ok {
+			cost, v.priced = float64(am.Usage.InputTokens)/1e6*cp.Input+float64(am.Usage.OutputTokens)/1e6*cp.Output, true
+		} else if p != nil {
+			cost, v.catalog = p.Cost(am.Usage), true
+		}
+		v.spent = cost
+	default:
+		if p != nil {
+			cost, v.catalog = p.Cost(am.Usage), true
+		}
+		v.saved = cost
+	}
+	return v
+}
+
 // Compute builds stats over the last 53 weeks.
 func (s *Service) Compute() Stats {
 	s.mu.Lock()
@@ -199,43 +246,14 @@ func (s *Service) Compute() Stats {
 				st.OutputTokens += am.Usage.OutputTokens
 				st.Days[e.Time.Local().Format("2006-01-02")] += n // the host's own calendar day
 				byProv[am.Model.Provider] += n
-				kind := s.kindOf(am.Model.Provider)
+				v := s.value(am, prices)
+				kind, spent, saved, priced := v.kind, v.spent, v.saved, v.priced
 				st.Kinds[kind] += n
-				// Value the tokens at the model's own list price when the
-				// model catalog knows it, else at the reference price.
-				cost := float64(am.Usage.InputTokens)/1e6*s.ref.Input + float64(am.Usage.OutputTokens)/1e6*s.ref.Output
-				p, cached := prices[am.Model.String()]
-				if !cached {
-					p = s.llms.PriceOf(am.Model)
-					prices[am.Model.String()] = p
+				if v.catalog {
+					st.PricedTokens += n
 				}
-				var spent, saved float64
-				priced := p != nil
-				switch kind {
-				case "gateway":
-					// billed inside the gateway (e.g. magpie): counted as spent
-					// at the model's list price when it is known, the same
-					// figure the reply footer shows; unknown prices count 0
-					// rather than a guess at the reference price
-					if p != nil {
-						spent = p.Cost(am.Usage)
-						st.PricedTokens += n
-						st.GatewayUSD += spent
-					}
-				case "api":
-					if cp, ok := s.prices[am.Model.Provider]; ok {
-						cost, priced = float64(am.Usage.InputTokens)/1e6*cp.Input+float64(am.Usage.OutputTokens)/1e6*cp.Output, true
-					} else if p != nil {
-						cost = p.Cost(am.Usage)
-						st.PricedTokens += n
-					}
-					spent = cost
-				default:
-					if p != nil {
-						cost = p.Cost(am.Usage)
-						st.PricedTokens += n
-					}
-					saved = cost
+				if kind == "gateway" {
+					st.GatewayUSD += spent
 				}
 				st.SpentUSD += spent
 				st.SavedUSD += saved
