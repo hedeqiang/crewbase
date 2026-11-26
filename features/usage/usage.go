@@ -390,3 +390,26 @@ func (s *Service) TokensByAgent() map[string]int {
 	}
 	return out
 }
+
+// Cost is what one model call cost (USD), by the rules Compute values
+// spend with: a gateway or a direct key at the model's list price (a key's
+// configured price first); local and subscription use cost nothing.
+// priced is false when no price is known for a billed model (cost 0).
+func (s *Service) Cost(m llm.ModelRef, u llm.Usage) (usd float64, priced bool) {
+	switch s.kindOf(m.Provider) {
+	case "gateway":
+		if p := s.llms.PriceOf(m); p != nil {
+			return p.Cost(u), true
+		}
+		return 0, false
+	case "api":
+		if cp, ok := s.prices[m.Provider]; ok {
+			return float64(u.InputTokens)/1e6*cp.Input + float64(u.OutputTokens)/1e6*cp.Output, true
+		}
+		if p := s.llms.PriceOf(m); p != nil {
+			return p.Cost(u), true
+		}
+		return 0, false
+	}
+	return 0, true
+}
