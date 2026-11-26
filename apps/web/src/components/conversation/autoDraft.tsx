@@ -342,10 +342,10 @@ const uniq = (xs: string[]) => [...new Set(xs.filter(Boolean))];
 
 function scheduleNote(d: AutoDraft, cur: string) {
   const proposed = d.kind === "workflow" ? d.workflow.trigger : d.routine.schedule;
-  if (cur !== proposed && cur !== d.routine.schedule) return t("auto.scheduleHint");
+  if (cur !== proposed && cur !== d.routine.schedule) return undefined;
   if (d.scheduleGuessed) return t("c2r.schedGuessed", { s: scheduleLabel(proposed) });
   if (d.scheduleWhy) return t("c2r.schedWhy", { why: d.scheduleWhy });
-  return t("auto.scheduleHint");
+  return undefined;
 }
 
 function StepEdit({ n, s, last, onChange, onRemove }: { n: number; s: WfStep; last: boolean; onChange: (s: WfStep) => void; onRemove?: () => void }) {

@@ -1,0 +1,11 @@
+/* small fixes from an interaction pass */
+
+/* a shortcut hint means nothing without a keyboard */
+@media (hover: none) and (pointer: coarse) {
+  .savebar .btn kbd { display: none; }
+}
+/* the floating save bar keeps clear of the last row it follows */
+.savebar { margin-top: 16px; }
+
+/* 例行巡检's 触发 uses 工作流's picker: room under it for the hint */
+.box.form .trig + .small { display: block; margin-top: 4px; }

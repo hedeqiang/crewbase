@@ -50,7 +50,10 @@ function Dialog() {
     return () => window.removeEventListener("keydown", key, true);
   }, []);
 
-  const toggle = (id: string) => setMembers((m) => (m.includes(id) ? m.filter((x) => x !== id) : [...m, id]));
+  const toggle = (id: string) => {
+    setErr(null);
+    setMembers((m) => (m.includes(id) ? m.filter((x) => x !== id) : [...m, id]));
+  };
 
   const create = async () => {
     const n = name.trim().replace(/^#/, "").trim();

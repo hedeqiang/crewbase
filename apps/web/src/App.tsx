@@ -173,7 +173,10 @@ function Shell() {
       if (e.key === "Escape") {
         const s = getState();
         // the new-agent page is a step aside: Esc goes back (the draft stays)
-        if (!closeTopOverlay(e) && s.view === "newAgent" && !typing) leaveTo("chat");
+        if (closeTopOverlay(e) || typing) return;
+        if (s.view === "newAgent") leaveTo("chat");
+        // an open 文档库 item closes like its ✕
+        else if (s.view === "desk" && s.desk === "library" && s.libOpen !== null) setState({ libOpen: null });
         return;
       }
       const id = actionOf(e, typing);

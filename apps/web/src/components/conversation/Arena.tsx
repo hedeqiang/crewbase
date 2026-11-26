@@ -10,11 +10,11 @@ import { useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } fro
 import { Check, RotateCcw, ChevronDown, ChevronUp, Clock, Lightbulb, Plus, Search, Square, Swords, X } from "lucide-react";
 import { ArenaAPI, parseRef, refString, type AgentView, type ArenaSuggestion, type ChannelView, type ModelRef, type ModelsResponse } from "../../api";
 import { t, type Key } from "../../i18n";
-import { allModels, findModel, costfmt, modelOff, providerName, sameRef, shortModel, tokfmt } from "../../format";
+import { allModels, costfmt, modelOff, providerName, sameRef, shortModel, tokfmt } from "../../format";
 import { loadSession, openSubRun, toast, useStore } from "../../store";
 import type { ArenaItem, ArenaRun } from "../../projection";
 import { modelMark, VendorTile } from "../Avatar";
-import { makersOf, type Maker } from "../Roundtable";
+import { makersOf, valueModel, type Maker } from "../Roundtable";
 import { Markdown } from "../Markdown";
 import { StreamMarkdown } from "../StreamMarkdown";
 import { ApprovalCard } from "./approval";
@@ -54,31 +54,6 @@ const usable = (models: ModelsResponse | null, s: string) => {
   const r = parseRef(s);
   return !!r && !modelOff(models, r) && allModels(models).some((m) => sameRef(m.ref, r));
 };
-
-// a maker's mid or fast tier (good value) and its flagships, by model id
-const VALUE_TIER = /sonnet|haiku|mini|luna|flash|lite|nano|air|turbo|small|fast/i;
-const FLAGSHIP = /opus|fable|astra|ultra|\bmax\b|-pro\b|\bpro\b/i;
-/** Output price ($ per million tokens) a default pick stays under. */
-const VALUE_OUTPUT_USD = 12;
-
-/** The good-value model of a maker: within the price line when prices
- *  are known (the mid or fast tier first, the best of those), else its
- *  cheapest priced one; without prices the mid or fast tier by name, then
- *  anything that is not a flagship, then whatever it has. */
-export function valueModel(models: ModelsResponse | null, mk: Maker): ModelRef {
-  const all = mk.models.map((m) => ({ ref: m.ref, out: findModel(models, m.ref)?.pricing?.output }));
-  const priced = all.filter((m) => (m.out ?? 0) > 0);
-  if (priced.length) {
-    const under = priced.filter((m) => m.out! <= VALUE_OUTPUT_USD);
-    if (under.length) {
-      const tier = under.filter((m) => VALUE_TIER.test(m.ref.model));
-      // within the line, the strongest (dearest) of the mid tier
-      return (tier.length ? tier : under).reduce((a, b) => (b.out! > a.out! ? b : a)).ref;
-    }
-    return priced.reduce((a, b) => (b.out! < a.out! ? b : a)).ref;
-  }
-  return (all.find((m) => VALUE_TIER.test(m.ref.model)) ?? all.find((m) => !FLAGSHIP.test(m.ref.model)) ?? all[0]).ref;
-}
 
 /** A 模型圆桌: a channel whose members each wear their model's mark. */
 export function isRoundtable(channel: ChannelView | undefined, agents: Record<string, AgentView>): boolean {

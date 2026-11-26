@@ -5,7 +5,7 @@ import { API, refString, type ModelRef } from "../api";
 import { ImportRoleDialog } from "./ImportRole";
 import { t, type Key } from "../i18n";
 import { allModels, effortLabel, findModel, modeLabel, modelMeta, providerName, sameRef, shortModel } from "../format";
-import { openSession, refreshAgents, refreshSessions, setState, toast, useFolders, useStore, currentTeam, teamMode } from "../store";
+import { hasModels, openConnect, openSession, refreshAgents, refreshSessions, setState, toast, useFolders, useStore, currentTeam, teamMode } from "../store";
 import { AvatarEditor, AvatarRaw, COLORS, FACES, LookAvatar, SHAPES } from "./Avatar";
 import { Popover, useMenu } from "./Popover";
 import { ProviderMark } from "./ProviderMark";
@@ -230,6 +230,11 @@ export function NewAgent({ draft: f, setDraft }: { draft: Draft; setDraft: (d: D
       nameRef.current?.focus({ preventScroll: true });
       return;
     }
+    // no model anywhere: an Agent made now could only fail its first turn
+    if (!primary && hasModels() === false) {
+      openConnect();
+      return;
+    }
     setBusy(true);
     try {
       const refs = modelRefs();
@@ -390,7 +395,14 @@ export function NewAgent({ draft: f, setDraft }: { draft: Draft; setDraft: (d: D
                 </span>
               </button>
               <div className="rowhint">
-                {backup ? (
+                {!primary && hasModels() === false ? (
+                  <>
+                    <span className="ml">{t("na.noModelYet")}</span>
+                    <button type="button" className="linkbtn small" onClick={openConnect}>
+                      {t("na.connectModel")}
+                    </button>
+                  </>
+                ) : backup ? (
                   <>
                     <ProviderMark provider={backup.provider} model={backup.model} size={12} />
                     <span className="ml">{t("na.backup", { model: backups.map((b) => shortModel(models, b)).join(" → ") })}</span>
