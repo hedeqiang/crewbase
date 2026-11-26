@@ -816,6 +816,9 @@ function Models() {
   };
   const [q, setQ] = useState("");
   const [adding, setAdding] = useState(false);
+  const connecting = useStore((s) => s.connecting);
+  // 连接模型 left unfinished (you went elsewhere): not waiting here next time
+  useEffect(() => () => setState({ connecting: false }), []);
   const [editing, setEditing] = useState<UserProvider | null>(null);
   const [choosingMagpie, setChoosingMagpie] = useState(false);
   // 额度 changes while you look (and was read when the app started, maybe
@@ -915,23 +918,26 @@ function Models() {
           </>
         }
       />
-      {adding && (
-        <AddProviderDialog
-          existing={providers.map((p) => p.id)}
-          onClose={() => setAdding(false)}
-        />
-      )}
-      {editing && (
-        <AddProviderDialog
-          existing={providers.map((p) => p.id)}
-          edit={editing}
-          onClose={() => {
-            setEditing(null);
-            void loadUser();
-          }}
-        />
-      )}
-      {tab === "routing" ? (
+      {/* adding or editing a provider takes the page's place (a step in
+          it, not a dialog over it); from 「连接模型」 elsewhere, closing it
+          goes back there */}
+      {adding || editing || connecting ? (
+        <div className="vb apwrap">
+          <AddProviderDialog
+            inline
+            existing={providers.map((p) => p.id)}
+            edit={editing ?? undefined}
+            onClose={() => {
+              const back = connecting;
+              setAdding(false);
+              setEditing(null);
+              setState({ connecting: false });
+              void loadUser();
+              if (back) history.back();
+            }}
+          />
+        </div>
+      ) : tab === "routing" ? (
         <Routing />
       ) : tab === "catalog" ? (
         <ModelCatalog />

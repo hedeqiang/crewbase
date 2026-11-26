@@ -1,4 +1,4 @@
-import { AlertTriangle, Check, ChevronDown, ChevronRight, ExternalLink, KeyRound, Loader2, Plus, Search, Sparkles, X } from "lucide-react";
+import { AlertTriangle, Check, ChevronDown, ChevronLeft, ChevronRight, ExternalLink, KeyRound, Loader2, Plus, Search, Sparkles, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { API, desktop, type ModelKind, type ProviderPreset, type ProviderTestResult, type UserProvider } from "../../api";
 import { classifyModelId, modelKind } from "../../format";
@@ -18,7 +18,7 @@ type Step = "pick" | "key";
  *  models step: the listing is fetched again with the stored key, models
  *  can be ticked / unticked or typed by hand, and a blank key keeps the
  *  stored one. */
-export function AddProviderDialog({ onClose, existing, edit }: { onClose: () => void; existing: string[]; edit?: UserProvider }) {
+export function AddProviderDialog({ onClose, existing, edit, inline }: { onClose: () => void; existing: string[]; edit?: UserProvider; inline?: boolean }) {
   const [presets, setPresets] = useState<ProviderPreset[] | null>(null);
   const [loadErr, setLoadErr] = useState("");
   const [step, setStep] = useState<Step>(edit ? "key" : "pick");
@@ -64,16 +64,18 @@ export function AddProviderDialog({ onClose, existing, edit }: { onClose: () => 
   // lost by closing); on the list it closes, as before. Runs before the
   // app's Esc (capture), which then sees it handled.
   useEffect(() => {
-    if (step === "pick" || edit) return;
+    // in place, Esc on the list (or editing) leaves it, like ✕
+    if ((step === "pick" || edit) && !inline) return;
     const key = (e: KeyboardEvent) => {
-      if (e.key !== "Escape" || e.isComposing) return;
+      if (e.key !== "Escape" || e.isComposing || e.defaultPrevented) return;
       e.preventDefault();
       e.stopPropagation();
-      setStep("pick");
+      if (step === "pick" || edit) onClose();
+      else setStep("pick");
     };
     window.addEventListener("keydown", key, true);
     return () => window.removeEventListener("keydown", key, true);
-  }, [step, edit]);
+  }, [step, edit, inline, onClose]);
 
   const list = useMemo(() => {
     const ql = q.trim().toLowerCase();
@@ -219,15 +221,23 @@ export function AddProviderDialog({ onClose, existing, edit }: { onClose: () => 
   const [fresh] = useState(() => unseenNew());
   useEffect(() => markNewSeen(), []);
 
+  const title = edit ? t("ap.edit", { name: edit.name || edit.id }) : step === "pick" ? t("set.addProvider") : t("ap.connect", { name: name || t("ap.custom") });
   return (
     <>
-      <div className="ovscrim show" onMouseDown={onClose} />
-      <div className="modal addprov" role="dialog" aria-modal="true" aria-label={edit ? t("ap.edit", { name: edit.name || edit.id }) : t("set.addProvider")}>
+      {!inline && <div className="ovscrim show" onMouseDown={onClose} />}
+      <div className={inline ? "addprov apin" : "modal addprov"} role={inline ? "region" : "dialog"} aria-modal={inline ? undefined : true} aria-label={title}>
         <div className="mhd">
-          <h3>{edit ? t("ap.edit", { name: edit.name || edit.id }) : step === "pick" ? t("set.addProvider") : t("ap.connect", { name: name || t("ap.custom") })}</h3>
-          <button className="ib" type="button" aria-label={t("common.close")} onClick={onClose}>
-            <X size={16} />
-          </button>
+          {inline && (
+            <button className="ib" type="button" aria-label={t("common.back")} onClick={() => (step === "pick" || edit ? onClose() : setStep("pick"))}>
+              <ChevronLeft size={16} />
+            </button>
+          )}
+          <h3>{title}</h3>
+          {!inline && (
+            <button className="ib" type="button" aria-label={t("common.close")} onClick={onClose}>
+              <X size={16} />
+            </button>
+          )}
         </div>
         <div className="mbd">
           {step === "pick" ? (

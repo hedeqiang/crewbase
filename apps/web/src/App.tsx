@@ -23,7 +23,6 @@ import { Logo } from "./components/Logo";
 // Loaded when first opened: most sessions never visit settings.
 const Settings = lazy(() => import("./components/Settings").then((m) => ({ default: m.Settings })));
 const Desk = lazy(() => import("./components/Desk").then((m) => ({ default: m.Desk })));
-const AddProviderDialog = lazy(() => import("./components/settings/AddProvider").then((m) => ({ default: m.AddProviderDialog })));
 
 export function App() {
   const authed = useStore((s) => s.authed);
@@ -231,7 +230,7 @@ function Shell() {
         )}
       </div>
       <Palette />
-      <ConnectModel />
+      
       <NewChannel />
       <Toasts />
       <UpdateNotes />
@@ -253,17 +252,6 @@ function Toasts() {
   );
 }
 
-/** 连接模型, opened from wherever a missing model is noticed. */
-function ConnectModel() {
-  const on = useStore((s) => s.connecting);
-  const providers = useStore((s) => s.models?.providers);
-  if (!on) return null;
-  return (
-    <Suspense fallback={null}>
-      <AddProviderDialog existing={(providers ?? []).map((p) => p.id)} onClose={() => setState({ connecting: false })} />
-    </Suspense>
-  );
-}
 
 /** Closes the topmost dialog or overlay, as Esc and back do; false when
  *  nothing is open on top. With e (an Esc), dialogs that handle Esc

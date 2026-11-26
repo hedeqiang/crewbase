@@ -785,7 +785,12 @@ export function hasModels(s: State = state): boolean | null {
   return (s.models.providers ?? []).some((p) => (p.models ?? []).some((m) => m.enabled !== false && modelKind(m) === "chat"));
 }
 
-export const openConnect = () => setState({ connecting: true });
+/** 连接模型 from wherever a missing model is noticed: 设置 › 模型's add
+ *  step, in place; closing it comes back here. */
+export const openConnect = () => {
+  openSettings("models");
+  setState({ connecting: true, modelsTab: "providers" });
+};
 
 // 额度 is read lazily by the daemon (a gateway asks its vendors, which takes
 // seconds): the list fetched at start may come before it. Fetch again

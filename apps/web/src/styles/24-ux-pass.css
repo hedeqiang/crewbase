@@ -85,3 +85,11 @@
   .mplist { max-height: 46vh; }
   .ctxmap.inline { max-height: 66vh; }
 }
+
+/* 添加提供方, in place of the 模型 page's body (a step, with 返回) */
+.apwrap { max-width: 760px; }
+.addprov.apin { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-14); }
+.addprov.apin .mhd { gap: 6px; padding-left: 10px; }
+.addprov.apin .mhd .ib { width: 28px; height: 28px; display: grid; place-items: center; border-radius: var(--r-8); color: var(--text2); }
+.addprov.apin .mhd .ib:hover { background: var(--hover); }
+.addprov.apin .ap-grid { max-height: none; overflow: visible; }
