@@ -129,10 +129,8 @@ func (s *Service) Create(r Routine) (Routine, error) {
 	if r.Mode == agent.ModeHost {
 		return r, errors.New("routines cannot run in host mode")
 	}
-	if r.Schedule != "webhook" {
-		if _, err := schedule.Parse(r.Schedule); err != nil {
-			return r, err
-		}
+	if _, err := schedule.Parse(r.Schedule); err != nil {
+		return r, err
 	}
 	ss, err := s.agents.Sessions().Create(session.Meta{Kind: "routine", Title: r.Name, Agents: []string{a.ID()}, Folder: a.Spec().Folder})
 	if err != nil {

@@ -31,7 +31,7 @@ type Job struct {
 	ID      string          `json:"id"`
 	Name    string          `json:"name"`
 	Owner   string          `json:"owner"` // handler kind, e.g. "routine"
-	Spec    string          `json:"spec"`  // trigger spec, or "webhook"
+	Spec    string          `json:"spec"`  // trigger spec, or "webhook" (window.go: zone, window)
 	Payload json.RawMessage `json:"payload,omitempty"`
 	Enabled bool            `json:"enabled"`
 	Created time.Time       `json:"created"`
@@ -45,7 +45,7 @@ type Job struct {
 }
 
 // IsWebhook reports whether the job is triggered by HTTP.
-func (j Job) IsWebhook() bool { return j.Spec == "webhook" }
+func (j Job) IsWebhook() bool { return IsWebhookSpec(j.Spec) }
 
 // Firing is one delivery.
 type Firing struct {
@@ -155,10 +155,11 @@ func (s *Service) Add(j Job) (Job, error) {
 	if j.Owner == "" {
 		return j, errors.New("job owner is required")
 	}
+	if _, err := Parse(j.Spec); err != nil {
+		return j, err
+	}
 	if j.IsWebhook() {
 		j.Secret = randID("", 16)
-	} else if _, err := Parse(j.Spec); err != nil {
-		return j, err
 	}
 	if j.ID == "" {
 		j.ID = randID("job_", 6)
@@ -191,11 +192,9 @@ func (s *Service) Update(id string, fn func(*Job)) (Job, error) {
 	cp := *j
 	fn(&cp)
 	cp.ID, cp.Owner, cp.Created, cp.Secret = j.ID, j.Owner, j.Created, j.Secret
-	if !cp.IsWebhook() {
-		if _, err := Parse(cp.Spec); err != nil {
-			s.mu.Unlock()
-			return *j, err
-		}
+	if _, err := Parse(cp.Spec); err != nil {
+		s.mu.Unlock()
+		return *j, err
 	}
 	s.plan(&cp, s.now())
 	*j = cp
@@ -324,6 +323,11 @@ func (s *Service) Trigger(ctx context.Context, id, key string, body json.RawMess
 	}
 	if !j.Enabled {
 		return errors.New("job is disabled")
+	}
+	// a delivery outside the job's window is skipped (a person's "run
+	// now", without a key, is not held to it)
+	if sp, err := Parse(j.Spec); err == nil && key != "" && !sp.Within(now) {
+		return ErrOutsideWindow
 	}
 	if key == "" {
 		key = randID("", 8)
