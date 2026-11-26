@@ -152,6 +152,42 @@ func TestIncrementalIndexAndReindex(t *testing.T) {
 	}
 }
 
+// MEMORY.md indexed by an earlier run is not indexed again on start; one
+// changed while the daemon was stopped is.
+func TestMemoryIndexKeptAcrossRestarts(t *testing.T) {
+	root := t.TempDir()
+	e := newEnv(t, root, true)
+	a, _ := e.agents.Create(agent.Spec{Name: "Iris"})
+	if ex := e.run(t, a.ID(), "memory_add", map[string]string{"text": "the wombat lives in staging"}); ex.Result.IsError {
+		t.Fatalf("%+v", ex)
+	}
+	id := a.ID()
+	path := filepath.Join(a.Home(), "MEMORY.md")
+	e.h.Close()
+	hits := func(e *env, q string) int {
+		h, err := e.mem.SearchMemory(id, q, 10)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return len(h)
+	}
+	e2 := newEnv(t, root, true)
+	if n := hits(e2, "wombat"); n != 1 {
+		t.Fatalf("after restart: %d hits", n)
+	}
+	e2.h.Close()
+	b, _ := os.ReadFile(path)
+	if err := os.WriteFile(path, []byte(strings.ReplaceAll(string(b), "wombat", "numbat")), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	future := time.Now().Add(2 * time.Second)
+	os.Chtimes(path, future, future)
+	e3 := newEnv(t, root, true)
+	if n, m := hits(e3, "numbat"), hits(e3, "wombat"); n != 1 || m != 0 {
+		t.Fatalf("edited while stopped: numbat %d wombat %d", n, m)
+	}
+}
+
 func TestMemoryToolsAndHistoryRead(t *testing.T) {
 	e := newEnv(t, t.TempDir(), true)
 	a, _ := e.agents.Create(agent.Spec{Name: "Iris"})

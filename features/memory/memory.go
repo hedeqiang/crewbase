@@ -103,6 +103,7 @@ CREATE VIRTUAL TABLE IF NOT EXISTS docs USING fts5(
 );
 CREATE TABLE IF NOT EXISTS indexed (session TEXT PRIMARY KEY, last_seq INTEGER NOT NULL);
 CREATE TABLE IF NOT EXISTS session_agents (session TEXT NOT NULL, agent TEXT NOT NULL, PRIMARY KEY (session, agent));
+CREATE TABLE IF NOT EXISTS memory_files (agent TEXT PRIMARY KEY, mtime INTEGER NOT NULL);
 `
 
 // triSchema is the trigram index over docs (external content: the text is
@@ -467,7 +468,7 @@ func (s *Store) CatchUp(ctx context.Context) error {
 // agents' MEMORY.md files.
 func (s *Store) Reindex(ctx context.Context) error {
 	s.mu.Lock()
-	_, err := s.db.Exec(`INSERT INTO docs_tri(docs_tri) VALUES ('delete-all'); DELETE FROM docs; DELETE FROM indexed; DELETE FROM session_agents;`)
+	_, err := s.db.Exec(`INSERT INTO docs_tri(docs_tri) VALUES ('delete-all'); DELETE FROM docs; DELETE FROM indexed; DELETE FROM session_agents; DELETE FROM memory_files;`)
 	s.memMtime = map[string]time.Time{}
 	s.mu.Unlock()
 	if err != nil {
@@ -489,6 +490,16 @@ func (s *Store) refreshMemory(a *agent.Agent, force bool) error {
 	defer s.mu.Unlock()
 	if prev, ok := s.memMtime[a.ID()]; ok && !force && prev.Equal(mt) {
 		return nil
+	}
+	// indexed as it is by an earlier run: deleting an agent's lines scans
+	// the whole docs table, which made every start re-read the index once
+	// per agent
+	if _, ok := s.memMtime[a.ID()]; !ok && !force {
+		var n int64
+		if s.db.QueryRow(`SELECT mtime FROM memory_files WHERE agent = ?`, a.ID()).Scan(&n) == nil && n == mt.UnixNano() {
+			s.memMtime[a.ID()] = mt
+			return nil
+		}
 	}
 	tx, err := s.db.Begin()
 	if err != nil {
@@ -514,6 +525,9 @@ func (s *Store) refreshMemory(a *agent.Agent, force bool) error {
 		if err := insertTri(tx, res, t); err != nil {
 			return err
 		}
+	}
+	if _, err := tx.Exec(`INSERT OR REPLACE INTO memory_files(agent, mtime) VALUES (?, ?)`, a.ID(), mt.UnixNano()); err != nil {
+		return err
 	}
 	if err := tx.Commit(); err != nil {
 		return err
