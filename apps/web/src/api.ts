@@ -2118,6 +2118,13 @@ export const API = {
   routineRuns: (id: string) => api<{ runs: RoutineRun[] }>("GET", `/api/routines/${enc(id)}/runs`),
   brief: () => api<{ preview: Brief; history: Brief[] }>("GET", "/api/brief"),
 
+  // 夜间值班 (features/nightshift)
+  nightShift: () => api<NightShiftView>("GET", "/api/nightshift"),
+  saveNightShift: (b: NsConfig) => api<NightShiftView>("PUT", "/api/nightshift", b),
+  endNightShift: () => api<NightShiftView>("POST", "/api/nightshift/end"),
+  pollNightShift: () => api("POST", "/api/nightshift/poll"),
+  seenNightReport: (id: string) => api("POST", `/api/nightshift/reports/${enc(id)}/seen`),
+
   workflows: () => api<{ workflows: Workflow[] }>("GET", "/api/workflows"),
   createWorkflow: (b: Workflow) => api<Workflow>("POST", "/api/workflows", b),
   putWorkflow: (id: string, b: Workflow) => api<Workflow>("PUT", `/api/workflows/${enc(id)}`, b),
@@ -2406,3 +2413,121 @@ export const MemAPI = {
   wrong: (r: MemRef, correction: string, tell: boolean) => api<{ ok: boolean; told: boolean }>("POST", "/api/memories/wrong", { ...memRef(r), correction, tell }),
   profile: (agent: string) => api<AgentProfile>("GET", `/api/agents/${encodeURIComponent(agent)}/profile`),
 };
+// ---------------------------------------------------------------- 夜间值班
+
+/** The set-up of 夜间值班 (features/nightshift). Times are HH:MM in tz. */
+export interface NsConfig {
+  enabled: boolean;
+  agent: string;
+  start: string;
+  end: string;
+  tz?: string;
+  every: number;
+  watch: { ci: boolean; github: boolean; custom: boolean; instruction?: string };
+  routine?: string;
+  endpoints?: string[];
+  updated?: string;
+}
+/** One thing that came in during a shift. */
+export interface NsEvent {
+  at: string;
+  source: "webhook" | "poll" | "start" | string;
+  kind: "ci" | "issue" | "comment" | "pr" | "review" | "custom" | "event" | string;
+  num?: number;
+  title: string;
+  who?: string;
+  detail?: string;
+  url?: string;
+  run?: string;
+}
+export interface NsChange {
+  at: string;
+  kind: "commit" | "push" | "pr" | "merge" | "branch" | string;
+  title: string;
+  ref?: string;
+  url?: string;
+  branch?: string;
+  session?: string;
+  failed?: boolean;
+}
+export interface NsProblem {
+  at: string;
+  /** run | push | github | trigger … */
+  what: string;
+  detail?: string;
+  session?: string;
+  count?: number;
+}
+export interface NsShift {
+  id: string;
+  agent: string;
+  start: string;
+  until: string;
+  events: NsEvent[] | null;
+  changes: NsChange[] | null;
+  errors: NsProblem[] | null;
+  polls: number;
+}
+export interface NsHandled {
+  run: string;
+  events: NsEvent[] | null;
+  status: string;
+  summary?: string;
+  started?: string;
+  ended?: string;
+}
+export interface NsWaiting {
+  callId: string;
+  session: string;
+  tool: string;
+  category: string;
+  summary: string;
+  asked: string;
+}
+/** 值班报告: built from what happened during the shift. */
+export interface NsReport {
+  id: string;
+  agent: string;
+  name: string;
+  /** the agent's conversation (the card is on top of it) */
+  session: string;
+  routine: string;
+  /** the routine's conversation, where the night's work is */
+  work: string;
+  start: string;
+  end: string;
+  early?: boolean;
+  source?: string;
+  polls: number;
+  handled: NsHandled[];
+  changes: NsChange[];
+  failed: NsProblem[];
+  waiting: NsWaiting[];
+  seen?: boolean;
+}
+export interface NsStatus {
+  onDuty: boolean;
+  agent?: string;
+  since?: string;
+  until?: string;
+  next?: string;
+  endedEarly?: boolean;
+  handled: number;
+  waiting: number;
+  changes: number;
+  source?: "webhook" | "poll" | "";
+  endpoints?: string[];
+  /** the team's enabled GitHub endpoints */
+  hooks?: string[];
+  repo?: string;
+  folder?: string;
+  gh?: string;
+  problem?: string;
+  session?: string;
+}
+export interface NightShiftView {
+  config: NsConfig;
+  status: NsStatus;
+  shift: NsShift | null;
+  reports: NsReport[];
+}

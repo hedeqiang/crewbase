@@ -10,8 +10,9 @@ import { Avatar } from "../Avatar";
 import { Head } from "../Settings";
 import { Workflows } from "./Workflows";
 import { confirmDialog } from "../Confirm";
+import { NightShiftSettings } from "../NightShift";
 
-type Tab = "routines" | "workflows";
+type Tab = "routines" | "nightshift" | "workflows";
 
 /** 设置 › 自动化: 例行巡检 + 晨报 and 工作流. */
 export function Automation() {
@@ -31,13 +32,16 @@ export function Automation() {
             <button type="button" aria-pressed={tab === "routines"} onClick={() => setTab("routines")}>
               {t("auto.routines")}
             </button>
+            <button type="button" aria-pressed={tab === "nightshift"} onClick={() => setTab("nightshift")}>
+              {t("ns.title")}
+            </button>
             <button type="button" aria-pressed={tab === "workflows"} onClick={() => setTab("workflows")}>
               {t("auto.workflows")}
             </button>
           </div>
         }
       />
-      {tab === "routines" ? <Routines focus={focus?.tab === "routines" ? focus.id : undefined} /> : <Workflows focus={focus?.tab === "workflows" ? focus.id : undefined} />}
+      {tab === "routines" ? <Routines focus={focus?.tab === "routines" ? focus.id : undefined} /> : tab === "nightshift" ? <NightShiftSettings /> : <Workflows focus={focus?.tab === "workflows" ? focus.id : undefined} />}
     </>
   );
 }
@@ -49,6 +53,9 @@ function errMsg(e: any) {
 const PRESETS = ["daily 08:30", "every 1h", "weekly mon 09:00", "webhook"];
 
 export function scheduleLabel(s: string): string {
+  // a zone and a daily window (features/schedule window.go): "· 22:00–08:00"
+  const w = /^(?:TZ=\S+\s+)?(.*?)(?:\s+during\s+(\d\d?:\d\d)-(\d\d?:\d\d))?$/i.exec(s.trim());
+  if (w && (w[2] || w[1] !== s.trim())) return scheduleLabel(w[1]) + (w[2] ? ` · ${w[2]}–${w[3]}` : "");
   if (!s || s === "manual") return t("auto.manual");
   if (s === "webhook") return t("auto.webhook");
   let m = /^daily (\d\d?:\d\d)$/i.exec(s);
@@ -217,7 +224,11 @@ function Routines({ focus }: { focus?: string }) {
                     {a?.name ?? r.agent} · {scheduleLabel(r.schedule)} · {modeLabel(r.mode)}
                   </span>
                 </div>
-                <button className="tg" type="button" role="switch" aria-checked={r.enabled} aria-label={t("auto.enabled")} onClick={() => toggle(r)} />
+                {r.by === "nightshift" ? (
+                  <span className="pill sm">{t("ns.managed")}</span>
+                ) : (
+                  <button className="tg" type="button" role="switch" aria-checked={r.enabled} aria-label={t("auto.enabled")} onClick={() => toggle(r)} />
+                )}
               </div>
               <p className="rprompt">{r.prompt}</p>
               <div className="rmeta small">
@@ -234,12 +245,16 @@ function Routines({ focus }: { focus?: string }) {
                   {t("auto.runs")}
                 </button>
                 <span className="sp" />
-                <button className="ix" type="button" aria-label={t("auto.edit")} title={t("auto.edit")} onClick={() => setEdit(r)}>
-                  <Pencil size={13} />
-                </button>
-                <button className="ix" type="button" aria-label={t("common.delete")} title={t("common.delete")} onClick={() => del(r)}>
-                  <Trash size={13} />
-                </button>
+                {r.by !== "nightshift" && (
+                  <>
+                    <button className="ix" type="button" aria-label={t("auto.edit")} title={t("auto.edit")} onClick={() => setEdit(r)}>
+                      <Pencil size={13} />
+                    </button>
+                    <button className="ix" type="button" aria-label={t("common.delete")} title={t("common.delete")} onClick={() => del(r)}>
+                      <Trash size={13} />
+                    </button>
+                  </>
+                )}
               </div>
               {open === r.id && <RoutineRuns r={r} />}
             </div>

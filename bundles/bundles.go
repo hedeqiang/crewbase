@@ -48,6 +48,7 @@ import (
 	_ "github.com/hedeqiang/crewbase/features/members"
 	_ "github.com/hedeqiang/crewbase/features/memory"
 	_ "github.com/hedeqiang/crewbase/features/modelcatalog"
+	_ "github.com/hedeqiang/crewbase/features/nightshift"
 	_ "github.com/hedeqiang/crewbase/features/openartifact"
 	_ "github.com/hedeqiang/crewbase/features/plugins"
 	_ "github.com/hedeqiang/crewbase/features/preview"
@@ -181,6 +182,8 @@ var Base = kernel.Bundle{Name: "base", Entries: []kernel.Entry{
 	{ID: "git", Name: "@crewbase/git", Config: map[string]any{"root": "${root}"}},
 	// Webhooks in (verified, filtered, fanned out) and out (signed, retried).
 	{ID: "webhooks", Name: "@crewbase/webhooks", Config: map[string]any{"dir": "${root}"}},
+	// 夜间值班: an agent on duty while the person is away, and its report.
+	{ID: "nightshift", Name: "@crewbase/nightshift", Config: map[string]any{"dir": "${root}"}},
 	// Open Artifact (docs/open-artifact.md): idle until installed and turned
 	// on in Settings › Open Artifact.
 	{ID: "open-artifact", Name: "@crewbase/open-artifact", Config: map[string]any{"dir": "${root}"}},
@@ -244,6 +247,7 @@ var Desktop = kernel.Bundle{Name: "desktop", Entries: []kernel.Entry{
 	{ID: "library-api", Name: "@crewbase/library-api"},
 	{ID: "git-api", Name: "@crewbase/git-api"},
 	{ID: "webhooks-api", Name: "@crewbase/webhooks-api"},
+	{ID: "nightshift-api", Name: "@crewbase/nightshift-api"},
 	{ID: "open-artifact-api", Name: "@crewbase/open-artifact-api"},
 	// Link cards (docs/previews.md): GET /api/unfurl, public addresses only.
 	{ID: "linkpreview", Name: "@crewbase/linkpreview"},
