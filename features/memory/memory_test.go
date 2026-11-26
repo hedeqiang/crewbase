@@ -188,6 +188,27 @@ func TestMemoryIndexKeptAcrossRestarts(t *testing.T) {
 	}
 }
 
+// A side file holding JSON null (hand-edited, or a crash mid-write of an
+// older version) must not leave a nil map that a write then panics on.
+func TestNullUsedFileIsAnEmptyMap(t *testing.T) {
+	e := newEnv(t, t.TempDir(), true)
+	a, _ := e.agents.Create(agent.Spec{Name: "Iris"})
+	e.run(t, a.ID(), "memory_add", map[string]string{"text": "the heron lives in staging"})
+	dir := filepath.Join(a.Home(), ".memory")
+	os.MkdirAll(dir, 0o700)
+	if err := os.WriteFile(filepath.Join(dir, "used.json"), []byte("null"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	ex := e.run(t, a.ID(), "memory_search", map[string]string{"query": "heron"})
+	if ex.Result.IsError || !strings.Contains(ex.Result.Content, "heron") {
+		t.Fatalf("%+v", ex.Result)
+	}
+	b, _ := os.ReadFile(filepath.Join(dir, "used.json"))
+	if !strings.Contains(string(b), "heron") {
+		t.Fatalf("recall not noted: %s", b)
+	}
+}
+
 func TestMemoryToolsAndHistoryRead(t *testing.T) {
 	e := newEnv(t, t.TempDir(), true)
 	a, _ := e.agents.Create(agent.Spec{Name: "Iris"})
