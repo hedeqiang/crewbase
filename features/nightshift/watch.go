@@ -297,7 +297,7 @@ func describe(event string, body json.RawMessage) described {
 	d := described{Event: Event{Kind: "event", Title: event, Who: b.Sender.Login}}
 	switch {
 	case event == "issues" && b.Issue != nil:
-		d.Kind, d.Num, d.Title, d.URL, d.Detail = "issue", b.Issue.Number, b.Issue.Title, b.Issue.HTMLURL, b.Action
+		d.Kind, d.Num, d.Title, d.URL = "issue", b.Issue.Number, b.Issue.Title, b.Issue.HTMLURL
 	case (event == "issue_comment" || event == "pull_request_review_comment") && b.Comment != nil:
 		d.Kind, d.Title, d.URL = "comment", clip(b.Comment.Body, 140), b.Comment.HTMLURL
 		if b.Issue != nil {

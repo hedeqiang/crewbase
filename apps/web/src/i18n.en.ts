@@ -3369,7 +3369,7 @@ export const en: Partial<Record<Key, string>> = {
   "ns.fail.merge": "Merge failed",
   "ns.fail.branch": "Creating the branch failed",
   "ns.decide": "Decide",
-  "ns.decided": "Decided",
+  "ns.decided": "No longer waiting",
   "ns.sec.waiting": "Waiting for your approval",
   "ns.sec.handled": "Handled",
   "ns.sec.changes": "Changes",

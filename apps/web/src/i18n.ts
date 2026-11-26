@@ -3412,7 +3412,7 @@ const zh = {
   "ns.fail.merge": "合并失败",
   "ns.fail.branch": "建分支失败",
   "ns.decide": "去处理",
-  "ns.decided": "已处理",
+  "ns.decided": "不再等待",
   "ns.sec.waiting": "等你批准",
   "ns.sec.handled": "处理了",
   "ns.sec.changes": "改动",

@@ -121,6 +121,7 @@
   .nshrow > .nsr { padding: 4px 12px 12px 12px; }
   .nsbar.report > .nscounts { margin-left: 0; }
   .nsr-item { flex-wrap: wrap; }
+  .nsr-item > .nsr-g { flex-basis: calc(100% - 34px); }
   .nsr-c { margin-left: 34px; }
   .srow:has(.nshours) { flex-wrap: wrap; }
 }

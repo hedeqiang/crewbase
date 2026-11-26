@@ -665,7 +665,7 @@ export function NightShiftSettings() {
             return (
               <div key={r.id} className={"nshrow" + (on ? " open" : "")}>
                 <button type="button" className="nshrow-h" aria-expanded={on} onClick={() => setOpen(on ? null : r.id)}>
-                  {on ? <ChevronDown size={14} className="chv" /> : <ChevronRight size={14} className="chv" />}
+                  <ChevronRight size={14} className="chv" />
                   <span className="nshrow-t">
                     <b>{shiftSpan(r.start, r.end)}</b>
                     <span className="nshrow-who">
