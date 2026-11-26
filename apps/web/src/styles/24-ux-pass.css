@@ -45,3 +45,43 @@
 .mpin .ap-models { background: var(--surface); }
 .mpin-bar { position: sticky; bottom: 0; z-index: var(--z-float); display: flex; align-items: center; gap: 8px; margin-top: 10px; padding: 10px 12px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-12); box-shadow: var(--menu-shadow); }
 .mpin-bar .grow { flex: 1; }
+
+/* ---- the composer's choices, in place above the text box (Tray):
+   模型, 运行环境, 上下文 — the same frame as the 擂台 bar */
+.ctray { margin: 0 4px 8px 0; border: 1px solid var(--border); border-radius: var(--r-12); background: var(--raised); display: flex; flex-direction: column; min-height: 0; }
+.ctrayh { display: flex; align-items: center; gap: 6px; padding: 6px 6px 2px 12px; }
+.ctrayh b { flex: 1; min-width: 0; font-size: var(--fs-13); font-weight: 600; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.ctrayb { padding: 0 6px 6px; min-height: 0; }
+/* its rows read like a menu's */
+.ctray .mi { display: flex; align-items: center; gap: 8px; width: 100%; padding: 6px 8px; border-radius: var(--r-8); text-align: left; }
+.ctray .mi:hover, .ctray .mi:focus-visible { background: var(--hover); }
+.ctray .mi:disabled { opacity: .45; }
+.ctray .mi.static:hover { background: none; }
+.ctray .mi .g { flex: 1; min-width: 0; }
+.ctray .mi .g > span { display: block; font-size: var(--fs-12); color: var(--muted); line-height: 1.4; margin-top: 1px; overflow: hidden; text-overflow: ellipsis; }
+.ctray .mi .ck { color: var(--accent-text); width: 16px; display: grid; place-items: center; flex: none; }
+.ctray .mi svg.lucide { color: var(--text2); flex: none; }
+.ctray .mi .ck svg.lucide { color: var(--accent-text); }
+.ctray .mlbl { display: flex; align-items: baseline; gap: 6px; font-size: var(--fs-11); font-weight: 600; letter-spacing: .02em; color: var(--muted); padding: 8px 8px 3px; }
+.ctray hr { border: 0; border-top: 1px solid var(--border); margin: 4px 2px; }
+.ctray .flsearch { display: flex; align-items: center; gap: 6px; margin: 2px 2px 6px; padding: 6px 8px; border-radius: var(--r-8); background: var(--hover); color: var(--muted); }
+.ctray .flsearch input { flex: 1; min-width: 0; border: 0; outline: 0; background: none; font: inherit; color: var(--text); }
+/* 模型: the level row, then the list (scrolls within the tray) */
+.mtray .mpsec + .mpsec { margin-top: 2px; }
+.mtray .mpfor { font-weight: 400; color: var(--muted); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; min-width: 0; }
+.mtray .mpeff { margin: 0 8px 4px; flex-wrap: wrap; }
+.mplist { max-height: min(42vh, 360px); overflow: auto; overscroll-behavior: contain; }
+/* 运行环境: its two short lists */
+.ctenv .ctrayb { max-height: min(56vh, 460px); overflow: auto; overscroll-behavior: contain; }
+.ctenv .mi.envhost svg.lucide:first-child { color: var(--amber-text); }
+/* 上下文: the map in place (it scrolls inside; its actions at the foot) */
+.ctctx .ctrayb { padding: 0; }
+.ctxmap.inline { display: flex; flex-direction: column; max-height: min(62vh, 620px); }
+.ctxmap.inline .cxbody { flex: 1; min-height: 0; overflow: auto; display: flex; flex-direction: column; gap: 12px; padding: 4px 14px 12px; }
+.ctxmap.inline .cxft { margin: 0; padding: 8px 12px 10px; border-top: 1px solid var(--border); flex: none; display: flex; gap: 8px; flex-wrap: wrap; }
+.ctxmap.inline.brief .cxhead { flex-wrap: wrap; }
+@media (max-width: 640px) {
+  .ctray { margin-right: 0; }
+  .mplist { max-height: 46vh; }
+  .ctxmap.inline { max-height: 66vh; }
+}
