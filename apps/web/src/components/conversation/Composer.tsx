@@ -602,6 +602,13 @@ export function Composer({
                 return;
               }
             }
+            // Esc leaves the 擂台 (the bar opened by /arena)
+            if (e.key === "Escape" && arena) {
+              e.preventDefault();
+              e.stopPropagation();
+              setArena(null);
+              return;
+            }
             if (e.key === "Escape" && getState().replyTo[sessionId]) {
               e.preventDefault();
               e.stopPropagation();
@@ -724,7 +731,17 @@ export function Composer({
           {busy && !canSend ? (
             // the agent is working and nothing is typed: the button stops it
             // (typed text still sends: it joins the running turn)
-            <button className="send on stop" type="button" onClick={() => runShortcut("stop")} aria-label={t("keys.stop")} title={t("keys.stop") + " · " + keyLabel("stop")}>
+            <button
+              className="send on stop"
+              type="button"
+              onClick={() => {
+                runShortcut("stop");
+                // the button goes away once it stops: keep typing where you were
+                ta.current?.focus({ preventScroll: true });
+              }}
+              aria-label={t("keys.stop")}
+              title={t("keys.stop") + " · " + keyLabel("stop")}
+            >
               <Square size={12} fill="currentColor" />
             </button>
           ) : (

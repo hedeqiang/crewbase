@@ -3,6 +3,7 @@ import { WorkNotes, WorkTasks } from "./Working";
 import { lazy, Suspense, useEffect, useMemo, useState, useRef, type ReactNode, type PointerEvent as ReactPointerEvent } from "react";
 import { Settings2, Archive, CalendarClock, Code2, Eye, FileText, FolderTree, Library as LibraryIcon, ListChecks, Puzzle, ArrowDown, ArrowUp, Check, ChevronLeft, ChevronRight, CircleMinus, CircleX, Globe, GripVertical, Link2, Minimize2, Pause, Play, Plus, Shuffle, Square, Trash, UserPlus, X, CornerDownRight } from "lucide-react";
 import { API, refString, type AgentView, type ChannelView, type ContextBreakdown, type ModelRef } from "../api";
+import { groupLabel } from "../toolGroups";
 import { t, type Key } from "../i18n";
 import { activeModel, allModels, detailLabel, effortLabel, exhaustedHint, exhaustedLabel, hhmm, isExhausted, kfmt, modeLabel, modelLabel, modelMeta, modelOff, pillTone, sameRef, statusLabel, until } from "../format";
 import { project, type SubRun } from "../projection";
@@ -974,19 +975,6 @@ function ToolLoading({ agent }: { agent: AgentView }) {
       )}
     </>
   );
-}
-
-/** A tool group's name and line in the interface language (built-in groups
- *  are translated; an MCP server keeps its name). */
-function groupLabel(g: { name: string; summary: string }): { name: string; desc: string } {
-  const k = `tg.${g.name}` as Key;
-  const v = t(k);
-  if (v !== k) {
-    const [name, desc] = v.split("|");
-    return { name, desc: desc ?? g.summary };
-  }
-  const mcp = /^MCP server tools, e\.g\. (.*)$/.exec(g.summary);
-  return { name: g.name, desc: mcp ? t("tg.mcp", { names: mcp[1] }) : g.summary };
 }
 
 /** The width groups: the narrow tabs share one, files / code another,

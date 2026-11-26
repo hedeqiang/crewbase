@@ -9,6 +9,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { BookOpen, MessageSquareQuote, Plug, Wrench, X } from "lucide-react";
 import { API, type PromptInfo, type SlashPick } from "../api";
 import { t } from "../i18n";
+import { groupLabel } from "../toolGroups";
 
 export interface SlashItem {
   key: string;
@@ -105,7 +106,7 @@ export function toolItems(av: Avail | null): SlashItem[] {
     key: "tools:" + g.name,
     kind: "tools",
     name: g.name,
-    desc: g.summary,
+    desc: groupLabel(g).desc,
     hint: t("slash.toolsN", { n: g.count }),
     icon: g.installed ? <Plug size={14} /> : <Wrench size={14} />,
   }));

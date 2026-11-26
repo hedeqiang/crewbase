@@ -62,7 +62,11 @@ export function Popover({ anchor, open, onClose, children, placement = "bottom",
     const key = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         e.stopPropagation();
+        // Esc gives the keyboard back where it was (the button that
+        // opened it; else the composer), not to the page
+        const back = anchor?.isConnected ? anchor : (document.querySelector<HTMLElement>(".composer textarea") ?? null);
         onClose();
+        requestAnimationFrame(() => back?.focus({ preventScroll: true }));
       }
     };
     document.addEventListener("pointerdown", down, true);

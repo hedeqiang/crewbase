@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import { PanelLeft, PanelRight, ShieldCheck } from "lucide-react";
 import { t } from "../i18n";
 import { ago } from "../format";
+import { catLabel } from "./settings/labels";
 import { chatTitle, isChat, openSession, sessionAgent, setState, useStore } from "../store";
 import { Avatar, LookAvatar } from "./Avatar";
 import { usePreferredModel } from "./NewAgent";
@@ -163,7 +164,8 @@ export function ConvHeader({ draftColor, draftShape, draftFace, draftLook }: { d
               <span className="g">
                 <b>{t("appr.wants", { agent: a?.name ?? (r.agent || t("appr.workflow")), summary: r.summary || r.tool })}</b>
                 <span>
-                  「{r.reason || r.category}」 · {ago(r.asked)}
+                  {/* what kind of thing, as the inline card says it (the rule's own words on hover) */}
+                  <span title={r.reason}>{r.category ? catLabel(r.category) : r.reason}</span> · {ago(r.asked)}
                 </span>
                 <ApprovalActions
                   req={r}

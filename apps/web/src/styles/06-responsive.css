@@ -44,6 +44,9 @@
   .hst { display: none; }
   .cbtn:not(.cmodel):not(.envchip) .lbl { display: none; }
   .envchip .envdir { display: none; }
+  /* the run mode reads whole (沙箱, 只读调研), the model chip gives way */
+  .envchip { flex: none; }
+  .envchip .lbl { white-space: nowrap; }
   .cmodel .lbl { max-width: 110px; }
   .cmodel { max-width: 150px; }
   .cmodel .eff { display: none; }

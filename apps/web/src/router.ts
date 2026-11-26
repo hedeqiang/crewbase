@@ -147,7 +147,9 @@ function isNewPlace(a: Loc | null, b: Loc): boolean {
   // the panel opened or closed: the same place, except on a phone-width
   // window, where the panel is a sheet over it (back closes it)
   if (!a.panel || !b.panel) return !a.panel !== !b.panel && sheetPanel();
-  return a.panel !== b.panel || a.file !== b.file || a.doc !== b.doc || a.sub !== b.sub;
+  // switching the panel's tab is a menu too; opening a file, a document
+  // or a sub-run in it is a place (back closes it)
+  return (!!b.file && a.file !== b.file) || (!!b.doc && a.doc !== b.doc) || (!!b.sub && a.sub !== b.sub);
 }
 
 /** Store → address (after the store settles in this tick). */

@@ -29,3 +29,9 @@
   .setwrap.slist .snav .sn { margin-left: auto; }
 }
 .permwhere { display: block; margin-top: 4px; text-align: right; }
+
+/* scrolled up while a reply is written: back to the end (sticks to the
+   feed's bottom edge, over the last lines) */
+.feedend { position: sticky; bottom: 12px; z-index: 2; order: 99; margin: 8px auto 0; display: flex; align-items: center; gap: 6px; width: fit-content; padding: 5px 12px; border-radius: var(--r-pill); background: var(--surface); border: 1px solid var(--border2); box-shadow: var(--menu-shadow); color: var(--text); font-size: var(--fs-13); }
+.feedend:hover { background: var(--hover); }
+.c2r { scroll-margin-top: 12px; }

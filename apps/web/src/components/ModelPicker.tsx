@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from "react";
 import { Check, ChevronLeft, ChevronRight, Search } from "lucide-react";
 import type { AgentView, ModelRef, ModelsResponse } from "../api";
 import { t } from "../i18n";
@@ -144,7 +144,7 @@ export function ModelPicker({
           {total > 8 && (
             <label className="flsearch">
               <Search size={13} />
-              <input autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder={t("comp.modelSearch")} aria-label={t("comp.modelSearch")} />
+              <input value={q} onChange={(e) => setQ(e.target.value)} placeholder={t("comp.modelSearch")} aria-label={t("comp.modelSearch")} />
             </label>
           )}
           {hit(t("comp.modelAuto")) && (
@@ -252,6 +252,19 @@ function Flyout({ anchor, width, onBack, children }: { anchor: HTMLElement | nul
       window.removeEventListener("resize", place);
     };
   }, [anchor, width]);
+  // once it is placed (hidden until then, so autoFocus could not take):
+  // the search field, else the first row, so typing and arrows work
+  const placed = !!pos;
+  // (after the click that opened it has finished: WebKit takes the focus
+  // back to the page at the end of a click on a button)
+  useEffect(() => {
+    if (!placed) return;
+    const id = window.setTimeout(() => {
+      const el = ref.current;
+      (el?.querySelector<HTMLElement>(".flsearch input") ?? el?.querySelector<HTMLElement>("button.mi:not(.flback)"))?.focus({ preventScroll: true });
+    }, 0);
+    return () => window.clearTimeout(id);
+  }, [placed]);
   return (
     <div
       ref={ref}
@@ -259,9 +272,19 @@ function Flyout({ anchor, width, onBack, children }: { anchor: HTMLElement | nul
       role="menu"
       style={{ width: pos?.w ?? width, left: pos?.left ?? -9999, top: pos?.top ?? -9999, maxHeight: pos?.maxH, visibility: pos ? "visible" : "hidden" }}
       onKeyDown={(e) => {
-        if (e.key === "ArrowLeft") {
+        const typing = (e.target as HTMLElement).tagName === "INPUT";
+        if (e.key === "ArrowLeft" && !typing) {
           e.preventDefault();
           onBack();
+        } else if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+          // up and down through the rows (from the search field too)
+          const rows = Array.from(ref.current?.querySelectorAll<HTMLElement>("button.mi:not(:disabled)") ?? []);
+          if (!rows.length) return;
+          e.preventDefault();
+          const i = rows.indexOf(document.activeElement as HTMLElement);
+          const next = e.key === "ArrowDown" ? (i < 0 ? 0 : Math.min(rows.length - 1, i + 1)) : i <= 0 ? -1 : i - 1;
+          if (next < 0) ref.current?.querySelector<HTMLElement>(".flsearch input")?.focus();
+          else rows[next].focus();
         }
       }}
     >

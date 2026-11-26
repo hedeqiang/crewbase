@@ -285,7 +285,12 @@ function closeTopOverlay(e?: KeyboardEvent): boolean {
     return true;
   }
   const s = getState();
-  if (s.palette) return setState({ palette: false }), true;
+  if (s.palette) {
+    setState({ palette: false });
+    // back to typing in the conversation, not to the page
+    requestAnimationFrame(() => document.querySelector<HTMLElement>(".composer textarea")?.focus({ preventScroll: true }));
+    return true;
+  }
   if (s.newChannel) return setState({ newChannel: false }), true;
   if (s.hostConfirm) return setState({ hostConfirm: null }), true;
   // the list and the panel as overlays on a narrow window
