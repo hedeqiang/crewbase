@@ -378,24 +378,12 @@ func (w *Working) WriteNote(a *agent.Agent, name, text string) (string, error) {
 
 // ---------------------------------------------------------------- prompt
 
-func ago(d time.Duration) string {
-	switch {
-	case d < time.Hour:
-		return fmt.Sprintf("%dm ago", max(1, int(d.Minutes())))
-	case d < 48*time.Hour:
-		return fmt.Sprintf("%dh ago", int(d.Hours()))
-	default:
-		return fmt.Sprintf("%dd ago", int(d.Hours()/24))
-	}
-}
-
 func (w *Working) render(id string) string {
 	a, ok := w.agents.Get(id)
 	if !ok || !w.eligible(a) {
 		return ""
 	}
 	var b strings.Builder
-	now := w.now()
 	if ts := w.Tasks(a); len(ts) > 0 {
 		b.WriteString("Tasks in progress (your progress files; read one with task_progress_read before continuing it, update it with task_progress as you go, done=true when finished):\n")
 		for i, t := range ts {
@@ -403,7 +391,9 @@ func (w *Working) render(id string) string {
 				fmt.Fprintf(&b, "- … %d more\n", len(ts)-i)
 				break
 			}
-			fmt.Fprintf(&b, "- %s (updated %s): %s\n", t.Name, ago(now.Sub(t.Updated)), t.Title)
+			// when, not how long ago: the section stays the same from one
+			// request to the next (providers keep a prompt cache on it)
+			fmt.Fprintf(&b, "- %s (updated %s): %s\n", t.Name, t.Updated.Local().Format("01-02 15:04"), t.Title)
 		}
 	}
 	if ns := w.Notes(a); len(ns) > 0 {

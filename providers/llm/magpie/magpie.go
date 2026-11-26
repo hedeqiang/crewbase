@@ -270,6 +270,16 @@ func (a *Adapter) AcceptsFile(model, mime string) bool {
 	return inner != nil && inner.AcceptsFile(model, mime)
 }
 
+// KeepsPrefix (llm.PrefixKeeper): OpenAI's newer models through the
+// Responses route are built append-only (see the openai adapter's
+// prefix.go).
+func (a *Adapter) KeepsPrefix(model string) bool {
+	a.mu.RLock()
+	inner := a.inner
+	a.mu.RUnlock()
+	return inner != nil && inner.KeepsPrefix(model)
+}
+
 // hello checks that root is a magpie gateway and returns its version.
 func hello(ctx context.Context, client *http.Client, root string) (string, error) {
 	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, root+"/api/hello", nil)

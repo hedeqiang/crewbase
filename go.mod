@@ -16,7 +16,7 @@ require (
 	github.com/ledongthuc/pdf v0.0.0-20261020125853-5e46805f718e
 	github.com/modelcontextprotocol/go-sdk v1.9.0-pre.1
 	github.com/mozillazg/go-pinyin v0.21.0
-	github.com/openai/openai-go/v3 v3.99.0
+	github.com/openai/openai-go/v3 v3.108.0
 	github.com/slack-go/slack v0.35.0
 	github.com/tetratelabs/wazero v1.12.0
 	go.opentelemetry.io/otel v1.47.0
