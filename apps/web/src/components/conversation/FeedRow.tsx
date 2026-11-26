@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { ChevronRight, Terminal, AlarmClock, Users, Minimize2, Monitor, Shield, ArrowRightLeft, Link2, UserRound, Pause, Archive, Play } from "lucide-react";
 import { parseRef, type AgentView } from "../../api";
 import { t, type Key } from "../../i18n";
@@ -22,7 +22,9 @@ function PluginFeedCard({ type, data }: { type: string; data: any }) {
   return c ? <PluginCard c={c} data={data} /> : null;
 }
 
-export function FeedRow({ it, agents, showModel }: { it: FeedItem; agents: Record<string, AgentView>; showModel?: boolean }) {
+// memo: a streamed reply re-renders the feed on every chunk; the rows it
+// does not touch (the open turn reads its stream itself) stay as they are
+export const FeedRow = memo(function FeedRow({ it, agents, showModel }: { it: FeedItem; agents: Record<string, AgentView>; showModel?: boolean }) {
   const models = useStore((s) => s.models);
   switch (it.k) {
     case "time":
@@ -120,7 +122,7 @@ export function FeedRow({ it, agents, showModel }: { it: FeedItem; agents: Recor
         </div>
       );
   }
-}
+});
 
 const REASONS: Record<string, true> = {
   "chat.reason.quota_exhausted": true,

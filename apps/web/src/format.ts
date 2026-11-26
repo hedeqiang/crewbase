@@ -50,9 +50,19 @@ export function effortLabel(e?: string): string {
   return "";
 }
 
+// toLocaleTimeString builds a formatter on every call: one per message on
+// every render of a long feed (most of a streamed reply's render time)
+let hhmmFmt: Intl.DateTimeFormat | undefined;
 export function hhmm(iso: string): string {
-  const d = new Date(iso);
-  return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false });
+  hhmmFmt ??= new Intl.DateTimeFormat([], { hour: "2-digit", minute: "2-digit", hour12: false });
+  return hhmmFmt.format(new Date(iso));
+}
+
+let numFmt: Intl.NumberFormat | undefined;
+/** n.toLocaleString(), with one formatter kept. */
+export function numLocale(n: number): string {
+  numFmt ??= new Intl.NumberFormat();
+  return numFmt.format(n);
 }
 
 export function dayLabel(iso: string): string {
