@@ -37,7 +37,6 @@ import (
 	"github.com/hedeqiang/crewbase/core/agent"
 	"github.com/hedeqiang/crewbase/features/channel"
 	"github.com/hedeqiang/crewbase/features/routines"
-	"github.com/hedeqiang/crewbase/features/schedule"
 	"github.com/hedeqiang/crewbase/features/webhooks/verifiers"
 	"github.com/hedeqiang/crewbase/features/workflows"
 	"github.com/hedeqiang/crewbase/kernel"
@@ -710,13 +709,7 @@ func (s *Service) dispatch(ctx context.Context, e Endpoint, t Target, d *Deliver
 			key = d.ID
 		}
 		body, _ := json.Marshal(d.Prompt)
-		err := rs.RunWith(ctx, t.ID, "webhook:"+e.ID+":"+key, body)
-		if errors.Is(err, schedule.ErrOutsideWindow) {
-			// a routine limited to some hours (夜间值班) skips the rest
-			r.OK, r.Detail = true, "skipped: "+err.Error()
-			return r
-		}
-		if err != nil {
+		if err := rs.RunWith(ctx, t.ID, "webhook:"+e.ID+":"+key, body); err != nil {
 			return fail(err)
 		}
 		r.OK = true

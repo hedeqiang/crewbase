@@ -27,7 +27,6 @@ import {
   type PreviewInfo,
   getToken,
   type Quote,
-  type NightShiftView,
 } from "./api";
 import { tunnelEvents, viaRelay } from "./tunnel";
 import { notifyApprovals } from "./companion";
@@ -113,8 +112,6 @@ export interface State {
   gitTick: number;
   /** a webhook change (an endpoint, a delivery): the Webhook page asks again */
   webhookTick: number;
-  /** 夜间值班: the set-up, the shift on duty and the reports (null: not read) */
-  nightShift: NightShiftView | null;
   /** Member to pair a device for when 主机与设备 opens (from 成员与角色). */
   pairFor: string | null;
   /** Sub-tab a deep link asks a settings page to open (e.g. market/mcp). */
@@ -296,7 +293,6 @@ let state: State = {
   boardTick: {},
   gitTick: 0,
   webhookTick: 0,
-  nightShift: null,
   pairFor: null,
   settingsTab: null,
   connected: false,
@@ -763,16 +759,6 @@ export function scheduleSummaries(ms = 600) {
   sumTimer = window.setTimeout(() => void refreshSummaries(), ms);
 }
 
-/** 夜间值班 (features/nightshift): read again on SSE "nightshift.changed". */
-export async function refreshNightShift() {
-  if (state.tier !== "desktop") return;
-  try {
-    setState({ nightShift: await API.nightShift() });
-  } catch {
-    /* ignore */
-  }
-}
-
 export async function refreshApprovals() {
   try {
     const r = await API.approvals();
@@ -941,7 +927,6 @@ export async function resync() {
     refreshAddonUpdates(),
     refreshAgentDocs(),
     refreshOpenArtifact(),
-    refreshNightShift(),
   ]);
   // first run on a phone: the list is empty, the welcome steps matter
   if (narrow() && state.listOpen && Object.keys(state.agents).length === 0) setState({ listOpen: false });
@@ -1136,7 +1121,6 @@ export function connectEvents() {
   on("teams.changed", () => void refreshTeams());
   on("git.changed", () => setState((s) => ({ gitTick: s.gitTick + 1 })));
   on("webhooks.changed", () => setState((s) => ({ webhookTick: s.webhookTick + 1 })));
-  on("nightshift.changed", () => void refreshNightShift());
   on("board.changed", (d: { root: string }) => setState((s) => ({ boardTick: { ...s.boardTick, [d.root]: (s.boardTick[d.root] ?? 0) + 1 } })));
   if (!src) return;
   const es2 = src;

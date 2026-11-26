@@ -41,7 +41,6 @@ import { Popover, useMenu } from "./Popover";
 import { keyLabel } from "../shortcuts";
 import { UpdatePill } from "./Update";
 import { DESK } from "./settings/nav";
-import { NightMoon, dutyLine, dutyOf } from "./NightShift";
 
 const ISSUES_URL = "https://github.com/hedeqiang/crewbase/issues";
 
@@ -69,7 +68,6 @@ export function SessionList() {
   const myself = useStore((s) => s.me);
   const sessions = useStore((s) => s.sessions);
   const approvals = useStore((s) => s.approvals);
-  const nightShift = useStore((s) => s.nightShift);
   const events = useStore((s) => s.events);
   const current = useStore((s) => s.current);
   const view = useStore((s) => s.view);
@@ -192,12 +190,11 @@ export function SessionList() {
         <span className="ct">
           <span className="l1">
             <b>{isChat(a) ? chatTitle(a, topic) : a.name}</b>
-            <NightMoon agent={a} />
             {waiting && <span className="waitchip">{t("list.wait")}</span>}
             <span className="tm">{snip?.time ? listTime(snip.time) : ""}</span>
           </span>
           <span className="l2">
-            {workingLine(a) ? <span className="l2t doing">{workingLine(a)}</span> : dutyOf(nightShift, a.id) ? <span className="l2t nsduty">{dutyLine(dutyOf(nightShift, a.id)!.until)}</span> : <span className="l2t">{(isChat(a) ? snip?.text : topic || snip?.text || a.role) || " "}</span>}
+            {workingLine(a) ? <span className="l2t doing">{workingLine(a)}</span> : <span className="l2t">{(isChat(a) ? snip?.text : topic || snip?.text || a.role) || " "}</span>}
             <UnreadCount n={unreadN(a.session)} />
           </span>
         </span>

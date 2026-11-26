@@ -40,7 +40,7 @@ type routineArgs struct {
 // checkAgentSchedule: a real schedule (no webhook), at most hourly.
 func checkAgentSchedule(spec string) error {
 	spec = strings.TrimSpace(spec)
-	if spec == "" || schedule.IsWebhookSpec(spec) || spec == "manual" {
+	if spec == "" || spec == "webhook" || spec == "manual" {
 		return fmt.Errorf("give a schedule: daily HH:MM, weekly mon HH:MM, every 2h, or a 5-field cron expression (webhooks are set up by the person in Settings)")
 	}
 	sp, err := schedule.Parse(spec)

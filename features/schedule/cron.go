@@ -8,16 +8,12 @@ import (
 )
 
 // Spec is a parsed trigger: a 5-field cron expression, "every <duration>",
-// "daily HH:MM", "weekly <weekday> HH:MM", "at <RFC3339>" or "webhook",
-// optionally read in a zone and limited to a daily window (window.go).
+// "daily HH:MM", "weekly <weekday> HH:MM" or "at <RFC3339>".
 type Spec struct {
-	raw     string
-	every   time.Duration
-	at      time.Time
-	cron    *cron
-	webhook bool
-	loc     *time.Location
-	win     *window
+	raw   string
+	every time.Duration
+	at    time.Time
+	cron  *cron
 }
 
 func (s Spec) String() string { return s.raw }
@@ -29,20 +25,11 @@ const MinInterval = 60 * time.Second
 func Parse(raw string) (Spec, error) {
 	raw = strings.TrimSpace(raw)
 	s := Spec{raw: raw}
-	fields, err := s.limits(strings.Fields(raw))
-	if err != nil {
-		return s, err
-	}
+	fields := strings.Fields(raw)
 	if len(fields) == 0 {
 		return s, fmt.Errorf("empty schedule")
 	}
 	switch strings.ToLower(fields[0]) {
-	case "webhook":
-		if len(fields) != 1 {
-			return s, fmt.Errorf("want: webhook [during HH:MM-HH:MM]")
-		}
-		s.webhook = true
-		return s, nil
 	case "every":
 		if len(fields) != 2 {
 			return s, fmt.Errorf("want: every <duration>")
@@ -93,7 +80,7 @@ func Parse(raw string) (Spec, error) {
 		s.cron = c
 		return s, nil
 	}
-	c, err := parseCron(strings.Join(fields, " "))
+	c, err := parseCron(raw)
 	if err != nil {
 		return s, err
 	}
@@ -113,19 +100,8 @@ func hhmm(v string) (int, int, error) {
 	return h, m, nil
 }
 
-// Next returns the first firing strictly after t, or zero if none (a
-// webhook has none), inside the window when there is one.
+// Next returns the first firing strictly after t, or zero if none.
 func (s Spec) Next(t time.Time) time.Time {
-	if s.loc != nil {
-		t = t.In(s.loc)
-	}
-	if s.win != nil {
-		return s.windowed(t)
-	}
-	return s.next(t)
-}
-
-func (s Spec) next(t time.Time) time.Time {
 	switch {
 	case s.every > 0:
 		return t.Add(s.every).Truncate(time.Second)
