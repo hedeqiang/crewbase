@@ -266,7 +266,17 @@ func TestUpdateSchedule(t *testing.T) {
 	}
 }
 
-// The Desktop service binds: its types are ones mygo can send.
-func TestDesktopBinds(t *testing.T) {
+// The Desktop service binds: its types are ones mygo can send. mygo keeps
+// bound services for the process, so it is bound once (go test -count=N
+// runs the test N times in one process).
+var bindOnce = sync.OnceValue(func() (err any) {
+	defer func() { err = recover() }()
 	mygo.Bind(Desktop{&shell{}})
+	return nil
+})
+
+func TestDesktopBinds(t *testing.T) {
+	if err := bindOnce(); err != nil {
+		t.Fatal(err)
+	}
 }
