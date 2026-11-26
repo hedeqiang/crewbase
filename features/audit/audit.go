@@ -253,17 +253,24 @@ var Plugin = kernel.Register(kernel.Spec{
 		// Plugin lifecycle from the kernel's own events (no polling).
 		self := c.PluginID()
 		rec(Entry{Type: TypePluginState, Actor: "system", Data: map[string]any{"snapshot": snapshotPlugins(c.Host(), self)}})
+		// lazily synced: ~2 records per plugin on every start, an fsync
+		// each made starting the daemon wait on the disk
+		lazy := func(e Entry) {
+			if _, err := lg.AppendLazy(e); err != nil {
+				log.Error("audit write failed", "type", e.Type, "err", err)
+			}
+		}
 		kernel.PluginChanged.Listen(c, func(ev kernel.PluginEvent) {
 			if ev.ID == self {
 				return
 			}
 			switch {
 			case ev.From == "":
-				rec(Entry{Type: TypePluginLoaded, Actor: "system", Data: map[string]any{"id": ev.ID, "name": ev.Name, "state": string(ev.To)}})
+				lazy(Entry{Type: TypePluginLoaded, Actor: "system", Data: map[string]any{"id": ev.ID, "name": ev.Name, "state": string(ev.To)}})
 			case ev.To == kernel.StateDisposed:
-				rec(Entry{Type: TypePluginUnloaded, Actor: "system", Data: map[string]any{"id": ev.ID, "name": ev.Name}})
+				lazy(Entry{Type: TypePluginUnloaded, Actor: "system", Data: map[string]any{"id": ev.ID, "name": ev.Name}})
 			default:
-				rec(Entry{Type: TypePluginState, Actor: "system", Data: map[string]any{"id": ev.ID, "name": ev.Name, "from": string(ev.From), "to": string(ev.To), "error": ev.Error}})
+				lazy(Entry{Type: TypePluginState, Actor: "system", Data: map[string]any{"id": ev.ID, "name": ev.Name, "from": string(ev.From), "to": string(ev.To), "error": ev.Error}})
 			}
 		})
 		return c.Provide(ServiceKey, s)

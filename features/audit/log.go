@@ -99,6 +99,8 @@ type Log struct {
 	head  string
 	file  *os.File
 	month string
+	// unsynced: records written by AppendLazy not yet fsynced
+	unsynced bool
 }
 
 const filePrefix, fileSuffix = "audit-", ".jsonl"
@@ -210,7 +212,15 @@ type Entry struct {
 
 // Append writes one record and advances the chain. It is safe for
 // concurrent use.
-func (l *Log) Append(e Entry) (Record, error) {
+func (l *Log) Append(e Entry) (Record, error) { return l.append(e, true) }
+
+// AppendLazy is Append without its own fsync: the record reaches the disk
+// with the next synced record or Close. For routine records a crash may
+// lose without harm (plugin lifecycle: every start records a snapshot),
+// which would otherwise cost an fsync each on every start.
+func (l *Log) AppendLazy(e Entry) (Record, error) { return l.append(e, false) }
+
+func (l *Log) append(e Entry, durable bool) (Record, error) {
 	var raw json.RawMessage
 	if e.Data != nil {
 		b, err := json.Marshal(e.Data)
@@ -240,8 +250,11 @@ func (l *Log) Append(e Entry) (Record, error) {
 	if _, err := f.Write(append(line, '\n')); err != nil {
 		return Record{}, err
 	}
-	if l.sync {
-		_ = f.Sync()
+	if l.sync && durable {
+		_ = f.Sync() // also flushes earlier lazy records
+		l.unsynced = false
+	} else if l.sync {
+		l.unsynced = true
 	}
 	l.seq, l.head = r.Seq, r.Hash
 	return r, nil
@@ -253,6 +266,7 @@ func (l *Log) fileLocked(t time.Time) (*os.File, error) {
 		return l.file, nil
 	}
 	if l.file != nil {
+		l.flushLocked()
 		_ = l.file.Close()
 		l.file = nil
 	}
@@ -276,11 +290,20 @@ func (l *Log) fileLocked(t time.Time) (*os.File, error) {
 	return f, nil
 }
 
+// flushLocked fsyncs records written by AppendLazy.
+func (l *Log) flushLocked() {
+	if l.unsynced && l.file != nil {
+		_ = l.file.Sync()
+	}
+	l.unsynced = false
+}
+
 // Close releases the file handle.
 func (l *Log) Close() error {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	if l.file != nil {
+		l.flushLocked()
 		err := l.file.Close()
 		l.file = nil
 		return err
