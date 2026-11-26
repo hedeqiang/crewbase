@@ -1,0 +1,75 @@
+/* 从对话生成例行流程 (conversation/autoDraft.tsx): the draft card under a
+   finished turn, the 做成例行 turn action, and the routine brought into
+   view in 自动化. */
+
+.mact.c2r-btn { width: auto; display: inline-flex; align-items: center; gap: 4px; padding: 0 7px; }
+.mact.c2r-btn span { font-size: var(--fs-12); font-weight: 500; }
+.mact.c2r-btn.on { color: var(--accent-text); background: var(--accent-soft); }
+
+.c2r { margin-top: 10px; max-width: 720px; border: 1px solid var(--border); border-radius: var(--r-14); background: var(--surface); overflow: hidden; animation: c2r-in .22s var(--ease-out, ease-out); }
+@keyframes c2r-in { from { opacity: 0; translate: 0 6px; } }
+
+.c2r-h { display: flex; align-items: flex-start; gap: 10px; padding: 12px 12px 10px 14px; }
+.c2r-h .g { display: flex; flex-direction: column; gap: 1px; min-width: 0; flex: 1; }
+.c2r-h .g b { font-size: var(--fs-14); font-weight: 600; color: var(--text); overflow-wrap: anywhere; }
+.c2r-h .g .small { color: var(--muted); }
+.c2r-i { flex: none; width: 28px; height: 28px; display: grid; place-items: center; border-radius: var(--r-8); background: var(--accent-soft); color: var(--accent-text); }
+.c2r-i.ok { background: var(--ok-soft); color: var(--ok-text); }
+
+.c2r-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 0 14px 10px; border-bottom: 1px solid var(--border); }
+.c2r-bar .seg button { padding: 3px 10px; font-size: var(--fs-12); }
+.c2r-bar .sp, .c2r-foot .sp { flex: 1; }
+
+.c2r-load { display: grid; gap: 10px; padding: 14px; color: var(--text2); font-size: var(--fs-13); grid-template-columns: auto minmax(0, 1fr); align-items: center; }
+.c2r-pulse { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); animation: c2r-pulse 1.2s ease-in-out infinite; }
+@keyframes c2r-pulse { 50% { opacity: .35; scale: .8; } }
+.c2r-lines { grid-column: 1 / -1; display: grid; gap: 8px; }
+.c2r-lines i { display: block; height: 10px; border-radius: var(--r-4); background: linear-gradient(90deg, var(--active), var(--hover), var(--active)); background-size: 200% 100%; animation: c2r-shine 1.4s linear infinite; }
+.c2r-lines i:nth-child(1) { width: 88%; }
+.c2r-lines i:nth-child(2) { width: 70%; }
+.c2r-lines i:nth-child(3) { width: 46%; }
+@keyframes c2r-shine { to { background-position: -200% 0; } }
+
+.c2r-err { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 12px 14px; color: var(--danger-text); font-size: var(--fs-13); }
+
+.fgrid.c2r-grid { margin: 0; padding: 12px 14px 14px; }
+.c2r-grid textarea.fi { resize: vertical; line-height: 1.55; }
+.c2r-grid .small { color: var(--muted); }
+.c2r-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; margin-top: 6px; }
+.c2r-tools span { margin-right: 2px; }
+.c2r-tools code { font-family: var(--mono); font-size: var(--fs-11); line-height: 18px; padding: 0 6px; border-radius: var(--r-4); background: var(--active); color: var(--text2); }
+
+.c2r-steps { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; min-width: 0; }
+.c2r-step { position: relative; display: grid; grid-template-columns: 22px minmax(0, 1fr); gap: 10px; }
+.c2r-step::before { content: ""; position: absolute; left: 10.5px; top: 26px; bottom: -12px; width: 1px; background: var(--border2); }
+.c2r-step.last::before { display: none; }
+.c2r-n { width: 22px; height: 22px; margin-top: 5px; display: grid; place-items: center; border-radius: 50%; border: 1px solid var(--border2); background: var(--raised); color: var(--text2); font-size: var(--fs-12); font-weight: 600; font-variant-numeric: tabular-nums; }
+.c2r-step.gate .c2r-n { border-color: transparent; background: var(--amber-soft); color: var(--amber-text); }
+.c2r-sb { display: grid; gap: 6px; min-width: 0; }
+.c2r-sh { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.c2r-sh > .fi { flex: 1 1 140px; min-width: 0; }
+.c2r-sh .ssel select { min-width: 0; padding-top: 6px; padding-bottom: 6px; }
+
+.c2r-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 10px 14px; border-top: 1px solid var(--border); background: var(--raised); }
+.c2r-foot > .small { min-width: 0; overflow-wrap: anywhere; }
+.c2r-foot .muted { color: var(--muted); }
+
+.c2r-trial { display: grid; grid-template-columns: minmax(0, 1fr); gap: 4px; padding: 0 14px 12px; }
+.c2r-trial .runs, .c2r-trial .runrow { min-width: 0; }
+.c2r-trial > .small { display: flex; align-items: center; gap: 6px; color: var(--muted); }
+.c2r.done .c2r-foot { border-top: 1px solid var(--border); }
+
+/* 自动化: the routine just made from a conversation */
+.rcard.focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+
+@media (max-width: 560px) {
+  .c2r { border-radius: var(--r-12); }
+  .c2r-h, .c2r-bar, .fgrid.c2r-grid, .c2r-foot, .c2r-trial { padding-left: 12px; padding-right: 12px; }
+  .c2r-sh .ssel { flex: 1 1 100%; order: 3; }
+  .c2r-sh .ssel select { width: 100%; }
+  .mact.c2r-btn span { display: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .c2r, .c2r-pulse, .c2r-lines i { animation: none !important; }
+}

@@ -25,6 +25,7 @@ import (
 	_ "github.com/hedeqiang/crewbase/features/api"
 	_ "github.com/hedeqiang/crewbase/features/attachments"
 	_ "github.com/hedeqiang/crewbase/features/audit"
+	_ "github.com/hedeqiang/crewbase/features/autodraft"
 	_ "github.com/hedeqiang/crewbase/features/browsertools"
 	_ "github.com/hedeqiang/crewbase/features/catalog"
 	_ "github.com/hedeqiang/crewbase/features/channel"
@@ -203,6 +204,8 @@ var Desktop = kernel.Bundle{Name: "desktop", Entries: []kernel.Entry{
 	{ID: "memory-working-api", Name: "@crewbase/memory-working-api"},
 	{ID: "usage", Name: "@crewbase/usage"},
 	{ID: "workflows-api", Name: "@crewbase/workflows-api"},
+	// 从对话生成例行流程: a routine / workflow drafted from a conversation.
+	{ID: "automation-draft", Name: "@crewbase/automation-draft"},
 	{ID: "mcp-api", Name: "@crewbase/mcp-api"},
 	{ID: "catalog-api", Name: "@crewbase/catalog-api"},
 	{ID: "skills-api", Name: "@crewbase/skills-api"},

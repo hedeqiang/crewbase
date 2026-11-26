@@ -816,6 +816,22 @@ export interface Workflow {
   nextRun?: string;
   lastRun?: string;
 }
+/** 从对话生成例行流程: a draft routine / workflow (POST …/automation-draft). */
+export interface AutoDraft {
+  kind: "routine" | "workflow";
+  both?: boolean;
+  routine: Routine;
+  workflow: Workflow;
+  task: string;
+  quiet: string;
+  tools?: string[];
+  scheduleGuessed?: boolean;
+  scheduleWhy?: string;
+  model?: string;
+  from: number;
+  upto: number;
+}
+
 export interface WfStepView {
   id: string;
   group?: string;
@@ -2111,6 +2127,8 @@ export const API = {
   workflowRun: (run: string) => api<WfRun>("GET", `/api/workflow-runs/${enc(run)}`),
   rerun: (run: string, from: string) => api<WfRun>("POST", `/api/workflow-runs/${enc(run)}/rerun`, { from }),
   cancelRun: (run: string) => api("POST", `/api/workflow-runs/${enc(run)}/cancel`),
+  automationDraft: (session: string, b: { agent: string; upto: number; scope: "turn" | "all"; kind?: "routine" | "workflow" }) =>
+    api<AutoDraft>("POST", `/api/sessions/${enc(session)}/automation-draft`, b),
 
   mcp: () => api<{ servers: McpServer[] | null }>("GET", "/api/mcp"),
   mcpSignOut: (name: string) => api("POST", `/api/mcp/${enc(name)}/signout`),
