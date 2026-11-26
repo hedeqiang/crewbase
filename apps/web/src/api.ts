@@ -257,6 +257,29 @@ export interface Quota {
   /** the allowance remaining is of, e.g. "codex · 7 days" */
   label?: string;
   windows?: { label: string; remaining: number; resetsAt?: string }[];
+  /** the accounts behind a gateway, by vendor, with every allowance */
+  accounts?: QuotaAccount[];
+}
+export interface QuotaAccount {
+  vendor: string;
+  vendorName?: string;
+  account?: string;
+  plan?: string;
+  /** a prepaid account's balance as the vendor shows it */
+  balance?: string;
+  windows?: QuotaAccountWindow[];
+}
+export interface QuotaAccountWindow {
+  name: string;
+  /** share used, 0..1 */
+  used: number;
+  spent?: number;
+  limit?: number;
+  unit?: string;
+  /** the vendor's own text for an allowance without a share */
+  display?: string;
+  text?: boolean;
+  resetsAt?: string;
 }
 export interface ProviderView {
   id: string;

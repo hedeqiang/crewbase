@@ -9,6 +9,7 @@ import anthropic from "@lobehub/icons-static-svg/icons/anthropic.svg?raw";
 import claude from "@lobehub/icons-static-svg/icons/claude-color.svg?raw";
 import codex from "@lobehub/icons-static-svg/icons/codex-color.svg?raw";
 import cursor from "@lobehub/icons-static-svg/icons/cursor.svg?raw";
+import githubcopilot from "@lobehub/icons-static-svg/icons/githubcopilot.svg?raw";
 import deepseek from "@lobehub/icons-static-svg/icons/deepseek-color.svg?raw";
 import doubao from "@lobehub/icons-static-svg/icons/doubao-color.svg?raw";
 import gemini from "@lobehub/icons-static-svg/icons/gemini-color.svg?raw";
@@ -52,7 +53,7 @@ const ICONS: Record<string, string> = {
   anthropic, claude, codex, cursor, deepseek, doubao, gemini, grok, groq, kimi, lmstudio, magpie,
   minimax, mistral, moonshot, ollama, openai, opencode, openrouter, qwen, siliconcloud, vllm, zhipu,
   xai, volcengine, baichuan, hunyuan, stepfun, yi, wenxin, spark, together, fireworks, perplexity,
-  cohere, nvidia, azure, bedrock, vertexai, cloudflare, antigravity, meta,
+  cohere, nvidia, azure, bedrock, vertexai, cloudflare, antigravity, meta, githubcopilot,
 };
 
 /** The raw SVG of an icon key (undefined when there is none). */
@@ -200,6 +201,8 @@ const BY_PROVIDER: Record<string, string> = {
   kimi: "kimi",
   openrouter: "openrouter",
   cursor: "cursor",
+  copilot: "githubcopilot",
+  githubcopilot: "githubcopilot",
   opencode: "opencode",
   mistral: "mistral",
   groq: "groq",

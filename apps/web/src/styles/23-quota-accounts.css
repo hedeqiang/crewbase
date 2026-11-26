@@ -1,0 +1,30 @@
+/* 设置 › 模型 › a gateway's 额度 by vendor and account (settings/QuotaAccounts.tsx) */
+.box.qabox { padding: 0; background: transparent; border: 0; }
+.qavendors { display: flex; flex-direction: column; gap: 12px; }
+.qavendor { border: 1px solid var(--border2); border-radius: var(--r-14); background: var(--surface); padding: 14px 16px 16px; display: flex; flex-direction: column; gap: 12px; }
+.qavh { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.qavh > b { font-size: var(--fs-15, 15px); font-weight: 600; }
+.qavmark { flex: none; width: 30px; height: 30px; border-radius: 9px; display: grid; place-items: center; background: var(--raised); border: 1px solid var(--border); }
+.qaexp { margin-left: auto; display: inline-flex; align-items: center; gap: 4px; color: var(--text2); }
+.qaexp svg { transition: transform var(--dur-hover); }
+.qaexp[aria-expanded="true"] svg { transform: rotate(180deg); }
+.qasum { border-radius: var(--r-12); background: var(--raised); padding: 10px 14px 12px; display: flex; flex-direction: column; gap: 6px; }
+.qasumh { color: var(--muted); font-weight: 500; }
+.qaaccts { display: flex; flex-direction: column; gap: 8px; animation: qa-open var(--dur-normal, .18s) ease-out both; }
+@keyframes qa-open { from { opacity: 0; transform: translateY(-3px); } }
+@media (prefers-reduced-motion: reduce) { .qaaccts { animation: none; } .qaexp svg { transition: none; } }
+.qaacct { border: 1px solid var(--border); border-radius: var(--r-12); padding: 10px 14px 12px; display: flex; flex-direction: column; gap: 6px; }
+.qaah { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.qaname { flex: 1; min-width: 0; font-size: var(--fs-14); font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.qaplan { flex: none; font-size: var(--fs-12); color: var(--text2); padding: 1px 8px; border-radius: var(--r-pill); background: var(--active); }
+/* allowances: two per row where there is room, one when narrow */
+.qagrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 8px 28px; }
+.qawin { display: flex; flex-direction: column; gap: 4px; min-width: 0; padding-top: 2px; }
+.qawh { display: flex; align-items: baseline; gap: 10px; min-width: 0; font-size: var(--fs-13); }
+.qawn { flex: 1; min-width: 0; color: var(--text2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.qawv { flex: none; font-weight: 600; font-variant-numeric: tabular-nums; }
+.meter.qameter { margin: 0; height: 5px; }
+.qares { color: var(--muted); font-size: var(--fs-12); }
+.qabal { display: flex; align-items: center; gap: 6px; font-size: var(--fs-13); color: var(--text2); }
+.qabal b { margin-left: auto; color: var(--text); font-variant-numeric: tabular-nums; }
+.qaacct.bare { border: 0; padding: 0; }

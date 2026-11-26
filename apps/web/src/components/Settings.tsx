@@ -29,6 +29,7 @@ import { Routing } from "./settings/Routing";
 import { Avatar } from "./Avatar";
 import { ApprovalActions } from "./Approval";
 import { ProviderMark } from "./ProviderMark";
+import { QuotaAccounts } from "./settings/QuotaAccounts";
 import { Markdown } from "./Markdown";
 import { UpdateRing } from "./Update";
 import { checkForUpdates, downloadUpdate, inPlaceUpdates, openUpdateNotes, percent, restartToUpdate, useDesktopUpdate } from "../updates";
@@ -993,8 +994,10 @@ function Models() {
                 </div>
               ))}
               <div className="psec2">{t("set.quota")}</div>
-              <div className="box">
-                {cur.quota?.known ? (
+              <div className={"box" + (cur.quota?.accounts?.length ? " qabox" : "")}>
+                {cur.quota?.accounts?.length ? (
+                  <QuotaAccounts accounts={cur.quota.accounts} />
+                ) : cur.quota?.known ? (
                   // a gateway fronts several accounts: each window, named
                   cur.quota.windows?.length ? (
                     cur.quota.windows.map((w) => <QuotaRow key={w.label} label={w.label} remaining={w.remaining} resetsAt={w.resetsAt} />)

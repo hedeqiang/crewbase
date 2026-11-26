@@ -27,6 +27,8 @@ type quotaEntry struct {
 	Name     string `json:"name"`
 	Kind     string `json:"kind"` // subscription | balance | ...
 	Plan     string `json:"plan"`
+	User     string `json:"user"`    // the account (login, email, id)
+	Balance  string `json:"balance"` // kind balance: "¥96.45"
 	Windows  []struct {
 		Name      string  `json:"name"`
 		Used      float64 `json:"used"`      // percent
@@ -34,6 +36,9 @@ type quotaEntry struct {
 		ResetsAt  string  `json:"resetsAt"`
 		Text      bool    `json:"text"` // display-only (no meaningful percentage)
 		Lane      string  `json:"lane"` // e.g. "images": not chat allowance
+		Display   string  `json:"display"`
+		Limit     float64 `json:"limit"`
+		Unit      string  `json:"unit"`
 	} `json:"windows"`
 }
 
@@ -41,7 +46,8 @@ type quotaEntry struct {
 type subQuota struct {
 	provider string
 	label    string
-	windows  []llm.QuotaWindow
+	windows  []llm.QuotaWindow // chat allowances with a share (routing, composer)
+	account  llm.QuotaAccount  // everything, for display
 }
 
 type quotaCache struct {
@@ -92,8 +98,32 @@ func (a *Adapter) fetchQuotas(ctx context.Context) ([]subQuota, error) {
 	seen := map[string]int{}
 	var out []subQuota
 	for _, e := range body.Data {
-		if e.Kind != "subscription" || e.Provider == "" {
+		if e.Provider == "" {
 			continue
+		}
+		acct := llm.QuotaAccount{Vendor: e.Provider, VendorName: e.Name, Account: e.User, Plan: e.Plan}
+		if e.Kind == "balance" {
+			if e.Balance != "" {
+				acct.Balance = e.Balance
+				out = append(out, subQuota{provider: e.Provider, account: acct})
+			}
+			continue
+		}
+		if e.Kind != "subscription" {
+			continue
+		}
+		for _, w := range e.Windows {
+			if w.Lane != "" || w.Name == "" {
+				continue
+			}
+			aw := llm.QuotaAccountWindow{Name: w.Name, Used: min(max(w.Used/100, 0), 1), Limit: w.Limit, Unit: w.Unit, Display: w.Display, Text: w.Text}
+			if w.Limit > 0 {
+				aw.Spent = w.Limit * aw.Used
+			}
+			if t, err := time.Parse(time.RFC3339Nano, w.ResetsAt); err == nil {
+				aw.ResetsAt = t
+			}
+			acct.Windows = append(acct.Windows, aw)
 		}
 		label := e.Name
 		if label == "" {
@@ -107,7 +137,7 @@ func (a *Adapter) fetchQuotas(ctx context.Context) ([]subQuota, error) {
 				label += fmt.Sprintf(" #%d", seen[e.Provider])
 			}
 		}
-		sq := subQuota{provider: e.Provider, label: label}
+		sq := subQuota{provider: e.Provider, label: label, account: acct}
 		for _, w := range e.Windows {
 			if w.Text || w.Lane != "" || w.Name == "" {
 				continue
@@ -118,7 +148,7 @@ func (a *Adapter) fetchQuotas(ctx context.Context) ([]subQuota, error) {
 			}
 			sq.windows = append(sq.windows, qw)
 		}
-		if len(sq.windows) > 0 {
+		if len(sq.windows) > 0 || len(acct.Windows) > 0 {
 			out = append(out, sq)
 		}
 	}
@@ -191,6 +221,10 @@ func summarize(subs []subQuota) llm.Quota {
 	var q llm.Quota
 	best := -1.0
 	for _, s := range subs {
+		q.Accounts = append(q.Accounts, s.account)
+		if len(s.windows) == 0 {
+			continue // a balance, or allowances shown only as text
+		}
 		tight := s.windows[0]
 		for _, w := range s.windows {
 			q.Windows = append(q.Windows, w)

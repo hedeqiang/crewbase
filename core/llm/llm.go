@@ -283,6 +283,39 @@ type Quota struct {
 	Label string `json:"label,omitempty"`
 	// Windows are the individual allowances (e.g. "5h", "week").
 	Windows []QuotaWindow `json:"windows,omitempty"`
+	// Accounts are the accounts behind the provider, each with all of its
+	// allowances as the vendor reports them (a gateway with several
+	// subscriptions of one vendor); for display. Windows above stays what
+	// routing and the composer read.
+	Accounts []QuotaAccount `json:"accounts,omitempty"`
+}
+
+// QuotaAccount is one account of a vendor behind a gateway.
+type QuotaAccount struct {
+	Vendor     string `json:"vendor"`               // e.g. "copilot", "codex"
+	VendorName string `json:"vendorName,omitempty"` // e.g. "Copilot"
+	Account    string `json:"account,omitempty"`    // the account's own name
+	Plan       string `json:"plan,omitempty"`
+	// Balance is a prepaid balance as the vendor shows it ("¥96.45"),
+	// for accounts without allowances.
+	Balance string               `json:"balance,omitempty"`
+	Windows []QuotaAccountWindow `json:"windows,omitempty"`
+}
+
+// QuotaAccountWindow is one allowance of an account.
+type QuotaAccountWindow struct {
+	Name string `json:"name"`
+	// Used is the share used, 0..1 (only when Display is empty or alongside it).
+	Used float64 `json:"used"`
+	// Spent and Limit in Unit, when the vendor counts them ("14301.6 / 16000").
+	Spent float64 `json:"spent,omitempty"`
+	Limit float64 `json:"limit,omitempty"`
+	Unit  string  `json:"unit,omitempty"`
+	// Display is the vendor's own text for an allowance without a
+	// meaningful share ("Unlimited", "$41.26"); Text marks it display-only.
+	Display  string    `json:"display,omitempty"`
+	Text     bool      `json:"text,omitempty"`
+	ResetsAt time.Time `json:"resetsAt,omitzero"`
 }
 
 // QuotaWindow is one allowance window (e.g. a gateway subscription's 5-hour limit).
