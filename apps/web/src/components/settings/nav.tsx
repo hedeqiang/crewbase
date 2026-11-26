@@ -1,4 +1,4 @@
-import { Bell, Boxes, FileText, GitBranch, Globe, Library, Cpu, Keyboard, KeyRound, ListChecks, MessagesSquare, MousePointerClick, Puzzle, Server, Settings as Gear, Shapes, User, Webhook, Workflow, Users } from "lucide-react";
+import { Bell, Boxes, Brain, FileText, GitBranch, Globe, Library, Cpu, Keyboard, KeyRound, ListChecks, MessagesSquare, MousePointerClick, Puzzle, Server, Settings as Gear, Shapes, User, Webhook, Workflow, Users } from "lucide-react";
 import type { ReactNode } from "react";
 import type { Key } from "../../i18n";
 import type { DeskPage, SettingsSection } from "../../store";
@@ -52,6 +52,7 @@ export const NAV: { group: Key; items: { id: SettingsSection; icon: ReactNode }[
 export const DESK: { id: DeskPage; icon: ReactNode; title: Key }[] = [
   { id: "library", icon: <Library size={16} />, title: "lib.title" },
   { id: "auto", icon: <Workflow size={16} />, title: "set.auto" },
+  { id: "memory", icon: <Brain size={16} />, title: "memp.title" },
 ];
 
 export const SECTION_ICONS: Record<SettingsSection, ReactNode> = Object.fromEntries(NAV.flatMap((g) => g.items.map((i) => [i.id, i.icon]))) as any;

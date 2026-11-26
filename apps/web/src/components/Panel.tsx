@@ -13,6 +13,8 @@ import { LibraryTab } from "./Library";
 import { DocsTab } from "./settings/AgentDocs";
 import { ScheduleTab, scheduleCount, useSchedule } from "./Schedule";
 import { PreviewTab } from "./Preview";
+import { AgentMemories } from "./Memory";
+import { BadgeMarks, ProfileSection } from "./Profile";
 import { Avatar, LookPicker } from "./Avatar";
 import { Popover, useMenu } from "./Popover";
 import { ProviderMark } from "./ProviderMark";
@@ -629,7 +631,10 @@ function AgentTab({ agent, sessionId }: { agent: AgentView; sessionId: string })
           <LookPicker agent={agent} onChange={(p) => void API.patchAgent(agent.id, p).catch((e) => toast(e?.message ?? String(e)))} />
         </Popover>
         <div className="pn-agname">
-          <b>{agent.name}</b>
+          <b>
+            {agent.name}
+            <BadgeMarks agent={agent} />
+          </b>
           <div className="small mono pn-agid">
             {agent.id}
           </div>
@@ -645,6 +650,7 @@ function AgentTab({ agent, sessionId }: { agent: AgentView; sessionId: string })
         {t("panel.roleTag")} <span className="pn-sech">{t("panel.roleTagHint")}</span>
       </div>
       <input hidden={agent.kind === "chat"} className="fi sm" value={role} placeholder={t("panel.rolePh")} onChange={(e) => setRole(e.target.value)} onBlur={saveRole} onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()} />
+      <ProfileSection agent={agent} />
 
       <div className="psec">
         {t("panel.modelOrder")} <span className="pn-sech">{t("panel.modelOrderHint")}</span>
@@ -813,6 +819,7 @@ function AgentTab({ agent, sessionId }: { agent: AgentView; sessionId: string })
           </button>
         ))}
       </div>
+      <AgentMemories agent={agent} />
       <WorkNotes agent={agent} />
       <div className="pn-del">
         <button className="btn dng" type="button" onClick={del}>

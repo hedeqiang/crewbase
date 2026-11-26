@@ -37,7 +37,7 @@ import { argsPreview } from "./projection";
 export type View = "chat" | "newAgent" | "settings" | "desk";
 /** The pages of the 工作台 (the list's foot): used every day, so not in settings.
  *  Approvals stay in settings: the 需要你 pill and ⌘⇧A reach what waits. */
-export type DeskPage = "library" | "auto";
+export type DeskPage = "library" | "auto" | "memory";
 /** Built-in tabs, or `ui:<key>` for a plugin's sidebar-right.tab. */
 export type PanelTab = "task" | "schedule" | "files" | "code" | "preview" | "library" | "docs" | "agent" | `ui:${string}`;
 export type Theme = "system" | "light" | "dark";
@@ -338,7 +338,7 @@ let state: State = {
   team: loadTeam(),
   ui: [],
   settings: ((typeof location !== "undefined" && /^#\/settings\/([\w-]+)/.exec(location.hash)?.[1]) || "general") as SettingsSection,
-  desk: ((typeof location !== "undefined" && /^#\/desk\/(library|auto)\b/.exec(location.hash)?.[1]) || "library") as DeskPage,
+  desk: ((typeof location !== "undefined" && /^#\/desk\/(library|auto|memory)\b/.exec(location.hash)?.[1]) || "library") as DeskPage,
   listOpen: !narrow() || !LS.get("current"),
   panelOpen: !midWidth() && LS.get("panel") !== "0",
   panelTab: "task",
