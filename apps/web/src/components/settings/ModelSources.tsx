@@ -1,4 +1,4 @@
-import { Loader2, RefreshCw, X } from "lucide-react";
+import { Loader2, RefreshCw } from "lucide-react";
 import { useEffect, useState } from "react";
 import { API, type CatalogStatus, type MagpieChoice } from "../../api";
 import { ago } from "../../format";
@@ -7,8 +7,10 @@ import { resync, toast } from "../../store";
 import { Row } from "../Settings";
 import { ModelChecklist } from "./ModelChecklist";
 
-/** Choose which of magpie's models Crewbase offers (default: all). */
-export function MagpieModelsDialog({ onClose }: { onClose: () => void }) {
+/** Choose which of magpie's models Crewbase offers (default: all), in
+ *  place of the model list on magpie's page: the whole list, a save bar
+ *  that stays at the bottom while you scroll it. */
+export function MagpieModels({ onClose }: { onClose: () => void }) {
   const [ch, setCh] = useState<MagpieChoice | null>(null);
   const [err, setErr] = useState("");
   const [picked, setPicked] = useState<Set<string>>(new Set());
@@ -22,6 +24,17 @@ export function MagpieModelsDialog({ onClose }: { onClose: () => void }) {
       (e: any) => setErr(e?.message ?? String(e)),
     );
   }, []);
+  // Esc cancels (it would otherwise leave the page)
+  useEffect(() => {
+    const key = (e: KeyboardEvent) => {
+      if (e.key !== "Escape" || e.defaultPrevented) return;
+      e.preventDefault();
+      e.stopPropagation();
+      onClose();
+    };
+    window.addEventListener("keydown", key, true);
+    return () => window.removeEventListener("keydown", key, true);
+  }, [onClose]);
   const extra = (ch?.enabled ?? []).filter((id) => !ch?.models.some((m) => m.id === id));
   const save = async (all: boolean) => {
     if (!ch) return;
@@ -41,48 +54,37 @@ export function MagpieModelsDialog({ onClose }: { onClose: () => void }) {
     }
   };
   return (
-    <>
-      <div className="ovscrim show" onMouseDown={onClose} />
-      <div className="modal addprov" role="dialog" aria-modal="true" aria-label={t("mp.title")}>
-        <div className="mhd">
-          <h3>{t("mp.title")}</h3>
-          <button className="ib" type="button" aria-label={t("common.close")} onClick={onClose}>
-            <X size={16} />
+    <div className="mpin" role="region" aria-label={t("mp.title")}>
+      <p className="small mp-desc">{t("mp.desc")}</p>
+      {err && <div className="confirmbar errbar">{err}</div>}
+      {!ch && !err && (
+        <div className="small ap-loading">
+          <Loader2 size={14} className="spin" /> {t("common.loading")}
+        </div>
+      )}
+      {ch && !ch.running && <div className="confirmbar errbar">{t("mp.notRunning")}</div>}
+      {ch && (
+        <div className="ap-models">
+          <ModelChecklist models={ch.models} extra={extra} picked={picked} setPicked={setPicked} autoFocus />
+          <p className="small">{t("mp.note")}</p>
+        </div>
+      )}
+      <div className="mpin-bar">
+        {ch?.enabled != null && (
+          <button className="btn sm ghost" type="button" disabled={busy} onClick={() => void save(true)} title={t("mp.resetDesc")}>
+            {t("mp.reset")}
           </button>
-        </div>
-        <div className="mbd">
-          <p className="small mp-desc">{t("mp.desc")}</p>
-          {err && <div className="confirmbar errbar">{err}</div>}
-          {!ch && !err && (
-            <div className="small ap-loading">
-              <Loader2 size={14} className="spin" /> {t("common.loading")}
-            </div>
-          )}
-          {ch && !ch.running && <div className="confirmbar errbar">{t("mp.notRunning")}</div>}
-          {ch && (
-            <div className="ap-models">
-              <ModelChecklist models={ch.models} extra={extra} picked={picked} setPicked={setPicked} autoFocus />
-              <p className="small">{t("mp.note")}</p>
-            </div>
-          )}
-          <div className="mft">
-            {ch?.enabled != null && (
-              <button className="btn" type="button" disabled={busy} onClick={() => void save(true)} title={t("mp.resetDesc")}>
-                {t("mp.reset")}
-              </button>
-            )}
-            <span className="grow" />
-            <button className="btn" type="button" onClick={onClose}>
-              {t("common.cancel")}
-            </button>
-            <button className="btn pri" type="button" disabled={busy || !ch || picked.size === 0} onClick={() => void save(false)}>
-              {busy ? <Loader2 size={14} className="spin" /> : null}
-              {t("common.save")}
-            </button>
-          </div>
-        </div>
+        )}
+        <span className="grow" />
+        <button className="btn sm" type="button" onClick={onClose}>
+          {t("common.cancel")}
+        </button>
+        <button className="btn sm pri" type="button" disabled={busy || !ch || picked.size === 0} onClick={() => void save(false)}>
+          {busy ? <Loader2 size={14} className="spin" /> : null}
+          {t("common.save")}
+        </button>
       </div>
-    </>
+    </div>
   );
 }
 

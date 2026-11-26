@@ -1,7 +1,7 @@
 import { EmptyState } from "./EmptyState";
 import { Skeleton } from "./Skeleton";
 import { AddProviderDialog } from "./settings/AddProvider";
-import { MagpieModelsDialog, ModelCatalog } from "./settings/ModelSources";
+import { MagpieModels, ModelCatalog } from "./settings/ModelSources";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { CheckCheck, ChevronLeft, ChevronRight, Globe, Info, KeyRound, ListChecks, Pencil, Plus, Search, Trash2, Workflow } from "lucide-react";
 import { NAV, SECTION_ICONS } from "./settings/nav";
@@ -931,7 +931,6 @@ function Models() {
           }}
         />
       )}
-      {choosingMagpie && <MagpieModelsDialog onClose={() => setChoosingMagpie(false)} />}
       {tab === "routing" ? (
         <Routing />
       ) : tab === "catalog" ? (
@@ -953,7 +952,7 @@ function Models() {
                 {ps.map((p) => {
                   const st = providerState(p, isEx(p));
                   return (
-                    <button key={p.id} type="button" className="pvi" aria-current={cur?.id === p.id} onClick={() => setSel(p.id)}>
+                    <button key={p.id} type="button" className="pvi" aria-current={cur?.id === p.id} onClick={() => (setSel(p.id), setChoosingMagpie(false))}>
                       <ProviderMark provider={p.id} size={22} />
                       <span className="g">
                         <b>{pname(p.id)}</b>
@@ -1070,10 +1069,12 @@ function Models() {
                   {listed.some((m) => m.enabled === false) && <span className="small"> · {t("set.modelsOff", { n: listed.filter((m) => m.enabled === false).length })}</span>}
                 </span>
                 {cur.id === "magpie" ? (
-                  <button className="btn sm" type="button" onClick={() => setChoosingMagpie(true)}>
-                    <ListChecks size={13} />
-                    {t("mp.choose")}
-                  </button>
+                  !choosingMagpie && (
+                    <button className="btn sm" type="button" onClick={() => setChoosingMagpie(true)}>
+                      <ListChecks size={13} />
+                      {t("mp.choose")}
+                    </button>
+                  )
                 ) : userProv.some((u) => u.id === cur.id) ? (
                   <button className="btn sm" type="button" onClick={() => setEditing(userProv.find((u) => u.id === cur.id)!)}>
                     <ListChecks size={13} />
@@ -1087,7 +1088,9 @@ function Models() {
                 )}
               </div>
               {editingList && listed.length > 0 && <p className="small mswnote">{t("set.modelSwitchNote")}</p>}
-              {listed.length === 0 ? (
+              {cur.id === "magpie" && choosingMagpie ? (
+                <MagpieModels onClose={() => setChoosingMagpie(false)} />
+              ) : listed.length === 0 ? (
                 <div className="empty">{t("set.noModels")}</div>
               ) : (
                 <ModelTable provider={cur} models={listed} busy={swBusy} onFlip={flip} switches={editingList} />
