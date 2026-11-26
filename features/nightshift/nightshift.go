@@ -601,9 +601,10 @@ type Status struct {
 	Handled   int       `json:"handled"`
 	Waiting   int       `json:"waiting"`
 	Changes   int       `json:"changes"`
-	Source    string    `json:"source,omitempty"` // webhook | poll: where issues and comments come from
-	Endpoints []string  `json:"endpoints,omitempty"`
-	Repo      string    `json:"repo,omitempty"` // owner/name of the agent's folder
+	Source    string    `json:"source,omitempty"`    // webhook | poll: where issues and comments come from
+	Endpoints []string  `json:"endpoints,omitempty"` // the GitHub endpoints that bring them
+	Hooks     []string  `json:"hooks,omitempty"`     // the team's enabled GitHub endpoints
+	Repo      string    `json:"repo,omitempty"`      // owner/name of the agent's folder
 	Folder    string    `json:"folder,omitempty"`
 	GH        string    `json:"gh,omitempty"` // ok | missing | login (the local gh)
 	Problem   string    `json:"problem,omitempty"`
@@ -615,12 +616,17 @@ func (s *Service) Status(ctx context.Context, probe bool) Status {
 	c := s.Config()
 	st := Status{Agent: c.Agent, Source: c.source()}
 	if ws := s.hooks(); ws != nil {
+		team := agent.DefaultTeam
 		if a, ok := s.agents.Get(c.Agent); ok {
-			for _, e := range ws.Endpoints(a.Spec().TeamID()) {
-				for _, id := range c.Endpoints {
-					if e.ID == id {
-						st.Endpoints = append(st.Endpoints, e.Name)
-					}
+			team = a.Spec().TeamID()
+		}
+		for _, e := range ws.Endpoints(team) {
+			if e.Enabled && e.Provider == "github" {
+				st.Hooks = append(st.Hooks, e.Name)
+			}
+			for _, id := range c.Endpoints {
+				if e.ID == id {
+					st.Endpoints = append(st.Endpoints, e.Name)
 				}
 			}
 		}
@@ -681,7 +687,7 @@ func Prompt(c Config) string {
 			"(check it out with git_pr_checkout, or work where it is checked out), run the tests, commit with git_commit and push with git_push.")
 	}
 	if c.Watch.GitHub {
-		b.WriteString("\n- A new issue: read it. If the fix is clear and small, make it on a new branch and commit it; otherwise write down what you found and what you would do." +
+		b.WriteString("\n- A new issue: read it. If the fix is clear and small, make it on a new branch, commit it and push the branch with git_push; otherwise write down what you found and what you would do." +
 			"\n- A review comment on a pull request: address it on that pull request's branch the same way, or say why you would not.")
 	}
 	if c.Watch.Custom && c.Watch.Instruction != "" {

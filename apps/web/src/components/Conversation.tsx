@@ -1,4 +1,5 @@
 import { WaitingFor } from "./WaitingFor";
+import { NightShiftBar } from "./NightShift";
 import { FeedCtx, PinnedBar, SelectionActions } from "./MsgExtras";
 import { Skeleton } from "./Skeleton";
 import { Welcome } from "./Welcome";
@@ -93,6 +94,7 @@ function ConversationView({ sessionId, agent, channel }: { sessionId: string; ag
     <section className="main">
       <MsgCtx.Provider value={actions}>
         <FeedCtx.Provider value={feedCtx}>
+          {oneToOne && sessionId === agent.session && <NightShiftBar agent={agent} />}
           <PinnedBar items={pinned} />
           <Feed sessionId={sessionId} agent={agent} channel={channel} items={proj.items} working={proj.openTurns} loading={!events} error={err} />
           <SelectionActions />
