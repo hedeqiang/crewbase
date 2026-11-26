@@ -4,7 +4,7 @@
 //
 //   #/c/<session>[?panel=<tab>&file=<path>&doc=<url>&sub=<session>]
 //   #/settings/<section>
-//   #/desk/<library|auto>[?item=<library id>]   (工作台)
+//   #/desk/<library|auto|memory>[?item=<library id>]   (工作台)
 //   #/new-agent
 //   #/                       (nothing open)
 //
@@ -122,7 +122,7 @@ export function parse(hash: string): Loc | null {
   return null;
 }
 
-const isDesk = (x: string): x is DeskPage => x === "library" || x === "auto";
+const isDesk = (x: string): x is DeskPage => x === "library" || x === "auto" || x === "memory";
 
 let started = false;
 let applying = false;

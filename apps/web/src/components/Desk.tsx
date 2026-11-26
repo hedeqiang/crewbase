@@ -3,8 +3,9 @@ import { t } from "../i18n";
 import { LibraryPage } from "./Library";
 import { Automation } from "./settings/Automation";
 import { ListToggle } from "./Header";
+import { MemoryPage } from "./Memory";
 
-/** 工作台: the pages used every day (文档库, 自动化), in the main
+/** 工作台: the pages used every day (文档库, 自动化, 记忆), in the main
  *  column beside the conversation list instead of inside settings. */
 export function Desk() {
   const page = useStore((s) => s.desk);
@@ -21,6 +22,7 @@ export function Desk() {
       )}
       <div className="vw">
         {page === "auto" && manage && <Automation />}
+        {page === "memory" && manage && <MemoryPage />}
         {!manage && <p className="tiernote">{t("tier.mobileNote")}</p>}
       </div>
     </div>

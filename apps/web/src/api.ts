@@ -2343,4 +2343,64 @@ export const ArenaAPI = {
   rerun: (session: string, arena: string, index: number) => api("POST", `/api/sessions/${encodeURIComponent(session)}/arena/${encodeURIComponent(arena)}/rerun`, { index }),
   stats: () => api<ArenaStats>("GET", "/api/arena/stats"),
   suggest: (text: string) => api<ArenaSuggestion>("GET", `/api/arena/suggest?text=${encodeURIComponent(text.slice(0, 2000))}`),
+// ---- 记忆 page and agent 档案 (features/memory panel.go, features/usage profile.go)
+
+/** One thing an agent or a team knows: a MEMORY.md / TEAM.md line, a task
+ *  progress file or a reference note. */
+export interface MemEntry {
+  kind: "memory" | "team" | "task" | "note";
+  agent?: string;
+  team?: string;
+  text: string;
+  section?: string;
+  name?: string;
+  line?: number;
+  raw?: string;
+  by?: string;
+  /** a day (YYYY-MM-DD) or RFC 3339 */
+  saved?: string;
+  used?: string;
+  session?: string;
+  size?: number;
+}
+export interface MemList {
+  entries: MemEntry[];
+  agents: { id: string; name: string; team: string }[];
+  teams: { id: string; name: string }[];
+}
+/** what identifies an entry when changing it */
+export type MemRef = Pick<MemEntry, "kind" | "agent" | "team" | "line" | "raw" | "name">;
+export interface AgentProfile {
+  agent: string;
+  ready: boolean;
+  turns: number;
+  failed: number;
+  toolCalls: number;
+  toolErrors: number;
+  tools: { name: string; n: number }[];
+  asked: number;
+  approved: number;
+  rejected: number;
+  tokens: number;
+  spentUsd: number;
+  savedUsd: number;
+  models: { model: string; provider: string; kind: string; tokens: number; messages: number; spentUsd: number; savedUsd: number }[];
+  activeDays: number;
+  streak: number;
+  bestStreak: number;
+  first?: string;
+  last?: string;
+  /** turns per day, the last 28 days, oldest first */
+  recent: number[];
+  strengths: { kind: string; n: number; share: number }[];
+  badges: { id: string; earned: boolean; progress: number; goal: number; at?: string }[];
+}
+const memRef = (r: MemRef) => ({ kind: r.kind, agent: r.agent, team: r.team, line: r.line, raw: r.raw, name: r.name });
+export const MemAPI = {
+  list: () => api<MemList>("GET", "/api/memories"),
+  update: (r: MemRef, text: string) => api<{ text: string }>("PUT", "/api/memories", { ...memRef(r), text }),
+  remove: (r: MemRef) => api<{ ok: boolean }>("POST", "/api/memories/delete", memRef(r)),
+  /** 这条不对: removed, or replaced by the correction; tell = the agent hears of it */
+  wrong: (r: MemRef, correction: string, tell: boolean) => api<{ ok: boolean; told: boolean }>("POST", "/api/memories/wrong", { ...memRef(r), correction, tell }),
+  profile: (agent: string) => api<AgentProfile>("GET", `/api/agents/${encodeURIComponent(agent)}/profile`),
 };

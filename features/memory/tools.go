@@ -23,6 +23,7 @@ func (s *Store) registerTools(reg *tools.Registry) {
 			if err != nil {
 				return tools.Errorf("memory_add: %v", err), nil
 			}
+			s.auditAdd(c, line)
 			return tools.Text("Saved to MEMORY.md: " + line), nil
 		},
 	})
@@ -47,6 +48,7 @@ func (s *Store) registerTools(reg *tools.Registry) {
 			if len(hits) == 0 {
 				return tools.Text("No memory entries match."), nil
 			}
+			s.noteUsed(c.Agent, hits)
 			var b strings.Builder
 			for _, h := range hits {
 				fmt.Fprintf(&b, "MEMORY.md:%d %s\n", h.Seq, h.Snippet)

@@ -235,6 +235,9 @@ var Desktop = kernel.Bundle{Name: "desktop", Entries: []kernel.Entry{
 	{ID: "usage-api", Name: "@crewbase/usage-api"},
 	// 模型擂台: one task to several models side by side (<root>/arena.json).
 	{ID: "arena", Name: "@crewbase/arena", Config: map[string]any{"dir": "${root}"}},
+	// 记忆 page and agent 档案 (track record and badges).
+	{ID: "memory-panel-api", Name: "@crewbase/memory-panel-api"},
+	{ID: "agent-profile", Name: "@crewbase/agent-profile"},
 	{ID: "roles", Name: "@crewbase/roles"},
 	{ID: "ui-api", Name: "@crewbase/ui-api"},
 	{ID: "attachments-api", Name: "@crewbase/attachments-api"},
