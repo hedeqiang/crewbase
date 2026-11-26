@@ -136,7 +136,8 @@ type Adapter struct {
 	respMode     ResponsesMode // auto | always | never
 	respExplicit bool          // respMode came from the config
 	toolSearch   *bool
-	routes       *routeState // what was learned about the endpoints
+	routes       *routeState  // what was learned about the endpoints
+	balance      balanceCache // the provider's balance, where its API tells it
 
 	mu       sync.Mutex
 	safety   string

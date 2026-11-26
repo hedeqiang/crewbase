@@ -1603,7 +1603,6 @@ const zh = {
   "set.exhaustedState": "额度已用完",
   "set.errorState": "连接出错",
   "set.quota": "额度",
-  "set.quotaUnknown": "额度未知",
   "qa.unlimited": "无限",
   "qa.usedPct": "已用 {pct}%",
   "qa.resets": "{time}后重置",

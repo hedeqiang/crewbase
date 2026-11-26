@@ -2107,7 +2107,6 @@ export const en: Partial<Record<Key, string>> = {
   "qa.n.other": "Other models",
   "set.quotaLeft": "{pct}% left",
   "set.quotaResets": "Resets {time}",
-  "set.quotaUnknown": "Quota unknown",
   "set.rememberedAt": "Remembered {time} ago",
   "set.rememberedNone": "No remembered choices yet. When you pick \"Always allow\" on an approval, it is kept here and you can revoke it any time.",
   "set.rememberedRow": "Always allow \"{category}\" for {agent}",

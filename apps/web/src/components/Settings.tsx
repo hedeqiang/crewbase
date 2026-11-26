@@ -1000,21 +1000,24 @@ function Models() {
                   {t("set.exhaustedUntil", { model: x.model, time: until(x.until) })}
                 </div>
               ))}
-              <div className="psec2">{t("set.quota")}</div>
-              <div className={"box" + (cur.quota?.accounts?.length ? " qabox" : "")}>
-                {cur.quota?.accounts?.length ? (
-                  <QuotaAccounts accounts={cur.quota.accounts} />
-                ) : cur.quota?.known ? (
-                  // a gateway fronts several accounts: each window, named
-                  cur.quota.windows?.length ? (
-                    cur.quota.windows.map((w) => <QuotaRow key={w.label} label={w.label} remaining={w.remaining} resetsAt={w.resetsAt} />)
-                  ) : (
-                    <QuotaRow remaining={cur.quota.remaining} resetsAt={cur.quota.resetsAt} />
-                  )
-                ) : (
-                  <span className="small">{t("set.quotaUnknown")}</span>
-                )}
-              </div>
+              {/* 额度 only where the provider tells it (a gateway's
+                  accounts, a balance); none for an API that does not */}
+              {(cur.quota?.accounts?.length || cur.quota?.known) && (
+                <>
+                  <div className="psec2">{t("set.quota")}</div>
+                  {/* vendor cards bring their own frames; a lone balance sits in the box */}
+                  <div className={"box" + (cur.quota.accounts?.length && !(cur.kind !== "gateway" && cur.quota.accounts.length === 1 && cur.quota.accounts[0].balance) ? " qabox" : "")}>
+                    {cur.quota.accounts?.length ? (
+                      <QuotaAccounts accounts={cur.quota.accounts} solo={cur.kind !== "gateway"} />
+                    ) : cur.quota.windows?.length ? (
+                      // a gateway fronts several accounts: each window, named
+                      cur.quota.windows.map((w) => <QuotaRow key={w.label} label={w.label} remaining={w.remaining} resetsAt={w.resetsAt} />)
+                    ) : (
+                      <QuotaRow remaining={cur.quota.remaining} resetsAt={cur.quota.resetsAt} />
+                    )}
+                  </div>
+                </>
+              )}
               <div className="psec2 psec2r">
                 <span>
                   {t("set.availableModels", { n: listed.length })}

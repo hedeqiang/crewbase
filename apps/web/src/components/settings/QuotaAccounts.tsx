@@ -206,8 +206,9 @@ function VendorCard({ vendor, accts }: { vendor: string; accts: QuotaAccount[] }
   );
 }
 
-/** Every account behind a gateway, grouped by vendor. */
-export function QuotaAccounts({ accounts }: { accounts: QuotaAccount[] }) {
+/** Every account behind a gateway, grouped by vendor; solo: the provider
+ *  is the vendor (its page already names it), so one balance is just that. */
+export function QuotaAccounts({ accounts, solo }: { accounts: QuotaAccount[]; solo?: boolean }) {
   const groups = useMemo(() => {
     const order: string[] = [];
     const m = new Map<string, QuotaAccount[]>();
@@ -219,6 +220,7 @@ export function QuotaAccounts({ accounts }: { accounts: QuotaAccount[] }) {
     const balanceOnly = (v: string) => m.get(v)!.every((a) => !!a.balance);
     return order.sort((x, y) => Number(balanceOnly(x)) - Number(balanceOnly(y))).map((v) => [v, m.get(v)!] as const);
   }, [accounts]);
+  if (solo && accounts.length === 1 && accounts[0].balance) return <AccountCard a={accounts[0]} bare />;
   return (
     <div className="qavendors">
       {groups.map(([v, accts]) => (
