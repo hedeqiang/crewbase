@@ -1,15 +1,17 @@
 import { EmptyState } from "../EmptyState";
 import { Skeleton } from "../Skeleton";
-import { useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import { CalendarClock, ChevronRight, Pencil, Play, Plus, Trash, X } from "lucide-react";
 import { API, type Routine, type RoutineRun } from "../../api";
 import { t, type Key } from "../../i18n";
 import { ago, modeLabel, until } from "../../format";
 import { openDesk, openSession, toast, useStore } from "../../store";
 import { Avatar } from "../Avatar";
-import { Head } from "../Settings";
-import { Workflows } from "./Workflows";
+import { Head } from "./Head";
 import { confirmDialog } from "../Confirm";
+
+// the conversation imports this file (做成例行): the workflows page loads when opened
+const Workflows = lazy(() => import("./Workflows").then((m) => ({ default: m.Workflows })));
 
 type Tab = "routines" | "workflows";
 
@@ -37,7 +39,13 @@ export function Automation() {
           </div>
         }
       />
-      {tab === "routines" ? <Routines focus={focus?.tab === "routines" ? focus.id : undefined} /> : <Workflows focus={focus?.tab === "workflows" ? focus.id : undefined} />}
+      {tab === "routines" ? (
+        <Routines focus={focus?.tab === "routines" ? focus.id : undefined} />
+      ) : (
+        <Suspense fallback={<Skeleton kind="rows" />}>
+          <Workflows focus={focus?.tab === "workflows" ? focus.id : undefined} />
+        </Suspense>
+      )}
     </>
   );
 }

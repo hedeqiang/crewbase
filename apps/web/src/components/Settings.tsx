@@ -5,6 +5,8 @@ import { MagpieModelsDialog, ModelCatalog } from "./settings/ModelSources";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { CheckCheck, ChevronLeft, Globe, Info, KeyRound, ListChecks, Pencil, Plus, Search, Trash2, Workflow } from "lucide-react";
 import { NAV, SECTION_ICONS } from "./settings/nav";
+import { Head, Row } from "./settings/Head";
+import { catLabel } from "./settings/labels";
 import { API, desktop, type DesktopPermission, type DesktopUpdateState, type UpdateInfo, type ApprovalHistoryItem, type ModelInfo, type ProviderView, type RememberedChoice, type Settings as SettingsData, type UserProvider } from "../api";
 import { getLang, t, type Key, type Lang } from "../i18n";
 import { ago, kfmt, modeLabel, modelKind, priceLong, priceShort, providerName, until } from "../format";
@@ -52,6 +54,7 @@ import { confirmDialog } from "./Confirm";
 import { DocsPage } from "./settings/AgentDocs";
 import { OpenArtifactPage } from "./settings/OpenArtifact";
 import { leaveTo } from "../router";
+export { Head, Row, catLabel };
 
 
 
@@ -388,16 +391,6 @@ function matchesSection(id: string, ql: string): boolean {
   return [t(`set.${id}` as Key), ...(kw.startsWith("set.kw.") ? [] : kw.split(","))].some((x) => x.trim().toLowerCase().includes(ql));
 }
 
-export function Head({ title, sub, right }: { title: string; sub?: string; right?: ReactNode }) {
-  return (
-    <div className="vh">
-      <h2>{title}</h2>
-      {sub && <span className="sub">{sub}</span>}
-      {right && <div className="r">{right}</div>}
-    </div>
-  );
-}
-
 function Soon({ sec }: { sec: SettingsSection }) {
   return (
     <>
@@ -410,18 +403,6 @@ function Soon({ sec }: { sec: SettingsSection }) {
         </div>
       </div>
     </>
-  );
-}
-
-export function Row({ title, desc, children, dim }: { title: string; desc?: string; children: ReactNode; dim?: boolean }) {
-  return (
-    <div className={"srow" + (dim ? " dim" : "")}>
-      <div className="g">
-        <b>{title}</b>
-        {desc && <span>{desc}</span>}
-      </div>
-      <div className="c">{children}</div>
-    </div>
   );
 }
 
@@ -1299,14 +1280,6 @@ function whyLabel(r: { tool: string; category?: string; reason?: string }): stri
   if (r.tool === "routine_create" || r.tool === "routine_update") return t("aprx.routine");
   if (r.category && r.category !== "none") return t("aprx.cat", { cat: catLabel(r.category) });
   return t("aprx.other");
-}
-
-export function catLabel(c: string): string {
-  // computer:<bundle id> is operating that app (features/computertools)
-  if (c.startsWith("computer:")) return t("cat.computer", { app: c.slice("computer:".length) });
-  const k = `cat.${c}` as Key;
-  const v = t(k);
-  return v === k ? c : v;
 }
 
 function History() {
