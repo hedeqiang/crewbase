@@ -624,14 +624,24 @@ func (l *loop) step(ctx context.Context, a *agent.Agent, ss *session.Session, re
 		l.record(a, ss, req)
 		_, _ = ss.Append(session.TypeStepStart, a.ID(), StepStart{Step: n, Model: ref, ContextTokens: est, ContextWindow: win})
 
+		var shown strings.Builder // the reply's text as it was shown, for a stop
 		resp, err := ad.Stream(ctx, req, func(ch llm.Chunk) error {
 			out, err := llm.StreamChunk.Run(d, ctx, ch, func(_ context.Context, c llm.Chunk) (llm.Chunk, error) { return c, nil })
 			if err != nil {
 				return err
 			}
+			if out.Type == "text" {
+				shown.WriteString(out.Text)
+			}
 			Stream.Emit(d, StreamEvent{Agent: a.ID(), Session: ss.ID(), Chunk: out})
 			return nil
 		})
+		if err != nil && ctx.Err() != nil {
+			// stopped mid-reply: what was already shown stays in the
+			// conversation (and the model sees it next turn), marked as
+			// stopped; no tool calls from a half-made reply
+			l.keepPartial(a, ss, ref, shown.String())
+		}
 		if err == nil {
 			// Last chance to scrub the complete reply (and tool-call
 			// arguments) before it is recorded and executed.
@@ -670,6 +680,28 @@ func (l *loop) step(ctx context.Context, a *agent.Agent, ss *session.Session, re
 		ref = next
 	}
 }
+
+// keepPartial records the text of a reply that was stopped while it
+// streamed, after the same last scrub a complete reply gets (Response);
+// nothing when no text had come, or when the scrub fails (fail closed).
+func (l *loop) keepPartial(a *agent.Agent, ss *session.Session, ref llm.ModelRef, text string) {
+	if strings.TrimSpace(text) == "" {
+		return
+	}
+	d := kernel.For(l.c, a.ID())
+	// the turn's context is done; the scrub gets a short one of its own
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	resp := llm.Response{Message: llm.TextMessage(llm.RoleAssistant, text), StopReason: StopCancelled}
+	out, err := Response.Run(d, ctx, resp, func(_ context.Context, r llm.Response) (llm.Response, error) { return r, nil })
+	if err != nil {
+		return
+	}
+	_, _ = ss.Append(session.TypeAssistantMessage, a.ID(), session.AssistantMessage{Message: llm.TextMessage(llm.RoleAssistant, out.Message.Text()), Model: ref, Stop: StopCancelled})
+}
+
+// StopCancelled marks a reply that was stopped before it was complete.
+const StopCancelled = "cancelled"
 
 func (l *loop) failover(ctx context.Context, a *agent.Agent, ss *session.Session, ref llm.ModelRef, cause error, tried map[string]bool) (llm.ModelRef, bool) {
 	tried[ref.String()] = true
