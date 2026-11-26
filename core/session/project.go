@@ -270,6 +270,22 @@ const InterruptedResult = "interrupted: the tool call did not complete (process 
 // Tool calls without results are closed with InterruptedResult, so callers
 // must only build requests once every call of the last step has a result.
 func DeriveMessages(events []Event, agent string, names map[string]string) []llm.Message {
+	return DeriveMessagesWith(events, agent, names, DeriveOptions{})
+}
+
+// DeriveOptions adjusts DeriveMessages.
+type DeriveOptions struct {
+	// AppendOnly derives history that only grows at the end, for
+	// providers that drop work when earlier history changes
+	// (llm.PrefixKeeper): the latest compaction summary goes where the
+	// compaction happened, after the turns it kept, instead of in front of
+	// them, and tool images after it are all kept rather than only the
+	// latest MaxToolImages (a dropped image would change an earlier item).
+	AppendOnly bool
+}
+
+// DeriveMessagesWith is DeriveMessages with options.
+func DeriveMessagesWith(events []Event, agent string, names map[string]string, opt DeriveOptions) []llm.Message {
 	// regenerated / edited history is not part of the model's view
 	events = Visible(events, agent)
 	// nor is the greeting a new agent opened with, once it is over: it was
@@ -283,13 +299,17 @@ func DeriveMessages(events []Event, agent string, names map[string]string) []llm
 		}
 		events = kept
 	}
+	if opt.AppendOnly {
+		events = lateAfterSteps(events, agent)
+	}
 	// find the latest compaction for this agent
 	var comp *CompactionData
+	var compSeq int64
 	for i := len(events) - 1; i >= 0; i-- {
 		if events[i].Type == TypeCompaction && (events[i].Agent == agent || events[i].Agent == "") {
 			var c CompactionData
 			if events[i].Decode(&c) == nil {
-				comp = &c
+				comp, compSeq = &c, events[i].Seq
 			}
 			break
 		}
@@ -305,8 +325,11 @@ func DeriveMessages(events []Event, agent string, names map[string]string) []llm
 		}
 	}
 	var msgs []llm.Message
-	if comp != nil {
-		msgs = append(msgs, llm.TextMessage(llm.RoleUser, "[Summary of earlier conversation]\n"+comp.Summary))
+	// sealed: messages before it take no more text (the summary of an
+	// append-only history stays as it was first sent)
+	sealed := 0
+	if comp != nil && !opt.AppendOnly {
+		msgs = append(msgs, llm.TextMessage(llm.RoleUser, SummaryHeader+"\n"+comp.Summary))
 	}
 	results := map[string]llm.ToolResult{}
 	for _, e := range events {
@@ -332,7 +355,7 @@ func DeriveMessages(events []Event, agent string, names map[string]string) []llm
 	// only the latest few tool images reach the model (screenshots are
 	// large; older ones stay in the workspace, named in their result text)
 	images := map[string]bool{}
-	for i := len(events) - 1; i >= 0 && len(images) < MaxToolImages; i-- {
+	for i := len(events) - 1; i >= 0 && (opt.AppendOnly || len(images) < MaxToolImages); i-- {
 		e := events[i]
 		if e.Type != TypeToolResult || e.Agent != agent || (comp != nil && e.Seq <= comp.UptoSeq) {
 			continue
@@ -344,7 +367,7 @@ func DeriveMessages(events []Event, agent string, names map[string]string) []llm
 	}
 	stopped := stoppedRequests(events)
 	appendUser := func(text string) {
-		if n := len(msgs); n > 0 && msgs[n-1].Role == llm.RoleUser && len(msgs[n-1].Parts) > 0 && msgs[n-1].Parts[0].Type == "text" {
+		if n := len(msgs); n > sealed && msgs[n-1].Role == llm.RoleUser && len(msgs[n-1].Parts) > 0 && msgs[n-1].Parts[0].Type == "text" {
 			msgs[n-1].Parts = append(msgs[n-1].Parts, llm.Part{Type: "text", Text: "\n\n" + text})
 			return
 		}
@@ -352,6 +375,11 @@ func DeriveMessages(events []Event, agent string, names map[string]string) []llm
 	}
 	for _, e := range events {
 		if comp != nil && e.Seq <= comp.UptoSeq {
+			continue
+		}
+		if comp != nil && opt.AppendOnly && e.Seq == compSeq {
+			msgs = append(msgs, llm.TextMessage(llm.RoleUser, SummaryAfterHeader+"\n"+comp.Summary))
+			sealed = len(msgs)
 			continue
 		}
 		switch e.Type {
@@ -484,6 +512,42 @@ func DeriveMessages(events []Event, agent string, names map[string]string) []llm
 	}
 	return msgs
 }
+
+// lateAfterSteps moves what arrived while a step of agent was being
+// answered (a person's message, an injection, another agent's reply in a
+// channel) after that step's reply: the step's request did not have it,
+// so in front of the reply it would change the history before it (and
+// a message would merge into the one the request ended with). What
+// arrived during a step that never got a reply goes before the next step
+// (or the end of the turn).
+func lateAfterSteps(events []Event, agent string) []Event {
+	out := make([]Event, 0, len(events))
+	var late []Event
+	open := false
+	for _, e := range events {
+		mine := e.Agent == agent
+		switch {
+		case e.Type == TypeStepStart && mine, e.Type == TypeTurnEnd && mine:
+			out = append(append(out, late...), e)
+			late, open = nil, e.Type == TypeStepStart
+		case e.Type == TypeAssistantMessage && mine:
+			out = append(append(out, e), late...)
+			late, open = nil, false
+		case open && (e.Type == TypeUserMessage || e.Type == TypeInject || e.Type == TypeAssistantMessage):
+			late = append(late, e)
+		default:
+			out = append(out, e)
+		}
+	}
+	return append(out, late...)
+}
+
+// SummaryHeader starts the compaction summary in front of the kept turns.
+const SummaryHeader = "[Summary of earlier conversation]"
+
+// SummaryAfterHeader starts the compaction summary of an append-only
+// history, which follows the turns it kept.
+const SummaryAfterHeader = "[Summary of earlier conversation: what happened before the messages above, which were kept as they were]"
 
 // MaxToolImages is how many of the latest tool results with images (e.g.
 // screenshots) the model is shown; older ones are text only.

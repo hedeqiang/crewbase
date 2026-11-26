@@ -182,6 +182,12 @@ type Request struct {
 	// Mode is the effective run mode of the turn (the stricter of the
 	// agent's and the input's).
 	Mode string `json:"-"`
+	// SystemParts names the parts of System (see SystemPart), when the
+	// agent loop knows them; nil otherwise.
+	SystemParts []SystemPart `json:"-"`
+	// Store keeps an adapter's state for this agent's conversation (see
+	// PrefixKeeper); nil outside a session.
+	Store Store `json:"-"`
 }
 
 // Provider-hosted tools an agent may enable. They run on the provider's

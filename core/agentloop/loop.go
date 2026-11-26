@@ -547,7 +547,9 @@ func System(p *prompt.Assembler, a *agent.Agent) string {
 
 func (l *loop) system(a *agent.Agent) string { return System(l.prompts, a) }
 
-func (l *loop) build(a *agent.Agent, ss *session.Session, ad llm.Adapter, ref llm.ModelRef, mode string, win int) llm.Request {
+// build makes the request of a step; section is the tool search section
+// added to its system prompt ("" for none).
+func (l *loop) build(a *agent.Agent, ss *session.Session, ad llm.Adapter, ref llm.ModelRef, mode string, win int) (req llm.Request, section string) {
 	plan := l.planTools(a, ss, ad, ref.Model, win)
 	l.offers.set(a.ID(), ss.ID(), plan)
 	system := l.system(a)
@@ -558,14 +560,14 @@ func (l *loop) build(a *agent.Agent, ss *session.Session, ad llm.Adapter, ref ll
 		Model:       ref.Model,
 		Effort:      ref.Effort,
 		System:      system,
-		Messages:    session.DeriveMessages(ss.Events(), a.ID(), l.agents.Names()),
+		Messages:    session.DeriveMessagesWith(ss.Events(), a.ID(), l.agents.Names(), session.DeriveOptions{AppendOnly: llm.KeepsPrefix(ad, ref.Model)}),
 		Tools:       plan.Tools,
 		NativeTools: a.Spec().NativeTools,
 		Agent:       a.ID(),
 		Session:     ss.ID(),
 		Workspace:   a.Workspace(),
 		Mode:        mode,
-	}
+	}, plan.Section
 }
 
 // step performs one model request with failover; returns the model that
@@ -586,7 +588,7 @@ func (l *loop) step(ctx context.Context, a *agent.Agent, ss *session.Session, re
 			continue
 		}
 		win := l.window(ctx, ad, ref)
-		req := l.build(a, ss, ad, ref, mode, win)
+		req, section := l.build(a, ss, ad, ref, mode, win)
 		req.Tools = ChatTools(a, req.Tools)
 		if h, ok := kernel.Lookup[Hydrator](l.c, AttachmentsKey); ok {
 			h.Hydrate(ctx, a.Workspace(), ad, ref.Model, &req)
@@ -612,6 +614,12 @@ func (l *loop) step(ctx context.Context, a *agent.Agent, ss *session.Session, re
 		if a.IsChat() {
 			// a plain chat stays plain whatever a Request listener added
 			req.System, req.Tools, req.NativeTools = "", nil, nil
+		}
+		if llm.KeepsPrefix(ad, ref.Model) {
+			// what an append-only provider needs to keep its requests'
+			// start as it was (see llm.PrefixKeeper)
+			req.SystemParts = systemParts(SystemSections(l.prompts, a), section, req.System)
+			req.Store = sessionStore{ss: ss, agent: a.ID()}
 		}
 		l.record(a, ss, req)
 		_, _ = ss.Append(session.TypeStepStart, a.ID(), StepStart{Step: n, Model: ref, ContextTokens: est, ContextWindow: win})

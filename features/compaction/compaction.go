@@ -244,8 +244,11 @@ func (s *Service) compact(ctx context.Context, a *agent.Agent, ss *session.Sessi
 	// Oversized tool results in the kept region (older than the last
 	// KeepSteps steps) are pruned in place, so the live context shrinks
 	// too; the originals stay readable with history_read.
+	// Not for a model that keeps the prefix (llm.PrefixKeeper): a result
+	// shortened after it was sent changes the history before every later
+	// step, which costs that model its reasoning.
 	keptPruned := 0
-	for _, pe := range PruneKept(events, id, cut, s.cfg.PruneToolResultChars, ss.ID()) {
+	for _, pe := range s.pruneKept(model, events, id, cut, ss.ID()) {
 		if _, err := ss.Append(session.TypeToolPruned, id, pe); err == nil {
 			keptPruned++
 		}
@@ -300,6 +303,14 @@ func (s *Service) compact(ctx context.Context, a *agent.Agent, ss *session.Sessi
 	}
 	_, _ = ss.Append(TypeEnd, id, end)
 	return Result{CompactionData: data, Method: method, Pruned: pruned}, nil
+}
+
+// pruneKept is PruneKept, or nothing when model keeps the prefix.
+func (s *Service) pruneKept(model llm.ModelRef, events []session.Event, id string, cut int64, sess string) []session.PrunedData {
+	if ad, ok := s.llms.Get(model.Provider); ok && llm.KeepsPrefix(ad, model.Model) {
+		return nil
+	}
+	return PruneKept(events, id, cut, s.cfg.PruneToolResultChars, sess)
 }
 
 // taskRouter is the part of the router compaction uses.
@@ -683,7 +694,7 @@ func Extractive(msgs []llm.Message, maxTokens int) string {
 			switch {
 			case p.Type == "text" && m.Role == llm.RoleUser:
 				t := strings.TrimSpace(p.Text)
-				if rest, ok := strings.CutPrefix(t, "[Summary of earlier conversation]"); ok {
+				if rest, ok := cutSummary(t); ok {
 					lines = append(lines, "Earlier summary: "+oneLine(rest, 1500))
 					continue
 				}
@@ -741,4 +752,15 @@ func oneLine(s string, n int) string {
 		return clip(s, n) + "…"
 	}
 	return s
+}
+
+// cutSummary returns the text of a compaction summary message, in front
+// of the kept turns or after them (session.DeriveOptions.AppendOnly).
+func cutSummary(t string) (string, bool) {
+	for _, h := range []string{session.SummaryAfterHeader, session.SummaryHeader} {
+		if rest, ok := strings.CutPrefix(t, h); ok {
+			return rest, true
+		}
+	}
+	return "", false
 }
