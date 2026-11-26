@@ -2,6 +2,7 @@ import { AlertTriangle, Check, ChevronDown, ChevronRight, ExternalLink, KeyRound
 import { useEffect, useMemo, useRef, useState } from "react";
 import { API, desktop, type ModelKind, type ProviderPreset, type ProviderTestResult, type UserProvider } from "../../api";
 import { classifyModelId, modelKind } from "../../format";
+import { explain } from "../../errors";
 import { t } from "../../i18n";
 import { resync, toast } from "../../store";
 import { autoIcon, IconMark, PICKABLE, ProviderMark } from "../ProviderMark";
@@ -58,6 +59,20 @@ export function AddProviderDialog({ onClose, existing, edit }: { onClose: () => 
   }, []);
   useEffect(() => {
     if (step === "key" && !edit) keyRef.current?.focus();
+  }, [step, edit]);
+  // Esc on the key step steps back to the list (what was typed would be
+  // lost by closing); on the list it closes, as before. Runs before the
+  // app's Esc (capture), which then sees it handled.
+  useEffect(() => {
+    if (step === "pick" || edit) return;
+    const key = (e: KeyboardEvent) => {
+      if (e.key !== "Escape" || e.isComposing) return;
+      e.preventDefault();
+      e.stopPropagation();
+      setStep("pick");
+    };
+    window.addEventListener("keydown", key, true);
+    return () => window.removeEventListener("keydown", key, true);
   }, [step, edit]);
 
   const list = useMemo(() => {
@@ -403,7 +418,7 @@ export function AddProviderDialog({ onClose, existing, edit }: { onClose: () => 
                 </label>
               )}
 
-              {test && !test.ok && !manualMode && <div className="confirmbar errbar">{test.error || t("ap.testFailed")}</div>}
+              {test && !test.ok && !manualMode && <ErrBar msg={test.error || t("ap.testFailed")} />}
               {(manualMode || test?.ok) && (
                 <div className="ap-models">
                   <div className="ap-mh">
@@ -491,4 +506,20 @@ function markNewSeen() {
   } catch {
     /* storage unavailable: the dot shows again next time */
   }
+}
+
+/** A failed check, said plainly; the provider's own words under 详情. */
+function ErrBar({ msg }: { msg: string }) {
+  const e = explain(msg);
+  return (
+    <div className="confirmbar errbar errx">
+      <span>{e.text}</span>
+      {e.detail && e.detail !== e.text && (
+        <details>
+          <summary>{t("err.detail")}</summary>
+          <code>{e.detail}</code>
+        </details>
+      )}
+    </div>
+  );
 }

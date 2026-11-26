@@ -3,7 +3,7 @@
 // where sub-agents work, and how local reviews go. Every box is made of
 // rows (title, description, control), like the other settings pages.
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Plus, X } from "lucide-react";
 import { API, type GitSettings } from "../../api";
 import { t, type Key } from "../../i18n";
@@ -14,12 +14,34 @@ import { Skeleton } from "../Skeleton";
 const errOf = (e: any) => e?.message ?? String(e);
 const ISO: GitSettings["isolation"][] = ["worktree-on-write", "isolated-worktree", "shared"];
 
+// what was being edited when you went to another section: back as you left it
+let kept: GitSettings | null = null;
+const splitBranches = (v: string) => v.split(",").map((x) => x.trim()).filter(Boolean);
+
 export function GitPage() {
   const agents = useStore((x) => x.agents);
   const [saved, setSaved] = useState<GitSettings | null>(null);
   const [s, setS] = useState<GitSettings | null>(null);
   const [busy, setBusy] = useState(false);
-  useEffect(() => void API.gitSettings().then((x) => (setSaved(x), setS(x)), (e) => toast(errOf(e))), []);
+  // 需要批准的分支 as typed (split into branches only when saved)
+  const [prot, setProt] = useState<string | null>(null);
+  useEffect(
+    () =>
+      void API.gitSettings().then(
+        (x) => {
+          setSaved(x);
+          const k = kept;
+          kept = null;
+          setS(k ?? x);
+          setProt((k ?? x).protected.join(", "));
+        },
+        (e) => toast(errOf(e)),
+      ),
+    [],
+  );
+  const cur = s && prot !== null ? { ...s, protected: splitBranches(prot) } : s;
+  const live = useRef({ cur, dirty: false });
+  useEffect(() => () => void (live.current.dirty && (kept = live.current.cur)), []);
   if (!s || !saved) {
     return (
       <>
@@ -28,13 +50,16 @@ export function GitPage() {
       </>
     );
   }
-  const dirty = JSON.stringify(s) !== JSON.stringify(saved);
+  const dirty = JSON.stringify(cur) !== JSON.stringify(saved);
+  live.current = { cur, dirty };
   const save = async () => {
+    if (!dirty || busy) return;
     setBusy(true);
     try {
-      const out = await API.setGitSettings({ ...s, protected: s.protected.filter(Boolean), remotes: s.remotes.filter((r) => r.host.trim()) });
+      const out = await API.setGitSettings({ ...cur!, remotes: s.remotes.filter((r) => r.host.trim()) });
       setSaved(out);
       setS(out);
+      setProt(out.protected.join(", "));
       toast(t("git.saved"));
     } catch (e) {
       toast(errOf(e));
@@ -48,14 +73,16 @@ export function GitPage() {
       <Head
         title={t("set.git")}
         sub={t("gitset.sub")}
-        right={
-          <>
-            {dirty && <button type="button" className="btn sm ghost" onClick={() => setS(saved)}>{t("common.cancel")}</button>}
-            <button type="button" className="btn sm pri" disabled={!dirty || busy} onClick={() => void save()}>{t("common.save")}</button>
-          </>
-        }
       />
-      <div className="vb gitset">
+      {/* Enter in a field saves, as in a form */}
+      <form
+        className="vb gitset"
+        onSubmit={(e) => {
+          e.preventDefault();
+          void save();
+        }}
+      >
+        <button type="submit" hidden aria-hidden tabIndex={-1} />
         <div className="vsec">{t("git.set.remotes")}</div>
         <div className="sbox">
           <Row title={t("gitset.remotesTitle")} desc={t("git.set.remotesHint")}>
@@ -105,7 +132,7 @@ export function GitPage() {
         <div className="vsec">{t("git.set.protected")}</div>
         <div className="sbox">
           <Row title={t("gitset.protectedTitle")} desc={t("git.set.protectedHint")}>
-            <input className="fi sm mono gsw" value={s.protected.join(", ")} placeholder="main, release/*" onChange={(e) => setS({ ...s, protected: e.target.value.split(",").map((x) => x.trim()) })} />
+            <input className="fi sm mono gsw" value={prot ?? ""} placeholder="main, release/*" aria-label={t("gitset.protectedTitle")} onChange={(e) => setProt(e.target.value)} />
           </Row>
         </div>
 
@@ -136,7 +163,16 @@ export function GitPage() {
             <button type="button" className="tg" role="switch" aria-checked={s.autoReview} aria-label={t("git.set.autoReview")} onClick={() => setS({ ...s, autoReview: !s.autoReview })} />
           </Row>
         </div>
-      </div>
+        <div className={"savebar" + (dirty ? " show" : "")} aria-hidden={!dirty}>
+          <span className="g">{t("wf.unsaved")}</span>
+          <button className="btn ghost sm" type="button" tabIndex={dirty ? 0 : -1} onClick={() => (setS(saved), setProt(saved.protected.join(", ")))}>
+            {t("common.cancel")}
+          </button>
+          <button className="btn pri sm" type="submit" disabled={busy} tabIndex={dirty ? 0 : -1}>
+            {t("common.save")}
+          </button>
+        </div>
+      </form>
     </>
   );
 }

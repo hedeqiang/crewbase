@@ -59,6 +59,18 @@ function windowName(n: string): string {
 
 const UNLIMITED = /^(unlimited|∞|无限)$/i;
 
+// vendors' plan names, as people read them here (the rest as given)
+const PLANS: Record<string, string> = { free: "qa.p.free", pro: "qa.p.pro", plus: "qa.p.plus", team: "qa.p.team", business: "qa.p.business", enterprise: "qa.p.enterprise", max: "qa.p.max", ultra: "qa.p.ultra" };
+function planName(p: string): string {
+  const k = PLANS[p.trim().toLowerCase().replace(/[_\s]+/g, " ")];
+  return k ? t(k as any) : p.replace(/_/g, " ");
+}
+/** A vendor's own wording of an amount: "+$60.39 on us" → "赠送 $60.39". */
+function vendorText(s: string): string {
+  const m = /^\+?\s*([$¥€£]?[\d.,]+)\s+on us$/i.exec(s.trim());
+  return m ? t("qa.onUs", { amount: m[1] }) : s;
+}
+
 function num(n: number): string {
   if (Math.abs(n) >= 1000) return n.toLocaleString(undefined, { maximumFractionDigits: 1 });
   return Number.isInteger(n) ? String(n) : n.toFixed(1);
@@ -71,7 +83,7 @@ function amount(n: number, unit?: string): string {
 /** What a window says on its right: counts and share, or the vendor's text. */
 function windowValue(w: QuotaAccountWindow): { text: string; bar: boolean } {
   if (w.display && UNLIMITED.test(w.display.trim())) return { text: t("qa.unlimited"), bar: false };
-  if (w.text) return { text: w.display || "—", bar: false };
+  if (w.text) return { text: w.display ? vendorText(w.display) : "—", bar: false };
   const pct = Math.round(w.used * 1000) / 10;
   if (w.limit && w.limit > 0) return { text: `${amount(w.spent ?? 0, w.unit)} / ${amount(w.limit, w.unit)} · ${t("qa.usedPct", { pct })}`, bar: true };
   return { text: t("qa.usedPct", { pct }), bar: true };
@@ -139,7 +151,7 @@ function AccountCard({ a, bare }: { a: QuotaAccount; bare?: boolean }) {
           <span className="qaname" title={name}>
             {name || a.vendorName || a.vendor}
           </span>
-          {a.plan && <span className="qaplan">{a.plan}</span>}
+          {a.plan && <span className="qaplan">{planName(a.plan)}</span>}
         </div>
       )}
       {a.balance ? (

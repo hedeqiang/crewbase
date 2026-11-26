@@ -3,7 +3,7 @@ import { Skeleton } from "./Skeleton";
 import { AddProviderDialog } from "./settings/AddProvider";
 import { MagpieModelsDialog, ModelCatalog } from "./settings/ModelSources";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { CheckCheck, ChevronLeft, Globe, Info, KeyRound, ListChecks, Pencil, Plus, Search, Trash2, Workflow } from "lucide-react";
+import { CheckCheck, ChevronLeft, ChevronRight, Globe, Info, KeyRound, ListChecks, Pencil, Plus, Search, Trash2, Workflow } from "lucide-react";
 import { NAV, SECTION_ICONS } from "./settings/nav";
 import { Head, Row } from "./settings/Head";
 import { catLabel } from "./settings/labels";
@@ -74,6 +74,7 @@ export function Settings() {
   const manage = useStore((s) => s.tier === "desktop");
   const [q, setQ] = useState("");
   const ql = q.trim().toLowerCase();
+  const visible = () => NAV.flatMap((g) => g.items).filter((i) => shown(i.id) && (manage || MOBILE_SECTIONS.has(i.id)) && (!ql || matchesSection(i.id, ql))).map((i) => i.id);
   return (
     <div className={"setwrap" + (list ? " slist" : " spage")}>
       <nav className="snav" aria-label={t("tb.settings")}>
@@ -83,7 +84,27 @@ export function Settings() {
         </button>
         <label className="search sset">
           <Search size={14} />
-          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder={t("set.search")} />
+          <input
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder={t("set.search")}
+            aria-label={t("set.search")}
+            onKeyDown={(e) => {
+              // Enter opens the first match; Esc clears, then leaves the field
+              if (e.key === "Enter" && ql) {
+                const first = visible()[0];
+                if (first) {
+                  setState({ settings: first, settingsList: false });
+                  setQ("");
+                }
+              } else if (e.key === "Escape") {
+                e.preventDefault();
+                e.stopPropagation();
+                if (q) setQ("");
+                else e.currentTarget.blur();
+              }
+            }}
+          />
         </label>
         {NAV.map((g) => {
           const items = g.items.filter((i) => shown(i.id) && (manage || MOBILE_SECTIONS.has(i.id)) && (!ql || matchesSection(i.id, ql)));
@@ -97,12 +118,13 @@ export function Settings() {
                   {t(`set.${i.id}` as Key)}
                   {i.id === "approvals" && n > 0 && <span className="sn">{n}</span>}
                   {i.id === "market" && nUpd > 0 && <span className="sn upd" title={t("aup.dot", { n: nUpd })}>{nUpd}</span>}
+                  <ChevronRight size={16} className="schev" aria-hidden />
                 </button>
               ))}
             </div>
           );
         })}
-        {ql && !NAV.some((g) => g.items.some((i) => (manage || MOBILE_SECTIONS.has(i.id)) && matchesSection(i.id, ql))) && (
+        {ql && visible().length === 0 && (
           <p className="small muted snomatch">{t("set.searchNone")}</p>
         )}
       </nav>
@@ -709,7 +731,8 @@ function WorkspaceDir() {
   };
   const pick = async () => {
     const d = desktop();
-    if (!d?.pickFolder) return setEdit(v.isDefault ? "" : v.dir);
+    // the path now, to change (not an empty field that hides it)
+    if (!d?.pickFolder) return setEdit(v.dir);
     const dir = await d.pickFolder(v.dir).catch(() => "");
     if (dir) await save(dir);
   };
@@ -731,7 +754,23 @@ function WorkspaceDir() {
               void save(edit);
             }}
           >
-            <input className="fi sm mono" autoFocus value={edit} placeholder="~/Crewbase" spellCheck={false} onChange={(e) => setEdit(e.target.value)} />
+            <input
+              className="fi sm mono"
+              autoFocus
+              value={edit}
+              placeholder={v.dir}
+              spellCheck={false}
+              aria-label={t("set.wsTitle")}
+              onFocus={(e) => e.currentTarget.select()}
+              onChange={(e) => setEdit(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Escape") {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setEdit(null);
+                }
+              }}
+            />
             <button className="btn sm pri" type="submit" disabled={busy || !edit.trim()}>
               {t("common.save")}
             </button>
@@ -767,7 +806,14 @@ function Models() {
   const agents = useStore((s) => s.agents);
   const [sel, setSel] = useState<string | null>(null);
   const tab = useStore((s) => s.modelsTab);
-  const setTab = (v: "providers" | "routing" | "catalog") => setState({ modelsTab: v });
+  const setTab = (v: "providers" | "routing" | "catalog") => {
+    setState({ modelsTab: v });
+    try {
+      sessionStorage.setItem("crewbase.modelsTab", v);
+    } catch {
+      /* private mode */
+    }
+  };
   const [q, setQ] = useState("");
   const [adding, setAdding] = useState(false);
   const [editing, setEditing] = useState<UserProvider | null>(null);

@@ -253,6 +253,16 @@ const midWidth = () => window.matchMedia("(max-width: 1100px)").matches;
 const HIST_MAX = 30;
 
 const MODELS_CACHE = "crewbase.models";
+// 设置 › 模型's tab, kept for a reload in this window
+const MODELS_TAB = "crewbase.modelsTab";
+function readModelsTab(): State["modelsTab"] {
+  try {
+    const v = sessionStorage.getItem(MODELS_TAB);
+    return v === "routing" || v === "catalog" ? v : "providers";
+  } catch {
+    return "providers";
+  }
+}
 
 function cachedModels(): ModelsResponse | null {
   try {
@@ -314,7 +324,7 @@ let state: State = {
   computer: null,
   newChannel: false,
   createIn: "",
-  modelsTab: "providers",
+  modelsTab: readModelsTab(),
   fileOpen: null,
   libOpen: null,
   previewOpen: null,

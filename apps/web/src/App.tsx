@@ -289,7 +289,8 @@ function closeTopOverlay(e?: KeyboardEvent): boolean {
   if (s.newChannel) return setState({ newChannel: false }), true;
   if (s.hostConfirm) return setState({ hostConfirm: null }), true;
   // the list and the panel as overlays on a narrow window
-  if (window.matchMedia("(max-width: 820px)").matches && s.listOpen) return setState({ listOpen: false }), true;
+  // (设置 has its own list: the conversations' one is not on screen there)
+  if (window.matchMedia("(max-width: 820px)").matches && s.listOpen && s.view !== "settings") return setState({ listOpen: false }), true;
   // (the panel as a sheet on a phone is a step of its own: router.ts)
   if (window.matchMedia("(max-width: 1100px)").matches && !window.matchMedia("(max-width: 820px)").matches && s.panelOpen && s.view === "chat") return setState({ panelOpen: false }), true;
   return false;

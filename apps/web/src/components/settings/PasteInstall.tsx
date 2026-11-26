@@ -3,8 +3,9 @@ import { ChevronDown, ChevronRight, Lock, Search, X } from "lucide-react";
 import { MonoMark } from "../ProviderMark";
 import { API, api, type PluginView } from "../../api";
 import { getLang, t } from "../../i18n";
+import { errText } from "../../errors";
 import { toast } from "../../store";
-import { errMsg, settle, signInWindow } from "./ExtParts";
+import { settle, signInWindow } from "./ExtParts";
 
 type Text = { zh: string; en: string };
 interface PlanVar {
@@ -83,7 +84,7 @@ export function PasteInstall({
       const start = picks?.length && wanted.length ? wanted : fresh.length > MANY ? [] : fresh;
       setPicked(new Set(start.map((s) => s.path)));
     } catch (e) {
-      setErr(errMsg(e));
+      setErr(errText(e));
     } finally {
       setBusy(false);
     }
@@ -137,7 +138,7 @@ export function PasteInstall({
       }
       onClose();
     } catch (e) {
-      setErr(errMsg(e));
+      setErr(errText(e));
     } finally {
       setBusy(false);
     }
