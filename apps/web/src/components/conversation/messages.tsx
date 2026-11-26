@@ -27,6 +27,7 @@ import { lastMsg } from "./feedUtil";
 import { FoldedWords, withoutMediaSteps } from "./steps";
 import { LiveThought, Segment, ThoughtRow, thoughtMs, timeline } from "./timeline";
 import { splitStarters, Starters } from "./other";
+import { AutoDraftBtn, AutoDraftSlot } from "./autoDraft";
 
 function CopyBtn({ text }: { text: string }) {
   const { copied, copy } = useCopy();
@@ -316,6 +317,7 @@ export function AgentMsg({ it, agent, showModel, bare, opened, extra, fold }: { 
             {it.text && <ReplyBtn q={{ seq: Number(it.id), who: agent?.name ?? it.agent, text: it.text }} />}
             {it.text && <PinBtn target={Number(it.id)} />}
             {it.stats && it.turnInput && it.turnEnded && <UndoTurnBtn agent={it.agent} turn={it.turnInput} ended={it.turnEnded} session={feedSession} seq={Number(it.id)} />}
+            {it.stats && it.turnEnded && feedSession && !it.superseded && <AutoDraftBtn session={feedSession} item={it.id} agent={it.agent} />}
             {canRegen && (
               <button
                 type="button"
@@ -348,6 +350,7 @@ export function AgentMsg({ it, agent, showModel, bare, opened, extra, fold }: { 
             )}
           </div>
         )}
+        {it.stats && feedSession && <AutoDraftSlot session={feedSession} item={it.id} />}
     </Wrap>
   );
 }

@@ -13,6 +13,7 @@ import { type MsgActions, MsgCtx } from "./conversation/context";
 import { findMsg } from "./conversation/util";
 import { Feed } from "./conversation/Feed";
 import { Composer } from "./conversation/Composer";
+import { AutoDraftResolver } from "./conversation/autoDraft";
 
 export function Conversation({ onTemplate }: { onTemplate?: (d: Partial<Draft>) => void } = {}) {
   const current = useStore((s) => s.current);
@@ -96,6 +97,7 @@ function ConversationView({ sessionId, agent, channel }: { sessionId: string; ag
           <PinnedBar items={pinned} />
           <Feed sessionId={sessionId} agent={agent} channel={channel} items={proj.items} working={proj.openTurns} loading={!events} error={err} />
           <SelectionActions />
+          <AutoDraftResolver session={sessionId} items={proj.items} />
         </FeedCtx.Provider>
       </MsgCtx.Provider>
       <WaitingFor runs={proj.subruns} />

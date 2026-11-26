@@ -5,7 +5,7 @@ import { CalendarClock, ChevronRight, Pencil, Play, Plus, Trash, X } from "lucid
 import { API, type Routine, type RoutineRun } from "../../api";
 import { t, type Key } from "../../i18n";
 import { ago, modeLabel, until } from "../../format";
-import { openSession, toast, useStore } from "../../store";
+import { openDesk, openSession, toast, useStore } from "../../store";
 import { Avatar } from "../Avatar";
 import { Head } from "../Settings";
 import { Workflows } from "./Workflows";
@@ -15,7 +15,12 @@ type Tab = "routines" | "workflows";
 
 /** 设置 › 自动化: 例行巡检 + 晨报 and 工作流. */
 export function Automation() {
-  const [tab, setTab] = useState<Tab>("routines");
+  const [focus] = useState(() => {
+    const f = focusNext;
+    focusNext = null;
+    return f;
+  });
+  const [tab, setTab] = useState<Tab>(focus?.tab ?? "routines");
   return (
     <>
       <Head
@@ -32,7 +37,7 @@ export function Automation() {
           </div>
         }
       />
-      {tab === "routines" ? <Routines /> : <Workflows />}
+      {tab === "routines" ? <Routines focus={focus?.tab === "routines" ? focus.id : undefined} /> : <Workflows focus={focus?.tab === "workflows" ? focus.id : undefined} />}
     </>
   );
 }
@@ -61,7 +66,32 @@ export function runPill(status: string) {
   return <span className={"pill " + (RUN_TONE[status] ?? "")}>{t(k) === k ? status : t(k)}</span>;
 }
 
-function AgentSelect({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+/** A schedule spec with one-click presets (巡检 form, the draft card in a conversation). */
+export function ScheduleField({ value, onChange, presets = PRESETS, hint = t("auto.scheduleHint") }: { value: string; onChange: (v: string) => void; presets?: string[]; hint?: string }) {
+  return (
+    <div>
+      <input className="fi sm mono" value={value} aria-label={t("auto.schedule")} onChange={(e) => onChange(e.target.value)} />
+      <div className="chips">
+        {presets.map((p) => (
+          <button key={p} type="button" className="chip" aria-pressed={value === p} onClick={() => onChange(p)}>
+            {scheduleLabel(p)}
+          </button>
+        ))}
+      </div>
+      <span className="small">{hint}</span>
+    </div>
+  );
+}
+
+/** Opens 自动化 on a tab, with one routine or workflow brought into view
+ *  (the link after creating one from a conversation). */
+let focusNext: { tab: Tab; id: string } | null = null;
+export function openAutomation(tab: Tab, id: string) {
+  focusNext = { tab, id };
+  openDesk("auto");
+}
+
+export function AgentSelect({ value, onChange }: { value: string; onChange: (v: string) => void }) {
   const agents = useStore((s) => s.agents);
   const list = Object.values(agents)
     .filter((a) => a.kind !== "chat")
@@ -95,7 +125,7 @@ export function ModeSeg({ value, onChange }: { value: string; onChange: (v: stri
 
 // ---------------------------------------------------------------- routines
 
-function Routines() {
+function Routines({ focus }: { focus?: string }) {
   const agents = useStore((s) => s.agents);
   const [list, setList] = useState<Routine[] | null>(null);
   const [edit, setEdit] = useState<Partial<Routine> | null>(null);
@@ -106,6 +136,9 @@ function Routines() {
   useEffect(() => {
     void load();
   }, []);
+  useEffect(() => {
+    if (focus && list?.some((r) => r.id === focus)) document.querySelector(`[data-routine="${CSS.escape(focus)}"]`)?.scrollIntoView({ block: "center" });
+  }, [focus, list]);
 
   const toggle = async (r: Routine) => {
     try {
@@ -175,7 +208,7 @@ function Routines() {
         {list?.map((r) => {
           const a = agents[r.agent];
           return (
-            <div className={"rcard" + (r.enabled ? "" : " off")} key={r.id}>
+            <div className={"rcard" + (r.enabled ? "" : " off") + (focus === r.id ? " focus" : "")} key={r.id} data-routine={r.id}>
               <div className="rch">
                 <Avatar agent={a} size={30} />
                 <div className="g">
@@ -251,17 +284,7 @@ export function RoutineForm({ init, onCancel, onSaved }: { init: Partial<Routine
         <label className="fl">{t("auto.prompt")}</label>
         <textarea className="fi sm" rows={3} value={f.prompt ?? ""} placeholder={t("auto.promptPh")} onChange={(e) => set({ prompt: e.target.value })} />
         <label className="fl">{t("auto.schedule")}</label>
-        <div>
-          <input className="fi sm mono" value={f.schedule ?? ""} onChange={(e) => set({ schedule: e.target.value })} />
-          <div className="chips">
-            {PRESETS.map((p) => (
-              <button key={p} type="button" className="chip" aria-pressed={f.schedule === p} onClick={() => set({ schedule: p })}>
-                {scheduleLabel(p)}
-              </button>
-            ))}
-          </div>
-          <span className="small">{t("auto.scheduleHint")}</span>
-        </div>
+        <ScheduleField value={f.schedule ?? ""} onChange={(v) => set({ schedule: v })} />
         <label className="fl">{t("na.mode")}</label>
         <div>
           <ModeSeg value={f.mode || "read-only"} onChange={(v) => set({ mode: v })} />

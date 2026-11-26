@@ -1,8 +1,9 @@
-import { Archive, ArrowUpToLine, Bot, Check, Folder, FolderInput, FolderMinus, FolderPlus, Hash, MessageSquare, MoreHorizontal, Pencil, Trash2 } from "lucide-react";
+import { Archive, ArrowUpToLine, Repeat, Bot, Check, Folder, FolderInput, FolderMinus, FolderPlus, Hash, MessageSquare, MoreHorizontal, Pencil, Trash2 } from "lucide-react";
 import { useEffect, useRef, useState, type MouseEvent, type ReactNode } from "react";
 import { API, type AgentView, type SessionMeta } from "../api";
 import { t } from "../i18n";
-import { chatTitle, isChat, newChat, openNewAgent, openNewChannel, refreshSessions, resync, setState, toast, useFolders, useStore } from "../store";
+import { chatTitle, isChat, newChat, openNewAgent, openNewChannel, openSession, refreshSessions, resync, setState, toast, useFolders, useStore } from "../store";
+import { requestAutoDraft } from "./conversation/autoDraft";
 import { teamOf } from "../api";
 import { Avatar } from "./Avatar";
 
@@ -125,6 +126,12 @@ export function RowMenuHost() {
           <>
             {item(<Pencil size={15} />, t("rm.rename"), () => setDialog({ kind: "rename", target: tg }))}
             {item(<FolderInput size={15} />, t("rm.move"), () => setDialog({ kind: "move", target: tg }))}
+            {item(<Repeat size={15} />, t("c2r.menu"), () => {
+              const sid = tg.kind === "agent" ? tg.agent.session : tg.meta.id;
+              if (!sid) return;
+              openSession(sid);
+              requestAutoDraft(sid);
+            })}
             {tg.kind === "channel" &&
               item(<Archive size={15} />, t("rm.archive"), () =>
                 act(async () => {

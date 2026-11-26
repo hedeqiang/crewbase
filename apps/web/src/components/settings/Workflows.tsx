@@ -78,7 +78,7 @@ function problem(w: Workflow): { msg: string; at?: NodeRef } | null {
 
 // ---------------------------------------------------------------- list
 
-export function Workflows() {
+export function Workflows({ focus }: { focus?: string } = {}) {
   const [list, setList] = useState<Workflow[] | null>(null);
   const [sel, setSel] = useState<string | null>(null); // a workflow id, or "new"
   const [err, setErr] = useState<string | null>(null);
@@ -95,7 +95,10 @@ export function Workflows() {
       },
     );
   useEffect(() => {
-    void load().then((l) => l[0] && setSel((s) => s ?? l[0].id));
+    void load().then((l) => {
+      const f = focus && l.find((w) => w.id === focus);
+      if (f || l[0]) setSel((s) => s ?? (f || l[0]).id);
+    });
   }, []);
   const pick = async (id: string | null) => {
     if (id === sel) return;
