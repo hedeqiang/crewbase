@@ -54,7 +54,14 @@ type Spec struct {
 	Color     string    `json:"color,omitempty"`
 	Shape     string    `json:"shape,omitempty"`
 	Face      string    `json:"face,omitempty"` // avatar face (web: FACES)
-	Folder    string    `json:"folder,omitempty"`
+	// Avatar is the avatar style: "" a crew character (Color, Shape,
+	// Face) or AvatarVendor, a model vendor's mark on a neutral tile.
+	Avatar string `json:"avatar,omitempty"`
+	// Vendor is the mark a vendor avatar shows: "" follows the model in
+	// use (fallbacks included), else an icon key (web: ProviderMark).
+	// Color, Shape and Face are kept for when the style goes back.
+	Vendor string `json:"vendor,omitempty"`
+	Folder string `json:"folder,omitempty"`
 	// Team the agent belongs to ("" = the default team, DefaultTeam).
 	Team string `json:"team,omitempty"`
 	// Owner is the person who created a blank chat ("" = the host's owner):
@@ -864,6 +871,9 @@ func (r *Registry) Create(spec Spec) (*Agent, error) {
 	if spec.Mode == ModeHost {
 		return nil, errors.New("host mode cannot be enabled at creation")
 	}
+	if err := ValidAvatar(spec.Avatar, spec.Vendor); err != nil {
+		return nil, err
+	}
 	if spec.Mode == "" {
 		spec.Mode = ModeSandbox
 	}
@@ -1250,6 +1260,27 @@ func (r *Registry) loadAll() {
 }
 
 // validID reports whether id names a single path element.
+// AvatarVendor is the Spec.Avatar style that shows a model vendor's mark.
+const AvatarVendor = "vendor"
+
+// ValidAvatar checks an avatar style and vendor key: the style is "" or
+// AvatarVendor; the key is "" (follow the model) or a short lower-case
+// icon key such as "deepseek".
+func ValidAvatar(avatar, vendor string) error {
+	if avatar != "" && avatar != AvatarVendor {
+		return fmt.Errorf("unknown avatar style %q", avatar)
+	}
+	if len(vendor) > 32 {
+		return errors.New("vendor key is too long")
+	}
+	for i, c := range vendor {
+		if !(c >= 'a' && c <= 'z' || c >= '0' && c <= '9' || c == '-' && i > 0) {
+			return fmt.Errorf("bad vendor key %q", vendor)
+		}
+	}
+	return nil
+}
+
 func validID(id string) bool {
 	return id != "" && id != "." && id != ".." && !strings.ContainsAny(id, `/\`)
 }

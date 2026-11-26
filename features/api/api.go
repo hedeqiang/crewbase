@@ -263,6 +263,9 @@ var Plugin = kernel.Register(kernel.Spec{
 				if b.Mode == agent.ModeHost {
 					return gateway.BadRequest("host mode cannot be enabled at creation")
 				}
+				if err := agent.ValidAvatar(b.Avatar, b.Vendor); err != nil {
+					return gateway.BadRequest("%v", err)
+				}
 				for _, m := range b.Models {
 					ref, err := llm.ParseRef(m)
 					if err != nil {
@@ -359,6 +362,29 @@ var Plugin = kernel.Register(kernel.Spec{
 				if m, ok := b["mode"].(string); ok && m != agent.ModeReadOnly && m != agent.ModeSandbox && m != agent.ModeHost {
 					return gateway.BadRequest("unknown mode %q", m)
 				}
+				// the avatar as it would be after the change
+				_, hasAvatar := b["avatar"]
+				_, hasVendor := b["vendor"]
+				if hasAvatar || hasVendor {
+					var look agent.Spec
+					if a, err := getAgent(r); err == nil {
+						look = a.Spec()
+					}
+					for k, dst := range map[string]*string{"avatar": &look.Avatar, "vendor": &look.Vendor} {
+						v, ok := b[k]
+						if !ok || v == nil {
+							continue
+						}
+						s, isStr := v.(string)
+						if !isStr {
+							return gateway.BadRequest("%s must be a string", k)
+						}
+						*dst = s
+					}
+					if err := agent.ValidAvatar(look.Avatar, look.Vendor); err != nil {
+						return gateway.BadRequest("%v", err)
+					}
+				}
 				return nil
 			},
 			Handle: func(_ context.Context, r *gateway.Request) (any, error) {
@@ -373,6 +399,8 @@ var Plugin = kernel.Register(kernel.Spec{
 					Color  *string   `json:"color"`
 					Shape  *string   `json:"shape"`
 					Face   *string   `json:"face"`
+					Avatar *string   `json:"avatar"`
+					Vendor *string   `json:"vendor"`
 					Folder *string   `json:"folder"`
 					Models *[]string `json:"modelRefs"`
 					// Session is where the person changed it (the timeline
@@ -424,6 +452,8 @@ var Plugin = kernel.Register(kernel.Spec{
 					set(&s.Color, b.Color)
 					set(&s.Shape, b.Shape)
 					set(&s.Face, b.Face)
+					set(&s.Avatar, b.Avatar)
+					set(&s.Vendor, b.Vendor)
 					set(&s.Folder, b.Folder)
 					if b.Mode != nil {
 						s.Mode = *b.Mode
