@@ -1,5 +1,6 @@
 // Projects a session's event log into conversation feed items.
 
+import { parseRef } from "./api";
 import type { ApprovalRequest, ArtifactCardInfo, Attachment, ModelRef, Part, PageShown, PreviewInfo, Quote, SessionEvent, ToolCall, ToolResult } from "./api";
 
 export interface Step {
@@ -176,11 +177,39 @@ export type FeedItem = (
     }
   /** A plugin's event rendered by its conversation.node card. */
   | { k: "plugin"; id: string; type: string; data: any; time: string }
+  /** 模型擂台: one task, several models side by side (features/arena). */
+  | ArenaItem
 ) & {
   /** Hidden from the model by a later history/rewind (regenerate, edit):
    *  still shown, collapsed, so the record stays complete. */
   superseded?: Rewind;
 };
+
+/** One model's run in an arena (arena/run, arena/result). */
+export interface ArenaRun {
+  model: ModelRef;
+  /** the ephemeral agent answering, and its session (live output) */
+  child?: string;
+  session?: string;
+  started?: string;
+  result?: { status: string; error?: string; answer?: string; ms: number; calls: number; input: number; output: number; cacheRead?: number; costUsd: number; priced: boolean; time: string };
+}
+
+/** An arena (arena/started and what followed it). */
+export interface ArenaItem {
+  k: "arena";
+  id: string;
+  arena: string;
+  task: string;
+  category: string;
+  /** the conversation's agent; in a channel the member per model */
+  agent: string;
+  members?: string[];
+  runs: ArenaRun[];
+  /** the picked run */
+  picked?: number;
+  time: string;
+}
 
 /** A history/rewind: events with from <= seq < at no longer reach the
  *  agent's model (core/session RewindData). */
@@ -361,10 +390,35 @@ export function project(events: SessionEvent[], cards?: ReadonlySet<string>): Pr
     if (agent === undefined) cur.clear();
     else cur.delete(agent);
   }
+  const arenas = new Map<string, ArenaItem>(); // arena id →
+  const arenaSessions = new Set<string>(); // its runs' sessions (not shown as helpers)
   for (const e of events) {
     const d = e.data ?? {};
     const id = String(e.seq);
     switch (e.type) {
+      case "arena/started": {
+        const runs: ArenaRun[] = (d.models ?? []).map((m: string) => ({ model: parseRef(m) ?? { provider: "", model: m } }));
+        const it: ArenaItem = { k: "arena", id, arena: d.id, task: d.task ?? "", category: d.category ?? "other", agent: d.agent ?? "", members: d.members, runs, time: e.time };
+        arenas.set(d.id, it);
+        push(it, e.time);
+        break;
+      }
+      case "arena/run": {
+        const r = arenas.get(d.id)?.runs[d.index];
+        if (r) Object.assign(r, { child: d.child, session: d.childSession, started: e.time });
+        if (d.childSession) arenaSessions.add(d.childSession);
+        break;
+      }
+      case "arena/result": {
+        const r = arenas.get(d.id)?.runs[d.index];
+        if (r) r.result = { status: d.status, error: d.error, answer: d.answer, ms: d.ms ?? 0, calls: d.calls ?? 0, input: d.input ?? 0, output: d.output ?? 0, cacheRead: d.cacheRead, costUsd: d.costUsd ?? 0, priced: !!d.priced, time: e.time };
+        break;
+      }
+      case "arena/picked": {
+        const a = arenas.get(d.id);
+        if (a) a.picked = d.index;
+        break;
+      }
       case "message/reaction": {
         const key = String(d.target ?? "");
         const who = e.agent || d.from || "";
@@ -403,6 +457,8 @@ export function project(events: SessionEvent[], cards?: ReadonlySet<string>): Pr
         for (const to of [d.to ?? "", ...((d.also as string[] | undefined) ?? [])]) askedBy.set(to, (askedBy.get(to) ?? "") + "\n" + (d.text ?? ""));
         break;
       case "message/assistant": {
+        // an arena's picked answer: its card shows it
+        if (d.arena) break;
         const parts: Part[] = d.message?.parts ?? [];
         if (d.model?.provider) lastModel[e.agent ?? ""] = d.model;
         const text = textOf(parts, "text");
@@ -727,7 +783,9 @@ export function project(events: SessionEvent[], cards?: ReadonlySet<string>): Pr
   }
   // a time divider closing the conversation stands for nothing
   while (items.length && items[items.length - 1].k === "time") items.pop();
-  return { items, context, lastModel, stuck, openTurns, subruns, compactedUpto, lastTurn, reactions, pins };
+  // an arena's runs are its card's columns, not helpers being waited for
+  const helpers = arenaSessions.size ? subruns.filter((r) => !arenaSessions.has(r.session)) : subruns;
+  return { items, context, lastModel, stuck, openTurns, subruns: helpers, compactedUpto, lastTurn, reactions, pins };
 }
 
 /** Last text message in the log (for list snippets). */

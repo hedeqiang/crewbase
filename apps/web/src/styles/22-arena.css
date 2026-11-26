@@ -1,0 +1,121 @@
+/* 模型擂台 (components/conversation/Arena.tsx, settings/ArenaStats.tsx):
+   the arena card in the conversation, the composer's arena mode and the
+   profile's 擂台 stats. */
+
+/* ---- the card: a column per model, stacked when narrow */
+.arena { container: arena / inline-size; border: 1px solid var(--border); border-radius: var(--r-14); background: var(--raised); padding: 10px; }
+.arhead { display: flex; align-items: center; gap: 8px; min-height: 28px; padding: 0 2px 0 2px; flex-wrap: wrap; }
+.arhead b { font-size: var(--fs-13); font-weight: 600; }
+.arhead .sp { flex: 1; }
+.arhic { width: 24px; height: 24px; border-radius: var(--r-8); display: grid; place-items: center; background: var(--surface); border: 1px solid var(--border); color: var(--accent-text); flex: none; }
+.arcta { color: var(--accent-text); font-weight: 500; }
+.arstop { height: 24px; padding: 0 8px; gap: 5px; }
+.argrid { display: grid; grid-template-columns: repeat(var(--cols, 2), minmax(0, 1fr)); gap: 8px; margin-top: 8px; align-items: stretch; }
+.arena[data-n="3"] .argrid { --cols: 3; }
+.arena[data-n="4"] .argrid { --cols: 4; }
+@container arena (max-width: 900px) { .arena[data-n="4"] .argrid { --cols: 2; } }
+@container arena (max-width: 640px) { .arena[data-n="3"] .argrid { --cols: 1; } }
+@container arena (max-width: 500px) { .arena .argrid { --cols: 1; } }
+
+.arcol { display: flex; flex-direction: column; min-width: 0; border: 1px solid var(--border); border-radius: var(--r-12); background: var(--surface); transition: opacity var(--dur-normal), border-color var(--dur-normal), box-shadow var(--dur-normal); }
+.arcol.won { border-color: var(--ok); box-shadow: 0 0 0 1px var(--ok) inset; }
+.arcol.lost { opacity: .66; }
+.arcol.lost:hover, .arcol.lost:focus-within { opacity: 1; }
+.arch { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 8px; align-items: center; padding: 10px 10px 4px 10px; }
+.arch .g { min-width: 0; display: flex; flex-direction: column; line-height: 1.3; }
+.arch .g b { font-size: var(--fs-13); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.arch .g > span { font-size: var(--fs-11); color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.arch .pill { gap: 3px; }
+.arlive { display: inline-flex; align-items: center; gap: 5px; font-size: var(--fs-11); color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.arlive i { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); }
+.arbadges { display: flex; gap: 4px; padding: 0 10px 2px; }
+.arbadge { font-size: var(--fs-11); line-height: 18px; padding: 0 6px; border-radius: var(--r-pill); background: var(--accent-soft); color: var(--accent-text); font-weight: 500; }
+.arbody { position: relative; padding: 4px 12px 6px; font-size: var(--fs-13); line-height: 1.65; overflow: hidden; overflow-wrap: anywhere; min-height: 64px; }
+.arbody.open { overflow: visible; }
+.arbody pre, .arbody table, .arbody .codewrap { line-height: 1.5; font-size: var(--fs-12); }
+.arbody > :first-child, .arbody .md > :first-child { margin-top: 0; }
+/* folded: the end fades (a finished answer) or the start does (one still coming in) */
+.arbody.folded { -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 56px), transparent); mask-image: linear-gradient(to bottom, #000 calc(100% - 56px), transparent); }
+.arbody.folded.live { -webkit-mask-image: linear-gradient(to top, #000 calc(100% - 48px), transparent); mask-image: linear-gradient(to top, #000 calc(100% - 48px), transparent); }
+.arfold { display: inline-flex; align-items: center; gap: 4px; align-self: flex-start; margin: 0 8px 4px; padding: 2px 6px; border-radius: var(--r-6); font-size: var(--fs-12); font-weight: 500; color: var(--accent-text); }
+.arfold:hover { background: var(--hover); }
+.arwait { display: flex; flex-direction: column; gap: 8px; padding: 6px 0; }
+.arwait i { display: block; height: 10px; border-radius: var(--r-pill); background: linear-gradient(90deg, var(--sunken) 0%, var(--active) 50%, var(--sunken) 100%); background-size: 200% 100%; }
+.arwait i:nth-child(2) { width: 86%; }
+.arwait i:nth-child(3) { width: 58%; }
+.arerr { margin: 6px 0; color: var(--danger-text); display: flex; flex-direction: column; gap: 4px; }
+.arerr .small { color: var(--muted); overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
+.artool { padding: 0 12px 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.arask { padding: 0 8px 8px; }
+.arask .qcard { margin: 0; }
+.arfoot { display: flex; align-items: center; gap: 6px 8px; margin-top: auto; padding: 8px 8px 8px 12px; border-top: 1px solid var(--border); min-height: 42px; flex-wrap: wrap; }
+.arfoot .sp { flex: 1; }
+.arstats { flex: 1 1 100%; min-width: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; font-size: var(--fs-11); color: var(--text2); font-variant-numeric: tabular-nums; }
+.arstats > span { display: inline-flex; align-items: center; gap: 3px; white-space: nowrap; }
+.arstats svg { color: var(--muted); }
+.arcost { color: var(--text); font-weight: 600; }
+.arcost.muted { color: var(--muted); font-weight: 400; }
+.arview { font-size: var(--fs-12); margin-right: auto; }
+.arpick { flex: none; gap: 4px; }
+.arcol.won .arfoot { border-top-color: var(--ok-soft); }
+.arnote { margin: 8px 4px 0; }
+
+/* ---- the composer's arena mode, above the box */
+.arbar { margin: 0 4px 8px 0; padding: 8px 10px 10px; border: 1px solid var(--border); border-radius: var(--r-12); background: var(--raised); }
+.arbh { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.arbh b { font-size: var(--fs-13); font-weight: 600; flex: none; }
+.aric { color: var(--accent-text); flex: none; }
+.arbsub { flex: 1; min-width: 0; font-size: var(--fs-12); color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.arbn { font-size: var(--fs-12); color: var(--muted); font-variant-numeric: tabular-nums; flex: none; }
+.arbn.low { color: var(--amber-text); }
+.arbx { flex: none; }
+.archips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.archip { display: inline-flex; align-items: center; gap: 6px; height: 28px; max-width: 100%; padding: 0 10px 0 4px; border-radius: var(--r-pill); border: 1px solid var(--border2); background: var(--surface); font-size: var(--fs-12); color: var(--text2); transition: background var(--dur-hover), border-color var(--dur-hover), color var(--dur-hover); }
+.archip:hover:not(:disabled) { border-color: var(--muted); color: var(--text); }
+.archip.on { border-color: var(--accent); background: var(--accent-soft); color: var(--text); }
+.archip:disabled { opacity: .45; cursor: default; }
+.archip .archn { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.archip .archk { color: var(--accent-text); flex: none; }
+.archip.more { padding: 0 10px; border-style: dashed; color: var(--accent-text); gap: 4px; }
+.arusual { font-size: var(--fs-11); line-height: 16px; padding: 0 5px; border-radius: var(--r-pill); background: var(--amber-soft); color: var(--amber-text); flex: none; }
+.arall { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border); }
+.arsearch { display: flex; align-items: center; gap: 6px; padding: 5px 8px; border-radius: var(--r-8); background: var(--surface); border: 1px solid var(--border); color: var(--muted); }
+.arsearch input { flex: 1; min-width: 0; border: 0; outline: 0; background: none; font: inherit; font-size: var(--fs-13); color: var(--text); }
+.arlist { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 2px; max-height: 216px; overflow: auto; margin-top: 6px; overscroll-behavior: contain; }
+.arrow { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 8px; align-items: center; padding: 6px 8px; border-radius: var(--r-8); text-align: left; }
+.arrow:hover:not(:disabled) { background: var(--hover); }
+.arrow:disabled { opacity: .45; cursor: default; }
+.arrow .g { min-width: 0; display: flex; flex-direction: column; line-height: 1.3; }
+.arrow .g b { font-size: var(--fs-13); font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.arrow .g span { font-size: var(--fs-11); color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.arbox { width: 16px; height: 16px; border-radius: var(--r-4); border: 1.5px solid var(--border2); display: grid; place-items: center; color: #fff; }
+.arbox.on { background: var(--accent); border-color: var(--accent); }
+.arnone { padding: 8px; }
+.arsugg { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 6px; margin-top: 8px; font-size: var(--fs-12); color: var(--text2); }
+.arsugg > svg { color: var(--amber); flex: none; }
+.cbtn.arbtn.on { background: var(--accent-soft); color: var(--accent-text); }
+
+/* ---- 个人资料 › 擂台 */
+.arscats { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+.arscat { height: 28px; padding: 0 12px; border-radius: var(--r-pill); border: 1px solid var(--border2); background: var(--surface); font-size: var(--fs-12); color: var(--text2); display: inline-flex; align-items: center; gap: 6px; }
+.arscat:hover { color: var(--text); }
+.arscat.on { background: var(--action); color: var(--on-action); border-color: transparent; }
+.arscat .n { font-variant-numeric: tabular-nums; opacity: .6; }
+.arsum { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; padding: 10px 14px; }
+.arslead { display: inline-flex; align-items: center; gap: 4px; color: var(--text2); }
+.arslead svg { color: var(--amber); }
+.arsempty { padding: 4px 14px 12px; margin: 0; }
+.arslegend { margin-top: 8px; }
+.arsnone { display: flex; align-items: flex-start; gap: 10px; padding: 12px 14px; border: 1px dashed var(--border2); border-radius: var(--r-12); color: var(--muted); }
+.arsnone svg { flex: none; margin-top: 1px; }
+@media (max-width: 560px) {
+  .arsrow { grid-template-columns: auto minmax(0, 1fr) 44px 60px; gap: 10px; }
+  .arsrow .mubar { display: none; }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .arena { animation: chip-in var(--dur-dialog) var(--ease-out) backwards; }
+  .arbar { animation: chip-in var(--dur-dialog) var(--ease-out) backwards; }
+  .arlive i { animation: pulse 1.4s ease-in-out infinite; }
+  .arwait i { animation: skel-wave 1.6s linear infinite; }
+}

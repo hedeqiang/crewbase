@@ -2284,3 +2284,44 @@ export interface LinkCard {
   embed?: { provider: string; src: string; aspect: number };
   media?: string;
 }
+
+// ---------------------------------------------------------------- 模型擂台 (features/arena)
+
+/** One model's record in one task category (GET /api/arena/stats). */
+export interface ArenaModelStat {
+  model: string;
+  runs: number;
+  wins: number;
+  avgCostUsd: number;
+  priced: boolean;
+  avgMs: number;
+}
+export interface ArenaCategoryStat {
+  category: string;
+  arenas: number;
+  picked: number;
+  models: ArenaModelStat[];
+}
+export interface ArenaStats {
+  arenas: number;
+  picked: number;
+  categories: ArenaCategoryStat[];
+}
+/** The model usually picked for tasks like this one (GET /api/arena/suggest). */
+export interface ArenaSuggestion {
+  category: string;
+  model?: string;
+  wins?: number;
+  picked?: number;
+  avgCostUsd?: number;
+  priced?: boolean;
+  ranked: string[];
+}
+
+export const ArenaAPI = {
+  start: (session: string, body: { text: string; models: string[]; agent?: string }) => api<{ id: string; category: string }>("POST", `/api/sessions/${encodeURIComponent(session)}/arena`, body),
+  pick: (session: string, arena: string, index: number) => api("POST", `/api/sessions/${encodeURIComponent(session)}/arena/${encodeURIComponent(arena)}/pick`, { index }),
+  stop: (session: string, arena: string) => api("POST", `/api/sessions/${encodeURIComponent(session)}/arena/${encodeURIComponent(arena)}/stop`),
+  stats: () => api<ArenaStats>("GET", "/api/arena/stats"),
+  suggest: (text: string) => api<ArenaSuggestion>("GET", `/api/arena/suggest?text=${encodeURIComponent(text.slice(0, 2000))}`),
+};

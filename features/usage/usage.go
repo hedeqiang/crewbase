@@ -192,6 +192,14 @@ func (s *Service) Compute() Stats {
 				if e.Decode(&am) != nil {
 					continue
 				}
+				// an arena's picked answer, copied into the conversation:
+				// the run that wrote it was counted already
+				var mark struct {
+					Arena string `json:"arena"`
+				}
+				if e.Decode(&mark) == nil && mark.Arena != "" {
+					continue
+				}
 				n := am.Usage.InputTokens + am.Usage.OutputTokens
 				st.Messages++
 				st.Tokens += n
