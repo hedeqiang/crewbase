@@ -2,9 +2,9 @@ import { ReplyChip } from "../MsgExtras";
 import { runShortcut } from "../../actions";
 import { keyLabel } from "../../shortcuts";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
-import { ArrowUp, Check, ChevronDown, ChevronRight, ChevronLeft, Folder, Mic, Minimize2, Monitor, Plus, MicOff, Square, Sparkles, Paperclip } from "lucide-react";
+import { ArrowUp, Check, ChevronDown, ChevronRight, ChevronLeft, Folder, Mic, Minimize2, Monitor, Plus, MicOff, Square, Sparkles, Paperclip, Swords } from "lucide-react";
 import { display, enterSends, MAC } from "../../shortcuts";
-import { API, parseRef, refString, type AgentView, type ChannelView, type ModelRef, type SlashPick } from "../../api";
+import { API, ArenaAPI, parseRef, refString, type AgentView, type ChannelView, type ModelRef, type SlashPick } from "../../api";
 import { filterSlash, PickChips, pickOf, promptItems, shownOrder, skillItems, slashAt, SlashMenu, toolItems, useSlashSources, type SlashItem } from "../SlashMenu";
 import { t, type Key } from "../../i18n";
 import { hasModels, setModelOverride, openConnect, setState, toast, useStore, getState, setReply, newChat, openSettings } from "../../store";
@@ -19,6 +19,7 @@ import { ModelPicker } from "../ModelPicker";
 import { SlotIcon, runCommand, useSlot } from "../UISlots";
 import { shortPath, dirName } from "./util";
 import { DirMenu, ModeIcon, QueueStack } from "./composerParts";
+import { ARENA_MIN, ArenaBar, defaultArena, isRoundtable, rememberArena } from "./Arena";
 
 /** pastes this long (bytes) become a text attachment */
 const LONG_PASTE = 32 * 1024;
@@ -88,6 +89,8 @@ export function Composer({
   // the one a send found empty
   const argDefs = useRef(new Map<string, SlashItem["args"]>());
   const [missing, setMissing] = useState<string | null>(null);
+  // 模型擂台: the models the next message goes to (null: arena mode off)
+  const [arena, setArena] = useState<string[] | null>(null);
   const draft = useStore((s) => s.drafts[sessionId] ?? "");
   const override = useStore((s) => s.overrides[agent.id] ?? null);
   const hostConfirm = useStore((s) => s.hostConfirm === agent.id);
@@ -119,6 +122,7 @@ export function Composer({
     ta.current?.focus();
     setPicks([]);
     setSlash(null);
+    setArena(null);
   }, [sessionId]);
 
   const setDraft = (v: string) => setState((s) => ({ drafts: { ...s.drafts, [sessionId]: v } }));
@@ -208,7 +212,12 @@ export function Composer({
     const d = display(enterSends() ? "enter" : "mod+enter");
     return MAC ? d.join("") : d.join("+");
   })();
-  const canSend = (!!draft.trim() || picks.length > 0 || pending.some((f) => f.state === "ok")) && !pending.some((f) => f.state === "up");
+  const canSend = arena ? !!draft.trim() && arena.length >= ARENA_MIN : (!!draft.trim() || picks.length > 0 || pending.some((f) => f.state === "ok")) && !pending.some((f) => f.state === "up");
+  const openArena = () => {
+    setArena(defaultArena(models, shown, channel, agents));
+    setTimeout(() => ta.current?.focus(), 0);
+  };
+  const roundtable = isRoundtable(channel, agents);
   const busy = !channel && (agent.status === "running" || agent.status === "waiting");
 
   const attach = (files: File[]) => {
@@ -226,6 +235,32 @@ export function Composer({
     const queue = !steer;
     const text = draft.trim();
     const ready = pending.filter((f) => f.state === "ok" && f.att);
+    if (arena) {
+      // the same task to each picked model, side by side
+      if (!text || sending || archived) return;
+      if (arena.length < ARENA_MIN) {
+        toast(t("arena.needMin", { n: ARENA_MIN }));
+        return;
+      }
+      if (ready.length || picks.length) {
+        toast(t("arena.noExtras"));
+        return;
+      }
+      setSending(true);
+      try {
+        await ArenaAPI.start(sessionId, { text, models: arena, agent: channel ? undefined : agent.id });
+        rememberArena(arena);
+        setDraft("");
+        setReply(sessionId, null);
+        setArena(null);
+      } catch (e: any) {
+        toast(t("arena.startFailed", { error: e?.message ?? String(e) }));
+      } finally {
+        setSending(false);
+        ta.current?.focus();
+      }
+      return;
+    }
     if ((!text && !ready.length && !picks.length) || sending || archived) return;
     for (const p of picks) {
       const need = p.kind === "prompt" ? (argDefs.current.get(p.name) ?? []).find((a) => a.required && !p.args?.[a.name]?.trim()) : undefined;
@@ -332,6 +367,7 @@ export function Composer({
     ? [
         { key: "cmd:new", kind: "cmd", name: "new", desc: t("slash.cmd.new"), icon: <Plus size={14} />, run: () => void newChat() },
         { key: "cmd:model", kind: "cmd", name: "model", desc: t("slash.cmd.model"), icon: <Sparkles size={14} />, run: () => setTimeout(() => modelM.setOpen(true), 0) },
+        ...(arena ? [] : [{ key: "cmd:arena", kind: "cmd" as const, name: "arena", desc: t("slash.cmd.arena"), icon: <Swords size={14} />, run: openArena }]),
         ...(!plain && !channel && manage ? [{ key: "cmd:mode", kind: "cmd" as const, name: "mode", desc: t("slash.cmd.mode"), icon: <ModeIcon mode={mode} size={14} />, run: () => setTimeout(() => permM.setOpen(true), 0) }] : []),
         ...(channel ? [] : [{ key: "cmd:attach", kind: "cmd" as const, name: "attach", desc: t("slash.cmd.attach"), icon: <Paperclip size={14} />, run: () => fileIn.current?.click() }]),
         ...(!channel && ctx && ctx.tokens > 0 ? [{ key: "cmd:compact", kind: "cmd" as const, name: "compact", desc: t("slash.cmd.compact"), icon: <Minimize2 size={14} />, run: () => void API.compact(agent.id, sessionId).then(() => toast(t("ctx.compacted", { name: agent.name })), (e) => toast(e?.message ?? String(e))) }] : []),
@@ -434,6 +470,7 @@ export function Composer({
             setPicks((l) => l.map((x) => (x === p ? { ...x, args } : x)));
           }}
         />
+        {arena && <ArenaBar picked={arena} setPicked={setArena} draft={draft} onClose={() => setArena(null)} />}
         {slashOpen && (
           <SlashMenu
             items={slashItems}
@@ -486,7 +523,7 @@ export function Composer({
           rows={1}
           value={draft}
           disabled={archived}
-          placeholder={archived ? t("ch.archivedPh") : channel ? t("chat.placeholderChannel", { name: channel.title || channel.id }) : agent.kind === "chat" ? t("chat.chatPh") : t("chat.placeholder", { name: agent.name })}
+          placeholder={archived ? t("ch.archivedPh") : arena ? t("arena.ph", { n: arena.length }) : channel ? t("chat.placeholderChannel", { name: channel.title || channel.id }) : agent.kind === "chat" ? t("chat.chatPh") : t("chat.placeholder", { name: agent.name })}
           aria-label={channel ? t("chat.placeholderChannel", { name: channel.title || channel.id }) : agent.kind === "chat" ? t("chat.chatPh") : t("chat.placeholder", { name: agent.name })}
           onChange={(e) => {
             setDraft(e.target.value);
@@ -627,6 +664,13 @@ export function Composer({
             <ChevronDown size={14} />
           </button>
           </>)}
+          {/* a 模型圆桌 puts the same question to its members' models */}
+          {roundtable && !archived && (
+            <button className={"cbtn arbtn" + (arena ? " on" : "")} type="button" aria-pressed={!!arena} title={t("slash.cmd.arena")} onClick={() => (arena ? setArena(null) : openArena())}>
+              <Swords size={15} />
+              <span className="lbl">{t("arena.short")}</span>
+            </button>
+          )}
           {composerActions.map((c) => (
             <button key={c.key} className="cbtn" type="button" title={c.desc || c.title} onClick={() => void runCommand(c, sessionId)}>
               <SlotIcon name={c.icon} />
@@ -701,10 +745,10 @@ export function Composer({
                   className={"send" + (canSend ? " on" : "")}
                   type="submit"
                   disabled={!canSend || sending}
-                  aria-label={t("chat.send", { key: sendKey })}
-                  title={t("chat.send", { key: sendKey })}
+                  aria-label={arena ? t("arena.send", { n: arena.length }) : t("chat.send", { key: sendKey })}
+                  title={arena ? t("arena.send", { n: arena.length }) : t("chat.send", { key: sendKey })}
                 >
-                  <ArrowUp size={16} />
+                  {arena ? <Swords size={15} /> : <ArrowUp size={16} />}
                 </button>
               )}
             </>

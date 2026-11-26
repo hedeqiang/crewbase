@@ -8,6 +8,7 @@ import { myName, patchProfile, useStore } from "../../store";
 import { Avatar, MeAvatar } from "../Avatar";
 import { ProviderMark } from "../ProviderMark";
 import { Head } from "../Settings";
+import { ArenaStats } from "./ArenaStats";
 
 
 /** d moved by n calendar days (local; DST-safe, unlike adding 24h). */
@@ -89,6 +90,8 @@ export function Profile() {
             )}
             <div className="vsec">{t("prof.byModel")}</div>
             <ModelTable rows={u.byModel ?? []} />
+            <div className="vsec">{t("arena.statsTitle")}</div>
+            <ArenaStats />
             <div className="vsec">{t("prof.members")}</div>
             <Members rows={u.byAgent.filter((x) => !x.deleted && agents[x.agent])} />
             <p className="small" style={{ marginTop: 14 }}>

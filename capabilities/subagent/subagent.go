@@ -26,6 +26,7 @@ import (
 	"sync"
 	"unicode/utf8"
 
+	"github.com/hedeqiang/crewbase/core/llm"
 	"github.com/hedeqiang/crewbase/kernel"
 )
 
@@ -93,6 +94,15 @@ type Request struct {
 	// Worktree continues the work in an existing worktree (its id, from
 	// the git feature): the sub-agent works on that branch.
 	Worktree string `json:"worktree,omitempty"`
+	// Models, when set, is the model order of an ephemeral child instead
+	// of the parent's (e.g. the model arena: one child per model).
+	Models []llm.ModelRef `json:"models,omitempty"`
+	// Instructions, when set, replace an ephemeral child's default
+	// sub-agent instructions.
+	Instructions string `json:"instructions,omitempty"`
+	// OnStart, when set, is told the child agent and session as soon as
+	// they exist, before the task runs (to follow it live).
+	OnStart func(child, childSession string) `json:"-"`
 }
 
 // Result is the uniform outcome of every provider.

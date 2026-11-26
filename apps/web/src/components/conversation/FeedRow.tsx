@@ -15,6 +15,7 @@ import { UserMsg, AgentMsg, TurnMsg } from "./messages";
 import { Steps } from "./timeline";
 import { ApprovalCard } from "./approval";
 import { RetryButton } from "./other";
+import { ArenaCard } from "./Arena";
 
 function PluginFeedCard({ type, data }: { type: string; data: any }) {
   const c = useSlot("conversation.node").find((x) => x.key === type);
@@ -95,6 +96,8 @@ export function FeedRow({ it, agents, showModel }: { it: FeedItem; agents: Recor
       return <PluginFeedCard type={it.type} data={it.data} />;
     case "media":
       return <MediaCard it={it} />;
+    case "arena":
+      return <ArenaCard it={it} />;
     case "sys":
       return (
         <div className={"sys " + (it.tone === "error" ? "err" : it.tone)}>

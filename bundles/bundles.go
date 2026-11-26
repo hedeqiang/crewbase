@@ -23,6 +23,7 @@ import (
 	_ "github.com/hedeqiang/crewbase/features/agentdocs"
 	_ "github.com/hedeqiang/crewbase/features/alerts"
 	_ "github.com/hedeqiang/crewbase/features/api"
+	_ "github.com/hedeqiang/crewbase/features/arena"
 	_ "github.com/hedeqiang/crewbase/features/attachments"
 	_ "github.com/hedeqiang/crewbase/features/audit"
 	_ "github.com/hedeqiang/crewbase/features/autodraft"
@@ -232,6 +233,8 @@ var Desktop = kernel.Bundle{Name: "desktop", Entries: []kernel.Entry{
 	{ID: "providers-api", Name: "@crewbase/providers-api"},
 	{ID: "model-catalog-api", Name: "@crewbase/model-catalog-api"},
 	{ID: "usage-api", Name: "@crewbase/usage-api"},
+	// 模型擂台: one task to several models side by side (<root>/arena.json).
+	{ID: "arena", Name: "@crewbase/arena", Config: map[string]any{"dir": "${root}"}},
 	{ID: "roles", Name: "@crewbase/roles"},
 	{ID: "ui-api", Name: "@crewbase/ui-api"},
 	{ID: "attachments-api", Name: "@crewbase/attachments-api"},

@@ -128,7 +128,7 @@ func (r *runner) sessions() *session.Store { return r.agents.Sessions() }
 
 // createEphemeral creates the ephemeral agent "<parent>-sub-<n>" with the
 // parent's model order.
-func (r *runner) createEphemeral(parent *agent.Agent, mode string) (*agent.Agent, error) {
+func (r *runner) createEphemeral(parent *agent.Agent, mode string, req subagent.Request) (*agent.Agent, error) {
 	base := "sub"
 	spec := agent.Spec{Ephemeral: true, Role: "sub-agent"}
 	if parent != nil {
@@ -138,6 +138,8 @@ func (r *runner) createEphemeral(parent *agent.Agent, mode string) (*agent.Agent
 		spec.Models = ps.Models
 		spec.Folder = ps.Folder
 		spec.Team = ps.Team
+		// a blank chat's child is a blank chat too (no tools, as its parent)
+		spec.Kind = ps.Kind
 		if l, ok := ps.ConnectorList(); ok {
 			spec.Connectors = &l // a sub-agent may use no more connectors than its parent
 		}
@@ -148,6 +150,12 @@ func (r *runner) createEphemeral(parent *agent.Agent, mode string) (*agent.Agent
 	}
 	spec.Mode = mode
 	spec.Instructions = "You are a sub-agent. Complete the delegated task and reply with the result only.\n"
+	if req.Instructions != "" {
+		spec.Instructions = req.Instructions
+	}
+	if len(req.Models) > 0 {
+		spec.Models = req.Models
+	}
 	lifecycleMu.Lock()
 	defer lifecycleMu.Unlock()
 	for range 1000 {
@@ -218,7 +226,7 @@ func (r *runner) spawn(ctx context.Context, provName string, fork bool, req suba
 	var child *agent.Agent
 	ephemeral := req.Agent == ""
 	if ephemeral {
-		a, err := r.createEphemeral(parent, mode)
+		a, err := r.createEphemeral(parent, mode, req)
 		if err != nil {
 			return subagent.Result{}, fmt.Errorf("create sub-agent: %w", err)
 		}
@@ -295,6 +303,9 @@ func (r *runner) spawn(ctx context.Context, provName string, fork bool, req suba
 		}
 	}
 
+	if req.OnStart != nil {
+		req.OnStart(child.ID(), css.ID())
+	}
 	res := r.run(ctx, child, css, req, mode)
 	res.Child, res.ChildSession = child.ID(), css.ID()
 	if pss != nil {

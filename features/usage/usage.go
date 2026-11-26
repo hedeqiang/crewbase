@@ -192,6 +192,14 @@ func (s *Service) Compute() Stats {
 				if e.Decode(&am) != nil {
 					continue
 				}
+				// an arena's picked answer, copied into the conversation:
+				// the run that wrote it was counted already
+				var mark struct {
+					Arena string `json:"arena"`
+				}
+				if e.Decode(&mark) == nil && mark.Arena != "" {
+					continue
+				}
 				n := am.Usage.InputTokens + am.Usage.OutputTokens
 				st.Messages++
 				st.Tokens += n
@@ -389,4 +397,27 @@ func (s *Service) TokensByAgent() map[string]int {
 		out[a.Agent] += a.Tokens
 	}
 	return out
+}
+
+// Cost is what one model call cost (USD), by the rules Compute values
+// spend with: a gateway or a direct key at the model's list price (a key's
+// configured price first); local and subscription use cost nothing.
+// priced is false when no price is known for a billed model (cost 0).
+func (s *Service) Cost(m llm.ModelRef, u llm.Usage) (usd float64, priced bool) {
+	switch s.kindOf(m.Provider) {
+	case "gateway":
+		if p := s.llms.PriceOf(m); p != nil {
+			return p.Cost(u), true
+		}
+		return 0, false
+	case "api":
+		if cp, ok := s.prices[m.Provider]; ok {
+			return float64(u.InputTokens)/1e6*cp.Input + float64(u.OutputTokens)/1e6*cp.Output, true
+		}
+		if p := s.llms.PriceOf(m); p != nil {
+			return p.Cost(u), true
+		}
+		return 0, false
+	}
+	return 0, true
 }
