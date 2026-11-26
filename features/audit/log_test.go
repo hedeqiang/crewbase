@@ -64,6 +64,42 @@ func TestChainAcrossMonthsAndReopen(t *testing.T) {
 	}
 }
 
+func TestAppendLazyJoinsChain(t *testing.T) {
+	root := t.TempDir()
+	l, err := Open(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := l.Append(Entry{Type: "t"}); err != nil {
+		t.Fatal(err)
+	}
+	for i := 0; i < 3; i++ {
+		if _, err := l.AppendLazy(Entry{Type: "lazy", Data: map[string]any{"i": i}}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if !l.unsynced {
+		t.Fatal("lazy records should wait for a sync")
+	}
+	if _, err := l.Append(Entry{Type: "t"}); err != nil {
+		t.Fatal(err)
+	}
+	if l.unsynced {
+		t.Fatal("a synced record flushes the lazy ones")
+	}
+	if _, err := l.AppendLazy(Entry{Type: "lazy"}); err != nil {
+		t.Fatal(err)
+	}
+	l.Close()
+	if l.unsynced {
+		t.Fatal("Close flushes lazy records")
+	}
+	res, err := Verify(root)
+	if err != nil || !res.OK || res.Records != 6 {
+		t.Fatalf("%+v %v", res, err)
+	}
+}
+
 func TestVerifyDetectsTampering(t *testing.T) {
 	mk := func(t *testing.T) (string, string) {
 		root := t.TempDir()

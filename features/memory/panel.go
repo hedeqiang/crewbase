@@ -200,6 +200,9 @@ func readUsed(a *agent.Agent) map[string]time.Time {
 	if err == nil {
 		_ = json.Unmarshal(b, &out)
 	}
+	if out == nil { // a file holding null: callers write to the map
+		out = map[string]time.Time{}
+	}
 	return out
 }
 
@@ -480,6 +483,9 @@ func readMoved(a *agent.Agent) map[string]savedOrigin {
 	out := map[string]savedOrigin{}
 	if b, err := os.ReadFile(movedPath(a)); err == nil {
 		_ = json.Unmarshal(b, &out)
+	}
+	if out == nil { // a file holding null: callers write to the map
+		out = map[string]savedOrigin{}
 	}
 	return out
 }

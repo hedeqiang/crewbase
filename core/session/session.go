@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strings"
 	"sync"
@@ -210,11 +211,15 @@ func (s *Store) Get(id string) (*Session, error) {
 func (s *Store) List() []Meta {
 	if s.dir != "" {
 		entries, _ := os.ReadDir(s.dir)
+		var todo []string
+		s.mu.Lock()
 		for _, e := range entries {
-			if e.IsDir() {
-				_, _ = s.Get(e.Name())
+			if _, ok := s.sessions[e.Name()]; e.IsDir() && !ok {
+				todo = append(todo, e.Name())
 			}
 		}
+		s.mu.Unlock()
+		s.loadAll(todo)
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -224,6 +229,32 @@ func (s *Store) List() []Meta {
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Created.After(out[j].Created) })
 	return out
+}
+
+// loadAll opens the sessions in ids from disk, several at a time: the
+// first List reads every log, which on a big data dir was most of the
+// daemon's start.
+func (s *Store) loadAll(ids []string) {
+	if len(ids) == 0 {
+		return
+	}
+	workers := min(runtime.GOMAXPROCS(0), 4, len(ids))
+	next := make(chan string)
+	var wg sync.WaitGroup
+	for range workers {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for id := range next {
+				_, _ = s.Get(id)
+			}
+		}()
+	}
+	for _, id := range ids {
+		next <- id
+	}
+	close(next)
+	wg.Wait()
 }
 
 func readLog(path string) ([]Event, error) {

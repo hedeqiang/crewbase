@@ -1,19 +1,13 @@
 import { TaskBoard } from "./TaskBoard";
 import { WorkNotes, WorkTasks } from "./Working";
-import { useEffect, useMemo, useState, useRef, type ReactNode, type PointerEvent as ReactPointerEvent } from "react";
+import { lazy, Suspense, useEffect, useMemo, useState, useRef, type ReactNode, type PointerEvent as ReactPointerEvent } from "react";
 import { Settings2, Archive, CalendarClock, Code2, Eye, FileText, FolderTree, Library as LibraryIcon, ListChecks, Puzzle, ArrowDown, ArrowUp, Check, ChevronLeft, ChevronRight, CircleMinus, CircleX, Globe, GripVertical, Link2, Minimize2, Pause, Play, Plus, Shuffle, Square, Trash, UserPlus, X, CornerDownRight } from "lucide-react";
 import { API, refString, type AgentView, type ChannelView, type ContextBreakdown, type ModelRef } from "../api";
 import { t, type Key } from "../i18n";
 import { activeModel, allModels, detailLabel, effortLabel, exhaustedHint, exhaustedLabel, hhmm, isExhausted, kfmt, modeLabel, modelLabel, modelMeta, modelOff, pillTone, sameRef, statusLabel, until } from "../format";
 import { project, type SubRun } from "../projection";
 import { openSubRun, refreshChannel, setState, toast, useStore, sessionAgent, docsEmbeddable } from "../store";
-import { FilesTab } from "./Files";
-import { CodeTab } from "./Code";
-import { LibraryTab } from "./Library";
-import { DocsTab } from "./settings/AgentDocs";
 import { ScheduleTab, scheduleCount, useSchedule } from "./Schedule";
-import { PreviewTab } from "./Preview";
-import { AgentMemories } from "./Memory";
 import { BadgeMarks, ProfileSection } from "./Profile";
 import { Avatar, LookPicker } from "./Avatar";
 import { Popover, useMenu } from "./Popover";
@@ -22,6 +16,15 @@ import { shortPath, SubFeed } from "./Conversation";
 import { PanelView, SlotIcon, useSlot } from "./UISlots";
 import { confirmDialog } from "./Confirm";
 import { AgentConnectors } from "./AgentConnectors";
+import { FilesTab } from "./Files";
+
+// tabs that are not the first one seen, loaded when opened (with what
+// they pull in: settings pages, the library, code review)
+const CodeTab = lazy(() => import("./Code").then((m) => ({ default: m.CodeTab })));
+const LibraryTab = lazy(() => import("./Library").then((m) => ({ default: m.LibraryTab })));
+const DocsTab = lazy(() => import("./settings/AgentDocs").then((m) => ({ default: m.DocsTab })));
+const PreviewTab = lazy(() => import("./Preview").then((m) => ({ default: m.PreviewTab })));
+const AgentMemories = lazy(() => import("./Memory").then((m) => ({ default: m.AgentMemories })));
 
 /** /tmp/uiaudit/root/workspaces/kai → /tmp/…/workspaces/kai: the start and
  *  the end, which say where it is and what it is */
@@ -114,11 +117,13 @@ export function Panel() {
           </>
         )}
         {view === "files" && <FilesTab agent={agent} />}
+        <Suspense fallback={null}>
         {view === "code" && <CodeTab key={"code:" + agent.id} agent={agent} session={channel ? agent.session : current ?? agent.session} />}
         {view === "library" && <LibraryTab />}
         {view === "docs" && <DocsTab />}
-        {view === "schedule" && <ScheduleTab key={"sched:" + agent.id} agent={agent} data={sched} />}
         {view === "preview" && <PreviewTab key={"prv:" + (current ?? agent.session)} session={current ?? agent.session} />}
+        </Suspense>
+        {view === "schedule" && <ScheduleTab key={"sched:" + agent.id} agent={agent} data={sched} />}
         {view === "agent" && <AgentTab key={"agent:" + agent.id} agent={agent} sessionId={current ?? agent.session} />}
         {pluginTab && (
           <div className="uitab">
@@ -819,7 +824,9 @@ function AgentTab({ agent, sessionId }: { agent: AgentView; sessionId: string })
           </button>
         ))}
       </div>
-      <AgentMemories agent={agent} />
+      <Suspense fallback={null}>
+        <AgentMemories agent={agent} />
+      </Suspense>
       <WorkNotes agent={agent} />
       <div className="pn-del">
         <button className="btn dng" type="button" onClick={del}>

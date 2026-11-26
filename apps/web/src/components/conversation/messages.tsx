@@ -15,7 +15,7 @@ import { MsgAttachments } from "../Attachments";
 import { MediaCard } from "../Media";
 import { LocalPreviewCards, PreviewLine } from "../Preview";
 import { ArtifactCard } from "../ArtifactCard";
-import { detailLabel, hhmm, modelLabel, shortModelEffort, replyUsage, tokfmt, costfmt } from "../../format";
+import { detailLabel, hhmm, modelLabel, shortModelEffort, replyUsage, tokfmt, costfmt, numLocale } from "../../format";
 import { Avatar } from "../Avatar";
 import { Markdown } from "../Markdown";
 import { StreamMarkdown } from "../StreamMarkdown";
@@ -47,9 +47,9 @@ function ReplyStats({ stats }: { stats: TurnStats }) {
   const name = u.model ? shortModelEffort(models, u.model) : null;
   const tokTitle = t("msg.tokensTitle", {
     calls: u.calls,
-    input: u.input.toLocaleString(),
-    cache: u.cacheRead ? t("msg.cacheRead", { n: u.cacheRead.toLocaleString() }) : "",
-    output: u.output.toLocaleString(),
+    input: numLocale(u.input),
+    cache: u.cacheRead ? t("msg.cacheRead", { n: numLocale(u.cacheRead) }) : "",
+    output: numLocale(u.output),
   });
   return (
     <div className="replystats">

@@ -912,8 +912,21 @@ export function canApprove(me: Me | null, category: string): boolean {
 /** Phones (and other mobile-tier devices) may not manage things. */
 export const canManage = (s: State = state) => s.tier === "desktop";
 
-export async function resync() {
+// a resync whose reads have not been sent yet: a resync asked for now
+// (the event stream's hello right after the page's first one) joins it,
+// as its reads will see everything up to now anyway
+let resyncPending: Promise<void> | null = null;
+
+export function resync(): Promise<void> {
+  if (resyncPending) return resyncPending;
+  const p = resyncNow();
+  resyncPending = p;
+  return p;
+}
+
+async function resyncNow() {
   await refreshTier();
+  resyncPending = null;
   await Promise.allSettled([
     refreshAgents(),
     refreshSessions(),

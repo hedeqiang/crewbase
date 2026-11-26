@@ -7,7 +7,7 @@ import { Plus, RefreshCw, X } from "lucide-react";
 import { API, desktop, openExternal, type McpServer, type McpSkill, type McpTool, type McpToolFilter, type Permissions, type PluginView } from "../../api";
 import { t, type Key } from "../../i18n";
 import { toast } from "../../store";
-import { catLabel } from "../Settings";
+import { catLabel } from "./labels";
 import { PanelView, SlotIcon, useSlot } from "../UISlots";
 
 /** settings.card contributions from enabled plugins. */

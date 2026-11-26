@@ -1,4 +1,4 @@
-import { catLabel } from "../Settings";
+import { catLabel } from "../settings/labels";
 import { Check, CircleX, AlarmClock } from "lucide-react";
 import { type AgentView, type ApprovalRequest } from "../../api";
 import { scheduleLabel } from "../settings/Automation";

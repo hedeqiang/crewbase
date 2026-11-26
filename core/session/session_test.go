@@ -10,6 +10,34 @@ import (
 	"github.com/hedeqiang/crewbase/core/llm"
 )
 
+func TestListLoadsEveryLogFromDisk(t *testing.T) {
+	dir := t.TempDir()
+	st, _ := NewStore(nil, dir)
+	for i := 0; i < 40; i++ {
+		ss, err := st.Create(Meta{ID: NewID("s"), Kind: "agent", Agents: []string{"a"}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		ss.Append(TypeUserMessage, "", UserMessage{Text: "hi"})
+		ss.UpdateMeta(func(m *Meta) { m.Title = "t-" + ss.ID() })
+	}
+	st.Close()
+	st2, _ := NewStore(nil, dir)
+	if _, err := st2.Get(st.List()[3].ID); err != nil { // one already open
+		t.Fatal(err)
+	}
+	list := st2.List()
+	if len(list) != 40 {
+		t.Fatalf("%d sessions", len(list))
+	}
+	for _, m := range list {
+		ss, err := st2.Get(m.ID)
+		if err != nil || m.Title != "t-"+m.ID || len(ss.Events()) != 3 {
+			t.Fatalf("%+v %v", m, err)
+		}
+	}
+}
+
 func TestPersistReloadAndTornLine(t *testing.T) {
 	dir := t.TempDir()
 	st, _ := NewStore(nil, dir)
