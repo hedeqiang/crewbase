@@ -7,7 +7,6 @@ import { t, type Key } from "../i18n";
 import { allModels, effortLabel, findModel, modeLabel, modelMeta, providerName, sameRef, shortModel } from "../format";
 import { hasModels, openConnect, openSession, refreshAgents, refreshSessions, setState, toast, useFolders, useStore, currentTeam, teamMode } from "../store";
 import { AvatarEditor, AvatarRaw, COLORS, FACES, LookAvatar, SHAPES } from "./Avatar";
-import { Popover, useMenu } from "./Popover";
 import { ProviderMark } from "./ProviderMark";
 import { effortsFor } from "./ModelPicker";
 
@@ -128,11 +127,18 @@ export function NewAgent({ draft: f, setDraft }: { draft: Draft; setDraft: (d: D
   const [err, setErr] = useState(false);
   const [busy, setBusy] = useState(false);
   const nameRef = useRef<HTMLInputElement>(null);
-  const lookM = useMenu();
-  const modelM = useMenu();
+  // one of the card's choices open at a time, in place below its row
+  const [row, setRow] = useState<"look" | "model" | "mode" | "folder" | null>(null);
+  const menuOf = (k: "look" | "model" | "mode" | "folder") => ({
+    open: row === k,
+    toggle: () => setRow((x) => (x === k ? null : k)),
+    close: () => setRow((x) => (x === k ? null : x)),
+  });
+  const lookM = menuOf("look");
+  const modelM = menuOf("model");
   const [mq, setMq] = useState("");
   const [poke, setPoke] = useState(0);
-  const folderM = useMenu();
+  const folderM = menuOf("folder");
   const [newFolder, setNewFolder] = useState("");
   // which start the form came from ("" = blank, null = edited by hand)
   // a template chosen before this page opened (the welcome page) is the
@@ -167,7 +173,20 @@ export function NewAgent({ draft: f, setDraft }: { draft: Draft; setDraft: (d: D
     };
     set({ color: other(COLORS, f.color), shape: other(SHAPES, f.shape as (typeof SHAPES)[number]), face: other(FACES, (f.face || "eyes") as (typeof FACES)[number]) });
   };
-  const modeM = useMenu();
+  const modeM = menuOf("mode");
+  // Esc closes the open choice first (then, as before, leaves the page)
+  useEffect(() => {
+    if (!row) return;
+    const key = (e: KeyboardEvent) => {
+      if (e.key !== "Escape" || e.isComposing) return;
+      e.preventDefault();
+      e.stopPropagation();
+      setRow(null);
+      setMq("");
+    };
+    window.addEventListener("keydown", key, true);
+    return () => window.removeEventListener("keydown", key, true);
+  }, [row]);
   const all = useMemo(() => allModels(models), [models]);
   // grouped by provider (the same model through two gateways is told apart
   // by its group), filtered by the search
@@ -315,11 +334,11 @@ export function NewAgent({ draft: f, setDraft }: { draft: Draft; setDraft: (d: D
                 <button
                   type="button"
                   className="na-heroav"
-                  ref={lookM.ref}
+                 
                   key={f.color + f.shape + f.avatar + f.vendor + poke}
                   title={t("na.changeLook")}
                   aria-label={t("na.changeLook")}
-                  aria-haspopup="dialog"
+                  aria-expanded={lookM.open}
                   onClick={() => {
                     setPoke((n) => n + 1);
                     lookM.toggle();
@@ -363,7 +382,8 @@ export function NewAgent({ draft: f, setDraft }: { draft: Draft; setDraft: (d: D
                 </div>
               </div>
             </div>
-            <Popover anchor={lookM.anchor} open={lookM.open} onClose={lookM.close} width={360} className="na-lookpop">
+            {row === "look" && (
+              <div className="na-card na-in na-lookin" role="region" aria-label={t("na.changeLook")}>
               <AvatarEditor
                 look={f}
                 name={f.name}
@@ -376,10 +396,11 @@ export function NewAgent({ draft: f, setDraft }: { draft: Draft; setDraft: (d: D
                   </button>
                 }
               />
-            </Popover>
+              </div>
+            )}
 
             <div className="na-card rows">
-              <button type="button" className="rowsel" ref={modelM.ref} onClick={modelM.toggle} aria-haspopup="menu">
+              <button type="button" className="rowsel" onClick={modelM.toggle} aria-expanded={modelM.open}>
                 <span>{t("na.model")}</span>
                 <span className="v">
                   {primary ? (
@@ -411,98 +432,8 @@ export function NewAgent({ draft: f, setDraft }: { draft: Draft; setDraft: (d: D
                   t("na.noBackup")
                 )}
               </div>
-              <button type="button" className="rowsel" ref={modeM.ref} onClick={modeM.toggle} aria-haspopup="menu">
-                <span>{t("na.mode")}</span>
-                <span className="v">
-                  <Shield size={15} />
-                  {modeLabel(f.mode)}
-                  <ChevronDown size={14} />
-                </span>
-              </button>
-              <button type="button" className="rowsel" ref={folderM.ref} onClick={folderM.toggle} aria-haspopup="menu">
-                <span>{t("na.folder")}</span>
-                <span className="v">
-                  <Folder size={15} />
-                  {f.folder.trim() || <i>{t("na.noFolder")}</i>}
-                  <ChevronDown size={14} />
-                </span>
-              </button>
-            </div>
-
-            <div className="na-acts">
-              <button className="btn" type="button" onClick={() => leaveTo("chat")}>
-                {t("common.cancel")}
-              </button>
-              <button className="btn pri" type="button" disabled={busy} onClick={create}>
-                {busy ? t("na.creating") : t("na.create")}
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-      <Popover anchor={folderM.anchor} open={folderM.open} onClose={folderM.close} width={260}>
-        <div className="mlbl">{t("na.folder")}</div>
-        <button
-          className="mi"
-          type="button"
-          onClick={() => {
-            set({ folder: "" });
-            folderM.close();
-          }}
-        >
-          <span className="g">{t("na.noFolder")}</span>
-          <span className="ck">{!f.folder.trim() && <Check size={14} />}</span>
-        </button>
-        {folders.map((x) => (
-          <button
-            key={x}
-            className="mi"
-            type="button"
-            onClick={() => {
-              set({ folder: x });
-              folderM.close();
-            }}
-          >
-            <Folder size={15} />
-            <span className="g">{x}</span>
-            <span className="ck">{f.folder.trim() === x && <Check size={14} />}</span>
-          </button>
-        ))}
-        <hr />
-        <form
-          className="dirtype"
-          onSubmit={(e) => {
-            e.preventDefault();
-            const v = newFolder.trim();
-            if (v) {
-              set({ folder: v });
-              setNewFolder("");
-              folderM.close();
-            }
-          }}
-        >
-          <input className="fi" value={newFolder} maxLength={40} onChange={(e) => setNewFolder(e.target.value)} placeholder={t("na.newFolderPh")} />
-          <button className="btn sm" type="submit" disabled={!newFolder.trim()}>
-            {t("common.add")}
-          </button>
-        </form>
-      </Popover>
-      {importing && (
-        <ImportRoleDialog
-          onClose={() => setImporting(false)}
-          options={{ mode: f.mode, color: f.color, shape: f.shape, folder: f.folder.trim() || undefined, modelRefs: modelRefs() }}
-        />
-      )}
-
-      <Popover
-        anchor={modelM.anchor}
-        open={modelM.open}
-        onClose={() => {
-          modelM.close();
-          setMq("");
-        }}
-        width={340}
-      >
+              {row === "model" && (
+                <div className="na-in inmenu" role="region" aria-label={t("na.model")}>
         <div className="mlbl">{t("na.model")}</div>
         {all.length > 8 && (
           <label className="flsearch">
@@ -548,8 +479,18 @@ export function NewAgent({ draft: f, setDraft }: { draft: Draft; setDraft: (d: D
         </div>
           </>
         )}
-      </Popover>
-      <Popover anchor={modeM.anchor} open={modeM.open} onClose={modeM.close} width={320}>
+                      </div>
+              )}
+              <button type="button" className="rowsel" onClick={modeM.toggle} aria-expanded={modeM.open}>
+                <span>{t("na.mode")}</span>
+                <span className="v">
+                  <Shield size={15} />
+                  {modeLabel(f.mode)}
+                  <ChevronDown size={14} />
+                </span>
+              </button>
+              {row === "mode" && (
+                <div className="na-in inmenu" role="region" aria-label={t("na.mode")}>
         <div className="mlbl">{t("na.mode")}</div>
         {(["read-only", "sandbox"] as const).map((m) => (
           <button
@@ -572,7 +513,85 @@ export function NewAgent({ draft: f, setDraft }: { draft: Draft; setDraft: (d: D
         <p className="small" style={{ margin: "4px 9px 6px" }}>
           {t("na.modeNote")}
         </p>
-      </Popover>
+                </div>
+              )}
+              <button type="button" className="rowsel" onClick={folderM.toggle} aria-expanded={folderM.open}>
+                <span>{t("na.folder")}</span>
+                <span className="v">
+                  <Folder size={15} />
+                  {f.folder.trim() || <i>{t("na.noFolder")}</i>}
+                  <ChevronDown size={14} />
+                </span>
+              </button>
+              {row === "folder" && (
+                <div className="na-in inmenu" role="region" aria-label={t("na.folder")}>
+        <div className="mlbl">{t("na.folder")}</div>
+        <button
+          className="mi"
+          type="button"
+          onClick={() => {
+            set({ folder: "" });
+            folderM.close();
+          }}
+        >
+          <span className="g">{t("na.noFolder")}</span>
+          <span className="ck">{!f.folder.trim() && <Check size={14} />}</span>
+        </button>
+        {folders.map((x) => (
+          <button
+            key={x}
+            className="mi"
+            type="button"
+            onClick={() => {
+              set({ folder: x });
+              folderM.close();
+            }}
+          >
+            <Folder size={15} />
+            <span className="g">{x}</span>
+            <span className="ck">{f.folder.trim() === x && <Check size={14} />}</span>
+          </button>
+        ))}
+        <hr />
+        <form
+          className="dirtype"
+          onSubmit={(e) => {
+            e.preventDefault();
+            const v = newFolder.trim();
+            if (v) {
+              set({ folder: v });
+              setNewFolder("");
+              folderM.close();
+            }
+          }}
+        >
+          <input className="fi" value={newFolder} maxLength={40} onChange={(e) => setNewFolder(e.target.value)} placeholder={t("na.newFolderPh")} />
+          <button className="btn sm" type="submit" disabled={!newFolder.trim()}>
+            {t("common.add")}
+          </button>
+        </form>
+                </div>
+              )}
+            </div>
+
+            <div className="na-acts">
+              <button className="btn" type="button" onClick={() => leaveTo("chat")}>
+                {t("common.cancel")}
+              </button>
+              <button className="btn pri" type="button" disabled={busy} onClick={create}>
+                {busy ? t("na.creating") : t("na.create")}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+      {importing && (
+        <ImportRoleDialog
+          onClose={() => setImporting(false)}
+          options={{ mode: f.mode, color: f.color, shape: f.shape, folder: f.folder.trim() || undefined, modelRefs: modelRefs() }}
+        />
+      )}
+
     </section>
   );
 }

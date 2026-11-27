@@ -52,20 +52,20 @@
 .ctrayh { display: flex; align-items: center; gap: 6px; padding: 6px 6px 2px 12px; }
 .ctrayh b { flex: 1; min-width: 0; font-size: var(--fs-13); font-weight: 600; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .ctrayb { padding: 0 6px 6px; min-height: 0; }
-/* its rows read like a menu's */
-.ctray .mi { display: flex; align-items: center; gap: 8px; width: 100%; padding: 6px 8px; border-radius: var(--r-8); text-align: left; }
-.ctray .mi:hover, .ctray .mi:focus-visible { background: var(--hover); }
-.ctray .mi:disabled { opacity: .45; }
-.ctray .mi.static:hover { background: none; }
-.ctray .mi .g { flex: 1; min-width: 0; }
-.ctray .mi .g > span { display: block; font-size: var(--fs-12); color: var(--muted); line-height: 1.4; margin-top: 1px; overflow: hidden; text-overflow: ellipsis; }
-.ctray .mi .ck { color: var(--accent-text); width: 16px; display: grid; place-items: center; flex: none; }
-.ctray .mi svg.lucide { color: var(--text2); flex: none; }
-.ctray .mi .ck svg.lucide { color: var(--accent-text); }
-.ctray .mlbl { display: flex; align-items: baseline; gap: 6px; font-size: var(--fs-11); font-weight: 600; letter-spacing: .02em; color: var(--muted); padding: 8px 8px 3px; }
-.ctray hr { border: 0; border-top: 1px solid var(--border); margin: 4px 2px; }
-.ctray .flsearch { display: flex; align-items: center; gap: 6px; margin: 2px 2px 6px; padding: 6px 8px; border-radius: var(--r-8); background: var(--hover); color: var(--muted); }
-.ctray .flsearch input { flex: 1; min-width: 0; border: 0; outline: 0; background: none; font: inherit; color: var(--text); }
+/* its rows read like a menu's (and every in-place list's: .inmenu) */
+:is(.ctray, .inmenu) .mi { display: flex; align-items: center; gap: 8px; width: 100%; padding: 6px 8px; border-radius: var(--r-8); text-align: left; }
+:is(.ctray, .inmenu) .mi:hover, .ctray .mi:focus-visible { background: var(--hover); }
+:is(.ctray, .inmenu) .mi:disabled { opacity: .45; }
+:is(.ctray, .inmenu) .mi.static:hover { background: none; }
+:is(.ctray, .inmenu) .mi .g { flex: 1; min-width: 0; }
+:is(.ctray, .inmenu) .mi .g > span { display: block; font-size: var(--fs-12); color: var(--muted); line-height: 1.4; margin-top: 1px; overflow: hidden; text-overflow: ellipsis; }
+:is(.ctray, .inmenu) .mi .ck { color: var(--accent-text); width: 16px; display: grid; place-items: center; flex: none; }
+:is(.ctray, .inmenu) .mi svg.lucide { color: var(--text2); flex: none; }
+:is(.ctray, .inmenu) .mi .ck svg.lucide { color: var(--accent-text); }
+:is(.ctray, .inmenu) .mlbl { display: flex; align-items: baseline; gap: 6px; font-size: var(--fs-11); font-weight: 600; letter-spacing: .02em; color: var(--muted); padding: 8px 8px 3px; }
+:is(.ctray, .inmenu) hr { border: 0; border-top: 1px solid var(--border); margin: 4px 2px; }
+:is(.ctray, .inmenu) .flsearch { display: flex; align-items: center; gap: 6px; margin: 2px 2px 6px; padding: 6px 8px; border-radius: var(--r-8); background: var(--hover); color: var(--muted); }
+:is(.ctray, .inmenu) .flsearch input { flex: 1; min-width: 0; border: 0; outline: 0; background: none; font: inherit; color: var(--text); }
 /* 模型: the level row, then the list (scrolls within the tray) */
 .mtray .mpsec + .mpsec { margin-top: 2px; }
 .mtray .mpfor { font-weight: 400; color: var(--muted); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; min-width: 0; }
@@ -100,3 +100,14 @@
 .nccard .mhd { padding-top: 16px; }
 @media (max-width: 640px) { .ncpage { padding: 12px 12px 32px; } }
 .fl > span:first-child i { margin-left: 2px; }
+
+/* 新建 Agent: a choice opens below its row, inside the card */
+.na-in { margin: 0 0 6px; padding: 4px; border: 1px solid var(--border); border-radius: var(--r-12); background: var(--raised); }
+.na-in .seg { margin: 0 8px 6px; flex-wrap: wrap; }
+.na-in .dirtype { display: flex; gap: 6px; padding: 4px 6px 6px; }
+.na-in .dirtype .fi { flex: 1; min-width: 0; }
+.na-in.inmenu .flsearch + * { margin-top: 0; }
+.na-in.inmenu { max-height: min(52vh, 440px); overflow: auto; overscroll-behavior: contain; }
+.na-lookin { padding: 12px; background: var(--surface); }
+.na-lookin .na-look .na-shapes { flex-wrap: wrap; }
+.na-lookin .lookpick { padding: 0; }
