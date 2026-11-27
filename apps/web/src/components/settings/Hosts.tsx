@@ -1,4 +1,5 @@
 import { EmptyState } from "../EmptyState";
+import { Sheet } from "../Sheet";
 import { Cloud, Copy, Laptop, Loader2, Pencil, RefreshCw, ShieldCheck, Smartphone, Trash2, Wifi, X } from "lucide-react";
 import qrcode from "qrcode-generator";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -283,9 +284,7 @@ export function Hosts() {
       </div>
 
       {need && (
-        <>
-          <div className="ovscrim show" onMouseDown={() => setNeed(null)} />
-          <div className="modal pairdlg" role="dialog" aria-modal="true" aria-label={t("dev.pairTitle")}>
+        <Sheet onClose={() => setNeed(null)} className="pairdlg" label={t("dev.pairTitle")}>
             <div className="mhd">
               <h3>{need === "desktop" ? t("dev.pairComputer") : t("dev.pairPhone")}</h3>
               <button className="ib" type="button" aria-label={t("common.close")} onClick={() => setNeed(null)}>
@@ -341,14 +340,11 @@ export function Hosts() {
                 {rechecking ? <Loader2 size={13} className="spin" /> : <RefreshCw size={13} />} {t("dev.needRecheck")}
               </button>
             </div>
-          </div>
-        </>
+          </Sheet>
       )}
 
       {open && (
-        <>
-          <div className="ovscrim show" onMouseDown={() => void close()} />
-          <div className="modal pairdlg" role="dialog" aria-modal="true" aria-label={t("dev.pairTitle")}>
+        <Sheet onClose={() => void close()} className="pairdlg" label={t("dev.pairTitle")}>
             <div className="mhd">
               <h3>{open.p.tier === "desktop" ? t("dev.pairComputer") : t("dev.pairPhone")}</h3>
               <button className="ib" type="button" aria-label={t("common.close")} onClick={() => void close()}>
@@ -377,8 +373,7 @@ export function Hosts() {
                 </p>
               </div>
             </div>
-          </div>
-        </>
+          </Sheet>
       )}
     </>
   );

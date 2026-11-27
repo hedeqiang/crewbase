@@ -111,3 +111,13 @@
 .na-lookin { padding: 12px; background: var(--surface); }
 .na-lookin .na-look .na-shapes { flex-wrap: wrap; }
 .na-lookin .lookpick { padding: 0; }
+
+/* ---- Sheet: what was a dialog, opened as a card at the top of its page */
+.sheet-slot { padding: 0 28px; }
+.sheet-slot:empty { display: none; }
+.sheet { max-width: 760px; margin: 14px 0 4px; background: var(--surface); border: 1px solid var(--border2); border-radius: var(--r-14); box-shadow: 0 1px 2px rgba(20, 20, 20, .04); scroll-margin-top: 12px; animation: sheet-in var(--dur-normal, .2s) var(--ease-out, ease-out) backwards; }
+.sheet + .sheet { margin-top: 10px; }
+.sheet .mhd { padding-top: 14px; }
+@keyframes sheet-in { from { opacity: 0; transform: translateY(-4px); } }
+@media (prefers-reduced-motion: reduce) { .sheet { animation: none; } }
+@media (max-width: 820px) { .sheet-slot { padding: 0 16px; } .sheet { max-width: none; } }

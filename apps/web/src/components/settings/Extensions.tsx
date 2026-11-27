@@ -1,4 +1,5 @@
 import { Skeleton } from "../Skeleton";
+import { Sheet } from "../Sheet";
 import { Fragment, useEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent, type ReactNode } from "react";
 import { UpdatesSection, useAddonUpdates } from "./Updates";
 import { AgentDocsDialog, AgentDocsIcon, useAgentDocs } from "./AgentDocs";
@@ -836,10 +837,8 @@ function useEsc(onClose: () => void) {
  *  otherwise be the containing block of the fixed scrim and modal). */
 function Modal({ item, title, onClose, children }: { item: CatItem; title: string; onClose: () => void; children: ReactNode }) {
   useEsc(onClose);
-  return createPortal(
-    <>
-      <div className="scrim" onClick={onClose} />
-      <div className="modal mkdlg" role="dialog" aria-modal="true" aria-labelledby="mkTitle">
+  return (
+    <Sheet onClose={onClose} className="mkdlg">
         <div className="mhd">
           <ItemIcon icon={item.icon} id={item.id} label={item.name} kind={item.kind} />
           <h3 id="mkTitle">{title}</h3>
@@ -848,9 +847,7 @@ function Modal({ item, title, onClose, children }: { item: CatItem; title: strin
           </button>
         </div>
         <div className="mbd">{children}</div>
-      </div>
-    </>,
-    document.body,
+      </Sheet>
   );
 }
 
@@ -1137,10 +1134,8 @@ function ScopeDialog({ server, label, onClose, onSaved }: { server: McpServer; l
       setBusy(false);
     }
   };
-  return createPortal(
-    <>
-      <div className="scrim" onClick={onClose} />
-      <div className="modal sm mkdlg" role="dialog" aria-modal="true" aria-labelledby="mkScope">
+  return (
+    <Sheet onClose={onClose} className="sm mkdlg">
         <div className="mhd">
           <h3 id="mkScope">{t("mk2.scopeTitle", { name: label })}</h3>
           <button className="ix" type="button" aria-label={t("common.close")} onClick={onClose}>
@@ -1159,9 +1154,7 @@ function ScopeDialog({ server, label, onClose, onSaved }: { server: McpServer; l
             </button>
           </div>
         </div>
-      </div>
-    </>,
-    document.body,
+      </Sheet>
   );
 }
 
@@ -1183,10 +1176,8 @@ function AccessDialog({ server, label, onClose }: { server: McpServer; label: st
       setBusy(null);
     }
   };
-  return createPortal(
-    <>
-      <div className="scrim" onClick={onClose} />
-      <div className="modal sm mkdlg" role="dialog" aria-modal="true" aria-labelledby="mkAccess">
+  return (
+    <Sheet onClose={onClose} className="sm mkdlg">
         <div className="mhd">
           <h3 id="mkAccess">{t("mk2.accessTitle", { name: label })}</h3>
           <button className="ix" type="button" aria-label={t("common.close")} onClick={onClose}>
@@ -1226,9 +1217,7 @@ function AccessDialog({ server, label, onClose }: { server: McpServer; label: st
             </button>
           </div>
         </div>
-      </div>
-    </>,
-    document.body,
+      </Sheet>
   );
 }
 

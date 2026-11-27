@@ -1,4 +1,5 @@
 import { Skeleton } from "../Skeleton";
+import { Sheet } from "../Sheet";
 import { Check, ExternalLink, KeyRound, Loader2, MessagesSquare, MoreHorizontal, Pause, Pencil, Play, Plus, Send, Trash2, X } from "lucide-react";
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { API, type ImGateway, type ImPlatform, type ImRegion } from "../../api";
@@ -502,9 +503,7 @@ function ConnectDialog({ p, g, taken, onClose, onSaved }: { p: ImPlatform; g?: I
   const canNext = step === 0 || (step === 1 && credsOk);
   const stepsKey = `imx.how.${p.id}` as Key;
   return (
-    <>
-      <div className="scrim" onClick={onClose} />
-      <div className="modal imdlg" role="dialog" aria-modal="true" aria-labelledby="imTitle">
+    <Sheet onClose={onClose} className="imdlg">
         <div className="mhd">
           <ImMark platform={p.id} label={brand} size={24} />
           <h3 id="imTitle">{editing ? t("imx.editTitle", { name: brand }) : t("imx.connectTitle", { name: brand })}</h3>
@@ -718,7 +717,6 @@ function ConnectDialog({ p, g, taken, onClose, onSaved }: { p: ImPlatform; g?: I
             )}
           </div>
         </div>
-      </div>
-    </>
+      </Sheet>
   );
 }

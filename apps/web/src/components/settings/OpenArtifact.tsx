@@ -3,10 +3,10 @@
 // once it is installed Settings › Open Artifact shows the same controls.
 // The runtime comes from npm, checked against its sha512 digest.
 
+import { Sheet } from "../Sheet";
 import { Skeleton } from "../Skeleton";
 import { ExternalLink, Info, RefreshCw, Shapes, ShieldCheck, X } from "lucide-react";
 import { useEffect, useState } from "react";
-import { createPortal } from "react-dom";
 import { API, openExternal, type OpenArtifactStatus } from "../../api";
 import { t } from "../../i18n";
 import { refreshOpenArtifact, toast } from "../../store";
@@ -158,10 +158,8 @@ export function OpenArtifactDialog({ onClose }: { onClose: () => void }) {
     window.addEventListener("keydown", k);
     return () => window.removeEventListener("keydown", k);
   }, [onClose]);
-  return createPortal(
-    <>
-      <div className="scrim" onClick={onClose} />
-      <div className="modal mkdlg addlg oadlg" role="dialog" aria-modal="true" aria-labelledby="oaTitle">
+  return (
+    <Sheet onClose={onClose} className="mkdlg addlg oadlg">
         <div className="mhd">
           <OpenArtifactIcon size={32} />
           <h3 id="oaTitle">Open Artifact</h3>
@@ -178,9 +176,7 @@ export function OpenArtifactDialog({ onClose }: { onClose: () => void }) {
           </p>
           {st ? <Body st={st} setSt={setSt} /> : <Skeleton />}
         </div>
-      </div>
-    </>,
-    document.body,
+      </Sheet>
   );
 }
 

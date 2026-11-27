@@ -1,4 +1,5 @@
 import { EmptyState } from "../EmptyState";
+import { Sheet } from "../Sheet";
 import { Check, ChevronRight, Crown, Loader2, MoreHorizontal, Smartphone, Trash2, UserPlus, Users, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { API, type MemberView } from "../../api";
@@ -298,9 +299,7 @@ function AddMemberDialog({ onClose, onAdded }: { onClose: () => void; onAdded: (
     }
   };
   return (
-    <>
-      <div className="scrim" onClick={onClose} />
-      <div className="modal" role="dialog" aria-modal="true" aria-labelledby="amTitle">
+    <Sheet onClose={onClose} className="">
         <div className="mhd">
           <h3 id="amTitle">{t("team.add")}</h3>
           <button className="ix" type="button" aria-label={t("common.close")} onClick={onClose}>
@@ -342,7 +341,6 @@ function AddMemberDialog({ onClose, onAdded }: { onClose: () => void; onAdded: (
             </button>
           </div>
         </form>
-      </div>
-    </>
+      </Sheet>
   );
 }

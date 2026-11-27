@@ -1,4 +1,5 @@
 import { Check, ChevronRight, Globe, Lock, MoreHorizontal, Pencil, Plus, Trash2, X } from "lucide-react";
+import { Sheet } from "../Sheet";
 import { useEffect, useState } from "react";
 import { API, DEFAULT_TEAM, teamOf, type MemberView, type TeamRole, type TeamView, type TeamVisibility } from "../../api";
 import { t, type Key } from "../../i18n";
@@ -469,9 +470,7 @@ function NewTeamDialog({ onClose, onCreated }: { onClose: () => void; onCreated:
     if (ok) onCreated(id);
   };
   return (
-    <>
-      <div className="scrim" onClick={onClose} />
-      <div className="modal" role="dialog" aria-modal="true" aria-labelledby="ntTitle">
+    <Sheet onClose={onClose} className="">
         <div className="mhd">
           <h3 id="ntTitle">{t("teams.new")}</h3>
           <button className="ix" type="button" aria-label={t("common.close")} onClick={onClose}>
@@ -516,7 +515,6 @@ function NewTeamDialog({ onClose, onCreated }: { onClose: () => void; onCreated:
             </button>
           </div>
         </form>
-      </div>
-    </>
+      </Sheet>
   );
 }

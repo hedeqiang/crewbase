@@ -1,6 +1,7 @@
 // Pieces of 设置 › 插件与技能 shared by the marketplace and installed views
 // (Extensions.tsx): plugin permission review, the hand-entry MCP form and
 // an MCP server's tool list.
+import { Sheet } from "../Sheet";
 import { Skeleton } from "../Skeleton";
 import { useEffect, useState } from "react";
 import { Plus, RefreshCw, X } from "lucide-react";
@@ -83,9 +84,7 @@ export function ApproveDialog({ p, onClose, onDone }: { p: PluginView; onClose: 
     }
   };
   return (
-    <>
-      <div className="scrim" onClick={onClose} />
-      <div className="modal" role="dialog" aria-modal="true" aria-labelledby="apTitle">
+    <Sheet onClose={onClose} className="">
         <div className="mhd">
           <h3 id="apTitle">{pending ? t("ext.approveTitle", { name: p.name }) : t("ext.permsTitle", { name: p.name })}</h3>
           <button className="ix" type="button" aria-label={t("common.close")} onClick={onClose}>
@@ -130,8 +129,7 @@ export function ApproveDialog({ p, onClose, onDone }: { p: PluginView; onClose: 
             )}
           </div>
         </div>
-      </div>
-    </>
+      </Sheet>
   );
 }
 

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState, type Dispatch, type SetStateAction } from "react";
+import { Sheet } from "../Sheet";
 import { ChevronDown, ChevronRight, Lock, Search, X } from "lucide-react";
 import { MonoMark } from "../ProviderMark";
 import { API, api, type PluginView } from "../../api";
@@ -145,9 +146,7 @@ export function PasteInstall({
   };
 
   return (
-    <>
-      <div className="scrim" onClick={onClose} />
-      <div className={"modal pstmodal" + (plan?.kind === "skill" ? " sk" + ((plan.skills?.length ?? 0) > MANY ? " tall" : "") : "")} role="dialog" aria-modal="true" aria-labelledby="pstTitle">
+    <Sheet onClose={onClose} className={"pstmodal" + (plan?.kind === "skill" ? " sk" + ((plan.skills?.length ?? 0) > MANY ? " tall" : "") : "")}>
         <div className="mhd">
           <h3 id="pstTitle">{plan ? t("pst.confirmTitle") : t("pst.title")}</h3>
           <button className="ix" type="button" aria-label={t("common.close")} onClick={onClose}>
@@ -277,8 +276,7 @@ export function PasteInstall({
             </div>
           )}
         </div>
-      </div>
-    </>
+      </Sheet>
   );
 }
 

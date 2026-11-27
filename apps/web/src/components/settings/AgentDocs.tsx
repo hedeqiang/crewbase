@@ -3,8 +3,8 @@
 // and an admin agent token; every agent then gets its own identity there,
 // and comments that @mention one become its tasks.
 
+import { Sheet } from "../Sheet";
 import { useEffect, useState } from "react";
-import { createPortal } from "react-dom";
 import { Check, ExternalLink, FileText, Home, Maximize2, RefreshCw, X } from "lucide-react";
 import { API, openExternal, type AgentDocsStatus } from "../../api";
 import { getLang, t } from "../../i18n";
@@ -63,10 +63,8 @@ export function AgentDocsDialog({ st, onClose, onChanged }: { st: AgentDocsStatu
   const nameOf = (id: string) => agents[id]?.name ?? id;
   const docsURL = st?.settings.url;
 
-  return createPortal(
-    <>
-      <div className="scrim" onClick={onClose} />
-      <div className="modal mkdlg addlg" role="dialog" aria-modal="true" aria-labelledby="adTitle">
+  return (
+    <Sheet onClose={onClose} className="mkdlg addlg">
         <div className="mhd">
           <AgentDocsIcon size={32} />
           <h3 id="adTitle">Open Agent Docs</h3>
@@ -204,9 +202,7 @@ export function AgentDocsDialog({ st, onClose, onChanged }: { st: AgentDocsStatu
             </>
           )}
         </div>
-      </div>
-    </>,
-    document.body,
+      </Sheet>
   );
 }
 
