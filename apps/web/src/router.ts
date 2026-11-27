@@ -6,6 +6,7 @@
 //   #/settings/<section>       (switching sections replaces the entry)
 //   #/desk/<library|auto|memory>[?item=<library id>]   (工作台)
 //   #/new-agent
+//   #/new-channel            (新建频道, a page in the main column)
 //   #/                       (nothing open)
 //
 // The store still holds the state and the app still navigates by setting
@@ -35,6 +36,7 @@ export interface Loc {
   desk?: DeskPage;
   tab?: string; // a settings page's own tab (older links)
   item?: number;
+  nc?: boolean; // 新建频道 (in the chat view's main column)
 }
 
 const PANEL_TABS = new Set(["task", "schedule", "files", "code", "preview", "library", "docs", "agent"]);
@@ -46,6 +48,7 @@ export function locOf(s: State): Loc {
   if (s.view === "settings") return { view: "settings", section: s.settingsList && sheetPanel() ? undefined : s.settings };
   if (s.view === "desk") return { view: "desk", desk: s.desk, item: s.desk === "library" && s.libOpen !== null ? s.libOpen : undefined };
   if (s.view === "newAgent") return { view: "newAgent" };
+  if (s.view === "chat" && s.newChannel) return { view: "chat", nc: true };
   const l: Loc = { view: "chat", session: s.current ?? undefined };
   if (s.current && s.panelOpen) {
     l.panel = s.panelTab;
@@ -66,6 +69,8 @@ export function format(l: Loc): string {
     if (l.item !== undefined) q.set("item", String(l.item));
   } else if (l.view === "newAgent") {
     path = "#/new-agent";
+  } else if (l.nc) {
+    path = "#/new-channel";
   } else if (l.session) {
     path = "#/c/" + encodeURIComponent(l.session);
     if (l.panel) q.set("panel", l.panel);
@@ -118,6 +123,8 @@ export function parse(hash: string): Loc | null {
     }
     case "new-agent":
       return { view: "newAgent" };
+    case "new-channel":
+      return { view: "chat", nc: true };
   }
   return null;
 }
@@ -143,7 +150,7 @@ function isNewPlace(a: Loc | null, b: Loc): boolean {
   // trackpad swipe leaves 设置 instead of stepping through the sections
   // (on a phone, the list → a section is still a step: back is the list)
   if (a.view === "settings" && b.view === "settings" && a.section && b.section) return false;
-  if (a.view !== b.view || a.session !== b.session || a.section !== b.section || a.desk !== b.desk || a.item !== b.item) return true;
+  if (a.view !== b.view || a.session !== b.session || a.section !== b.section || a.desk !== b.desk || a.item !== b.item || !!a.nc !== !!b.nc) return true;
   // the panel opened or closed: the same place, except on a phone-width
   // window, where the panel is a sheet over it (back closes it)
   if (!a.panel || !b.panel) return !a.panel !== !b.panel && sheetPanel();
@@ -187,16 +194,17 @@ export function apply(l: Loc) {
   applying = true;
   try {
     if (l.view === "settings") {
-      setState({ view: "settings", settings: l.section ?? s.settings ?? "general", settingsList: !l.section && sheetPanel(), palette: false, ...(l.tab ? { settingsTab: l.tab } : {}) });
+      setState({ view: "settings", newChannel: false, settings: l.section ?? s.settings ?? "general", settingsList: !l.section && sheetPanel(), palette: false, ...(l.tab ? { settingsTab: l.tab } : {}) });
     } else if (l.view === "desk") {
-      setState({ view: "desk", desk: l.desk ?? "library", palette: false, ...(l.desk === "library" ? { libOpen: l.item ?? null } : {}), ...(sheetPanel() ? { listOpen: false } : {}) });
+      setState({ view: "desk", newChannel: false, desk: l.desk ?? "library", palette: false, ...(l.desk === "library" ? { libOpen: l.item ?? null } : {}), ...(sheetPanel() ? { listOpen: false } : {}) });
     } else if (l.view === "newAgent") {
-      setState({ view: "newAgent", palette: false, ...(sheetPanel() ? { listOpen: false } : {}) });
+      setState({ view: "newAgent", newChannel: false, palette: false, ...(sheetPanel() ? { listOpen: false } : {}) });
     } else {
       const session = l.session ?? null;
       const known = !session || !!s.sessions[session] || !!s.channels[session] || Object.values(s.agents).some((a) => a.session === session);
       setState({
         view: "chat",
+        newChannel: !!l.nc,
         current: known ? session : s.current,
         palette: false,
         // on a phone the list gives way to the conversation, as a tap on it

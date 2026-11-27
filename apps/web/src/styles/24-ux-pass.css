@@ -93,3 +93,10 @@
 .addprov.apin .mhd .ib { width: 28px; height: 28px; display: grid; place-items: center; border-radius: var(--r-8); color: var(--text2); }
 .addprov.apin .mhd .ib:hover { background: var(--hover); }
 .addprov.apin .ap-grid { max-height: none; overflow: visible; }
+
+/* 新建频道, a page in the main column (as 新建 Agent is) */
+.ncpage { flex: 1; min-height: 0; overflow: auto; padding: 24px 16px 40px; }
+.nccard { max-width: 560px; margin: 0 auto; background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-14); }
+.nccard .mhd { padding-top: 16px; }
+@media (max-width: 640px) { .ncpage { padding: 12px 12px 32px; } }
+.fl > span:first-child i { margin-left: 2px; }

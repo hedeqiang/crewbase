@@ -474,7 +474,7 @@ export function openSession(id: string) {
       hist = [...hist.slice(0, histPos + 1).filter((x) => x !== id), id].slice(-HIST_MAX);
       histPos = hist.length - 1;
     }
-    return { view: "chat", current: id, hist, histPos, listOpen: narrow() ? false : s.listOpen, palette: false, subView: id === s.current ? s.subView : null, fileOpen: id === s.current ? s.fileOpen : null };
+    return { view: "chat", newChannel: false, current: id, hist, histPos, listOpen: narrow() ? false : s.listOpen, palette: false, subView: id === s.current ? s.subView : null, fileOpen: id === s.current ? s.fileOpen : null };
   });
   void loadSession(id);
 }
@@ -748,8 +748,9 @@ export async function refreshChannel(id: string) {
   }
 }
 
+/** 新建频道: a page in the main column (#/new-channel). */
 export function openNewChannel(folder = "") {
-  setState({ newChannel: true, palette: false, createIn: folder });
+  setState({ view: "chat", newChannel: true, palette: false, createIn: folder, listOpen: narrow() ? false : state.listOpen });
 }
 
 let readTimer: number | undefined;

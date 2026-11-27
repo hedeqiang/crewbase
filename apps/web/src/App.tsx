@@ -93,6 +93,7 @@ function start() {
 
 function Shell() {
   const view = useStore((s) => s.view);
+  const newChannel = useStore((s) => s.newChannel);
   const listOpen = useStore((s) => s.listOpen);
   const panelOpen = useStore((s) => s.panelOpen);
   const connected = useStore((s) => s.connected);
@@ -219,6 +220,8 @@ function Shell() {
                 <ConvHeader draftColor={draft.color} draftShape={draft.shape} draftFace={draft.face} draftLook={draft} />
                 {view === "newAgent" ? (
                   <NewAgent draft={draft} setDraft={setDraft} />
+                ) : newChannel ? (
+                  <NewChannel />
                 ) : (
                   <Conversation onTemplate={(d) => setDraft({ ...emptyDraft(), ...d })} />
                 )}
@@ -231,7 +234,6 @@ function Shell() {
       </div>
       <Palette />
       
-      <NewChannel />
       <Toasts />
       <UpdateNotes />
       <ConfirmHost />
@@ -279,7 +281,6 @@ function closeTopOverlay(e?: KeyboardEvent): boolean {
     requestAnimationFrame(() => document.querySelector<HTMLElement>(".composer textarea")?.focus({ preventScroll: true }));
     return true;
   }
-  if (s.newChannel) return setState({ newChannel: false }), true;
   if (s.hostConfirm) return setState({ hostConfirm: null }), true;
   // the list and the panel as overlays on a narrow window
   // (设置 has its own list: the conversations' one is not on screen there)
