@@ -130,3 +130,9 @@
 .menu.inline[data-side="top"] { animation-name: popin-up; }
 @keyframes popin-up { from { opacity: 0; transform: translateY(3px); } }
 @media (prefers-reduced-motion: reduce) { .menu.inline { animation: none; } }
+
+/* a confirmation, in place below what asked it */
+.menu.inline.cfmin { padding: 4px 4px 8px; border-color: var(--border2); }
+.menu.inline.cfmin .mhd { padding: 10px 12px 2px; }
+.menu.inline.cfmin .mbd { padding: 4px 12px 0; }
+.menu.inline.cfmin .mft { margin-top: 10px; padding: 0 8px; }

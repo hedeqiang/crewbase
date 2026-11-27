@@ -1,5 +1,26 @@
 import { useEffect, useRef, useState } from "react";
 import { t } from "../i18n";
+import { Popover } from "./Popover";
+
+// what was last pressed: the question opens in place, below it
+let pressed: { el: HTMLElement; at: number } | null = null;
+if (typeof document !== "undefined")
+  document.addEventListener(
+    "pointerdown",
+    (e) => {
+      const el = (e.target as HTMLElement | null)?.closest?.<HTMLElement>("button, [role=button], a, .mi");
+      if (el) pressed = { el, at: Date.now() };
+    },
+    true,
+  );
+function anchorNow(): HTMLElement | null {
+  const a = document.activeElement as HTMLElement | null;
+  let el = a && a !== document.body && a.closest("button, [role=button], a, .mi") ? a : pressed && Date.now() - pressed.at < 3000 && pressed.el.isConnected ? pressed.el : null;
+  // asked from a menu that closes as it asks: below the row the menu was for
+  const host = el?.closest<HTMLElement>(".popin-host");
+  if (host) el = (host.previousElementSibling ?? host.nextElementSibling) as HTMLElement | null;
+  return el;
+}
 
 /** A confirmation asked with the app's own dialog (theme, language, Esc),
  *  instead of the browser's window.confirm. Resolves true on OK. */
@@ -12,7 +33,7 @@ export interface ConfirmOptions {
   danger?: boolean;
 }
 
-type Pending = ConfirmOptions & { done: (v: boolean) => void };
+type Pending = ConfirmOptions & { done: (v: boolean) => void; anchor: HTMLElement | null };
 
 let show: ((p: Pending) => void) | null = null;
 
@@ -43,7 +64,8 @@ export function splitQuestion(s: string): [string, string] {
 export function confirmDialog(o: ConfirmOptions | string): Promise<boolean> {
   const opts = typeof o === "string" ? { text: o, danger: true } : o;
   if (!show) return Promise.resolve(window.confirm(opts.text));
-  return new Promise((done) => show!({ ...opts, done }));
+  const anchor = anchorNow();
+  return new Promise((done) => show!({ ...opts, done, anchor }));
 }
 
 /** Mounted once (App), renders the open confirmation. */
@@ -58,8 +80,11 @@ export function ConfirmHost() {
     };
   }, []);
   useEffect(() => {
-    // a destructive answer is never one stray Enter away
-    if (p) (p.danger ? cancelRef : okRef).current?.focus();
+    // a destructive answer is never one stray Enter away (after it is
+    // placed: in place it appears a moment later)
+    if (!p) return;
+    const id = window.setTimeout(() => (p.danger ? cancelRef : okRef).current?.focus({ preventScroll: true }), 30);
+    return () => window.clearTimeout(id);
   }, [p]);
   if (!p) return null;
   const answer = (v: boolean) => {
@@ -70,6 +95,38 @@ export function ConfirmHost() {
   // with a full-width ？ (names typed with an ASCII "?" stay whole); en with
   // a "?" ending the text or followed by a new sentence.
   const [title, body] = splitQuestion(p.text);
+  const parts = (
+    <>
+      <div className="mhd">
+        <b>{title}</b>
+      </div>
+      {body && (
+        <div className="mbd">
+          <p className="small" style={{ margin: 0, whiteSpace: "pre-line" }}>
+            {body}
+          </p>
+        </div>
+      )}
+      <div className="mft">
+        <button ref={cancelRef} className="btn ghost" type="button" onClick={() => answer(false)}>
+          {t("common.cancel")}
+        </button>
+        <button ref={okRef} className={"btn " + (p.danger ? "dngfill" : "pri")} type="button" onClick={() => answer(true)}>
+          {p.ok ?? verbOf(p.text) ?? t("common.ok")}
+        </button>
+      </div>
+    </>
+  );
+  // in place, below what asked it (a click outside or Esc answers no);
+  // a dialog only when nothing on the page asked
+  if (p.anchor?.isConnected)
+    return (
+      <Popover anchor={p.anchor} open onClose={() => answer(false)} width={360} align="end" className="cfm cfmin">
+        <div role="alertdialog" aria-label={title}>
+          {parts}
+        </div>
+      </Popover>
+    );
   return (
     <>
       <div className="scrim" onClick={() => answer(false)} />
