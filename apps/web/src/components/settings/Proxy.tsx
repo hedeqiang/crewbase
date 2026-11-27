@@ -11,7 +11,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { AlertCircle, Check, CircleCheck, Globe, KeyRound, LoaderCircle, Plus, RefreshCw, RotateCcw, X } from "lucide-react";
 import { API, type ProxyCheck, type ProxyFound, type ProxyInput, type ProxySettings, type ProxyType } from "../../api";
-import { explain } from "../../errors";
 import { t, type Key } from "../../i18n";
 import { toast } from "../../store";
 import { Head } from "../Settings";
@@ -87,8 +86,6 @@ export function ProxyPage() {
       a.bypass.join(",") !== saved.bypass.join(",")
     );
   }, [d, saved]);
-  // a port typed in but out of range: said under the field, before 保存
-  const badPort = !!d && d.port > 65535;
 
   if (!d || !saved)
     return (
@@ -146,14 +143,7 @@ export function ProxyPage() {
   return (
     <>
       <Head title={t("set.proxy")} sub={t("sub.proxy")} />
-      {/* Enter in a field saves */}
-      <form
-        className="vb px"
-        onSubmit={(e) => {
-          e.preventDefault();
-          if (dirty && !busy && !badPort) void save(saved.enabled, "save");
-        }}
-      >
+      <div className="vb px">
         <section className={"pxhero" + (saved.enabled ? " on" : "")}>
           <span className="pxic">
             <Globe size={20} />
@@ -218,10 +208,9 @@ export function ProxyPage() {
             <span className="pxcolon">:</span>
             <label className="fl pxport">
               {t("px.port")}
-              <input className="fi mono" inputMode="numeric" value={d.port || ""} placeholder="7890" aria-invalid={badPort} onChange={(e) => set({ port: Number(e.target.value.replace(/\D/g, "").slice(0, 5)) || 0 })} />
+              <input className="fi mono" inputMode="numeric" value={d.port || ""} placeholder="7890" onChange={(e) => set({ port: Number(e.target.value.replace(/\D/g, "").slice(0, 5)) || 0 })} />
             </label>
           </div>
-          {badPort && <span className="small errt">{t("err.proxyPort")}</span>}
           <span className="small muted pxpaste">{t("px.pasteHint")}</span>
 
           {login ? (
@@ -292,12 +281,12 @@ export function ProxyPage() {
         {err && (
           <p className="pxerr">
             <AlertCircle size={15} />
-            {explain(err).text}
+            {err}
           </p>
         )}
 
         <div className="pxfoot">
-          <button type="button" className="btn" disabled={!!busy || !d.host.trim() || !d.port || badPort} onClick={() => void test(inputOf(d, true))}>
+          <button type="button" className="btn" disabled={!!busy || !d.host.trim() || !d.port} onClick={() => void test(inputOf(d, true))}>
             {busy === "test" ? <LoaderCircle size={14} className="pxspin" /> : <RefreshCw size={14} />}
             {t("px.test")}
           </button>
@@ -307,7 +296,7 @@ export function ProxyPage() {
               {t("common.cancel")}
             </button>
           )}
-          <button type="submit" className="btn pri" disabled={!dirty || !!busy || badPort}>
+          <button type="button" className="btn pri" disabled={!dirty || !!busy} onClick={() => void save(saved.enabled, "save")}>
             {busy === "save" ? <LoaderCircle size={14} className="pxspin" /> : null}
             {t("common.save")}
           </button>
@@ -325,7 +314,7 @@ export function ProxyPage() {
           </ul>
           <span className="small muted">{t("px.scopeLocal")}</span>
         </section>
-      </form>
+      </div>
     </>
   );
 }

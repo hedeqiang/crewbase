@@ -1,9 +1,9 @@
 import { EmptyState } from "./EmptyState";
 import { Skeleton } from "./Skeleton";
 import { AddProviderDialog } from "./settings/AddProvider";
-import { MagpieModels, ModelCatalog } from "./settings/ModelSources";
+import { MagpieModelsDialog, ModelCatalog } from "./settings/ModelSources";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { CheckCheck, ChevronLeft, ChevronRight, Globe, Info, KeyRound, ListChecks, Pencil, Plus, Search, Trash2, Workflow } from "lucide-react";
+import { CheckCheck, ChevronLeft, Globe, Info, KeyRound, ListChecks, Pencil, Plus, Search, Trash2, Workflow } from "lucide-react";
 import { NAV, SECTION_ICONS } from "./settings/nav";
 import { Head, Row } from "./settings/Head";
 import { catLabel } from "./settings/labels";
@@ -74,7 +74,6 @@ export function Settings() {
   const manage = useStore((s) => s.tier === "desktop");
   const [q, setQ] = useState("");
   const ql = q.trim().toLowerCase();
-  const visible = () => NAV.flatMap((g) => g.items).filter((i) => shown(i.id) && (manage || MOBILE_SECTIONS.has(i.id)) && (!ql || matchesSection(i.id, ql))).map((i) => i.id);
   return (
     <div className={"setwrap" + (list ? " slist" : " spage")}>
       <nav className="snav" aria-label={t("tb.settings")}>
@@ -84,27 +83,7 @@ export function Settings() {
         </button>
         <label className="search sset">
           <Search size={14} />
-          <input
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            placeholder={t("set.search")}
-            aria-label={t("set.search")}
-            onKeyDown={(e) => {
-              // Enter opens the first match; Esc clears, then leaves the field
-              if (e.key === "Enter" && ql) {
-                const first = visible()[0];
-                if (first) {
-                  setState({ settings: first, settingsList: false });
-                  setQ("");
-                }
-              } else if (e.key === "Escape") {
-                e.preventDefault();
-                e.stopPropagation();
-                if (q) setQ("");
-                else e.currentTarget.blur();
-              }
-            }}
-          />
+          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder={t("set.search")} />
         </label>
         {NAV.map((g) => {
           const items = g.items.filter((i) => shown(i.id) && (manage || MOBILE_SECTIONS.has(i.id)) && (!ql || matchesSection(i.id, ql)));
@@ -118,13 +97,12 @@ export function Settings() {
                   {t(`set.${i.id}` as Key)}
                   {i.id === "approvals" && n > 0 && <span className="sn">{n}</span>}
                   {i.id === "market" && nUpd > 0 && <span className="sn upd" title={t("aup.dot", { n: nUpd })}>{nUpd}</span>}
-                  <ChevronRight size={16} className="schev" aria-hidden />
                 </button>
               ))}
             </div>
           );
         })}
-        {ql && visible().length === 0 && (
+        {ql && !NAV.some((g) => g.items.some((i) => (manage || MOBILE_SECTIONS.has(i.id)) && matchesSection(i.id, ql))) && (
           <p className="small muted snomatch">{t("set.searchNone")}</p>
         )}
       </nav>
@@ -731,8 +709,7 @@ function WorkspaceDir() {
   };
   const pick = async () => {
     const d = desktop();
-    // the path now, to change (not an empty field that hides it)
-    if (!d?.pickFolder) return setEdit(v.dir);
+    if (!d?.pickFolder) return setEdit(v.isDefault ? "" : v.dir);
     const dir = await d.pickFolder(v.dir).catch(() => "");
     if (dir) await save(dir);
   };
@@ -754,23 +731,7 @@ function WorkspaceDir() {
               void save(edit);
             }}
           >
-            <input
-              className="fi sm mono"
-              autoFocus
-              value={edit}
-              placeholder={v.dir}
-              spellCheck={false}
-              aria-label={t("set.wsTitle")}
-              onFocus={(e) => e.currentTarget.select()}
-              onChange={(e) => setEdit(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Escape") {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  setEdit(null);
-                }
-              }}
-            />
+            <input className="fi sm mono" autoFocus value={edit} placeholder="~/Crewbase" spellCheck={false} onChange={(e) => setEdit(e.target.value)} />
             <button className="btn sm pri" type="submit" disabled={busy || !edit.trim()}>
               {t("common.save")}
             </button>
@@ -806,19 +767,9 @@ function Models() {
   const agents = useStore((s) => s.agents);
   const [sel, setSel] = useState<string | null>(null);
   const tab = useStore((s) => s.modelsTab);
-  const setTab = (v: "providers" | "routing" | "catalog") => {
-    setState({ modelsTab: v });
-    try {
-      sessionStorage.setItem("crewbase.modelsTab", v);
-    } catch {
-      /* private mode */
-    }
-  };
+  const setTab = (v: "providers" | "routing" | "catalog") => setState({ modelsTab: v });
   const [q, setQ] = useState("");
   const [adding, setAdding] = useState(false);
-  const connecting = useStore((s) => s.connecting);
-  // 连接模型 left unfinished (you went elsewhere): not waiting here next time
-  useEffect(() => () => setState({ connecting: false }), []);
   const [editing, setEditing] = useState<UserProvider | null>(null);
   const [choosingMagpie, setChoosingMagpie] = useState(false);
   // 额度 changes while you look (and was read when the app started, maybe
@@ -918,26 +869,24 @@ function Models() {
           </>
         }
       />
-      {/* adding or editing a provider takes the page's place (a step in
-          it, not a dialog over it); from 「连接模型」 elsewhere, closing it
-          goes back there */}
-      {adding || editing || connecting ? (
-        <div className="vb apwrap">
-          <AddProviderDialog
-            inline
-            existing={providers.map((p) => p.id)}
-            edit={editing ?? undefined}
-            onClose={() => {
-              const back = connecting;
-              setAdding(false);
-              setEditing(null);
-              setState({ connecting: false });
-              void loadUser();
-              if (back) history.back();
-            }}
-          />
-        </div>
-      ) : tab === "routing" ? (
+      {adding && (
+        <AddProviderDialog
+          existing={providers.map((p) => p.id)}
+          onClose={() => setAdding(false)}
+        />
+      )}
+      {editing && (
+        <AddProviderDialog
+          existing={providers.map((p) => p.id)}
+          edit={editing}
+          onClose={() => {
+            setEditing(null);
+            void loadUser();
+          }}
+        />
+      )}
+      {choosingMagpie && <MagpieModelsDialog onClose={() => setChoosingMagpie(false)} />}
+      {tab === "routing" ? (
         <Routing />
       ) : tab === "catalog" ? (
         <ModelCatalog />
@@ -958,7 +907,7 @@ function Models() {
                 {ps.map((p) => {
                   const st = providerState(p, isEx(p));
                   return (
-                    <button key={p.id} type="button" className="pvi" aria-current={cur?.id === p.id} onClick={() => (setSel(p.id), setChoosingMagpie(false))}>
+                    <button key={p.id} type="button" className="pvi" aria-current={cur?.id === p.id} onClick={() => setSel(p.id)}>
                       <ProviderMark provider={p.id} size={22} />
                       <span className="g">
                         <b>{pname(p.id)}</b>
@@ -1075,12 +1024,10 @@ function Models() {
                   {listed.some((m) => m.enabled === false) && <span className="small"> · {t("set.modelsOff", { n: listed.filter((m) => m.enabled === false).length })}</span>}
                 </span>
                 {cur.id === "magpie" ? (
-                  !choosingMagpie && (
-                    <button className="btn sm" type="button" onClick={() => setChoosingMagpie(true)}>
-                      <ListChecks size={13} />
-                      {t("mp.choose")}
-                    </button>
-                  )
+                  <button className="btn sm" type="button" onClick={() => setChoosingMagpie(true)}>
+                    <ListChecks size={13} />
+                    {t("mp.choose")}
+                  </button>
                 ) : userProv.some((u) => u.id === cur.id) ? (
                   <button className="btn sm" type="button" onClick={() => setEditing(userProv.find((u) => u.id === cur.id)!)}>
                     <ListChecks size={13} />
@@ -1094,9 +1041,7 @@ function Models() {
                 )}
               </div>
               {editingList && listed.length > 0 && <p className="small mswnote">{t("set.modelSwitchNote")}</p>}
-              {cur.id === "magpie" && choosingMagpie ? (
-                <MagpieModels onClose={() => setChoosingMagpie(false)} />
-              ) : listed.length === 0 ? (
+              {listed.length === 0 ? (
                 <div className="empty">{t("set.noModels")}</div>
               ) : (
                 <ModelTable provider={cur} models={listed} busy={swBusy} onFlip={flip} switches={editingList} />

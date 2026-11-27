@@ -1,5 +1,4 @@
 import { FileUp, FolderUp, Loader2, ShieldCheck, X } from "lucide-react";
-import { Popover, lastPressed } from "./Popover";
 import { useRef, useState } from "react";
 import { API, type ImportOptions, type ImportSource, type RoleTemplate } from "../api";
 import { t, type Key } from "../i18n";
@@ -46,7 +45,6 @@ const REASONS = ["memory", "conversation", "secret", "settings", "too-large", "u
 
 /** 导入角色模板 (C-5): only instructions and skills move over. */
 export function ImportRoleDialog({ onClose, options }: { onClose: () => void; options: ImportOptions }) {
-  const [anchor] = useState(() => lastPressed());
   const [src, setSrc] = useState<ImportSource | null>(null);
   const [tpl, setTpl] = useState<RoleTemplate | null>(null);
   const [local, setLocal] = useState<{ path: string; reason: string }[]>([]);
@@ -108,10 +106,10 @@ export function ImportRoleDialog({ onClose, options }: { onClose: () => void; op
   const skipped = tpl ? [...tpl.skipped, ...local] : [];
   const byReason = REASONS.map((r) => ({ r, items: skipped.filter((s) => s.reason === r) })).filter((g) => g.items.length);
 
-  // in place, below 导入角色 (it opened from there)
   return (
-    <Popover anchor={anchor} open onClose={onClose} className="keep irin">
-      <div role="region" aria-label={t("ir.title")}>
+    <>
+      <div className="ovscrim show" onMouseDown={onClose} />
+      <div className="modal ir" role="dialog" aria-modal="true" aria-label={t("ir.title")}>
         <div className="mhd">
           <h3>{t("ir.title")}</h3>
           <button className="ib" type="button" aria-label={t("common.close")} onClick={onClose}>
@@ -249,6 +247,6 @@ export function ImportRoleDialog({ onClose, options }: { onClose: () => void; op
           )}
         </div>
       </div>
-    </Popover>
+    </>
   );
 }

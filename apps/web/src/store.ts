@@ -253,16 +253,6 @@ const midWidth = () => window.matchMedia("(max-width: 1100px)").matches;
 const HIST_MAX = 30;
 
 const MODELS_CACHE = "crewbase.models";
-// 设置 › 模型's tab, kept for a reload in this window
-const MODELS_TAB = "crewbase.modelsTab";
-function readModelsTab(): State["modelsTab"] {
-  try {
-    const v = sessionStorage.getItem(MODELS_TAB);
-    return v === "routing" || v === "catalog" ? v : "providers";
-  } catch {
-    return "providers";
-  }
-}
 
 function cachedModels(): ModelsResponse | null {
   try {
@@ -324,7 +314,7 @@ let state: State = {
   computer: null,
   newChannel: false,
   createIn: "",
-  modelsTab: readModelsTab(),
+  modelsTab: "providers",
   fileOpen: null,
   libOpen: null,
   previewOpen: null,
@@ -474,7 +464,7 @@ export function openSession(id: string) {
       hist = [...hist.slice(0, histPos + 1).filter((x) => x !== id), id].slice(-HIST_MAX);
       histPos = hist.length - 1;
     }
-    return { view: "chat", newChannel: false, current: id, hist, histPos, listOpen: narrow() ? false : s.listOpen, palette: false, subView: id === s.current ? s.subView : null, fileOpen: id === s.current ? s.fileOpen : null };
+    return { view: "chat", current: id, hist, histPos, listOpen: narrow() ? false : s.listOpen, palette: false, subView: id === s.current ? s.subView : null, fileOpen: id === s.current ? s.fileOpen : null };
   });
   void loadSession(id);
 }
@@ -748,9 +738,8 @@ export async function refreshChannel(id: string) {
   }
 }
 
-/** 新建频道: a page in the main column (#/new-channel). */
 export function openNewChannel(folder = "") {
-  setState({ view: "chat", newChannel: true, palette: false, createIn: folder, listOpen: narrow() ? false : state.listOpen });
+  setState({ newChannel: true, palette: false, createIn: folder });
 }
 
 let readTimer: number | undefined;
@@ -786,12 +775,7 @@ export function hasModels(s: State = state): boolean | null {
   return (s.models.providers ?? []).some((p) => (p.models ?? []).some((m) => m.enabled !== false && modelKind(m) === "chat"));
 }
 
-/** 连接模型 from wherever a missing model is noticed: 设置 › 模型's add
- *  step, in place; closing it comes back here. */
-export const openConnect = () => {
-  openSettings("models");
-  setState({ connecting: true, modelsTab: "providers" });
-};
+export const openConnect = () => setState({ connecting: true });
 
 // 额度 is read lazily by the daemon (a gateway asks its vendors, which takes
 // seconds): the list fetched at start may come before it. Fetch again

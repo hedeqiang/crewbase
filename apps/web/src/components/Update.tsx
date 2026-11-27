@@ -1,5 +1,4 @@
-import { useEffect, useLayoutEffect, useState } from "react";
-import { Popover, lastPressed } from "./Popover";
+import { useEffect, useState } from "react";
 import { AlertCircle, ArrowDownToLine, Check, RotateCw, X } from "lucide-react";
 import type { DesktopUpdateState } from "../api";
 import { openExternal } from "../api";
@@ -179,19 +178,19 @@ export function UpdatePill() {
 export function UpdateNotes() {
   const open = useUpdateNotesOpen();
   const st = useDesktopUpdate();
-  // opened from a link (the sidebar's, 设置 › 通用's): in place below it
-  const [anchor, setAnchor] = useState<HTMLElement | null>(null);
-  useLayoutEffect(() => setAnchor(open ? lastPressed() : null), [open]);
   useEffect(() => {
-    if (!open || anchor) return;
+    if (!open) return;
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && openUpdateNotes(false);
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [open, anchor]);
+  }, [open]);
   if (!open || !st?.version) return null;
   const close = () => openUpdateNotes(false);
   const v = st.version;
-  const body = <>
+  return (
+    <>
+      <div className="scrim" onClick={close} />
+      <div className="modal updnotesdlg" role="dialog" aria-modal="true" aria-label={t("upd.notesTitle", { v })}>
         <div className="mhd">
           <h3>{t("upd.notesTitle", { v })}</h3>
           <button className="ib" type="button" aria-label={t("common.close")} onClick={close}>
@@ -240,18 +239,6 @@ export function UpdateNotes() {
             )}
           </div>
         </div>
-      </>;
-  if (anchor?.isConnected)
-    return (
-      <Popover anchor={anchor} open onClose={close} className="updnotesin">
-        <div role="region" aria-label={t("upd.notesTitle", { v })}>{body}</div>
-      </Popover>
-    );
-  return (
-    <>
-      <div className="scrim" onClick={close} />
-      <div className="modal updnotesdlg" role="dialog" aria-modal="true" aria-label={t("upd.notesTitle", { v })}>
-        {body}
       </div>
     </>
   );

@@ -2,7 +2,6 @@ import { useMemo } from "react";
 import { PanelLeft, PanelRight, ShieldCheck } from "lucide-react";
 import { t } from "../i18n";
 import { ago } from "../format";
-import { catLabel } from "./settings/labels";
 import { chatTitle, isChat, openSession, sessionAgent, setState, useStore } from "../store";
 import { Avatar, LookAvatar } from "./Avatar";
 import { usePreferredModel } from "./NewAgent";
@@ -43,8 +42,6 @@ export function ConvHeader({ draftColor, draftShape, draftFace, draftLook }: { d
   const preferred = usePreferredModel();
   const current = useStore((s) => s.current);
   const view = useStore((s) => s.view);
-  // 新建频道 is a page of its own in the main column
-  const nc = useStore((s) => s.view === "chat" && s.newChannel);
   const sessions = useStore((s) => s.sessions);
   const agents = useStore((s) => s.agents);
   const channels = useStore((s) => s.channels);
@@ -74,16 +71,10 @@ export function ConvHeader({ draftColor, draftShape, draftFace, draftLook }: { d
   }
 
   return (
-    <header className={"chead" + (view === "chat" && !agent && !nc ? " bare" : "") + (desktop() ? "" : " web")}>
+    <header className={"chead" + (view === "chat" && !agent ? " bare" : "") + (desktop() ? "" : " web")}>
       <ListToggle className="lt" />
       <div className="who">
-        {nc && (
-          <>
-            <span className="hash">#</span>
-            <b className="nm">{t("list.newChannel")}</b>
-          </>
-        )}
-        {view === "chat" && !nc && isChannel && (
+        {view === "chat" && isChannel && (
           <>
             <span className="hash">#</span>
             <b className="nm">{meta?.title || current}</b>
@@ -101,7 +92,7 @@ export function ConvHeader({ draftColor, draftShape, draftFace, draftLook }: { d
             )}
           </>
         )}
-        {view === "chat" && !nc && !isChannel && agent && (
+        {view === "chat" && !isChannel && agent && (
           <>
             <Avatar agent={agent} size={24} />
             <b className="nm">{isChat(agent) ? chatTitle(agent, summaries[agent.session]?.topic) : agent.name}</b>
@@ -172,8 +163,7 @@ export function ConvHeader({ draftColor, draftShape, draftFace, draftLook }: { d
               <span className="g">
                 <b>{t("appr.wants", { agent: a?.name ?? (r.agent || t("appr.workflow")), summary: r.summary || r.tool })}</b>
                 <span>
-                  {/* what kind of thing, as the inline card says it (the rule's own words on hover) */}
-                  <span title={r.reason}>{r.category ? catLabel(r.category) : r.reason}</span> · {ago(r.asked)}
+                  「{r.reason || r.category}」 · {ago(r.asked)}
                 </span>
                 <ApprovalActions
                   req={r}

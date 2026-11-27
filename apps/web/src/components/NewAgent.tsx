@@ -5,8 +5,9 @@ import { API, refString, type ModelRef } from "../api";
 import { ImportRoleDialog } from "./ImportRole";
 import { t, type Key } from "../i18n";
 import { allModels, effortLabel, findModel, modeLabel, modelMeta, providerName, sameRef, shortModel } from "../format";
-import { hasModels, openConnect, openSession, refreshAgents, refreshSessions, setState, toast, useFolders, useStore, currentTeam, teamMode } from "../store";
+import { openSession, refreshAgents, refreshSessions, setState, toast, useFolders, useStore, currentTeam, teamMode } from "../store";
 import { AvatarEditor, AvatarRaw, COLORS, FACES, LookAvatar, SHAPES } from "./Avatar";
+import { Popover, useMenu } from "./Popover";
 import { ProviderMark } from "./ProviderMark";
 import { effortsFor } from "./ModelPicker";
 
@@ -127,18 +128,11 @@ export function NewAgent({ draft: f, setDraft }: { draft: Draft; setDraft: (d: D
   const [err, setErr] = useState(false);
   const [busy, setBusy] = useState(false);
   const nameRef = useRef<HTMLInputElement>(null);
-  // one of the card's choices open at a time, in place below its row
-  const [row, setRow] = useState<"look" | "model" | "mode" | "folder" | null>(null);
-  const menuOf = (k: "look" | "model" | "mode" | "folder") => ({
-    open: row === k,
-    toggle: () => setRow((x) => (x === k ? null : k)),
-    close: () => setRow((x) => (x === k ? null : x)),
-  });
-  const lookM = menuOf("look");
-  const modelM = menuOf("model");
+  const lookM = useMenu();
+  const modelM = useMenu();
   const [mq, setMq] = useState("");
   const [poke, setPoke] = useState(0);
-  const folderM = menuOf("folder");
+  const folderM = useMenu();
   const [newFolder, setNewFolder] = useState("");
   // which start the form came from ("" = blank, null = edited by hand)
   // a template chosen before this page opened (the welcome page) is the
@@ -173,20 +167,7 @@ export function NewAgent({ draft: f, setDraft }: { draft: Draft; setDraft: (d: D
     };
     set({ color: other(COLORS, f.color), shape: other(SHAPES, f.shape as (typeof SHAPES)[number]), face: other(FACES, (f.face || "eyes") as (typeof FACES)[number]) });
   };
-  const modeM = menuOf("mode");
-  // Esc closes the open choice first (then, as before, leaves the page)
-  useEffect(() => {
-    if (!row) return;
-    const key = (e: KeyboardEvent) => {
-      if (e.key !== "Escape" || e.isComposing) return;
-      e.preventDefault();
-      e.stopPropagation();
-      setRow(null);
-      setMq("");
-    };
-    window.addEventListener("keydown", key, true);
-    return () => window.removeEventListener("keydown", key, true);
-  }, [row]);
+  const modeM = useMenu();
   const all = useMemo(() => allModels(models), [models]);
   // grouped by provider (the same model through two gateways is told apart
   // by its group), filtered by the search
@@ -247,11 +228,6 @@ export function NewAgent({ draft: f, setDraft }: { draft: Draft; setDraft: (d: D
       setErr(true);
       nameRef.current?.scrollIntoView({ block: "center", behavior: "smooth" });
       nameRef.current?.focus({ preventScroll: true });
-      return;
-    }
-    // no model anywhere: an Agent made now could only fail its first turn
-    if (!primary && hasModels() === false) {
-      openConnect();
       return;
     }
     setBusy(true);
@@ -334,11 +310,11 @@ export function NewAgent({ draft: f, setDraft }: { draft: Draft; setDraft: (d: D
                 <button
                   type="button"
                   className="na-heroav"
-                 
+                  ref={lookM.ref}
                   key={f.color + f.shape + f.avatar + f.vendor + poke}
                   title={t("na.changeLook")}
                   aria-label={t("na.changeLook")}
-                  aria-expanded={lookM.open}
+                  aria-haspopup="dialog"
                   onClick={() => {
                     setPoke((n) => n + 1);
                     lookM.toggle();
@@ -382,8 +358,7 @@ export function NewAgent({ draft: f, setDraft }: { draft: Draft; setDraft: (d: D
                 </div>
               </div>
             </div>
-            {row === "look" && (
-              <div className="na-card na-in na-lookin" role="region" aria-label={t("na.changeLook")}>
+            <Popover anchor={lookM.anchor} open={lookM.open} onClose={lookM.close} width={360} className="na-lookpop">
               <AvatarEditor
                 look={f}
                 name={f.name}
@@ -396,11 +371,10 @@ export function NewAgent({ draft: f, setDraft }: { draft: Draft; setDraft: (d: D
                   </button>
                 }
               />
-              </div>
-            )}
+            </Popover>
 
             <div className="na-card rows">
-              <button type="button" className="rowsel" onClick={modelM.toggle} aria-expanded={modelM.open}>
+              <button type="button" className="rowsel" ref={modelM.ref} onClick={modelM.toggle} aria-haspopup="menu">
                 <span>{t("na.model")}</span>
                 <span className="v">
                   {primary ? (
@@ -416,14 +390,7 @@ export function NewAgent({ draft: f, setDraft }: { draft: Draft; setDraft: (d: D
                 </span>
               </button>
               <div className="rowhint">
-                {!primary && hasModels() === false ? (
-                  <>
-                    <span className="ml">{t("na.noModelYet")}</span>
-                    <button type="button" className="linkbtn small" onClick={openConnect}>
-                      {t("na.connectModel")}
-                    </button>
-                  </>
-                ) : backup ? (
+                {backup ? (
                   <>
                     <ProviderMark provider={backup.provider} model={backup.model} size={12} />
                     <span className="ml">{t("na.backup", { model: backups.map((b) => shortModel(models, b)).join(" → ") })}</span>
@@ -432,56 +399,7 @@ export function NewAgent({ draft: f, setDraft }: { draft: Draft; setDraft: (d: D
                   t("na.noBackup")
                 )}
               </div>
-              {row === "model" && (
-                <div className="na-in inmenu" role="region" aria-label={t("na.model")}>
-        <div className="mlbl">{t("na.model")}</div>
-        {all.length > 8 && (
-          <label className="flsearch">
-            <Search size={13} />
-            <input autoFocus value={mq} onChange={(e) => setMq(e.target.value)} placeholder={t("comp.modelSearch")} aria-label={t("comp.modelSearch")} />
-          </label>
-        )}
-        {all.length === 0 && <p className="small" style={{ margin: "4px 9px 8px" }}>{t("na.modelNone")}</p>}
-        {shownModels.map((m, i) => (
-          <Fragment key={refString(m.ref)}>
-          {(i === 0 || shownModels[i - 1].provider.id !== m.provider.id) && <div className="mlbl">{providerName(m.provider.id)}</div>}
-          <button
-            className="mi"
-            type="button"
-            onClick={() => {
-              set({ model: m.ref });
-              modelM.close();
-            }}
-          >
-            <ProviderMark provider={m.ref.provider} model={m.ref.model} size={16} />
-            <span className="g">
-              {m.info.name || m.info.id}
-              <span>
-                {t(`kind.${m.provider.kind}` as Key)}
-                {modelMeta(m.info) ? ` · ${modelMeta(m.info)}` : ""}
-              </span>
-            </span>
-            <span className="ck">{sameRef(primary, m.ref) && <Check size={14} />}</span>
-          </button>
-          </Fragment>
-        ))}
-        {mq && shownModels.length === 0 && <p className="small" style={{ margin: "4px 9px 8px" }}>{t("list.noMatch")}</p>}
-        {primaryLevels.length > 0 && (
-          <>
-        <hr />
-        <div className="mlbl">{t("comp.effort")}</div>
-        <div className="seg">
-          {primaryLevels.map((e) => (
-            <button key={e} type="button" aria-pressed={(f.effort || "") === e} onClick={() => set({ effort: e })}>
-              {e ? effortLabel(e) : t("effort.default")}
-            </button>
-          ))}
-        </div>
-          </>
-        )}
-                      </div>
-              )}
-              <button type="button" className="rowsel" onClick={modeM.toggle} aria-expanded={modeM.open}>
+              <button type="button" className="rowsel" ref={modeM.ref} onClick={modeM.toggle} aria-haspopup="menu">
                 <span>{t("na.mode")}</span>
                 <span className="v">
                   <Shield size={15} />
@@ -489,33 +407,7 @@ export function NewAgent({ draft: f, setDraft }: { draft: Draft; setDraft: (d: D
                   <ChevronDown size={14} />
                 </span>
               </button>
-              {row === "mode" && (
-                <div className="na-in inmenu" role="region" aria-label={t("na.mode")}>
-        <div className="mlbl">{t("na.mode")}</div>
-        {(["read-only", "sandbox"] as const).map((m) => (
-          <button
-            key={m}
-            className="mi"
-            type="button"
-            onClick={() => {
-              set({ mode: m });
-              modeM.close();
-            }}
-          >
-            <Shield size={16} />
-            <span className="g">
-              {modeLabel(m)}
-              <span>{t(`mode.${m}.desc` as Key)}</span>
-            </span>
-            <span className="ck">{f.mode === m && <Check size={14} />}</span>
-          </button>
-        ))}
-        <p className="small" style={{ margin: "4px 9px 6px" }}>
-          {t("na.modeNote")}
-        </p>
-                </div>
-              )}
-              <button type="button" className="rowsel" onClick={folderM.toggle} aria-expanded={folderM.open}>
+              <button type="button" className="rowsel" ref={folderM.ref} onClick={folderM.toggle} aria-haspopup="menu">
                 <span>{t("na.folder")}</span>
                 <span className="v">
                   <Folder size={15} />
@@ -523,8 +415,20 @@ export function NewAgent({ draft: f, setDraft }: { draft: Draft; setDraft: (d: D
                   <ChevronDown size={14} />
                 </span>
               </button>
-              {row === "folder" && (
-                <div className="na-in inmenu" role="region" aria-label={t("na.folder")}>
+            </div>
+
+            <div className="na-acts">
+              <button className="btn" type="button" onClick={() => leaveTo("chat")}>
+                {t("common.cancel")}
+              </button>
+              <button className="btn pri" type="button" disabled={busy} onClick={create}>
+                {busy ? t("na.creating") : t("na.create")}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <Popover anchor={folderM.anchor} open={folderM.open} onClose={folderM.close} width={260}>
         <div className="mlbl">{t("na.folder")}</div>
         <button
           className="mi"
@@ -570,21 +474,7 @@ export function NewAgent({ draft: f, setDraft }: { draft: Draft; setDraft: (d: D
             {t("common.add")}
           </button>
         </form>
-                </div>
-              )}
-            </div>
-
-            <div className="na-acts">
-              <button className="btn" type="button" onClick={() => leaveTo("chat")}>
-                {t("common.cancel")}
-              </button>
-              <button className="btn pri" type="button" disabled={busy} onClick={create}>
-                {busy ? t("na.creating") : t("na.create")}
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
+      </Popover>
       {importing && (
         <ImportRoleDialog
           onClose={() => setImporting(false)}
@@ -592,6 +482,85 @@ export function NewAgent({ draft: f, setDraft }: { draft: Draft; setDraft: (d: D
         />
       )}
 
+      <Popover
+        anchor={modelM.anchor}
+        open={modelM.open}
+        onClose={() => {
+          modelM.close();
+          setMq("");
+        }}
+        width={340}
+      >
+        <div className="mlbl">{t("na.model")}</div>
+        {all.length > 8 && (
+          <label className="flsearch">
+            <Search size={13} />
+            <input autoFocus value={mq} onChange={(e) => setMq(e.target.value)} placeholder={t("comp.modelSearch")} aria-label={t("comp.modelSearch")} />
+          </label>
+        )}
+        {all.length === 0 && <p className="small" style={{ margin: "4px 9px 8px" }}>{t("na.modelNone")}</p>}
+        {shownModels.map((m, i) => (
+          <Fragment key={refString(m.ref)}>
+          {(i === 0 || shownModels[i - 1].provider.id !== m.provider.id) && <div className="mlbl">{providerName(m.provider.id)}</div>}
+          <button
+            className="mi"
+            type="button"
+            onClick={() => {
+              set({ model: m.ref });
+              modelM.close();
+            }}
+          >
+            <ProviderMark provider={m.ref.provider} model={m.ref.model} size={16} />
+            <span className="g">
+              {m.info.name || m.info.id}
+              <span>
+                {t(`kind.${m.provider.kind}` as Key)}
+                {modelMeta(m.info) ? ` · ${modelMeta(m.info)}` : ""}
+              </span>
+            </span>
+            <span className="ck">{sameRef(primary, m.ref) && <Check size={14} />}</span>
+          </button>
+          </Fragment>
+        ))}
+        {mq && shownModels.length === 0 && <p className="small" style={{ margin: "4px 9px 8px" }}>{t("list.noMatch")}</p>}
+        {primaryLevels.length > 0 && (
+          <>
+        <hr />
+        <div className="mlbl">{t("comp.effort")}</div>
+        <div className="seg">
+          {primaryLevels.map((e) => (
+            <button key={e} type="button" aria-pressed={(f.effort || "") === e} onClick={() => set({ effort: e })}>
+              {e ? effortLabel(e) : t("effort.default")}
+            </button>
+          ))}
+        </div>
+          </>
+        )}
+      </Popover>
+      <Popover anchor={modeM.anchor} open={modeM.open} onClose={modeM.close} width={320}>
+        <div className="mlbl">{t("na.mode")}</div>
+        {(["read-only", "sandbox"] as const).map((m) => (
+          <button
+            key={m}
+            className="mi"
+            type="button"
+            onClick={() => {
+              set({ mode: m });
+              modeM.close();
+            }}
+          >
+            <Shield size={16} />
+            <span className="g">
+              {modeLabel(m)}
+              <span>{t(`mode.${m}.desc` as Key)}</span>
+            </span>
+            <span className="ck">{f.mode === m && <Check size={14} />}</span>
+          </button>
+        ))}
+        <p className="small" style={{ margin: "4px 9px 6px" }}>
+          {t("na.modeNote")}
+        </p>
+      </Popover>
     </section>
   );
 }

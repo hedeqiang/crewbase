@@ -12,12 +12,13 @@ import { cloudVoice, dictate, dictationSupported, primeVoice } from "../../voice
 import { addFiles, addLibraryFile, clearFiles, filesFrom, LIB_DRAG, libraryFrom, PendingChips } from "../Attachments";
 import { activeModel, modeLabel, shortModelEffort, isExhausted } from "../../format";
 import { Avatar, bubbleColor, bubbleVars } from "../Avatar";
+import { Popover, useMenu } from "../Popover";
 import { ProviderMark } from "../ProviderMark";
 import { ContextMap } from "../ContextMap";
 import { ModelPicker } from "../ModelPicker";
 import { SlotIcon, runCommand, useSlot } from "../UISlots";
 import { shortPath, dirName } from "./util";
-import { DirMenu, ModeIcon, QueueStack, Tray } from "./composerParts";
+import { DirMenu, ModeIcon, QueueStack } from "./composerParts";
 import { ARENA_MIN, ArenaBar, defaultArena, isRoundtable, rememberArena } from "./Arena";
 
 /** pastes this long (bytes) become a text attachment */
@@ -104,20 +105,11 @@ export function Composer({
   const [dragging, setDragging] = useState(false);
   const fileIn = useRef<HTMLInputElement>(null);
   const ta = useRef<HTMLTextAreaElement>(null);
-  // one choice open at a time, in place above the text box (Tray)
-  const [tray, setTray] = useState<"model" | "env" | "ctx" | null>(null);
-  const trayOf = (k: "model" | "env" | "ctx") => ({
-    open: tray === k,
-    toggle: () => setTray((x) => (x === k ? null : k)),
-    close: () => setTray((x) => (x === k ? null : x)),
-    setOpen: (on: boolean) => setTray(on ? k : null),
-  });
-  const permM = trayOf("env");
+  const permM = useMenu();
   // the environment panel's folder page
   const [envDir, setEnvDir] = useState(false);
-  const modelM = trayOf("model");
-  const ctxM = trayOf("ctx");
-  useEffect(() => setTray(null), [sessionId]);
+  const modelM = useMenu();
+  const ctxM = useMenu();
 
   useLayoutEffect(() => {
     const el = ta.current;
@@ -479,73 +471,6 @@ export function Composer({
           }}
         />
         {arena && <ArenaBar picked={arena} setPicked={setArena} draft={draft} onClose={() => setArena(null)} />}
-        {tray === "model" && (
-          <Tray title={channel ? t("ch.modelOf", { name: target.name }) : t("comp.modelTitle")} onClose={modelM.close} className="ctmodel">
-            <ModelPicker models={models} agent={target} override={overrideRef} shown={shown} setOverride={setOverride} close={modelM.close} />
-          </Tray>
-        )}
-        {tray === "env" && (
-          <Tray title={t("env.title", { name: agent.name })} onClose={() => (permM.close(), setEnvDir(false))} className="ctenv">
-        {envDir ? (
-                <>
-                  <button className="mi flback" type="button" onClick={() => setEnvDir(false)}>
-                    <ChevronLeft size={14} />
-                    <span className="g">{t("env.title", { name: agent.name })}</span>
-                  </button>
-                  <DirMenu agent={agent} onDone={() => (permM.close(), setEnvDir(false))} />
-                </>
-              ) : (
-                <>
-                  <div className="mlbl">{t("env.where")}</div>
-                  <div className="mi static">
-                    <Monitor size={16} />
-                    <span className="g">
-                      {t("comp.hostLocal")}
-                      <span>
-                        <i className="hdot on" />
-                        {t("comp.hostLocalDesc")}
-                      </span>
-                    </span>
-                  </div>
-                  <hr />
-                  <div className="mlbl">{t("env.perm")}</div>
-                  {(["read-only", "sandbox", "host"] as const).map((m) => (
-                    <button key={m} className={"mi" + (m === "host" ? " envhost" : "")} type="button" onClick={() => setMode(m)}>
-                      <ModeIcon mode={m} size={16} />
-                      <span className="g">
-                        {modeLabel(m)}
-                        <span>{t(`mode.${m}.desc` as Key)}</span>
-                      </span>
-                      <span className="ck">{mode === m && <Check size={14} />}</span>
-                    </button>
-                  ))}
-                  {!channel && (
-                    <>
-                      <hr />
-                      <div className="mlbl">{t("env.folder")}</div>
-                      <button className="mi" type="button" onClick={() => setEnvDir(true)}>
-                        <Folder size={16} />
-                        <span className="g">
-                          {dirName(agent.workspace, !!agent.sharedWorkspace)}
-                          <span className="mono">{shortPath(agent.workspace)}</span>
-                        </span>
-                        <ChevronRight size={14} className="muted" />
-                      </button>
-                    </>
-                  )}
-                  <p className="small" style={{ margin: "6px 9px 6px" }}>
-                    {t("comp.permRules")}
-                  </p>
-                </>
-              )}
-          </Tray>
-        )}
-        {tray === "ctx" && (
-          <Tray title={t("cmap.title")} onClose={ctxM.close} className="ctctx">
-            <ContextMap agent={agent} sessionId={sessionId} channel={!!channel} ctx={ctx} onClose={ctxM.close} inline />
-          </Tray>
-        )}
-
         {slashOpen && (
           <SlashMenu
             items={slashItems}
@@ -677,13 +602,6 @@ export function Composer({
                 return;
               }
             }
-            // Esc leaves the 擂台 (the bar opened by /arena)
-            if (e.key === "Escape" && arena) {
-              e.preventDefault();
-              e.stopPropagation();
-              setArena(null);
-              return;
-            }
             if (e.key === "Escape" && getState().replyTo[sessionId]) {
               e.preventDefault();
               e.stopPropagation();
@@ -732,8 +650,9 @@ export function Composer({
           <button
             className={"cbtn envchip" + (mode === "host" ? " danger" : "")}
             type="button"
+            ref={permM.ref}
             onClick={permM.toggle}
-            aria-expanded={permM.open}
+            aria-haspopup="dialog"
             disabled={!manage}
             title={manage ? t("env.title", { name: agent.name }) : t("tier.mobileMode")}
           >
@@ -762,8 +681,8 @@ export function Composer({
           <button
             className={"cbtn cmodel" + (override && !channel ? " ov" : "")}
             type="button"
+            ref={modelM.ref}
             onClick={modelM.toggle}
-            aria-expanded={modelM.open}
             title={channel ? t("ch.modelOf", { name: target.name }) : t("comp.modelTitle")}
             aria-haspopup="menu"
           >
@@ -782,8 +701,8 @@ export function Composer({
           <button
             className={"cbtn round ctxbtn" + (pct !== null && pct >= 80 ? " hi" : "")}
             type="button"
+            ref={ctxM.ref}
             onClick={ctxM.toggle}
-            aria-expanded={ctxM.open}
             aria-haspopup="menu"
             title={pct === null ? t("comp.contextNone") : t("comp.context", { pct })}
             aria-label={pct === null ? t("comp.contextNone") : t("comp.context", { pct })}
@@ -805,17 +724,7 @@ export function Composer({
           {busy && !canSend ? (
             // the agent is working and nothing is typed: the button stops it
             // (typed text still sends: it joins the running turn)
-            <button
-              className="send on stop"
-              type="button"
-              onClick={() => {
-                runShortcut("stop");
-                // the button goes away once it stops: keep typing where you were
-                ta.current?.focus({ preventScroll: true });
-              }}
-              aria-label={t("keys.stop")}
-              title={t("keys.stop") + " · " + keyLabel("stop")}
-            >
+            <button className="send on stop" type="button" onClick={() => runShortcut("stop")} aria-label={t("keys.stop")} title={t("keys.stop") + " · " + keyLabel("stop")}>
               <Square size={12} fill="currentColor" />
             </button>
           ) : (
@@ -853,8 +762,66 @@ export function Composer({
         )}
       </form>
 
+      <Popover anchor={permM.anchor} open={permM.open} onClose={() => (permM.close(), setEnvDir(false))} placement="top" width={340}>
+        {envDir ? (
+          <>
+            <button className="mi flback" type="button" onClick={() => setEnvDir(false)}>
+              <ChevronLeft size={14} />
+              <span className="g">{t("env.title", { name: agent.name })}</span>
+            </button>
+            <DirMenu agent={agent} onDone={() => (permM.close(), setEnvDir(false))} />
+          </>
+        ) : (
+          <>
+            <div className="mlbl">{t("env.where")}</div>
+            <div className="mi static">
+              <Monitor size={16} />
+              <span className="g">
+                {t("comp.hostLocal")}
+                <span>
+                  <i className="hdot on" />
+                  {t("comp.hostLocalDesc")}
+                </span>
+              </span>
+            </div>
+            <hr />
+            <div className="mlbl">{t("env.perm")}</div>
+            {(["read-only", "sandbox", "host"] as const).map((m) => (
+              <button key={m} className={"mi" + (m === "host" ? " envhost" : "")} type="button" onClick={() => setMode(m)}>
+                <ModeIcon mode={m} size={16} />
+                <span className="g">
+                  {modeLabel(m)}
+                  <span>{t(`mode.${m}.desc` as Key)}</span>
+                </span>
+                <span className="ck">{mode === m && <Check size={14} />}</span>
+              </button>
+            ))}
+            {!channel && (
+              <>
+                <hr />
+                <div className="mlbl">{t("env.folder")}</div>
+                <button className="mi" type="button" onClick={() => setEnvDir(true)}>
+                  <Folder size={16} />
+                  <span className="g">
+                    {dirName(agent.workspace, !!agent.sharedWorkspace)}
+                    <span className="mono">{shortPath(agent.workspace)}</span>
+                  </span>
+                  <ChevronRight size={14} className="muted" />
+                </button>
+              </>
+            )}
+            <p className="small" style={{ margin: "6px 9px 6px" }}>
+              {t("comp.permRules")}
+            </p>
+          </>
+        )}
+      </Popover>
 
+      <Popover anchor={modelM.anchor} open={modelM.open} onClose={modelM.close} placement="top" align="end" width={260}>
+        <ModelPicker models={models} agent={target} override={overrideRef} shown={shown} setOverride={setOverride} close={modelM.close} />
+      </Popover>
 
+      {ctxM.open && <ContextMap agent={agent} sessionId={sessionId} channel={!!channel} ctx={ctx} onClose={ctxM.close} />}
     </div>
   );
 }

@@ -12,125 +12,87 @@ interface Props {
   width?: number;
 }
 
-// what was last pressed: a thing opened from code (a confirmation, a
-// viewer) goes in place below it
-let pressed: { el: HTMLElement; at: number } | null = null;
-if (typeof document !== "undefined")
-  document.addEventListener(
-    "pointerdown",
-    (e) => {
-      const el = (e.target as HTMLElement | null)?.closest?.<HTMLElement>("button, [role=button], a, .mi");
-      if (el) pressed = { el, at: Date.now() };
-    },
-    true,
-  );
-/** The button just pressed (or focused), to open something below it; for
- *  one in a menu that closes as it acts, the row the menu was for. */
-export function lastPressed(): HTMLElement | null {
-  const a = document.activeElement as HTMLElement | null;
-  let el = a && a !== document.body && a.closest("button, [role=button], a, .mi") ? a : pressed && Date.now() - pressed.at < 3000 && pressed.el.isConnected ? pressed.el : null;
-  const host = el?.closest<HTMLElement>(".popin-host");
-  if (host && !host.querySelector(".menu.inline.keep")) el = (host.previousElementSibling ?? host.nextElementSibling) as HTMLElement | null;
-  return el;
-}
-
-// open ones, innermost last: Esc closes only that one
-const openStack: symbol[] = [];
-
-/** A menu opened by a button, shown in place: inserted into the page
- *  right below the row the button is in (above it for placement "top"),
- *  pushing what follows down, rather than floating over the page. It
- *  closes on a click outside it and on Esc (the keyboard goes back to the
- *  button). */
+/** Anchored menu rendered in a portal; closes on outside click and Esc. */
 export function Popover({ anchor, open, onClose, children, placement = "bottom", align = "start", className = "", width }: Props) {
   const ref = useRef<HTMLDivElement>(null);
-  const [host, setHost] = useState<HTMLElement | null>(null);
+  const [pos, setPos] = useState<{ left: number; top: number; maxH: number; up: boolean } | null>(null);
 
-  // where it goes: after (before) the nearest box around the button that
-  // sits in a vertical stack (a list's row, a card's line, a header)
   useLayoutEffect(() => {
     if (!open || !anchor) return;
-    const row = rowOf(anchor);
-    if (!row?.parentElement) return;
-    const h = document.createElement("div");
-    h.className = "popin-host";
-    row.parentElement.insertBefore(h, placement === "top" ? row : row.nextSibling);
-    setHost(h);
-    return () => {
-      h.remove();
-      setHost(null);
+    const place = () => {
+      const r = anchor.getBoundingClientRect();
+      const el = ref.current;
+      const w = el?.offsetWidth ?? width ?? 260;
+      const h = el?.offsetHeight ?? 200;
+      const vw = window.innerWidth;
+      const vh = window.innerHeight;
+      let left = align === "end" ? r.right - w : r.left;
+      left = Math.max(8, Math.min(left, vw - w - 8));
+      let top: number;
+      let maxH: number;
+      const below = vh - r.bottom - 12;
+      const above = r.top - 12;
+      const up = placement === "top" ? above > 160 || above > below : below < Math.min(h, 240) && above > below;
+      if (up) {
+        maxH = above;
+        top = r.top - 6 - Math.min(h, maxH);
+      } else {
+        maxH = below;
+        top = r.bottom + 6;
+      }
+      setPos({ left, top: Math.max(8, top), maxH: Math.max(120, maxH), up });
     };
-  }, [open, anchor, placement]);
+    place();
+    const ro = new ResizeObserver(place);
+    if (ref.current) ro.observe(ref.current);
+    window.addEventListener("resize", place);
+    return () => {
+      ro.disconnect();
+      window.removeEventListener("resize", place);
+    };
+  }, [open, anchor, placement, align, width]);
 
   useEffect(() => {
-    if (!open || !host) return;
+    if (!open) return;
     const down = (e: PointerEvent) => {
       const t = e.target as Node;
       if (ref.current?.contains(t) || anchor?.contains(t)) return;
       onClose();
     };
-    const id = Symbol();
-    openStack.push(id);
     const key = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && openStack[openStack.length - 1] === id) {
+      if (e.key === "Escape") {
         e.stopPropagation();
-        // Esc gives the keyboard back where it was (the button that
-        // opened it; else the composer), not to the page
-        const back = anchor?.isConnected ? anchor : (document.querySelector<HTMLElement>(".composer textarea") ?? null);
         onClose();
-        requestAnimationFrame(() => back?.focus({ preventScroll: true }));
       }
     };
     document.addEventListener("pointerdown", down, true);
     document.addEventListener("keydown", key, true);
-    // in view, and the keyboard in it when it was opened from the keyboard
-    ref.current?.scrollIntoView({ block: "nearest" });
-    // a field in it takes the keyboard (its text selected, to retype);
-    // a plain menu does when it was opened from the keyboard
-    const field = ref.current?.querySelector<HTMLInputElement>("input:not([type=hidden]):not([type=checkbox]), textarea");
-    if (field && !ref.current?.contains(document.activeElement)) {
-      field.focus({ preventScroll: true });
-      field.select?.();
-    } else if (document.activeElement === anchor) ref.current?.querySelector<HTMLElement>("button:not(:disabled)")?.focus({ preventScroll: true });
     return () => {
-      openStack.splice(openStack.indexOf(id), 1);
       document.removeEventListener("pointerdown", down, true);
       document.removeEventListener("keydown", key, true);
     };
-  }, [open, anchor, onClose, host]);
+  }, [open, anchor, onClose]);
 
-  if (!open || !host) return null;
+  if (!open) return null;
   return createPortal(
     <div
       ref={ref}
-      className={"menu inline " + className}
+      className={"menu " + className}
       role="menu"
-      data-side={placement === "top" ? "top" : "bottom"}
+      data-side={pos?.up ? "top" : "bottom"}
       data-align={align}
-      style={{ width: width ? `min(${width}px, 100%)` : undefined, marginLeft: align === "end" ? "auto" : undefined }}
+      style={{
+        left: pos?.left ?? -9999,
+        top: pos?.top ?? -9999,
+        maxHeight: pos?.maxH,
+        width,
+        visibility: pos ? "visible" : "hidden",
+      }}
     >
       {children}
     </div>,
-    host,
+    document.body,
   );
-}
-
-/** The box around el that is a row of a vertical stack. */
-function rowOf(el: HTMLElement): HTMLElement | null {
-  for (let p: HTMLElement | null = el; p && p !== document.body; p = p.parentElement) {
-    const parent = p.parentElement;
-    if (!parent) return null;
-    if (getComputedStyle(p).display.startsWith("inline") && p !== el) continue;
-    const ps = getComputedStyle(parent);
-    const vertical =
-      ps.display === "block" ||
-      ps.display === "flow-root" ||
-      (ps.display.endsWith("flex") && ps.flexDirection.startsWith("column")) ||
-      (ps.display.endsWith("grid") && ps.gridTemplateColumns.trim().split(/\s+/).length <= 1);
-    // (a button or a label holds the button; in a paragraph a block is not allowed)
-    if (vertical && !/^(BUTTON|LABEL|P|SPAN|A)$/.test(parent.tagName)) return p;
-  }
-  return null;
 }
 
 /** useState + ref helper for anchored menus. */

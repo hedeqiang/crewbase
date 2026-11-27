@@ -1,8 +1,7 @@
 import { EmptyState } from "../EmptyState";
-import { Sheet } from "../Sheet";
 import { Cloud, Copy, Laptop, Loader2, Pencil, RefreshCw, ShieldCheck, Smartphone, Trash2, Wifi, X } from "lucide-react";
 import qrcode from "qrcode-generator";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { API, type DeviceView, type MemberView, type PairingCode, type RelayStatus } from "../../api";
 import { ago } from "../../format";
 import { t, type Key } from "../../i18n";
@@ -65,22 +64,15 @@ export function Hosts() {
   const pairFor = useStore((s) => s.pairFor);
   const [members, setMembers] = useState<MemberView[]>([]);
   const [who, setWho] = useState("");
-  const whoRef = useRef(who);
-  whoRef.current = who;
   const now = useNow();
   useEffect(() => {
     API.members()
       .then((r) => setMembers(r.members))
       .catch(() => {});
   }, []);
-  // 添加并配对手机 from 成员与角色: the phone's pairing starts at once (once
-  // the relay state is known), not after another click here
-  const [autoPair, setAutoPair] = useState(false);
-  const [loaded, setLoaded] = useState(false);
   useEffect(() => {
     if (pairFor) {
       setWho(pairFor);
-      setAutoPair(true);
       setState({ pairFor: null });
     }
   }, [pairFor]);
@@ -91,7 +83,6 @@ export function Hosts() {
       if (d.status === "fulfilled") setDevices(d.value.devices);
       else setErr(d.reason?.status === 404 ? t("dev.old") : d.reason?.message ?? String(d.reason));
       setRelay(r.status === "fulfilled" ? r.value : null);
-      setLoaded(true);
     } catch (e: any) {
       setErr(e?.message ?? String(e));
     }
@@ -104,11 +95,6 @@ export function Hosts() {
 
   const local = location.hostname === "127.0.0.1" || location.hostname === "localhost";
 
-  useEffect(() => {
-    if (!autoPair || !who || !loaded || busy !== "" || err) return;
-    setAutoPair(false);
-    void start("mobile");
-  }, [autoPair, who, loaded, busy, err]);
   const start = async (tier: "mobile" | "desktop", rs = relay) => {
     if (local && !rs?.configured) {
       setNeed(tier);
@@ -117,7 +103,7 @@ export function Hosts() {
     setNeed(null);
     setBusy("pair");
     try {
-      const p = await API.startPairing(tier, whoRef.current);
+      const p = await API.startPairing(tier, who);
       // through the relay when one is set up, else the address of this page
       const link = rs?.configured ? (await API.relayPairLink(p.code)).url : `${location.origin}/#/pair?code=${encodeURIComponent(p.code)}`;
       setOpen({ p, link });
@@ -284,7 +270,9 @@ export function Hosts() {
       </div>
 
       {need && (
-        <Sheet onClose={() => setNeed(null)} className="pairdlg" label={t("dev.pairTitle")}>
+        <>
+          <div className="ovscrim show" onMouseDown={() => setNeed(null)} />
+          <div className="modal pairdlg" role="dialog" aria-modal="true" aria-label={t("dev.pairTitle")}>
             <div className="mhd">
               <h3>{need === "desktop" ? t("dev.pairComputer") : t("dev.pairPhone")}</h3>
               <button className="ib" type="button" aria-label={t("common.close")} onClick={() => setNeed(null)}>
@@ -340,11 +328,14 @@ export function Hosts() {
                 {rechecking ? <Loader2 size={13} className="spin" /> : <RefreshCw size={13} />} {t("dev.needRecheck")}
               </button>
             </div>
-          </Sheet>
+          </div>
+        </>
       )}
 
       {open && (
-        <Sheet onClose={() => void close()} className="pairdlg" label={t("dev.pairTitle")}>
+        <>
+          <div className="ovscrim show" onMouseDown={() => void close()} />
+          <div className="modal pairdlg" role="dialog" aria-modal="true" aria-label={t("dev.pairTitle")}>
             <div className="mhd">
               <h3>{open.p.tier === "desktop" ? t("dev.pairComputer") : t("dev.pairPhone")}</h3>
               <button className="ib" type="button" aria-label={t("common.close")} onClick={() => void close()}>
@@ -373,7 +364,8 @@ export function Hosts() {
                 </p>
               </div>
             </div>
-          </Sheet>
+          </div>
+        </>
       )}
     </>
   );

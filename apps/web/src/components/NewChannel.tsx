@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Boxes, Folder, Hash, Users } from "lucide-react";
+import { Boxes, Folder, Hash, Users, X } from "lucide-react";
 import { API, teamOf } from "../api";
 import { t } from "../i18n";
 import { openSession, refreshAgents, refreshChannels, refreshSessions, setState, toast, useFolders, useStore, getState } from "../store";
@@ -7,8 +7,13 @@ import { Avatar } from "./Avatar";
 import { RoundtablePicker, createSeats, defaultSeats, makersOf, type Seat } from "./Roundtable";
 
 /** 新建频道: name, members (first selected = owner), folder (docs/03 §5.2). */
-/** 新建频道: a page in the main column (#/new-channel), like 新建 Agent. */
 export function NewChannel() {
+  const open = useStore((s) => s.newChannel);
+  if (!open) return null;
+  return <Dialog />;
+}
+
+function Dialog() {
   const agents = useStore((s) => s.agents);
   const team = useStore((s) => s.team);
   const [name, setName] = useState("");
@@ -45,10 +50,7 @@ export function NewChannel() {
     return () => window.removeEventListener("keydown", key, true);
   }, []);
 
-  const toggle = (id: string) => {
-    setErr(null);
-    setMembers((m) => (m.includes(id) ? m.filter((x) => x !== id) : [...m, id]));
-  };
+  const toggle = (id: string) => setMembers((m) => (m.includes(id) ? m.filter((x) => x !== id) : [...m, id]));
 
   const create = async () => {
     const n = name.trim().replace(/^#/, "").trim();
@@ -91,10 +93,14 @@ export function NewChannel() {
   };
 
   return (
-    <div className="ncpage">
-      <div className="nccard" role="region" aria-labelledby="ncTitle">
+    <>
+      <div className="scrim" onClick={close} />
+      <div className="modal" role="dialog" aria-modal="true" aria-labelledby="ncTitle">
         <div className="mhd">
           <h3 id="ncTitle">{t("list.newChannel")}</h3>
+          <button className="ix" type="button" aria-label={t("common.close")} onClick={close}>
+            <X size={14} />
+          </button>
         </div>
         <form
           className="mbd"
@@ -134,9 +140,7 @@ export function NewChannel() {
             </button>
           </div>
           <label className="fl" htmlFor="ncName">
-            <span>
-              {t("nc.name")} <i>*</i>
-            </span>
+            {t("nc.name")} <i>*</i>
           </label>
           <label className="fi sm iwrap">
             <Hash size={14} className="muted" />
@@ -248,6 +252,6 @@ export function NewChannel() {
           </div>
         </form>
       </div>
-    </div>
+    </>
   );
 }

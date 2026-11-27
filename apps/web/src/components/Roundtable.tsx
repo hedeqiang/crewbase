@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import { Plus } from "lucide-react";
 import { API, refString, type ModelRef, type ModelsResponse } from "../api";
 import { t, type Key } from "../i18n";
-import { allModels, findModel, sameRef, shortModel } from "../format";
+import { allModels, sameRef, shortModel } from "../format";
 import { currentTeam, teamMode } from "../store";
 import { COLORS, SHAPES, VendorTile, modelMark } from "./Avatar";
 import { markName, vendorFamily } from "./ProviderMark";
@@ -117,39 +117,12 @@ export function nameSeats(models: ModelsResponse | null, seats: Seat[]): Seat[] 
 }
 
 /** The starting table: the strongest model of the first makers. */
-/** The first makers at their good-value model (not each one's dearest). */
 export function defaultSeats(models: ModelsResponse | null, makers: Maker[]): Seat[] {
   return nameSeats(
     models,
-    makers.slice(0, ROUNDTABLE_DEFAULT).map((mk) => ({ key: mk.family, family: mk.family, ref: valueModel(models, mk), name: "", edited: false })),
+    makers.slice(0, ROUNDTABLE_DEFAULT).map((mk) => ({ key: mk.family, family: mk.family, ref: mk.models[0].ref, name: "", edited: false })),
   );
 }
-
-// a maker's mid or fast tier (good value) and its flagships, by model id
-const VALUE_TIER = /sonnet|haiku|mini|luna|flash|lite|nano|air|turbo|small|fast/i;
-const FLAGSHIP = /opus|fable|astra|ultra|\bmax\b|-pro\b|\bpro\b/i;
-/** Output price ($ per million tokens) a default pick stays under. */
-const VALUE_OUTPUT_USD = 12;
-
-/** The good-value model of a maker: within the price line when prices
- *  are known (the mid or fast tier first, the best of those), else its
- *  cheapest priced one; without prices the mid or fast tier by name, then
- *  anything that is not a flagship, then whatever it has. */
-export function valueModel(models: ModelsResponse | null, mk: Maker): ModelRef {
-  const all = mk.models.map((m) => ({ ref: m.ref, out: findModel(models, m.ref)?.pricing?.output }));
-  const priced = all.filter((m) => (m.out ?? 0) > 0);
-  if (priced.length) {
-    const under = priced.filter((m) => m.out! <= VALUE_OUTPUT_USD);
-    if (under.length) {
-      const tier = under.filter((m) => VALUE_TIER.test(m.ref.model));
-      // within the line, the strongest (dearest) of the mid tier
-      return (tier.length ? tier : under).reduce((a, b) => (b.out! > a.out! ? b : a)).ref;
-    }
-    return priced.reduce((a, b) => (b.out! < a.out! ? b : a)).ref;
-  }
-  return (all.find((m) => VALUE_TIER.test(m.ref.model)) ?? all.find((m) => !FLAGSHIP.test(m.ref.model)) ?? all[0]).ref;
-}
-
 
 /** Creates the members (follow-model avatars, one model each) and returns
  *  their ids in seat order; on a failure the ones made are removed. */

@@ -23,6 +23,7 @@ import { Logo } from "./components/Logo";
 // Loaded when first opened: most sessions never visit settings.
 const Settings = lazy(() => import("./components/Settings").then((m) => ({ default: m.Settings })));
 const Desk = lazy(() => import("./components/Desk").then((m) => ({ default: m.Desk })));
+const AddProviderDialog = lazy(() => import("./components/settings/AddProvider").then((m) => ({ default: m.AddProviderDialog })));
 
 export function App() {
   const authed = useStore((s) => s.authed);
@@ -93,7 +94,6 @@ function start() {
 
 function Shell() {
   const view = useStore((s) => s.view);
-  const newChannel = useStore((s) => s.newChannel);
   const listOpen = useStore((s) => s.listOpen);
   const panelOpen = useStore((s) => s.panelOpen);
   const connected = useStore((s) => s.connected);
@@ -173,10 +173,7 @@ function Shell() {
       if (e.key === "Escape") {
         const s = getState();
         // the new-agent page is a step aside: Esc goes back (the draft stays)
-        if (closeTopOverlay(e) || typing) return;
-        if (s.view === "newAgent") leaveTo("chat");
-        // an open 文档库 item closes like its ✕
-        else if (s.view === "desk" && s.desk === "library" && s.libOpen !== null) setState({ libOpen: null });
+        if (!closeTopOverlay(e) && s.view === "newAgent" && !typing) leaveTo("chat");
         return;
       }
       const id = actionOf(e, typing);
@@ -220,8 +217,6 @@ function Shell() {
                 <ConvHeader draftColor={draft.color} draftShape={draft.shape} draftFace={draft.face} draftLook={draft} />
                 {view === "newAgent" ? (
                   <NewAgent draft={draft} setDraft={setDraft} />
-                ) : newChannel ? (
-                  <NewChannel />
                 ) : (
                   <Conversation onTemplate={(d) => setDraft({ ...emptyDraft(), ...d })} />
                 )}
@@ -233,7 +228,8 @@ function Shell() {
         )}
       </div>
       <Palette />
-      
+      <ConnectModel />
+      <NewChannel />
       <Toasts />
       <UpdateNotes />
       <ConfirmHost />
@@ -254,6 +250,17 @@ function Toasts() {
   );
 }
 
+/** 连接模型, opened from wherever a missing model is noticed. */
+function ConnectModel() {
+  const on = useStore((s) => s.connecting);
+  const providers = useStore((s) => s.models?.providers);
+  if (!on) return null;
+  return (
+    <Suspense fallback={null}>
+      <AddProviderDialog existing={(providers ?? []).map((p) => p.id)} onClose={() => setState({ connecting: false })} />
+    </Suspense>
+  );
+}
 
 /** Closes the topmost dialog or overlay, as Esc and back do; false when
  *  nothing is open on top. With e (an Esc), dialogs that handle Esc
@@ -275,16 +282,11 @@ function closeTopOverlay(e?: KeyboardEvent): boolean {
     return true;
   }
   const s = getState();
-  if (s.palette) {
-    setState({ palette: false });
-    // back to typing in the conversation, not to the page
-    requestAnimationFrame(() => document.querySelector<HTMLElement>(".composer textarea")?.focus({ preventScroll: true }));
-    return true;
-  }
+  if (s.palette) return setState({ palette: false }), true;
+  if (s.newChannel) return setState({ newChannel: false }), true;
   if (s.hostConfirm) return setState({ hostConfirm: null }), true;
   // the list and the panel as overlays on a narrow window
-  // (设置 has its own list: the conversations' one is not on screen there)
-  if (window.matchMedia("(max-width: 820px)").matches && s.listOpen && s.view !== "settings") return setState({ listOpen: false }), true;
+  if (window.matchMedia("(max-width: 820px)").matches && s.listOpen) return setState({ listOpen: false }), true;
   // (the panel as a sheet on a phone is a step of its own: router.ts)
   if (window.matchMedia("(max-width: 1100px)").matches && !window.matchMedia("(max-width: 820px)").matches && s.panelOpen && s.view === "chat") return setState({ panelOpen: false }), true;
   return false;

@@ -1,7 +1,6 @@
 import { EmptyState } from "../EmptyState";
 import { Skeleton } from "../Skeleton";
 import { Fragment, useEffect, useState } from "react";
-import type React from "react";
 import { Copy, FileText, KeyRound, MessagesSquare, Plug, Plus } from "lucide-react";
 import { ProviderMark } from "../ProviderMark";
 import { API, type VaultItem } from "../../api";
@@ -196,16 +195,7 @@ function AddSecret({ onDone, onCancel }: { onDone: () => void; onCancel: () => v
   const [name, setName] = useState("");
   const [value, setValue] = useState("");
   const [busy, setBusy] = useState(false);
-  const nameOk = /^[A-Za-z0-9._@-]{1,64}$/.test(name);
-  const ok = nameOk && value.trim() !== "";
-  const keys = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter") void save();
-    else if (e.key === "Escape") {
-      e.preventDefault();
-      e.stopPropagation();
-      onCancel();
-    }
-  };
+  const ok = /^[A-Za-z0-9._@-]{1,64}$/.test(name) && value.trim() !== "";
   const save = async () => {
     if (!ok) return;
     setBusy(true);
@@ -228,8 +218,15 @@ function AddSecret({ onDone, onCancel }: { onDone: () => void; onCancel: () => v
         </span>
       </div>
       <div className="srow vltform">
-        <input className="fi sm mono" value={name} placeholder={t("vlt.namePh")} aria-label={t("vlt.nameLabel")} aria-invalid={!!name && !nameOk} autoFocus onChange={(e) => setName(e.target.value)} onKeyDown={keys} />
-        <input className="fi sm mono" type="password" value={value} placeholder={t("vlt.valuePh")} aria-label={t("vlt.valueLabel")} onChange={(e) => setValue(e.target.value)} onKeyDown={keys} />
+        <input className="fi sm mono" value={name} placeholder={t("vlt.namePh")} autoFocus onChange={(e) => setName(e.target.value.trim())} />
+        <input
+          className="fi sm mono"
+          type="password"
+          value={value}
+          placeholder={t("vlt.valuePh")}
+          onChange={(e) => setValue(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && void save()}
+        />
         <button className="btn sm pri" type="button" disabled={!ok || busy} onClick={() => void save()}>
           {t("vlt.save")}
         </button>
@@ -237,7 +234,6 @@ function AddSecret({ onDone, onCancel }: { onDone: () => void; onCancel: () => v
           {t("common.cancel")}
         </button>
       </div>
-      {!!name && !nameOk && <p className="small errt vltbad">{t("vlt.nameRule")}</p>}
     </div>
   );
 }

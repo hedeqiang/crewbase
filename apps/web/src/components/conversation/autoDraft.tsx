@@ -4,7 +4,7 @@
 // the draft opens right under the turn as an editable card, and 创建 /
 // 先试跑一次 go through the routines and workflows APIs, as in 自动化.
 
-import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { ArrowUpRight, CalendarClock, Check, Hand, MessageSquare, Play, RefreshCw, Repeat, Trash, Workflow as WorkflowIcon, X } from "lucide-react";
 import { API, parseRef, type AutoDraft, type Routine, type WfRun, type WfStep, type Workflow } from "../../api";
 import { t } from "../../i18n";
@@ -118,13 +118,6 @@ function AutoDraftCard({ session, anchor, onClose }: { session: string; anchor: 
   const [quiet, setQuiet] = useState("");
   const [w, setW] = useState<Workflow | null>(null);
   const [busy, setBusy] = useState<"" | "create" | "trial">("");
-  // opened below the fold (the answer's end is where the button is): its
-  // top comes into view now, and again once the draft has grown it
-  const cardRef = useRef<HTMLElement>(null);
-  useEffect(() => {
-    const id = window.setTimeout(() => cardRef.current?.scrollIntoView({ block: "start", behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" }), 40);
-    return () => window.clearTimeout(id);
-  }, [!!draft]);
   const [made, setMade] = useState<Made | null>(null);
 
   useEffect(() => {
@@ -193,7 +186,7 @@ function AutoDraftCard({ session, anchor, onClose }: { session: string; anchor: 
   if (made) return <MadeCard made={made} anchor={anchor.item} onClose={onClose} />;
 
   return (
-    <section className="c2r" ref={cardRef} data-anchor={anchor.item} aria-label={t("c2r.title")}>
+    <section className="c2r" data-anchor={anchor.item} aria-label={t("c2r.title")}>
       <header className="c2r-h">
         <span className="c2r-i" aria-hidden>
           {kind === "workflow" ? <WorkflowIcon size={15} /> : <CalendarClock size={15} />}
@@ -349,10 +342,10 @@ const uniq = (xs: string[]) => [...new Set(xs.filter(Boolean))];
 
 function scheduleNote(d: AutoDraft, cur: string) {
   const proposed = d.kind === "workflow" ? d.workflow.trigger : d.routine.schedule;
-  if (cur !== proposed && cur !== d.routine.schedule) return undefined;
+  if (cur !== proposed && cur !== d.routine.schedule) return t("auto.scheduleHint");
   if (d.scheduleGuessed) return t("c2r.schedGuessed", { s: scheduleLabel(proposed) });
   if (d.scheduleWhy) return t("c2r.schedWhy", { why: d.scheduleWhy });
-  return undefined;
+  return t("auto.scheduleHint");
 }
 
 function StepEdit({ n, s, last, onChange, onRemove }: { n: number; s: WfStep; last: boolean; onChange: (s: WfStep) => void; onRemove?: () => void }) {

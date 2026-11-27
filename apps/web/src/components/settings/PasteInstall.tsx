@@ -1,12 +1,10 @@
 import { useEffect, useMemo, useState, type Dispatch, type SetStateAction } from "react";
-import { Sheet } from "../Sheet";
 import { ChevronDown, ChevronRight, Lock, Search, X } from "lucide-react";
 import { MonoMark } from "../ProviderMark";
 import { API, api, type PluginView } from "../../api";
 import { getLang, t } from "../../i18n";
-import { errText } from "../../errors";
 import { toast } from "../../store";
-import { settle, signInWindow } from "./ExtParts";
+import { errMsg, settle, signInWindow } from "./ExtParts";
 
 type Text = { zh: string; en: string };
 interface PlanVar {
@@ -85,7 +83,7 @@ export function PasteInstall({
       const start = picks?.length && wanted.length ? wanted : fresh.length > MANY ? [] : fresh;
       setPicked(new Set(start.map((s) => s.path)));
     } catch (e) {
-      setErr(errText(e));
+      setErr(errMsg(e));
     } finally {
       setBusy(false);
     }
@@ -139,14 +137,16 @@ export function PasteInstall({
       }
       onClose();
     } catch (e) {
-      setErr(errText(e));
+      setErr(errMsg(e));
     } finally {
       setBusy(false);
     }
   };
 
   return (
-    <Sheet onClose={onClose} className={"pstmodal" + (plan?.kind === "skill" ? " sk" + ((plan.skills?.length ?? 0) > MANY ? " tall" : "") : "")}>
+    <>
+      <div className="scrim" onClick={onClose} />
+      <div className={"modal pstmodal" + (plan?.kind === "skill" ? " sk" + ((plan.skills?.length ?? 0) > MANY ? " tall" : "") : "")} role="dialog" aria-modal="true" aria-labelledby="pstTitle">
         <div className="mhd">
           <h3 id="pstTitle">{plan ? t("pst.confirmTitle") : t("pst.title")}</h3>
           <button className="ix" type="button" aria-label={t("common.close")} onClick={onClose}>
@@ -276,7 +276,8 @@ export function PasteInstall({
             </div>
           )}
         </div>
-      </Sheet>
+      </div>
+    </>
   );
 }
 

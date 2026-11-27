@@ -618,8 +618,6 @@ function EndpointEditor({ team, e, provider, providers, onClose, onSaved }: {
     setCustom("");
   };
   const save = async () => {
-    // events with nowhere to go: ask once, the first time (a new hook)
-    if (!e && !(f.targets?.length) && !(await confirmDialog({ text: t("wh.noTargetsQ"), ok: t("wh.createAnyway") }))) return;
     setBusy(true);
     try {
       const r = await API.saveEndpoint(team, e?.id ?? null, { ...f, name: f.name?.trim() || `${PROVIDER_NAME[p] ?? p}`, secret: secret.trim() || undefined });
@@ -633,18 +631,7 @@ function EndpointEditor({ team, e, provider, providers, onClose, onSaved }: {
   };
   const order = [...QUICK, ...providers.filter((x) => !QUICK.includes(x))].filter((x) => providers.includes(x));
   return (
-    <form
-      ref={top}
-      className="whcard whedit"
-      onSubmit={(x) => (x.preventDefault(), void save())}
-      onKeyDown={(x) => {
-        if (x.key === "Escape" && !x.defaultPrevented) {
-          x.preventDefault();
-          x.stopPropagation();
-          onClose();
-        }
-      }}
-    >
+    <form ref={top} className="whcard whedit" onSubmit={(x) => (x.preventDefault(), void save())}>
       <header className="wheh">
         <b>{e ? t("wh.editEndpoint") : t("wh.newEndpoint")}</b>
         <button type="button" className="ix" aria-label={t("common.close")} onClick={onClose}>

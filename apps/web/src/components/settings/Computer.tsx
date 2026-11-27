@@ -180,8 +180,6 @@ function SysPerms({ ov }: { ov: ComputerOverview }) {
                   </button>
                 )}
               </span>
-              {/* in a browser there is no button to press: say where it is */}
-              {!ok && !(d?.requestPermission || d?.openPermissionSettings) && <span className="small muted permwhere">{t(`cu.where.${id}` as Key, { app: "Crewbase" })}</span>}
             </Row>
           );
         })}

@@ -560,8 +560,7 @@ function Detail({ team, id, onChanged }: { team: string; id: number; onChanged: 
             <Paperclip size={12} />
             {target ? t("lib.useIn", { agent: target.agent.name }) : t("lib.useInConv")}
           </button>
-          {/* why it is off, said where phones can see it too */}
-          <span className="small muted">{target ? t("lib.dragHint") : t("lib.useNoTarget")}</span>
+          <span className="small muted">{t("lib.dragHint")}</span>
         </div>
         <ItemPreview key={it.sha256} team={team} it={it} />
         {it.summary && (

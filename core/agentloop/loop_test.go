@@ -517,52 +517,6 @@ func TestStoppedTurnIsNotResumed(t *testing.T) {
 	}
 }
 
-// A reply stopped while it streams keeps what was already shown, marked
-// as stopped, and the next turn's model sees it.
-func TestStoppedReplyKeepsItsText(t *testing.T) {
-	e := newEnv(t, t.TempDir())
-	ad, _ := e.llms.Get("claude-code")
-	m := ad.(*mock.Adapter)
-	shown := make(chan struct{}, 1)
-	m.StreamScript = func(ctx context.Context, req llm.Request, on func(llm.Chunk) error) (llm.Response, error) {
-		_ = on(llm.Chunk{Type: "thinking", Text: "plan"})
-		_ = on(llm.Chunk{Type: "text", Text: "1\n2\n"})
-		_ = on(llm.Chunk{Type: "text", Text: "3\n"})
-		shown <- struct{}{}
-		<-ctx.Done()
-		return llm.Response{}, ctx.Err()
-	}
-	a, _ := e.agents.Create(agent.Spec{Name: "Cy"})
-	ss, _ := a.Session()
-	send(t, a, "count to 300")
-	<-shown
-	a.Stop()
-	agentloop.WaitIdle(a, 5*time.Second)
-	msg, text := lastAssistant(t, ss)
-	if text != "1\n2\n3\n" || msg.Stop != agentloop.StopCancelled {
-		t.Fatalf("kept %q (stop %q)", text, msg.Stop)
-	}
-	if len(msg.Message.ToolCalls()) != 0 {
-		t.Fatal("a stopped reply has no tool calls")
-	}
-	// the next turn reads it as the agent's own words
-	m.StreamScript = nil
-	var saw string
-	m.Script = func(req llm.Request) (llm.Response, error) {
-		for _, x := range req.Messages {
-			if x.Role == llm.RoleAssistant {
-				saw = x.Text()
-			}
-		}
-		return llm.Response{StopReason: "end", Message: llm.TextMessage(llm.RoleAssistant, "ok")}, nil
-	}
-	send(t, a, "go on")
-	agentloop.WaitIdle(a, 5*time.Second)
-	if saw != "1\n2\n3\n" {
-		t.Fatalf("next turn saw %q", saw)
-	}
-}
-
 // Writing to an agent that waits for approval declines the request, and
 // the message is what the agent reads next, in the same turn.
 func TestReplyInsteadOfApproval(t *testing.T) {

@@ -2,7 +2,7 @@ import { jumpTo } from "../MsgExtras";
 import { Skeleton } from "../Skeleton";
 import { markEntering } from "../../lib/motion";
 import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
-import { ArrowDown, ChevronRight, ChevronLeft, History } from "lucide-react";
+import { ChevronRight, ChevronLeft, History } from "lucide-react";
 import { type AgentView, type ChannelView } from "../../api";
 import { t } from "../../i18n";
 import { type FeedItem, type Rewind } from "../../projection";
@@ -240,31 +240,10 @@ export function Feed({
     anchor.current = el ? el.scrollHeight - el.scrollTop : null;
     setShownN((n) => n + FEED_WINDOW);
   };
-  // scrolled up while it is still writing: a way back to the end
-  const [away, setAway] = useState(false);
-  const lastTop = useRef(0);
-  const toEnd = () => {
-    const el = ref.current;
-    if (!el) return;
-    stick.current = true;
-    setAway(false);
-    scrollMemo.delete(sessionId);
-    // at once: a smooth scroll's own scroll events (still short of an end
-    // that keeps growing) would let go of the end again
-    el.scrollTop = el.scrollHeight;
-  };
   const onScroll = () => {
     const el = ref.current;
     if (!el) return;
-    // the end is let go of only when you scroll up: a feed that got
-    // shorter (the composer grew) moves its end away without anyone
-    // scrolling, and WebKit reports that as a scroll
-    const near = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
-    const up = el.scrollTop < lastTop.current - 2;
-    lastTop.current = el.scrollTop;
-    if (near) stick.current = true;
-    else if (up) stick.current = false;
-    if (stick.current === away) setAway(!stick.current);
+    stick.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
     if (stick.current) scrollMemo.delete(sessionId);
     else scrollMemo.set(sessionId, el.scrollHeight - el.scrollTop);
   };
@@ -292,16 +271,11 @@ export function Feed({
   useEffect(() => {
     const el = ref.current;
     if (!el || typeof ResizeObserver === "undefined") return;
-    const ro = new ResizeObserver((entries) => {
-      if (!stick.current) return;
-      // the feed itself changed size (the composer grew, the panel
-      // widened): the end stays in view, busy or not; what grows inside
-      // keeps it only while someone works here
-      if (busy.current || entries.some((x) => x.target === el)) el.scrollTop = el.scrollHeight;
+    const ro = new ResizeObserver(() => {
+      if (stick.current && busy.current) el.scrollTop = el.scrollHeight;
     });
     const watch = () => {
       ro.disconnect();
-      ro.observe(el);
       const kids = el.children;
       for (let i = Math.max(0, kids.length - 3); i < kids.length; i++) ro.observe(kids[i]);
     };
@@ -412,12 +386,6 @@ export function Feed({
       {takeovers.map((a) => (
         <TakeoverCard key={a.id} agent={a} reason={takeoverReason(a) ?? ""} />
       ))}
-      {away && busy.current && (
-        <button type="button" className="feedend" onClick={toEnd} aria-label={t("chat.toLatest")}>
-          <ArrowDown size={14} />
-          {t("chat.toLatest")}
-        </button>
-      )}
       {typingIds.map((id) => {
         const a = id === agent.id ? agent : agents[id];
         if (!a) return null;

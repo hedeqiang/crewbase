@@ -1,28 +1,19 @@
 import { EmptyState } from "../EmptyState";
 import { Skeleton } from "../Skeleton";
-import { lazy, Suspense, useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import { CalendarClock, ChevronRight, Pencil, Play, Plus, Trash, X } from "lucide-react";
 import { API, type Routine, type RoutineRun } from "../../api";
 import { t, type Key } from "../../i18n";
 import { ago, modeLabel, until } from "../../format";
-import { openDesk, openNewAgent, openSession, toast, useStore } from "../../store";
+import { openDesk, openSession, toast, useStore } from "../../store";
 import { Avatar } from "../Avatar";
 import { Head } from "./Head";
-import { TriggerPicker } from "./TriggerPicker";
 import { confirmDialog } from "../Confirm";
 
 // the conversation imports this file (做成例行): the workflows page loads when opened
 const Workflows = lazy(() => import("./Workflows").then((m) => ({ default: m.Workflows })));
 
 type Tab = "routines" | "workflows";
-const TAB_KEY = "crewbase.autoTab";
-function readTab(): Tab {
-  try {
-    return sessionStorage.getItem(TAB_KEY) === "workflows" ? "workflows" : "routines";
-  } catch {
-    return "routines";
-  }
-}
 
 /** 设置 › 自动化: 例行巡检 + 晨报 and 工作流. */
 export function Automation() {
@@ -31,16 +22,7 @@ export function Automation() {
     focusNext = null;
     return f;
   });
-  // the tab you were on (an unsaved workflow brings you back to it)
-  const [tab, setTabState] = useState<Tab>(() => focus?.tab ?? readTab());
-  const setTab = (v: Tab) => {
-    setTabState(v);
-    try {
-      sessionStorage.setItem(TAB_KEY, v);
-    } catch {
-      /* private mode */
-    }
-  };
+  const [tab, setTab] = useState<Tab>(focus?.tab ?? "routines");
   return (
     <>
       <Head
@@ -92,22 +74,21 @@ export function runPill(status: string) {
   return <span className={"pill " + (RUN_TONE[status] ?? "")}>{t(k) === k ? status : t(k)}</span>;
 }
 
-/** When a routine (or a drafted one) runs: the same picker as 工作流's
- *  何时运行; 手动 only where the presets offer it. */
-export function ScheduleField({ value, onChange, presets = PRESETS, hint }: { value: string; onChange: (v: string) => void; presets?: string[]; hint?: string }) {
+/** A schedule spec with one-click presets (巡检 form, the draft card in a conversation). */
+export function ScheduleField({ value, onChange, presets = PRESETS, hint = t("auto.scheduleHint") }: { value: string; onChange: (v: string) => void; presets?: string[]; hint?: string }) {
   return (
     <div>
-      <TriggerPicker value={value} onChange={onChange} noManual={!presets.includes("manual")} />
-      {hint && <span className="small">{hint}</span>}
+      <input className="fi sm mono" value={value} aria-label={t("auto.schedule")} onChange={(e) => onChange(e.target.value)} />
+      <div className="chips">
+        {presets.map((p) => (
+          <button key={p} type="button" className="chip" aria-pressed={value === p} onClick={() => onChange(p)}>
+            {scheduleLabel(p)}
+          </button>
+        ))}
+      </div>
+      <span className="small">{hint}</span>
     </div>
   );
-}
-
-/** A schedule the daemon refused, said in words (its parser speaks English). */
-export function scheduleError(msg: string): string | null {
-  if (/interval .* below the minimum/i.test(msg)) return t("auto.errInterval");
-  if (/cron needs|want: |unknown weekday|bad time|empty schedule|minute:|hour:|day of month|month:|day of week/i.test(msg)) return t("auto.errSchedule");
-  return null;
 }
 
 /** Opens 自动化 on a tab, with one routine or workflow brought into view
@@ -159,7 +140,6 @@ function Routines({ focus }: { focus?: string }) {
   const [secret, setSecret] = useState<{ name: string; secret: string } | null>(null);
   const [open, setOpen] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
-  const noAgents = Object.values(agents).filter((a) => a.kind !== "chat").length === 0;
   const load = () => API.routines().then((r) => setList(r.routines ?? []), (e) => setErr(errMsg(e)));
   useEffect(() => {
     void load();
@@ -208,7 +188,7 @@ function Routines({ focus }: { focus?: string }) {
         <span>{t("auto.routines")}</span>
         <span className="sp" />
         {!edit && (
-          <button className="btn" type="button" onClick={() => (noAgents ? openNewAgent() : setEdit({ mode: "read-only", schedule: "daily 08:30", enabled: true }))}>
+          <button className="btn" type="button" disabled={Object.keys(agents).length === 0} onClick={() => setEdit({ mode: "read-only", schedule: "daily 08:30", enabled: true })}>
             <Plus size={13} />
             {t("auto.newRoutine")}
           </button>
@@ -231,21 +211,7 @@ function Routines({ focus }: { focus?: string }) {
       )}
       {edit && <RoutineForm init={edit} onCancel={() => setEdit(null)} onSaved={saved} />}
       {err && <p className="small errt">{err}</p>}
-      {list && list.length === 0 && !edit && (
-        <EmptyState
-          icon={<CalendarClock size={22} />}
-          title={t("auto.noRoutines")}
-          desc={noAgents ? t("auto.needAgent") : t("es.routinesDesc")}
-          action={
-            noAgents ? (
-              <button className="btn pri" type="button" onClick={() => openNewAgent()}>
-                <Plus size={13} />
-                {t("auto.newAgentFirst")}
-              </button>
-            ) : undefined
-          }
-        />
-      )}
+      {list && list.length === 0 && !edit && <EmptyState icon={<CalendarClock size={22} />} title={t("auto.noRoutines")} desc={t("es.routinesDesc")} />}
       <div className="cards">
         {list?.map((r) => {
           const a = agents[r.agent];
@@ -296,48 +262,37 @@ export function RoutineForm({ init, onCancel, onSaved }: { init: Partial<Routine
   const [f, setF] = useState<Partial<Routine>>(init);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
-  const set = (p: Partial<Routine>) => {
-    setErr(null);
-    setF((x) => ({ ...x, ...p }));
-  };
-  const formRef = useRef<HTMLDivElement>(null);
+  const set = (p: Partial<Routine>) => setF((x) => ({ ...x, ...p }));
   const isNew = !init.id;
   const save = async () => {
-    const missing = !f.name?.trim() ? "name" : !f.agent ? "agent" : !f.prompt?.trim() ? "prompt" : !f.schedule?.trim() ? "schedule" : "";
-    if (missing) {
-      setErr(t(`auto.need.${missing}` as Key));
-      // the field itself, or the first control inside its wrapper
-      const at = formRef.current?.querySelector<HTMLElement>(`[data-f="${missing}"]`);
-      (at?.matches("input, select, textarea") ? at : at?.querySelector<HTMLElement>("select, input, textarea, button"))?.focus();
+    if (!f.name?.trim() || !f.agent || !f.prompt?.trim() || !f.schedule?.trim()) {
+      setErr(t("auto.required"));
       return;
     }
     setBusy(true);
     try {
       const r = isNew
-        ? await API.createRoutine({ name: (f.name ?? "").trim(), agent: f.agent!, prompt: f.prompt!, schedule: (f.schedule ?? "").trim(), mode: f.mode })
-        : await API.patchRoutine(init.id!, { name: (f.name ?? "").trim(), prompt: f.prompt, schedule: (f.schedule ?? "").trim(), mode: f.mode });
+        ? await API.createRoutine({ name: f.name.trim(), agent: f.agent, prompt: f.prompt, schedule: f.schedule.trim(), mode: f.mode })
+        : await API.patchRoutine(init.id!, { name: f.name.trim(), prompt: f.prompt, schedule: f.schedule.trim(), mode: f.mode });
       onSaved(r, isNew);
     } catch (e) {
-      const m = errMsg(e);
-      setErr(scheduleError(m) ?? m);
+      setErr(errMsg(e));
     } finally {
       setBusy(false);
     }
   };
   return (
-    <div className="box form" ref={formRef}>
+    <div className="box form">
       <b>{isNew ? t("auto.newRoutine") : t("auto.editRoutine", { name: init.name ?? "" })}</b>
       <div className="fgrid">
         <label className="fl">{t("auto.name")}</label>
-        <input className="fi sm" data-f="name" autoFocus value={f.name ?? ""} placeholder={t("auto.namePh")} onChange={(e) => set({ name: e.target.value })} />
+        <input className="fi sm" value={f.name ?? ""} placeholder={t("auto.namePh")} onChange={(e) => set({ name: e.target.value })} />
         <label className="fl">{t("auto.agent")}</label>
-        <div data-f="agent">{isNew && !init.agent ? <AgentSelect value={f.agent ?? ""} onChange={(v) => set({ agent: v })} /> : <AgentName id={f.agent ?? ""} />}</div>
+        {isNew && !init.agent ? <AgentSelect value={f.agent ?? ""} onChange={(v) => set({ agent: v })} /> : <AgentName id={f.agent ?? ""} />}
         <label className="fl">{t("auto.prompt")}</label>
-        <textarea className="fi sm" data-f="prompt" rows={3} value={f.prompt ?? ""} placeholder={t("auto.promptPh")} onChange={(e) => set({ prompt: e.target.value })} />
+        <textarea className="fi sm" rows={3} value={f.prompt ?? ""} placeholder={t("auto.promptPh")} onChange={(e) => set({ prompt: e.target.value })} />
         <label className="fl">{t("auto.schedule")}</label>
-        <div data-f="schedule">
-          <ScheduleField value={f.schedule ?? ""} onChange={(v) => set({ schedule: v })} />
-        </div>
+        <ScheduleField value={f.schedule ?? ""} onChange={(v) => set({ schedule: v })} />
         <label className="fl">{t("na.mode")}</label>
         <div>
           <ModeSeg value={f.mode || "read-only"} onChange={(v) => set({ mode: v })} />

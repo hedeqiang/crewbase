@@ -43,11 +43,7 @@ export function ApprovalActions({ req, small = false, extra }: { req: ApprovalRe
           value={reason}
           onChange={(e) => setReason(e.target.value)}
           onKeyDown={(e) => {
-            // Enter sends the reason, as in the composer; Shift+Enter is a new line
-            if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
-              e.preventDefault();
-              void decide("rejected", { message: reason.trim() || undefined });
-            }
+            if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) void decide("rejected", { message: reason.trim() || undefined });
             if (e.key === "Escape") setMode("idle");
           }}
         />

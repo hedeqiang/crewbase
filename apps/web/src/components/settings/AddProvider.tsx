@@ -1,8 +1,7 @@
-import { AlertTriangle, Check, ChevronDown, ChevronLeft, ChevronRight, ExternalLink, KeyRound, Loader2, Plus, Search, Sparkles, X } from "lucide-react";
+import { AlertTriangle, Check, ChevronDown, ChevronRight, ExternalLink, KeyRound, Loader2, Plus, Search, Sparkles, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { API, desktop, type ModelKind, type ProviderPreset, type ProviderTestResult, type UserProvider } from "../../api";
 import { classifyModelId, modelKind } from "../../format";
-import { explain } from "../../errors";
 import { t } from "../../i18n";
 import { resync, toast } from "../../store";
 import { autoIcon, IconMark, PICKABLE, ProviderMark } from "../ProviderMark";
@@ -18,7 +17,7 @@ type Step = "pick" | "key";
  *  models step: the listing is fetched again with the stored key, models
  *  can be ticked / unticked or typed by hand, and a blank key keeps the
  *  stored one. */
-export function AddProviderDialog({ onClose, existing, edit, inline }: { onClose: () => void; existing: string[]; edit?: UserProvider; inline?: boolean }) {
+export function AddProviderDialog({ onClose, existing, edit }: { onClose: () => void; existing: string[]; edit?: UserProvider }) {
   const [presets, setPresets] = useState<ProviderPreset[] | null>(null);
   const [loadErr, setLoadErr] = useState("");
   const [step, setStep] = useState<Step>(edit ? "key" : "pick");
@@ -60,22 +59,6 @@ export function AddProviderDialog({ onClose, existing, edit, inline }: { onClose
   useEffect(() => {
     if (step === "key" && !edit) keyRef.current?.focus();
   }, [step, edit]);
-  // Esc on the key step steps back to the list (what was typed would be
-  // lost by closing); on the list it closes, as before. Runs before the
-  // app's Esc (capture), which then sees it handled.
-  useEffect(() => {
-    // in place, Esc on the list (or editing) leaves it, like ✕
-    if ((step === "pick" || edit) && !inline) return;
-    const key = (e: KeyboardEvent) => {
-      if (e.key !== "Escape" || e.isComposing || e.defaultPrevented) return;
-      e.preventDefault();
-      e.stopPropagation();
-      if (step === "pick" || edit) onClose();
-      else setStep("pick");
-    };
-    window.addEventListener("keydown", key, true);
-    return () => window.removeEventListener("keydown", key, true);
-  }, [step, edit, inline, onClose]);
 
   const list = useMemo(() => {
     const ql = q.trim().toLowerCase();
@@ -221,23 +204,15 @@ export function AddProviderDialog({ onClose, existing, edit, inline }: { onClose
   const [fresh] = useState(() => unseenNew());
   useEffect(() => markNewSeen(), []);
 
-  const title = edit ? t("ap.edit", { name: edit.name || edit.id }) : step === "pick" ? t("set.addProvider") : t("ap.connect", { name: name || t("ap.custom") });
   return (
     <>
-      {!inline && <div className="ovscrim show" onMouseDown={onClose} />}
-      <div className={inline ? "addprov apin" : "modal addprov"} role={inline ? "region" : "dialog"} aria-modal={inline ? undefined : true} aria-label={title}>
+      <div className="ovscrim show" onMouseDown={onClose} />
+      <div className="modal addprov" role="dialog" aria-modal="true" aria-label={edit ? t("ap.edit", { name: edit.name || edit.id }) : t("set.addProvider")}>
         <div className="mhd">
-          {inline && (
-            <button className="ib" type="button" aria-label={t("common.back")} onClick={() => (step === "pick" || edit ? onClose() : setStep("pick"))}>
-              <ChevronLeft size={16} />
-            </button>
-          )}
-          <h3>{title}</h3>
-          {!inline && (
-            <button className="ib" type="button" aria-label={t("common.close")} onClick={onClose}>
-              <X size={16} />
-            </button>
-          )}
+          <h3>{edit ? t("ap.edit", { name: edit.name || edit.id }) : step === "pick" ? t("set.addProvider") : t("ap.connect", { name: name || t("ap.custom") })}</h3>
+          <button className="ib" type="button" aria-label={t("common.close")} onClick={onClose}>
+            <X size={16} />
+          </button>
         </div>
         <div className="mbd">
           {step === "pick" ? (
@@ -428,7 +403,7 @@ export function AddProviderDialog({ onClose, existing, edit, inline }: { onClose
                 </label>
               )}
 
-              {test && !test.ok && !manualMode && <ErrBar msg={test.error || t("ap.testFailed")} />}
+              {test && !test.ok && !manualMode && <div className="confirmbar errbar">{test.error || t("ap.testFailed")}</div>}
               {(manualMode || test?.ok) && (
                 <div className="ap-models">
                   <div className="ap-mh">
@@ -516,20 +491,4 @@ function markNewSeen() {
   } catch {
     /* storage unavailable: the dot shows again next time */
   }
-}
-
-/** A failed check, said plainly; the provider's own words under 详情. */
-function ErrBar({ msg }: { msg: string }) {
-  const e = explain(msg);
-  return (
-    <div className="confirmbar errbar errx">
-      <span>{e.text}</span>
-      {e.detail && e.detail !== e.text && (
-        <details>
-          <summary>{t("err.detail")}</summary>
-          <code>{e.detail}</code>
-        </details>
-      )}
-    </div>
-  );
 }

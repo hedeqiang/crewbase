@@ -37,7 +37,6 @@ import { EmptyState } from "../EmptyState";
 import { Skeleton } from "../Skeleton";
 import { Popover, useMenu } from "../Popover";
 import { confirmDialog } from "../Confirm";
-import { TriggerPicker } from "./TriggerPicker";
 import { addBranch, insertStep, moveNode, nodeAt, removeNode, type NodeRef } from "./wfsteps";
 import { ModeSeg, runPill, scheduleLabel } from "./Automation";
 
@@ -79,14 +78,9 @@ function problem(w: Workflow): { msg: string; at?: NodeRef } | null {
 
 // ---------------------------------------------------------------- list
 
-// an unsaved workflow when you went elsewhere (another page, the 例行巡检
-// tab): brought back as you left it when you return
-let kept: { id: string; w: Workflow } | null = null;
-
 export function Workflows({ focus }: { focus?: string } = {}) {
   const [list, setList] = useState<Workflow[] | null>(null);
-  const [sel, setSel] = useState<string | null>(() => kept?.id ?? null); // a workflow id, or "new"
-  const [newName, setNewName] = useState("");
+  const [sel, setSel] = useState<string | null>(null); // a workflow id, or "new"
   const [err, setErr] = useState<string | null>(null);
   const dirty = useRef(false);
   const load = () =>
@@ -129,7 +123,7 @@ export function Workflows({ focus }: { focus?: string } = {}) {
               <WorkflowIcon size={14} />
             </span>
             <span className="g">
-              <b>{newName.trim() || t("wf.untitled")}</b>
+              <b>{t("wf.untitled")}</b>
               <span>{t("wf.notSaved")}</span>
             </span>
           </button>
@@ -154,7 +148,6 @@ export function Workflows({ focus }: { focus?: string } = {}) {
             key="new"
             init={blank()}
             dirtyRef={dirty}
-            onName={setNewName}
             onSaved={(w) => void load().then(() => setSel(w.id))}
             onClose={() => {
               dirty.current = false;
@@ -194,32 +187,10 @@ export function Workflows({ focus }: { focus?: string } = {}) {
 
 // ---------------------------------------------------------------- one workflow
 
-function WorkflowView({ init, dirtyRef, onSaved, onClose, onName }: { init: Workflow; dirtyRef: { current: boolean }; onSaved: (w: Workflow) => void; onClose: () => void; onName?: (name: string) => void }) {
+function WorkflowView({ init, dirtyRef, onSaved, onClose }: { init: Workflow; dirtyRef: { current: boolean }; onSaved: (w: Workflow) => void; onClose: () => void }) {
   const isNew = !init.id;
-  const keyId = init.id || "new";
   const [base, setBase] = useState(init);
-  const [w, setW] = useState<Workflow>(() => {
-    const k = kept?.id === keyId ? kept.w : null;
-    kept = null;
-    if (k) toast(t("wf.restored"));
-    return k ?? clone(init);
-  });
-  const latest = useRef(w);
-  latest.current = w;
-  const savedNew = useRef(false); // created: nothing here to keep any more
-  useEffect(() => onName?.(w.name ?? ""), [w.name]);
-  // leaving with something unsaved: keep it for the way back, and ask
-  // before the window closes
-  useEffect(() => {
-    const warn = (e: BeforeUnloadEvent) => {
-      if (dirtyRef.current) e.preventDefault();
-    };
-    window.addEventListener("beforeunload", warn);
-    return () => {
-      window.removeEventListener("beforeunload", warn);
-      if (dirtyRef.current && !savedNew.current) kept = { id: keyId, w: latest.current };
-    };
-  }, []);
+  const [w, setW] = useState<Workflow>(() => clone(init));
   const [open, setOpen] = useState<NodeRef | null>(isNew ? { stage: 0 } : null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<{ msg: string; at?: NodeRef } | null>(null);
@@ -265,7 +236,6 @@ function WorkflowView({ init, dirtyRef, onSaved, onClose, onName }: { init: Work
       setBase(out);
       setW(clone(out));
       dirtyRef.current = false;
-      savedNew.current = isNew;
       onSaved(out);
       return out;
     } catch (e) {
@@ -506,6 +476,117 @@ function RunButton({ usesInput, busy, onRun }: { usesInput: boolean; busy: boole
         </div>
       </Popover>
     </>
+  );
+}
+
+// ---------------------------------------------------------------- when
+
+type When = { kind: "manual" } | { kind: "webhook" } | { kind: "daily"; time: string } | { kind: "weekly"; day: string; time: string } | { kind: "every"; every: string } | { kind: "custom"; raw: string };
+const DAYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
+const EVERY = ["15m", "30m", "1h", "2h", "3h", "6h", "12h"];
+const pad = (s: string) => (s.length === 4 ? "0" + s : s);
+
+function parseWhen(v: string): When {
+  const s = v.trim().toLowerCase();
+  if (!s || s === "manual") return { kind: "manual" };
+  if (s === "webhook") return { kind: "webhook" };
+  let m = /^daily (\d\d?:\d\d)$/.exec(s);
+  if (m) return { kind: "daily", time: pad(m[1]) };
+  m = /^weekly (\w{3})\w* (\d\d?:\d\d)$/.exec(s);
+  if (m && DAYS.includes(m[1])) return { kind: "weekly", day: m[1], time: pad(m[2]) };
+  m = /^every (\d+[mh])$/.exec(s);
+  if (m) return { kind: "every", every: m[1] };
+  return { kind: "custom", raw: v };
+}
+function whenSpec(w: When): string {
+  switch (w.kind) {
+    case "manual":
+      return "manual";
+    case "webhook":
+      return "webhook";
+    case "daily":
+      return `daily ${w.time}`;
+    case "weekly":
+      return `weekly ${w.day} ${w.time}`;
+    case "every":
+      return `every ${w.every}`;
+    case "custom":
+      return w.raw;
+  }
+}
+const everyLabel = (e: string) => t("auto.every", { d: e.replace(/h$/, t("auto.hour")).replace(/m$/, t("auto.minute")) });
+
+/** 何时运行: by hand, on a schedule (said in words, not cron), or from a webhook. */
+function TriggerPicker({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const w = parseWhen(value);
+  const kind = w.kind === "manual" || w.kind === "webhook" ? w.kind : "schedule";
+  const set = (x: When) => onChange(whenSpec(x));
+  return (
+    <div className="trig">
+      <div className="seg">
+        <button type="button" aria-pressed={kind === "manual"} onClick={() => set({ kind: "manual" })}>
+          {t("wf.byHand")}
+        </button>
+        <button type="button" aria-pressed={kind === "schedule"} onClick={() => kind !== "schedule" && set({ kind: "daily", time: "09:00" })}>
+          {t("wf.onSchedule")}
+        </button>
+        <button type="button" aria-pressed={kind === "webhook"} onClick={() => set({ kind: "webhook" })}>
+          Webhook
+        </button>
+      </div>
+      {kind === "schedule" && (
+        <div className="trig-s">
+          <span className="ssel sm">
+            <select
+              value={w.kind}
+              aria-label={t("wf.often")}
+              onChange={(e) => {
+                const k = e.target.value;
+                const time = "time" in w ? w.time : "09:00";
+                if (k === "daily") set({ kind: "daily", time });
+                else if (k === "weekly") set({ kind: "weekly", day: "mon", time });
+                else if (k === "every") set({ kind: "every", every: "1h" });
+                else set({ kind: "custom", raw: "0 9 * * 1-5" });
+              }}
+            >
+              <option value="daily">{t("wf.daily")}</option>
+              <option value="weekly">{t("wf.weekly")}</option>
+              <option value="every">{t("wf.everyN")}</option>
+              <option value="custom">{t("wf.cron")}</option>
+            </select>
+          </span>
+          {w.kind === "weekly" && (
+            <span className="ssel sm">
+              <select value={w.day} aria-label={t("wf.day")} onChange={(e) => set({ ...w, day: e.target.value })}>
+                {DAYS.map((d) => (
+                  <option key={d} value={d}>
+                    {t(`auto.wd.${d}` as Key)}
+                  </option>
+                ))}
+              </select>
+            </span>
+          )}
+          {(w.kind === "daily" || w.kind === "weekly") && (
+            <input className="fi sm trig-time" type="time" value={w.time} aria-label={t("wf.time")} onChange={(e) => e.target.value && set({ ...w, time: e.target.value })} />
+          )}
+          {w.kind === "every" && (
+            <span className="ssel sm">
+              <select value={w.every} aria-label={t("wf.interval")} onChange={(e) => set({ kind: "every", every: e.target.value })}>
+                {[...new Set([...EVERY, w.every])].map((e) => (
+                  <option key={e} value={e}>
+                    {everyLabel(e)}
+                  </option>
+                ))}
+              </select>
+            </span>
+          )}
+          {w.kind === "custom" && (
+            <input className="fi sm mono trig-cron" value={w.raw} placeholder="0 9 * * 1-5" aria-label={t("wf.cron")} title={t("auto.scheduleHint")} onChange={(e) => set({ kind: "custom", raw: e.target.value })} />
+          )}
+        </div>
+      )}
+      {kind === "webhook" && <span className="small muted">{t("wf.webhookHint")}</span>}
+    </div>
   );
 }
 

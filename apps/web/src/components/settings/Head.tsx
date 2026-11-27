@@ -1,20 +1,15 @@
 import { type ReactNode } from "react";
-import { SheetSlot } from "../Sheet";
 
 // The heading and row of a settings page, on their own: pages reachable
 // from the conversation (automation) use them without loading Settings.
 
 export function Head({ title, sub, right }: { title: string; sub?: string; right?: ReactNode }) {
   return (
-    <>
-      <div className="vh">
-        <h2>{title}</h2>
-        {sub && <span className="sub">{sub}</span>}
-        {right && <div className="r">{right}</div>}
-      </div>
-      {/* where this page's sheets open (Sheet), above its body */}
-      <SheetSlot />
-    </>
+    <div className="vh">
+      <h2>{title}</h2>
+      {sub && <span className="sub">{sub}</span>}
+      {right && <div className="r">{right}</div>}
+    </div>
   );
 }
 

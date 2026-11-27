@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from "react";
-import type React from "react";
 import { Check, ChevronDown, ChevronRight, ChevronLeft, CornerLeftUp, Folder, FolderOpen, Clock, Undo2, Shield, ShieldAlert, Eye, ListPlus, ChevronUp, CornerDownRight, X } from "lucide-react";
 import { API, desktop, type AgentView } from "../../api";
 import { t } from "../../i18n";
@@ -210,50 +209,6 @@ export function QueueStack({ agent, session, busy }: { agent: AgentView; session
           </div>
         );
       })}
-    </div>
-  );
-}
-
-/** One of the composer's choices (模型, 运行环境, 上下文), opened in place
- *  above the text box rather than floating over the conversation. Esc or
- *  ✕ closes it, and the keyboard goes back to the text box. */
-export function Tray({ title, onClose, className = "", children }: { title: string; onClose: () => void; className?: string; children: React.ReactNode }) {
-  const ref = useRef<HTMLDivElement>(null);
-  const closeBack = () => {
-    // found before it closes (then the tray is gone)
-    const box = ref.current?.closest(".composer")?.querySelector<HTMLElement>("textarea");
-    onClose();
-    requestAnimationFrame(() => box?.focus({ preventScroll: true }));
-  };
-  // the first field (a search), else its first choice, takes the keyboard
-  useEffect(() => {
-    const id = window.setTimeout(() => {
-      const el = ref.current;
-      (el?.querySelector<HTMLElement>(".ctrayb input") ?? el?.querySelector<HTMLElement>(".ctrayb button:not(:disabled)"))?.focus({ preventScroll: true });
-    }, 0);
-    return () => window.clearTimeout(id);
-  }, []);
-  return (
-    <div
-      ref={ref}
-      className={"ctray " + className}
-      role="region"
-      aria-label={title}
-      onKeyDown={(e) => {
-        if (e.key === "Escape" && !e.defaultPrevented) {
-          e.preventDefault();
-          e.stopPropagation();
-          closeBack();
-        }
-      }}
-    >
-      <div className="ctrayh">
-        <b>{title}</b>
-        <button className="ix" type="button" aria-label={t("common.close")} onClick={closeBack}>
-          <X size={14} />
-        </button>
-      </div>
-      <div className="ctrayb">{children}</div>
     </div>
   );
 }

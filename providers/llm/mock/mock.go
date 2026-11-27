@@ -36,8 +36,6 @@ type Adapter struct {
 	requests []llm.Request
 	// Script, when set, overrides the default behaviour.
 	Script func(req llm.Request) (llm.Response, error)
-	// StreamScript, when set, streams by hand (a reply cut off mid-way).
-	StreamScript func(ctx context.Context, req llm.Request, onChunk func(llm.Chunk) error) (llm.Response, error)
 }
 
 // New creates a mock adapter.
@@ -98,11 +96,7 @@ func (a *Adapter) Stream(ctx context.Context, req llm.Request, onChunk func(llm.
 	a.requests = append(a.requests, req)
 	script := a.Script
 	delay := a.delay
-	byHand := a.StreamScript
 	a.mu.Unlock()
-	if byHand != nil {
-		return byHand(ctx, req, onChunk)
-	}
 	if a.exhausted.Load() {
 		return llm.Response{}, &llm.Error{Kind: llm.ErrQuotaExhausted, Provider: a.id, Message: "weekly limit reached", ResetsAt: time.Now().Add(time.Hour)}
 	}

@@ -122,15 +122,12 @@ export function ContextMap({
   channel,
   ctx,
   onClose,
-  inline,
 }: {
   agent: AgentView;
   sessionId: string;
   channel: boolean;
   ctx?: { tokens: number; window: number; model?: ModelRef };
   onClose: () => void;
-  /** in place (the composer's tray gives it a frame and closes it) */
-  inline?: boolean;
 }) {
   const models = useStore((s) => s.models);
   const evCount = useStore((s) => s.events[sessionId]?.length ?? 0);
@@ -176,22 +173,15 @@ export function ContextMap({
     void load();
   }, [agent.id, sessionId, evCount]);
   useEffect(() => {
-    // Esc first closes a block's detail; then the whole view (in place,
-    // the tray does that: this runs first, in the capture phase)
     const k = (e: KeyboardEvent) => {
       if (e.key !== "Escape") return;
-      if (sel) {
-        e.preventDefault();
-        e.stopPropagation();
-        setSel(null);
-      } else if (!inline) {
-        e.preventDefault();
-        onClose();
-      }
+      e.preventDefault();
+      if (sel) setSel(null);
+      else onClose();
     };
-    window.addEventListener("keydown", k, inline);
-    return () => window.removeEventListener("keydown", k, inline);
-  }, [onClose, sel, inline]);
+    window.addEventListener("keydown", k);
+    return () => window.removeEventListener("keydown", k);
+  }, [onClose, sel]);
   const pickView = (v: "map" | "list") => {
     setView(v);
     try {
@@ -240,16 +230,16 @@ export function ContextMap({
   }, [bd]);
   const withFree = showFree ?? (win > 0 && used / win >= 0.35);
 
-  const body = (
-      <div className={(inline ? "ctxmap inline" : "modal ctxmap") + (detail ? "" : " brief")} role={inline ? undefined : "dialog"} aria-modal={inline ? undefined : true} aria-labelledby={inline ? undefined : "cmapTitle"}>
-        {!inline && (
-          <div className="mhd">
-            <h3 id="cmapTitle">{t("cmap.title")}</h3>
-            <button className="ix" type="button" aria-label={t("common.close")} onClick={onClose}>
-              <X size={15} />
-            </button>
-          </div>
-        )}
+  return createPortal(
+    <>
+      <div className="scrim" onClick={onClose} />
+      <div className={"modal ctxmap" + (detail ? "" : " brief")} role="dialog" aria-modal="true" aria-labelledby="cmapTitle">
+        <div className="mhd">
+          <h3 id="cmapTitle">{t("cmap.title")}</h3>
+          <button className="ix" type="button" aria-label={t("common.close")} onClick={onClose}>
+            <X size={15} />
+          </button>
+        </div>
         <div className="mbd cxbody">
           {!bd && !err && (
             <div className="cxempty">
@@ -390,12 +380,6 @@ export function ContextMap({
           )}
         </div>
       </div>
-  );
-  if (inline) return body;
-  return createPortal(
-    <>
-      <div className="scrim" onClick={onClose} />
-      {body}
     </>,
     document.body,
   );
