@@ -1,6 +1,6 @@
 import { BookOpen, ClipboardList, FilePlus2, Megaphone, Trash2, X } from "lucide-react";
+import { Popover, lastPressed } from "./Popover";
 import { useEffect, useRef, useState } from "react";
-import { createPortal } from "react-dom";
 import { API, type AgentView, type Working as WorkingData } from "../api";
 import { ago } from "../format";
 import { t, type Key } from "../i18n";
@@ -177,21 +177,13 @@ export function WorkNotes({ agent }: { agent: AgentView }) {
 /** Task lists read better as boxes than as "[x]". */
 const checks = (s: string) => s.replace(/^(\s*[-*] )\[[xX]\] /gm, "$1☑ ").replace(/^(\s*[-*] )\[ \] /gm, "$1☐ ");
 
+/** A task's progress or a note, opened below its row (the row toggles it,
+ *  a click elsewhere or Esc closes it). */
 function Viewer({ agent, view, onClose, onDelete }: { agent: AgentView; view: NonNullable<Viewing>; onClose: () => void; onDelete?: () => void }) {
-  useEffect(() => {
-    const k = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        e.preventDefault();
-        onClose();
-      }
-    };
-    window.addEventListener("keydown", k);
-    return () => window.removeEventListener("keydown", k);
-  }, [onClose]);
-  return createPortal(
-    <>
-      <div className="scrim" onClick={onClose} />
-      <div className="modal wide" role="dialog" aria-modal="true" aria-labelledby="wvTitle">
+  const [anchor] = useState(() => lastPressed());
+  return (
+    <Popover anchor={anchor} open onClose={onClose} className="keep wviewin">
+      <div role="region" aria-labelledby="wvTitle">
         <div className="mhd">
           <h3 id="wvTitle">
             {view.name}
@@ -213,8 +205,7 @@ function Viewer({ agent, view, onClose, onDelete }: { agent: AgentView; view: No
           </div>
         )}
       </div>
-    </>,
-    document.body,
+    </Popover>
   );
 }
 

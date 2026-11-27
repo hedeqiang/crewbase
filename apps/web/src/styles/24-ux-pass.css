@@ -136,3 +136,13 @@
 .menu.inline.cfmin .mhd { padding: 10px 12px 2px; }
 .menu.inline.cfmin .mbd { padding: 4px 12px 0; }
 .menu.inline.cfmin .mft { margin-top: 10px; padding: 0 8px; }
+
+/* a viewer / form in place (it keeps its own header) */
+.menu.inline.keep { padding: 0; max-height: min(70vh, 640px); }
+.menu.inline.keep .mhd { padding: 12px 12px 4px 14px; }
+.menu.inline.keep .mbd { padding: 0 14px 12px; }
+.menu.inline.keep .mft { padding: 0 12px 12px; margin-top: 4px; }
+.menu.inline.wviewin .wview { max-height: none; }
+.menu.inline.updnotesin { max-height: min(60vh, 520px); }
+.menu.inline.updnotesin .mhd { padding: 10px 10px 2px 12px; }
+.menu.inline.updnotesin .mbd { padding: 0 12px 10px; }

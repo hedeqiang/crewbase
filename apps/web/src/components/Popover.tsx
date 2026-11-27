@@ -12,6 +12,31 @@ interface Props {
   width?: number;
 }
 
+// what was last pressed: a thing opened from code (a confirmation, a
+// viewer) goes in place below it
+let pressed: { el: HTMLElement; at: number } | null = null;
+if (typeof document !== "undefined")
+  document.addEventListener(
+    "pointerdown",
+    (e) => {
+      const el = (e.target as HTMLElement | null)?.closest?.<HTMLElement>("button, [role=button], a, .mi");
+      if (el) pressed = { el, at: Date.now() };
+    },
+    true,
+  );
+/** The button just pressed (or focused), to open something below it; for
+ *  one in a menu that closes as it acts, the row the menu was for. */
+export function lastPressed(): HTMLElement | null {
+  const a = document.activeElement as HTMLElement | null;
+  let el = a && a !== document.body && a.closest("button, [role=button], a, .mi") ? a : pressed && Date.now() - pressed.at < 3000 && pressed.el.isConnected ? pressed.el : null;
+  const host = el?.closest<HTMLElement>(".popin-host");
+  if (host && !host.querySelector(".menu.inline.keep")) el = (host.previousElementSibling ?? host.nextElementSibling) as HTMLElement | null;
+  return el;
+}
+
+// open ones, innermost last: Esc closes only that one
+const openStack: symbol[] = [];
+
 /** A menu opened by a button, shown in place: inserted into the page
  *  right below the row the button is in (above it for placement "top"),
  *  pushing what follows down, rather than floating over the page. It
@@ -44,8 +69,10 @@ export function Popover({ anchor, open, onClose, children, placement = "bottom",
       if (ref.current?.contains(t) || anchor?.contains(t)) return;
       onClose();
     };
+    const id = Symbol();
+    openStack.push(id);
     const key = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
+      if (e.key === "Escape" && openStack[openStack.length - 1] === id) {
         e.stopPropagation();
         // Esc gives the keyboard back where it was (the button that
         // opened it; else the composer), not to the page
@@ -66,6 +93,7 @@ export function Popover({ anchor, open, onClose, children, placement = "bottom",
       field.select?.();
     } else if (document.activeElement === anchor) ref.current?.querySelector<HTMLElement>("button:not(:disabled)")?.focus({ preventScroll: true });
     return () => {
+      openStack.splice(openStack.indexOf(id), 1);
       document.removeEventListener("pointerdown", down, true);
       document.removeEventListener("keydown", key, true);
     };

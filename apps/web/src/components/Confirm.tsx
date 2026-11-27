@@ -1,26 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { t } from "../i18n";
-import { Popover } from "./Popover";
+import { Popover, lastPressed } from "./Popover";
 
-// what was last pressed: the question opens in place, below it
-let pressed: { el: HTMLElement; at: number } | null = null;
-if (typeof document !== "undefined")
-  document.addEventListener(
-    "pointerdown",
-    (e) => {
-      const el = (e.target as HTMLElement | null)?.closest?.<HTMLElement>("button, [role=button], a, .mi");
-      if (el) pressed = { el, at: Date.now() };
-    },
-    true,
-  );
-function anchorNow(): HTMLElement | null {
-  const a = document.activeElement as HTMLElement | null;
-  let el = a && a !== document.body && a.closest("button, [role=button], a, .mi") ? a : pressed && Date.now() - pressed.at < 3000 && pressed.el.isConnected ? pressed.el : null;
-  // asked from a menu that closes as it asks: below the row the menu was for
-  const host = el?.closest<HTMLElement>(".popin-host");
-  if (host) el = (host.previousElementSibling ?? host.nextElementSibling) as HTMLElement | null;
-  return el;
-}
 
 /** A confirmation asked with the app's own dialog (theme, language, Esc),
  *  instead of the browser's window.confirm. Resolves true on OK. */
@@ -64,7 +45,7 @@ export function splitQuestion(s: string): [string, string] {
 export function confirmDialog(o: ConfirmOptions | string): Promise<boolean> {
   const opts = typeof o === "string" ? { text: o, danger: true } : o;
   if (!show) return Promise.resolve(window.confirm(opts.text));
-  const anchor = anchorNow();
+  const anchor = lastPressed();
   return new Promise((done) => show!({ ...opts, done, anchor }));
 }
 
