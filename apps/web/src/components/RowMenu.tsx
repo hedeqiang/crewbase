@@ -6,14 +6,18 @@ import { chatTitle, isChat, newChat, openNewAgent, openNewChannel, openSession, 
 import { requestAutoDraft } from "./conversation/autoDraft";
 import { teamOf } from "../api";
 import { Avatar } from "./Avatar";
+import { Popover } from "./Popover";
 
 type Target = { kind: "agent"; agent: AgentView } | { kind: "channel"; meta: SessionMeta } | { kind: "folder"; name: string };
 
 interface Open {
-  x: number;
-  y: number;
+  /** the row it is for: the menu (and its small forms) open below it */
+  anchor: HTMLElement | null;
   target: Target;
 }
+// the row of the last menu: a form opened from it goes there too
+let lastAnchor: HTMLElement | null = null;
+const plusButton = () => document.querySelector<HTMLElement>(".sbar button[aria-haspopup], button[aria-haspopup][aria-label]");
 
 let opener: ((o: Open) => void) | null = null;
 let creator: (() => void) | null = null;
@@ -28,9 +32,10 @@ export function openNewFolder() {
 export function openRowMenu(e: MouseEvent, target: Target) {
   e.preventDefault();
   e.stopPropagation();
-  const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
-  const fromButton = e.type === "click";
-  opener?.({ x: fromButton ? r.right - 4 : e.clientX, y: fromButton ? r.bottom + 4 : e.clientY, target });
+  const el = e.currentTarget as HTMLElement;
+  const anchor = el.closest<HTMLElement>(".ci, [data-folder], .fold, .fh") ?? el;
+  lastAnchor = anchor;
+  opener?.({ anchor, target });
 }
 
 /** The ⋯ button shown on hover at the end of a list row. */
@@ -56,12 +61,14 @@ export function RowMenuButton({ target }: { target: Target }) {
 export function RowMenuHost() {
   const [open, setOpen] = useState<Open | null>(null);
   const [dialog, setDialog] = useState<{ kind: DialogKind; target: Target } | null>(null);
-  const ref = useRef<HTMLDivElement>(null);
   const folders = useFolders();
 
   useEffect(() => {
     opener = setOpen;
-    creator = () => setDialog({ kind: "create", target: { kind: "folder", name: "" } });
+    creator = () => {
+      lastAnchor = plusButton();
+      setDialog({ kind: "create", target: { kind: "folder", name: "" } });
+    };
     adder = (folder) => setDialog({ kind: "add", target: { kind: "folder", name: folder } });
     return () => {
       opener = null;
@@ -69,27 +76,6 @@ export function RowMenuHost() {
       adder = null;
     };
   }, []);
-  useEffect(() => {
-    if (!open) return;
-    const close = (e: Event) => {
-      if (ref.current && e.target instanceof Node && ref.current.contains(e.target)) return;
-      setOpen(null);
-    };
-    const esc = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        e.preventDefault();
-        setOpen(null);
-      }
-    };
-    window.addEventListener("mousedown", close);
-    window.addEventListener("keydown", esc);
-    window.addEventListener("blur", close);
-    return () => {
-      window.removeEventListener("mousedown", close);
-      window.removeEventListener("keydown", esc);
-      window.removeEventListener("blur", close);
-    };
-  }, [open]);
 
   const item = (icon: ReactNode, label: string, run: () => void, danger = false) => (
     <button
@@ -108,10 +94,8 @@ export function RowMenuHost() {
   const menu = () => {
     if (!open) return null;
     const tg = open.target;
-    const left = Math.min(open.x, window.innerWidth - 220);
-    const top = Math.min(open.y, window.innerHeight - 200);
     return (
-      <div ref={ref} className="pop menu rowmenu" style={{ left, top, width: 210 }} role="menu">
+      <Popover anchor={open.anchor} open onClose={() => setOpen(null)} width={240} className="rowmenu">
         {tg.kind === "folder" ? (
           <>
             {item(<MessageSquare size={15} />, t("rm.folderNewChat"), () => void newChat(tg.name))}
@@ -143,7 +127,7 @@ export function RowMenuHost() {
             {item(<Trash2 size={15} />, tg.kind === "agent" ? (isChat(tg.agent) ? t("rm.deleteChat") : t("rm.deleteAgent")) : t("rm.deleteChannel"), () => setDialog({ kind: "delete", target: tg }), true)}
           </>
         )}
-      </div>
+      </Popover>
     );
   };
 
@@ -217,9 +201,7 @@ function AddToFolder({ folder, onClose }: { folder: string; onClose: () => void 
     }
   };
   return (
-    <>
-      <div className="scrim" onClick={onClose} />
-      <div className="modal rmd" role="dialog" aria-modal="true" aria-label={t("rm.addTitle", { folder })}>
+    <Popover anchor={lastAnchor} open onClose={onClose} width={320} className="rmform rmd">
         <div className="mhd">
           <b>{t("rm.addTitle", { folder })}</b>
         </div>
@@ -249,8 +231,7 @@ function AddToFolder({ folder, onClose }: { folder: string; onClose: () => void 
             {t("rm.addBtn", { n: pick.size })}
           </button>
         </div>
-      </div>
-    </>
+      </Popover>
   );
 }
 
@@ -356,9 +337,7 @@ function RowDialog({ d, folders, onClose }: { d: { kind: DialogKind; target: Tar
           : t("rm.dissolveNote");
 
   return (
-    <>
-      <div className="ovscrim show" onMouseDown={onClose} />
-      <div className="modal sm" role="dialog" aria-modal="true" aria-label={title}>
+    <Popover anchor={lastAnchor} open onClose={onClose} width={320} className="rmform sm">
         <div className="mhd">
           <h3>{title}</h3>
         </div>
@@ -438,7 +417,6 @@ function RowDialog({ d, folders, onClose }: { d: { kind: DialogKind; target: Tar
           </button>
         </div>
         </div>
-      </div>
-    </>
+      </Popover>
   );
 }
