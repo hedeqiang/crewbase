@@ -3,6 +3,27 @@
 Each `## <version>` section becomes the release notes of that version,
 shown in the desktop app's update window.
 
+## 0.9.31
+
+新增「做成技能」和工作流模板库；修复依赖里的一个安全漏洞，并升级多个依赖。
+
+做成技能
+- 每条回复下面多了「做成技能」：从这一轮（或到这里的整段对话）整理出一份 SKILL.md，写明用途、步骤和用到的命令、怎么检查做成了、踩过的坑
+- 名称和内容都可以改，选择只给这个 Agent 还是所有 Agent 用，点保存才写入；不会覆盖同名技能
+
+工作流模板
+- 自动化 › 工作流 的「新建工作流」下面多了「从模板新建」：PR 评审、日报、Sentry 告警分诊、Linear 工单转 PR
+- 选一个，编辑器就填好名称、触发方式、步骤和审批节点；给每一步选好 Agent 再创建。Webhook 类模板写明了要在 设置 › Webhook 接哪个事件
+
+安全与依赖
+- 修复 gorilla/websocket 的安全漏洞 GO-2026-6278（Discord、Slack、飞书连接用到）
+- Mermaid 图在显示前再经过一层 DOMPurify 清理，标签里的脚本和链接只会显示成文字
+- 升级 Anthropic、Google Gemini 官方 SDK，以及浏览器控制、Slack、飞书、SQLite、网络库等依赖；桌面框架 MyGo 升级到 v0.10.0
+
+其他
+- 新增 SECURITY.md（私下报告安全问题的方式与范围）、贡献指南和 issue / PR 模板
+- 文档里的版本说明和沙箱后端与实际代码对齐
+
 ## 0.9.30
 
 撤回 0.9.29 的界面改动，恢复到之前的样子。
