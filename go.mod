@@ -10,7 +10,7 @@ require (
 	github.com/chromedp/chromedp v0.24.0
 	github.com/coder/websocket v1.8.15
 	github.com/ebitengine/purego v0.11.3
-	github.com/egoist/mygo v0.9.0
+	github.com/egoist/mygo v0.10.0
 	github.com/gorilla/websocket v1.5.4-0.20250319132907-e064f32e3674
 	github.com/larksuite/oapi-sdk-go/v3 v3.14.0
 	github.com/ledongthuc/pdf v0.0.0-20261125152515-e8918f005efa
