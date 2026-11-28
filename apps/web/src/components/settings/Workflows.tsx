@@ -24,6 +24,7 @@ import {
   Trash,
   Users,
   Workflow as WorkflowIcon,
+  LayoutTemplate,
   X,
   Zap,
 } from "lucide-react";
@@ -39,6 +40,7 @@ import { Popover, useMenu } from "../Popover";
 import { confirmDialog } from "../Confirm";
 import { addBranch, insertStep, moveNode, nodeAt, removeNode, type NodeRef } from "./wfsteps";
 import { ModeSeg, runPill, scheduleLabel } from "./Automation";
+import { workflowTemplates } from "./workflowTemplates";
 
 const errMsg = (e: any) => e?.message ?? String(e);
 const clone = <T,>(x: T): T => JSON.parse(JSON.stringify(x));
@@ -80,7 +82,9 @@ function problem(w: Workflow): { msg: string; at?: NodeRef } | null {
 
 export function Workflows({ focus }: { focus?: string } = {}) {
   const [list, setList] = useState<Workflow[] | null>(null);
-  const [sel, setSel] = useState<string | null>(null); // a workflow id, or "new"
+  const [sel, setSel] = useState<string | null>(null); // a workflow id, "new", or "tpl" (the templates)
+  // the template the new workflow starts from (null: blank)
+  const [from, setFrom] = useState<Workflow | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const dirty = useRef(false);
   const load = () =>
@@ -111,9 +115,18 @@ export function Workflows({ focus }: { focus?: string } = {}) {
   return (
     <div className="pvwrap wfwrap">
       <div className="pvlist">
-        <button className="btn addwf" type="button" onClick={() => void pick("new")}>
+        <button className="btn addwf" type="button" onClick={() => (setFrom(null), void pick("new"))}>
           <Plus size={13} />
           {t("auto.newWorkflow")}
+        </button>
+        <button type="button" className="pvi wftplbtn" aria-current={sel === "tpl"} onClick={() => void pick("tpl")}>
+          <span className="wfi">
+            <LayoutTemplate size={14} />
+          </span>
+          <span className="g">
+            <b>{t("wft.title")}</b>
+            <span>{t("wft.sub")}</span>
+          </span>
         </button>
         {err && <p className="small errt">{err}</p>}
         {!list && <Skeleton />}
@@ -123,7 +136,7 @@ export function Workflows({ focus }: { focus?: string } = {}) {
               <WorkflowIcon size={14} />
             </span>
             <span className="g">
-              <b>{t("wf.untitled")}</b>
+              <b>{from?.name || t("wf.untitled")}</b>
               <span>{t("wf.notSaved")}</span>
             </span>
           </button>
@@ -143,14 +156,25 @@ export function Workflows({ focus }: { focus?: string } = {}) {
         ))}
       </div>
       <div className="pvd wfpane">
-        {sel === "new" ? (
+        {sel === "tpl" ? (
+          <Templates
+            onUse={(w) => {
+              setFrom(w);
+              setSel("new");
+            }}
+          />
+        ) : sel === "new" ? (
           <WorkflowView
-            key="new"
-            init={blank()}
+            key={"new" + (from?.name ?? "")}
+            init={from ? clone(from) : blank()}
             dirtyRef={dirty}
-            onSaved={(w) => void load().then(() => setSel(w.id))}
+            onSaved={(w) => {
+              setFrom(null);
+              void load().then(() => setSel(w.id));
+            }}
             onClose={() => {
               dirty.current = false;
+              setFrom(null);
               setSel(list?.[0]?.id ?? null);
             }}
           />
@@ -172,14 +196,60 @@ export function Workflows({ focus }: { focus?: string } = {}) {
               title={t("auto.noWorkflows")}
               desc={t("wf.emptyDesc")}
               action={
-                <button className="btn" type="button" onClick={() => void pick("new")}>
-                  <Plus size={13} />
-                  {t("auto.newWorkflow")}
-                </button>
+                <div className="acts">
+                  <button className="btn" type="button" onClick={() => (setFrom(null), void pick("new"))}>
+                    <Plus size={13} />
+                    {t("auto.newWorkflow")}
+                  </button>
+                  <button className="btn ghost" type="button" onClick={() => void pick("tpl")}>
+                    <LayoutTemplate size={13} />
+                    {t("wft.title")}
+                  </button>
+                </div>
               }
             />
           )
         )}
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------- templates
+
+/** 从模板新建: each template's steps go into a new workflow's editor; the
+ *  person picks who does each step there. */
+function Templates({ onUse }: { onUse: (w: Workflow) => void }) {
+  const list = useMemo(() => workflowTemplates(), []);
+  return (
+    <div className="wftpl">
+      <div className="mkst2">
+        <h3>{t("wft.title")}</h3>
+        <span className="small">{t("wft.desc")}</span>
+      </div>
+      <div className="mkcards">
+        {list.map((x) => (
+          <div className="mkcard" key={x.id}>
+            <div className="mkctop">
+              <span className="wfi">
+                <WorkflowIcon size={14} />
+              </span>
+              <div className="g">
+                <b>{x.title}</b>
+                <span className="mkbadge">
+                  {scheduleLabel(x.workflow.trigger)} · {t("auto.stepsN", { n: x.workflow.steps.length })}
+                </span>
+              </div>
+            </div>
+            <p className="mkcdesc">{x.desc}</p>
+            {x.source && <p className="small muted wftsrc">{x.source}</p>}
+            <div className="mkcfoot">
+              <button className="btn sm mkconn" type="button" onClick={() => onUse(x.workflow)}>
+                {t("wft.use")}
+              </button>
+            </div>
+          </div>
+        ))}
       </div>
     </div>
   );

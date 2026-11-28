@@ -376,3 +376,11 @@ button.foldw:hover { background: var(--hover); color: var(--text); }
 .ownchip.confirm { color: var(--amber-text); background: var(--amber-soft); border-color: transparent; }
 .nchand { align-self: flex-start; }
 
+
+/* 从模板新建: the entry under 新建工作流, and the templates in the pane */
+.wftplbtn { margin-top: 6px; }
+.wftpl { padding: 18px 24px 32px; overflow: auto; }
+@media (max-width: 820px) { .wftpl { padding: 14px 16px 28px; } }
+.wftpl .mkcards { margin-top: 10px; }
+.wftpl .wfi { flex: none; }
+.wftsrc { margin: -2px 0 8px; }
