@@ -1,0 +1,62 @@
+name: 问题反馈 / Bug report
+description: 某个功能不正常 / Something does not work as it should
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        安全问题请不要在这里提，按 [SECURITY.md](https://github.com/hedeqiang/crewbase/blob/main/SECURITY.md) 私下报告。
+        Please report security problems privately, as [SECURITY.md](https://github.com/hedeqiang/crewbase/blob/main/SECURITY.md) describes, not here.
+  - type: textarea
+    id: what
+    attributes:
+      label: 发生了什么 / What happened
+      description: 你做了什么，看到了什么，原本期望看到什么 / What you did, what you saw, what you expected
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: 复现步骤 / Steps to reproduce
+      placeholder: |
+        1.
+        2.
+        3.
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: 版本 / Version
+      description: 设置 › 通用 里能看到 / Shown in Settings › General
+      placeholder: "0.9.30"
+    validations:
+      required: true
+  - type: dropdown
+    id: install
+    attributes:
+      label: 安装方式 / Installed with
+      options:
+        - 桌面应用 / Desktop app (dmg)
+        - Homebrew
+        - 安装脚本 / Install script
+        - Docker / 服务器 / server
+        - 源码构建 / Built from source
+    validations:
+      required: true
+  - type: input
+    id: os
+    attributes:
+      label: 系统 / OS
+      placeholder: "macOS 26.3 (Apple silicon)"
+  - type: input
+    id: models
+    attributes:
+      label: 模型提供方 / Model provider
+      description: 例如 magpie、DeepSeek、OpenAI，与问题有关时填写 / e.g. magpie, DeepSeek, OpenAI, if it matters
+  - type: textarea
+    id: logs
+    attributes:
+      label: 日志或截图 / Logs or screenshots
+      description: 发出前请删掉密钥、令牌和私人内容 / Remove keys, tokens and private content first
+      render: text

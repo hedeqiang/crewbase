@@ -30,3 +30,6 @@ features/google/
 # pages agents show in the conversation (Crewbase's show_page)
 /.crewbase/
 /pages/
+
+# TypeScript incremental build state
+*.tsbuildinfo
