@@ -2,8 +2,6 @@
    finished turn, the 做成例行 turn action, and the routine brought into
    view in 自动化. */
 
-.mact.c2r-btn { width: auto; display: inline-flex; align-items: center; gap: 4px; padding: 0 7px; }
-.mact.c2r-btn span { font-size: var(--fs-12); font-weight: 500; }
 .mact.c2r-btn.on { color: var(--accent-text); background: var(--accent-soft); }
 
 .c2r { margin-top: 10px; max-width: 720px; border: 1px solid var(--border); border-radius: var(--r-14); background: var(--surface); overflow: hidden; animation: c2r-in .22s var(--ease-out, ease-out); }
@@ -67,7 +65,6 @@
   .c2r-h, .c2r-bar, .fgrid.c2r-grid, .c2r-foot, .c2r-trial { padding-left: 12px; padding-right: 12px; }
   .c2r-sh .ssel { flex: 1 1 100%; order: 3; }
   .c2r-sh .ssel select { width: 100%; }
-  .mact.c2r-btn span { display: none; }
 }
 
 @media (prefers-reduced-motion: reduce) {

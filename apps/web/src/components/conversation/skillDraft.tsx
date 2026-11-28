@@ -40,11 +40,11 @@ export function SkillDraftBtn({ session, item, agent }: { session: string; item:
       type="button"
       className={"ix mact c2r-btn" + (on ? " on" : "")}
       aria-expanded={on}
+      aria-label={t("sk2.btn")}
       title={t("sk2.btnTitle")}
       onClick={() => setAnchor(session, on ? undefined : { item, agent, upto: Number(item) })}
     >
       <Sparkles size={14} />
-      <span>{t("sk2.btn")}</span>
     </button>
   );
 }

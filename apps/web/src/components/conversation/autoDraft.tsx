@@ -75,11 +75,11 @@ export function AutoDraftBtn({ session, item, agent }: { session: string; item: 
       type="button"
       className={"ix mact c2r-btn" + (on ? " on" : "")}
       aria-expanded={on}
+      aria-label={t("c2r.btn")}
       title={t("c2r.btnTitle")}
       onClick={() => setAnchor(session, on ? undefined : { item, agent, upto: Number(item) })}
     >
       <Repeat size={14} />
-      <span>{t("c2r.btn")}</span>
     </button>
   );
 }
