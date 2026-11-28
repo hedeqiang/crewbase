@@ -28,6 +28,7 @@ import { FoldedWords, withoutMediaSteps } from "./steps";
 import { LiveThought, Segment, ThoughtRow, thoughtMs, timeline } from "./timeline";
 import { splitStarters, Starters } from "./other";
 import { AutoDraftBtn, AutoDraftSlot } from "./autoDraft";
+import { SkillDraftBtn, SkillDraftSlot } from "./skillDraft";
 
 function CopyBtn({ text }: { text: string }) {
   const { copied, copy } = useCopy();
@@ -240,6 +241,8 @@ export function UserMsg({ it }: { it: Extract<FeedItem, { k: "user" }> }) {
 }
 
 export function AgentMsg({ it, agent, showModel, bare, opened, extra, fold }: { it: AgentItem; agent?: AgentView; showModel: boolean; bare?: boolean; opened?: string[]; extra?: ReactNode; fold?: boolean }) {
+  // saving a skill is the desktop's (a paired phone cannot)
+  const manage = useStore((s) => s.tier === "desktop");
   const models = useStore((s) => s.models);
   const [reading, setReading] = useState(false);
   const acts = useContext(MsgCtx);
@@ -318,6 +321,7 @@ export function AgentMsg({ it, agent, showModel, bare, opened, extra, fold }: { 
             {it.text && <PinBtn target={Number(it.id)} />}
             {it.stats && it.turnInput && it.turnEnded && <UndoTurnBtn agent={it.agent} turn={it.turnInput} ended={it.turnEnded} session={feedSession} seq={Number(it.id)} />}
             {it.stats && it.turnEnded && feedSession && !it.superseded && <AutoDraftBtn session={feedSession} item={it.id} agent={it.agent} />}
+            {it.stats && it.turnEnded && feedSession && !it.superseded && manage && <SkillDraftBtn session={feedSession} item={it.id} agent={it.agent} />}
             {canRegen && (
               <button
                 type="button"
@@ -351,6 +355,7 @@ export function AgentMsg({ it, agent, showModel, bare, opened, extra, fold }: { 
           </div>
         )}
         {it.stats && feedSession && <AutoDraftSlot session={feedSession} item={it.id} />}
+        {it.stats && feedSession && <SkillDraftSlot session={feedSession} item={it.id} />}
     </Wrap>
   );
 }

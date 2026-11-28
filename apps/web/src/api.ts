@@ -839,6 +839,17 @@ export interface Workflow {
   nextRun?: string;
   lastRun?: string;
 }
+/** 做成技能: a SKILL.md drafted from a stretch of conversation (POST …/skill-draft). */
+export interface SkillDraft {
+  name: string;
+  description: string;
+  /** the whole SKILL.md: front matter and body */
+  content: string;
+  model?: string;
+  from: number;
+  upto: number;
+}
+
 /** 从对话生成例行流程: a draft routine / workflow (POST …/automation-draft). */
 export interface AutoDraft {
   kind: "routine" | "workflow";
@@ -2150,6 +2161,9 @@ export const API = {
   workflowRun: (run: string) => api<WfRun>("GET", `/api/workflow-runs/${enc(run)}`),
   rerun: (run: string, from: string) => api<WfRun>("POST", `/api/workflow-runs/${enc(run)}/rerun`, { from }),
   cancelRun: (run: string) => api("POST", `/api/workflow-runs/${enc(run)}/cancel`),
+  skillDraft: (session: string, b: { agent: string; upto: number; scope: "turn" | "all" }) => api<SkillDraft>("POST", `/api/sessions/${enc(session)}/skill-draft`, b),
+  /** a skill written in the app: for one agent (its workspace), or every agent */
+  saveSkill: (b: { name: string; content: string; agent?: string }) => api<{ name: string; dir: string }>("POST", "/api/skills", b),
   automationDraft: (session: string, b: { agent: string; upto: number; scope: "turn" | "all"; kind?: "routine" | "workflow" }) =>
     api<AutoDraft>("POST", `/api/sessions/${enc(session)}/automation-draft`, b),
 

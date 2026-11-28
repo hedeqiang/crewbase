@@ -438,7 +438,7 @@ type access interface {
 var Plugin = kernel.Register(kernel.Spec{
 	Name:        "@crewbase/automation-draft",
 	Inject:      []string{gateway.ServiceKey, agent.ServiceKey, llm.ServiceKey},
-	Description: "Drafts a routine or workflow from a stretch of conversation (从对话生成例行流程).",
+	Description: "Drafts a routine or workflow (从对话生成例行流程) or a skill (做成技能) from a stretch of conversation.",
 	Apply: func(c *kernel.Context) error {
 		g := kernel.Use[*gateway.Gateway](c, gateway.ServiceKey)
 		s := &Service{c: c, agents: kernel.Use[*agent.Registry](c, agent.ServiceKey), llms: kernel.Use[*llm.Registry](c, llm.ServiceKey)}
@@ -472,6 +472,36 @@ var Plugin = kernel.Register(kernel.Spec{
 					return nil, &gateway.Error{Status: 403, Code: "forbidden", Message: "you cannot give this agent a routine"}
 				}
 				d, err := s.Make(ctx, ss, b)
+				if err != nil {
+					return nil, gateway.Conflict("%v", err)
+				}
+				return d, nil
+			}})
+		// 做成技能: a SKILL.md drafted from the same stretch of conversation
+		g.Handle(c, gateway.Route{Method: "POST", Path: "/api/sessions/{id}/skill-draft",
+			Validate: func(r *gateway.Request) error {
+				var b Request
+				if err := r.Decode(&b); err != nil {
+					return err
+				}
+				if b.Scope != "" && b.Scope != ScopeTurn && b.Scope != ScopeAll {
+					return gateway.BadRequest("scope must be turn or all")
+				}
+				return nil
+			},
+			Handle: func(ctx context.Context, r *gateway.Request) (any, error) {
+				var b Request
+				_ = r.Decode(&b)
+				id := r.Params["id"]
+				acc, _ := kernel.Lookup[access](c, "access")
+				if acc != nil && !acc.Session(r.DeviceID, id) {
+					return nil, gateway.NotFound()
+				}
+				ss, err := s.agents.Sessions().Get(id)
+				if err != nil {
+					return nil, gateway.NotFound()
+				}
+				d, err := s.MakeSkill(ctx, ss, b)
 				if err != nil {
 					return nil, gateway.Conflict("%v", err)
 				}
