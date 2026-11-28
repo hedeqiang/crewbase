@@ -34,7 +34,7 @@
 1. **Harness 的文件沙箱只管文件效果，不管网络和进程可见性**。我们的容器模式要管网络，因此网络是**第三个独立旋钮**，由 `sandbox-docker` 等提供方实现（Docker 网络策略或出站代理白名单）。
 2. **沙箱策略随每次调用携带**，不固定在提供方上。优先级：本次已批准的显式模式 > 会话当前模式 > 部署默认值。
 3. **一次性提权就是一次新调用**：Agent 请求更宽的权限时走审批，批准后只对这一次调用生效。
-4. **执行程度必须如实上报**。提供方返回 `enforcement: full | partial`。旧内核的 Landlock、Windows 等无法完全执行的情况报告 `partial`，界面在权限下拉旁显示「部分隔离」提示。
+4. **执行程度必须如实上报**。提供方返回 `enforcement: full | partial`。无法完全执行的情况（例如网络白名单只能放开网络）报告 `partial`，界面在权限下拉旁显示「部分隔离」提示。
 5. **后端不可用时关闭式失败**。沙箱后端不可用（例如 Docker 未启动）时报 `SANDBOX_UNAVAILABLE`，绝不静默降级为不隔离直接执行。
 6. **区分「被沙箱拦截」与「沙箱自身故障」**。提供方给出拦截特征（如 stderr 模式），让 Agent 知道该请求提权，而不是反复重试。
 7. **C 模式由人开启**：开启时展开确认条，开启后一直有效，直到人切回 B。规则引擎的 Ask / Block 在 C 模式下继续生效。（早期版本的授权 24 小时后自动恢复 B；升级时仍在有效期内的授权改为长期有效，已过期的保持 B。）
@@ -45,10 +45,19 @@
 
 | 平台 | 提供方 | 技术 |
 |---|---|---|
-| Linux | `sandbox-namespace` | bubblewrap / Landlock + seccomp |
-| Linux / macOS / Windows | `sandbox-docker` | Docker Rootless，`--security-opt no-new-privileges:true`，自定义 seccomp profile，`--shm-size 1g` |
-| macOS | `sandbox-seatbelt` | `sandbox-exec` 配置文件 |
-| 远程 | `sandbox-ssh` | 在远程主机上执行，配合远程主机自己的沙箱 |
+| macOS（默认） | `sandbox-seatbelt` | `sandbox-exec` 配置文件，按每次调用的策略生成 |
+| Linux（默认） | `sandbox-namespace` | bubblewrap：整个文件系统只读挂载、可写目录单独绑定，新的 PID / IPC / UTS / 网络命名空间，丢弃 capabilities；需要非特权 user namespace 或 setuid 的 bwrap |
+| 其他平台（默认）/ 任意平台可选 | `sandbox-docker` | 容器里执行：`--security-opt no-new-privileges:true`、`--shm-size 1g`、工作区绑定挂载、`--network none`；可选自定义 seccomp profile（`seccompProfile`）和 `--user` |
+| 任意平台 | `sandbox-none` | 不做隔离：沙箱模式下直接拒绝运行命令，只用于没有可用后端的环境 |
+
+默认按平台选择（`bundles/bundles.go` 的 `defaultSandbox`），可以用补丁换成其他提供方：
+
+```yaml
+- id: sandbox
+  name: '@crewbase/sandbox-docker'
+```
+
+网络白名单目前没有按域名过滤的出站代理：三个隔离后端遇到 `allowlist` 都只能放开网络，并如实上报 `enforcement: partial`。远程主机上的执行由那台主机上的 `crewd` 和它自己的沙箱负责（见第 8 节「远程主机与多端」），没有单独的 SSH 沙箱后端。
 
 ## 3. 规则引擎：Allow / Ask / Block
 

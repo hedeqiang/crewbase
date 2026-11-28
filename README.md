@@ -28,7 +28,7 @@
 
 Crewbase runs a team of agents on your own machine or server. Each agent has its own workspace, models and permissions; they hand work to each other in channels, delegate to sub-agents, and stop to ask you before anything risky. Everything they do is written to a local, append-only log.
 
-> **Status:** early preview (0.1). Interfaces and storage formats may still change between minor versions.
+> **Status:** pre-1.0 (0.9.x), released often. Interfaces and storage formats may still change between minor versions; the [changelog](CHANGELOG.md) lists every release.
 
 ## Highlights
 

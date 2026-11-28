@@ -34,7 +34,7 @@ macOS 签名用一张固定的自签名代码签名证书（`MACOS_SIGNING_P12`�
 
 ## 发一个版本
 
-1. 改 `apps/desktop/mygo.json` 的 `version`（例如 `0.2.0`）
+1. 改 `apps/desktop/mygo.json` 的 `version`（例如 `0.2.0`），`apps/web/package.json` 的 `version` 改成同一个（流水线会核对两者一致）
 2. 在 `CHANGELOG.md` 加 `## 0.2.0` 一节——这就是应用内"查看更新内容"显示的说明
 3. 提交并推送标签：
 

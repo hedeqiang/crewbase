@@ -31,7 +31,9 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - name: Check the version
-        run: test "$GITHUB_REF_NAME" = "v$(jq -r .version apps/desktop/mygo.json)"
+        run: |
+          test "$GITHUB_REF_NAME" = "v$(jq -r .version apps/desktop/mygo.json)"
+          test "$(jq -r .version apps/web/package.json)" = "$(jq -r .version apps/desktop/mygo.json)" || { echo "::error::apps/web/package.json version differs from apps/desktop/mygo.json"; exit 1; }
       - name: Check the changelog
         run: grep -qE "^## \[?${GITHUB_REF_NAME#v}\]?( |$)" CHANGELOG.md
       - name: Check the update key
