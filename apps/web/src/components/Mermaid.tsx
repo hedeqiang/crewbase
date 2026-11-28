@@ -1,7 +1,9 @@
 // ```mermaid blocks drawn as diagrams. Mermaid is large, so it is loaded
 // the first time a diagram is on screen; its output is SVG made with
 // securityLevel "strict" (no scripts, no click handlers, HTML labels
-// sanitized). Source and diagram can be switched, the diagram opens
+// sanitized), then passed through DOMPurify's SVG profile before it is
+// put in the page (a second line, should Mermaid let something through).
+// Source and diagram can be switched, the diagram opens
 // full size, and while an answer is still streaming the source shows
 // until the block is complete.
 
@@ -19,6 +21,23 @@ let themeOf = "";
 function isDark(): boolean {
   const th = document.documentElement.dataset.theme;
   return th ? th === "dark" : window.matchMedia("(prefers-color-scheme: dark)").matches;
+}
+
+type Purify = typeof import("dompurify").default;
+let purifying: Promise<Purify> | null = null;
+
+/** The SVG Mermaid made, with anything that is not drawing removed:
+ *  scripts, event handlers, foreignObject (labels are SVG text here),
+ *  links out and external references. Its <style> (the theme) stays. */
+async function clean(svg: string): Promise<string> {
+  purifying ??= import("dompurify").then((m) => m.default);
+  const p = await purifying;
+  return p.sanitize(svg, {
+    USE_PROFILES: { svg: true, svgFilters: true },
+    ADD_TAGS: ["style"],
+    FORBID_TAGS: ["foreignObject", "script", "a", "image", "use"],
+    FORBID_ATTR: ["href", "xlink:href"],
+  });
 }
 
 async function mermaid(): Promise<MermaidAPI> {
@@ -78,8 +97,9 @@ export function MermaidBlock({ code }: { code: string }) {
           const m = await mermaid();
           await m.parse(text);
           const out = await m.render(id + (dark ? "d" : "l"), text);
+          const safe = await clean(out.svg);
           if (live) {
-            setSvg(out.svg);
+            setSvg(safe);
             setErr(null);
           }
         } catch (e: any) {

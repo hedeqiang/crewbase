@@ -11,6 +11,9 @@ importers:
       '@lobehub/icons-static-svg':
         specifier: ^1.102.0
         version: 1.102.0
+      dompurify:
+        specifier: 3.4.18
+        version: 3.4.18
       highlight.js:
         specifier: 11.12.0
         version: 11.12.0
