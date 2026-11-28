@@ -259,9 +259,10 @@ export function Models() {
                   {t("set.exhaustedUntil", { model: x.model, time: until(x.until) })}
                 </div>
               ))}
-              {/* 额度 only where the provider tells it (a gateway's
-                  accounts, a balance); none for an API that does not */}
-              {(cur.quota?.accounts?.length || cur.quota?.known) && (
+              {/* 额度 only where the provider tells it (a balance) and only
+                  for a provider itself: a gateway's (magpie) is not shown —
+                  its accounts are magpie's to show; routing still reads it */}
+              {cur.kind !== "gateway" && (cur.quota?.accounts?.length || cur.quota?.known) && (
                 <>
                   <div className="psec2">{t("set.quota")}</div>
                   {/* vendor cards bring their own frames; a lone balance sits in the box */}
