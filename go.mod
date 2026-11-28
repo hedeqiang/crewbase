@@ -4,20 +4,20 @@ go 1.27.4
 
 require (
 	github.com/BurntSushi/toml v1.6.0
-	github.com/anthropics/anthropic-sdk-go/v2 v2.9.0
+	github.com/anthropics/anthropic-sdk-go/v2 v2.15.0
 	github.com/bwmarrin/discordgo v0.29.0
-	github.com/chromedp/cdproto v0.160.1
-	github.com/chromedp/chromedp v0.23.1
+	github.com/chromedp/cdproto v0.160.12
+	github.com/chromedp/chromedp v0.24.0
 	github.com/coder/websocket v1.8.15
-	github.com/ebitengine/purego v0.11.1
+	github.com/ebitengine/purego v0.11.3
 	github.com/egoist/mygo v0.9.0
-	github.com/gorilla/websocket v1.5.3
-	github.com/larksuite/oapi-sdk-go/v3 v3.12.2
-	github.com/ledongthuc/pdf v0.0.0-20261020125853-5e46805f718e
+	github.com/gorilla/websocket v1.5.4-0.20250319132907-e064f32e3674
+	github.com/larksuite/oapi-sdk-go/v3 v3.14.0
+	github.com/ledongthuc/pdf v0.0.0-20261125152515-e8918f005efa
 	github.com/modelcontextprotocol/go-sdk v1.9.0-pre.1
 	github.com/mozillazg/go-pinyin v0.21.0
 	github.com/openai/openai-go/v3 v3.108.0
-	github.com/slack-go/slack v0.35.0
+	github.com/slack-go/slack v0.36.0
 	github.com/tetratelabs/wazero v1.12.0
 	go.opentelemetry.io/otel v1.47.0
 	go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetrichttp v1.47.0
@@ -27,14 +27,14 @@ require (
 	go.opentelemetry.io/otel/sdk/metric v1.47.0
 	go.opentelemetry.io/otel/trace v1.47.0
 	go.opentelemetry.io/proto/otlp v1.11.1
-	golang.org/x/net v0.62.0
+	golang.org/x/net v0.63.0
 	golang.org/x/oauth2 v0.38.0
 	golang.org/x/sys v0.50.0
 	golang.org/x/time v0.16.0
-	google.golang.org/genai v1.77.0
+	google.golang.org/genai v1.79.1
 	google.golang.org/protobuf v1.36.12
 	gopkg.in/yaml.v3 v3.0.1
-	modernc.org/sqlite v1.62.0
+	modernc.org/sqlite v1.63.0
 )
 
 require (
